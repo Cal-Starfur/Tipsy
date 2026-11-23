@@ -40,17 +40,36 @@ const KINDS = pos ? pos.split(',') : KINDS_ALL.slice(), PNG = arg('--png', null)
       const X = s.camX, Y = s.camY, faces = [], byObj = new WeakMap(), byXY = new Map();
       const W0 = s.W; s.W = function(x, y, z){ const p = W0.call(this, x, y, z); const w = [x - X, y - Y, z]; byObj.set(p, w);
         const k = Math.round(p.x*100) + ',' + Math.round(p.y*100); byXY.set(k, byXY.has(k) && byXY.get(k) && byXY.get(k).join() !== w.join() ? null : w); return p; };
+      /* A CLIPPED FACE IS TRACED TOO (a vendor in a hatch, riders in a tub, a wheel in its arch): clipConvex cuts a face to a window and hands
+         on new points, which W never made. The cut is run here alongside, each new point carried in 3D along the edge it cuts (the
+         projection is affine), so a face is checked as far as it is painted */
+      const look = p => byObj.get(p) || byXY.get(Math.round(p.x*100) + ',' + Math.round(p.y*100)) || null;
+      const CC0 = window.clipConvex;
+      window.clipConvex = function(pts, clip){
+        let cur = pts.map(p => ({ p: { x: p.x, y: p.y }, w: look(p) }));
+        let area = 0; for(let i = 0; i < clip.length; i++){ const a = clip[i], b = clip[(i+1)%clip.length]; area += a.x*b.y - b.x*a.y; }
+        const sg = area < 0 ? -1 : 1;
+        for(let i = 0; i < clip.length && cur; i++){
+          const A = clip[i], B = clip[(i+1)%clip.length], ex = B.x - A.x, ey = B.y - A.y, side = p => sg*(ex*(p.y - A.y) - ey*(p.x - A.x)), out = [];
+          for(let j = 0; j < cur.length; j++){ const P0 = cur[j], Q0 = cur[(j+1)%cur.length], sp = side(P0.p), sq = side(Q0.p);
+            if(sp >= 0) out.push(P0);
+            if((sp >= 0) !== (sq >= 0)){ const f = sp/(sp - sq);
+              out.push({ p: { x: P0.p.x + (Q0.p.x - P0.p.x)*f, y: P0.p.y + (Q0.p.y - P0.p.y)*f }, w: P0.w && Q0.w ? P0.w.map((v, k) => v + (Q0.w[k] - v)*f) : null }); } }
+          cur = out.length >= 3 ? out : null; }
+        if(!cur) return null;
+        for(const c of cur) if(c.w) byObj.set(c.p, c.w);
+        return cur.map(c => c.p); };
       const g = s.add.graphics(); let col = 0, alp = 1;
       const fs0 = g.fillStyle.bind(g); g.fillStyle = (c, a) => { col = c; alp = a == null ? 1 : a; return fs0(c, a); };
       const fp0 = g.fillPoints.bind(g); g.fillPoints = (pts, ...r) => {
-        const w3 = pts.map(p => byObj.get(p) || byXY.get(Math.round(p.x*100) + ',' + Math.round(p.y*100)) || null);
+        const w3 = pts.map(look);
         /* (a translucent face -- shading laid over a part, a crease -- is paint, not a part) */
         faces.push({ w3: w3.every(Boolean) && alp > 0.95 ? w3 : null, col, line: lineOf(), hole: !!s._paintHole }); return fp0(pts, ...r); };
       const save = { xr: XRAY.propMax, vb: s._visBlocks }; XRAY.propMax = 0; s._visBlocks = null;
       try { if(kind.startsWith('car:')) s.drawCar(g, kind.slice(4), X, Y, 0, 1000, fdir, 0, 7, null);
             else if(kind.startsWith('van:')) s.drawVan(g, kind.slice(4), X, Y, 0, 1000, fdir, 0, 7, null);
             else s.drawProp(g, kind, X, Y, 1000, fdir, 0, 0, 7, null); } catch(e){ res.push({ kind, fdir, err: String(e).slice(0, 100) }); }
-      XRAY.propMax = save.xr; s._visBlocks = save.vb; s.W = W0; g.destroy();
+      XRAY.propMax = save.xr; s._visBlocks = save.vb; s.W = W0; window.clipConvex = CC0; g.destroy();
       /* the depth grid */
       const F = faces.map((f, i) => Object.assign(f, { i })).filter(f => f.w3 && f.w3.length >= 3);
       const pr = ([x, y, z]) => [(x - y)*R, ((x + y)/2 - z)*R];

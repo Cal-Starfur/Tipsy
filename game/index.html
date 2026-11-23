@@ -123335,13 +123335,20 @@ class WorldScene extends Phaser.Scene {
       const bedTop = !!B.bed && i >= B.bed.seg;
       segs.push(() => { const LF = loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps); if(B.bed && i >= B.bed.seg - 1) LF.open = true;   // (the body's last length before the bed is open at the bed's end: its silhouette filled over the bed hid the bed's front)
         solid(LF, col.body,
-        (k, n) => bedTop && n[2] > 0.95 ? null : (n[2] < -0.2 ? col.bodyDk : col.body)); });   // (the bed's own floor is sunk below, drawn with its walls)
+        (k, n) => bedTop && n[2] > 0.5 ? null : (n[2] < -0.2 ? col.bodyDk : col.body)); });   // (the bed's own floor is sunk below, drawn with its walls; > 0.5: the tail's last length, its top sloping down to the gate, is open too -- left on, it lay under the gate's rim and was painted over it)
     }
     /* the bumpers: dark plastic under each end, a plate on each */
     const bz = B.bumperZ || [21, 31];
-    const bumper = front => () => {
+    /* (part: 'in' the length under the body, 'out' the length standing out past its end with the hitch and plate, or the whole. The near end's
+       bumper goes in two: under the body before it, out past it after it -- the body's end was painted over the lip standing out in front
+       of it. Too small to be chamfered, so the two pieces are the one bumper) */
+    const bumper = (front, part) => () => {
       const a0 = front ? hl - 12 : -hl + 12, a1 = front ? hl + 2 : -hl - 2, sg = front ? 1 : -1;
-      solid(prismH([[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]].map(([a, b]) => [a, b]), bz[0], bz[1]), (B.stepBumper || has("chromeTrim")) && (!front || has("chromeTrim")) ? CHROME : TRIM);
+      const aE = front ? ST[0][0] : ST[ST.length - 1][0], bAt = a => hw - 3 - 4*(a - a0)/(a1 - a0);
+      const pl = part === 'in' ? [[a0, -hw + 3], [aE, -bAt(aE)], [aE, bAt(aE)], [a0, hw - 3]]
+        : part === 'out' ? [[aE, -bAt(aE)], [a1, -hw + 7], [a1, hw - 7], [aE, bAt(aE)]] : [[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]];
+      solid(prismH(pl, bz[0], bz[1]), (B.stepBumper || has("chromeTrim")) && (!front || has("chromeTrim")) ? CHROME : TRIM);
+      if(part === 'in') return;
       if(B.stepBumper && !front){                                   // the tow hitch and its ball
         solid(prismH([[a1 - 10, -3], [a1, -3], [a1, 3], [a1 - 10, 3]], 20, 24), 0x2a2f36);
         const hb = P(a1 - 9, 0, 26.5); g.fillStyle(0xc9ced3, 1); g.fillCircle(hb.x, hb.y, 2.6*this.K*0.42);
@@ -123354,7 +123361,7 @@ class WorldScene extends Phaser.Scene {
     };
     /* the bumpers first: each runs back under the body, and the body must
        cover that part. Then the body, nose first or tail first, nearest last */
-    bumper(!nose)(); bumper(nose)();
+    bumper(!nose)(); bumper(nose, 'in')();
     /* ---- the pickup's bed: a real bed, SUNK into the body (Sir, 2026-11-11: "it shouldn't be built up at all ... we are
        compensating for the rear of the truck not being an actual bed by building up instead of in"): the body's own sides, flush with
        its beltline, are the walls, and the floor is let down inside them to FL. THE BODY'S TOP IS LEFT OPEN over the bed (its segments
@@ -123362,7 +123369,7 @@ class WorldScene extends Phaser.Scene {
        painted BEFORE the body, so the near flank and the near end cover their foot where they should; nothing is painted over the
        body from inside it (that was the dark wedge beside the cab, and the lumps at the tail's corner). Only the rims on top of the
        near side and the near end are painted after (bedNear) ---- */
-    let bedNear = null;
+    let bedNear = null, bedFar = null;
     if(B.bed){
       const B0 = -hl + 1, B1 = B.gh.r0 - 1, HT = B.bed.top, FL = 48;   // (B1: the bed runs right up to the cab's rear pillar, no slot between)
       /* the body's half width at a (its stations, in line between them): the walls stand on it */
@@ -123387,11 +123394,13 @@ class WorldScene extends Phaser.Scene {
         }
         Q([P(a, -7, HT - 9), P(a, 7, HT - 9), P(a, 7, HT - 5), P(a, -7, HT - 5)], TRIM);   // the gate's handle
       };
-      (nose ? gate(FL) : front(FL))();      // (the end away from the eye)
-      wall(-nearB, FL)();                   // (the far wall, its inside showing)
+      /* the end away from the eye and the far wall, its inside showing: with the tail to the eye they stand on the length before the bed (its
+         top runs back under the front wall's foot), so they go after that length and before the bed's own (bedFar, below) */
+      bedFar = () => { (nose ? gate(FL) : front(FL))(); wall(-nearB, FL)(); };
       bedNear = () => { wall(nearB, 62)(); (nose ? front(66) : gate(36))(); };
     }
-    for(const f of (nose ? segs.slice().reverse() : segs)) f();
+    if(bedFar && nose) bedFar();
+    (nose ? segs.slice().reverse() : segs).forEach((f, k) => { f(); if(bedFar && !nose && k === B.bed.seg - 1) bedFar(); });
 
     /* ---- the ends ---- */
     if(nose){
@@ -123432,6 +123441,7 @@ class WorldScene extends Phaser.Scene {
           Q([P(a + 0.1, sb*33.6, 40), P(a + 0.1, sb*36, 40), P(a + 0.1, sb*36, 46.5), P(a + 0.1, sb*33.6, 46.5)], AMBER);
         }
       }
+      bumper(true, 'out')();                                 // (the near bumper's lip, out past the body's end: over the end, its grille and lamps, which run down behind it)
       if(has("pushbar")){                                    // the push bar (the cruiser's; the off-roader's bull bar)
         solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 26, 30), 0x15171b);
         solid(prismH([[hl + 2, -22], [hl + 6, -22], [hl + 6, 22], [hl + 2, 22]], 40, 44), 0x15171b);
@@ -123462,7 +123472,9 @@ class WorldScene extends Phaser.Scene {
           Q([P(a - 0.1, sb*21, 44.5 + d), P(a - 0.1, sb*23.4, 44.5 + d), P(a - 0.1, sb*23.4, 52.5 + d), P(a - 0.1, sb*21, 52.5 + d)], 0xe9ecef);
         }
       }
-      if(!has("spare")) Q([P(a, -10, 32), P(a, 10, 32), P(a, 10, 38 + Math.max(0, 2 + (B.tailDrop || 0))), P(a, -10, 38 + Math.max(0, 2 + (B.tailDrop || 0)))], PLATE);
+      bumper(false, 'out')();                                // (the near bumper's lip, out past the body's end, over it and its lamps)
+      { const ap = 32 < bz[1] ? -hl - 2.5 : a;               // (where the bumper stands up past the plate's foot, the plate is hung on the bumper's face, in front of it, not behind it)
+        if(!has("spare")) Q([P(ap, -10, 32), P(ap, 10, 32), P(ap, 10, 38 + Math.max(0, 2 + (B.tailDrop || 0))), P(ap, -10, 38 + Math.max(0, 2 + (B.tailDrop || 0)))], PLATE); }
       if(B.bootLine){ const bh = B.bootH || 56; line([a - 0.1, -30, bh], [a - 0.1, 30, bh], col.bodyDk, 1.2); }   // the boot lid's edge
       if(has("spare")){                                      // the off-roader's spare wheel, on the tail gate
         const sa = -hl - 6, sc = 46, rings = (aa, rr) => { const p = []; for(let k = 0; k < 12; k++){ const ph = k/12*Math.PI*2; p.push(P(aa, Math.cos(ph)*rr, sc + Math.sin(ph)*rr)); } return p; };
@@ -123517,12 +123529,15 @@ class WorldScene extends Phaser.Scene {
     }
 
     /* ---- the pickup's bed, its near side and near end (the rest was drawn before the body: bedNear, above) ---- */
-    if(bedNear) bedNear();
+    if(bedNear && nose) bedNear();          // (with the tail to the eye the near wall and the gate stand in front of the cab's back: after it, below)
 
     /* ---- what stands on the bonnet and the boot: drawn before the cab
        when it is the far end, after it when it is the near one ---- */
-    const stripeOn = (a0, a1, zf) => { if(!has("stripes")) return; for(const sb of [-1, 1])
-      Q([P(a0, sb*3, zf(a0) + 0.3), P(a1, sb*3, zf(a1) + 0.3), P(a1, sb*10, zf(a1) + 0.3), P(a0, sb*10, zf(a0) + 0.3)], CK.stripe || 0xf4f5f2); };
+    /* (laid on the top length by length, broken at the body's stations: one chord from end to end ran under the top where it rises between them) */
+    const stripeOn = (a0, a1, zf) => { if(!has("stripes")) return;
+      const A = [a0].concat(ST.map(s_ => s_[0]).filter(a => (a - a0)*(a - a1) < 0).sort((p, q) => (p - q)*(a1 - a0)), [a1]);
+      for(const sb of [-1, 1]) for(let k = 0; k + 1 < A.length; k++){ const u = A[k], v = A[k + 1];
+        Q([P(u, sb*3, zf(u) + 0.3), P(v, sb*3, zf(v) + 0.3), P(v, sb*10, zf(v) + 0.3), P(u, sb*10, zf(u) + 0.3)], CK.stripe || 0xf4f5f2); } };
     const atFront = () => {
       stripeOn(hl - 8, aCowl, topAt);
       if(has("scoop")){ const s0 = aCowl + 6, s1 = aCowl + 30, h0 = topAt(s1) - 1;
@@ -123533,7 +123548,8 @@ class WorldScene extends Phaser.Scene {
       stripeOn(B.gh.r0 - 4, -hl + 4, topAt);
       if(has("fins")) for(const sb of (nearB > 0 ? [-1, 1] : [1, -1])){       // the 50s tail fins, a round lamp in each tip
         const fa0 = -hl + 62, fz = topAt(fa0);
-        solid(prismB([[fa0, fz], [-hl + 1, topAt(-hl + 2)], [-hl + 1, fz + 8], [fa0 - 14, fz + 1]], sb*(hw - 5), sb*(hw - 1)), col.body);
+        const foot = ST.map(s_ => s_[0]).filter(a => a < fa0 && a > -hl + 1).sort((p, q) => q - p).map(a => [a, topAt(a)]);   // (its foot on the body's top through the stations, not a chord under it)
+        solid(prismB([[fa0, fz]].concat(foot, [[-hl + 1, topAt(-hl + 2)], [-hl + 1, fz + 8], [fa0 - 14, fz + 1]]), sb*(hw - 5), sb*(hw - 1)), col.body);
         line([fa0 - 12, sb*(hw - 1.2), fz + 1.4], [-hl + 1, sb*(hw - 1.2), fz + 7.8], CHROME, 1.4);
         if(!nose){ const lp = []; for(let k = 0; k < 8; k++){ const ph = k/8*Math.PI*2; lp.push(P(-hl + 0.6, sb*(hw - 3) + Math.cos(ph)*2.2, fz + 4.5 + Math.sin(ph)*2.2)); } Q(lp, CR.tail); }
       }
@@ -123618,10 +123634,14 @@ class WorldScene extends Phaser.Scene {
         if(clip) this.quadOn = (gg, pts, col, aa) => { const cp = clipConvex(pts, clip); if(cp) prevQ.call(this, gg, cp, col, aa); };
         try {
         const IN = 0x2b2622, WALL = 0x3a322c, af = GH.f0 - 2, ar = GH.r0 + 4, wb = hw - 7;
+        /* (the well's floor and far walls are the opening in the body's top: a hole, which props kit SP13's test sees what stands in as behind) */
+        this._paintHole = true;
+        try {
         Q([P(af, -wb, fl), P(af, wb, fl), P(ar, wb, fl), P(ar, -wb, fl)], IN);                                    // the floor
         Q([P(ar, -nearB*wb, fl), P(af, -nearB*wb, fl), P(af, -nearB*wb, deck), P(ar, -nearB*wb, deck - 4)], WALL);  // the far side's inside
         if(nose) Q([P(ar, -wb, fl), P(ar, wb, fl), P(ar, wb, deck - 4), P(ar, -wb, deck - 4)], shadeC(WALL, 0.9));   // the far end's inside
         else Q([P(af, -wb, fl), P(af, wb, fl), P(af, wb, deck), P(af, -wb, deck)], shadeC(WALL, 0.9));
+        } finally { this._paintHole = false; }
         const base = (sa, b0, b1) => solid(prismH([[sa - 10, b0], [sa + 6, b0], [sa + 6, b1], [sa - 10, b1]], fl, Z), 0x7a5640);
         const back = (sa, b0, b1) => solid(prismH([[sa - 13, b0], [sa - 8, b0], [sa - 8, b1], [sa - 13, b1]], fl, deck + 8), 0x7a5640);
         const seat = (sa, b0, b1) => { base(sa, b0, b1); back(sa, b0, b1); };
@@ -123662,7 +123682,7 @@ class WorldScene extends Phaser.Scene {
       const own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
       this.quadOn = (gg, pts, cl, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, cl, aa); };
       try {
-        prevQ.call(this, g, hull, 0x5f5850);                                                                     // (the cab's own dark first, the whole pane: nothing of the world behind the car shows through its glass)
+        this._paintHole = true; try { prevQ.call(this, g, hull, 0x5f5850); } finally { this._paintHole = false; }   // (a hole, for props kit SP13's test) (the cab's own dark first, the whole pane: nothing of the world behind the car shows through its glass)
         const WALL = 0x8a7f72, fl = H(30) - 10, Zc = fl + 14, wb = hw - 7, fb2 = -nearB*wb;
         const far = [[GH.f0, -nearB*GH.w0, deck], [GH.r0, -nearB*GH.w0, GH.hr0 || deck], [GH.r1, -nearB*GH.w1, GH.top], [GH.f1, -nearB*GH.w1, GH.top]];
         Q([P(GH.r0, fb2, fl), P(GH.f0, fb2, fl), P(GH.f0, fb2, deck), P(GH.r0, fb2, GH.hr0 || deck)], WALL);              // the far side's inside
@@ -123690,6 +123710,7 @@ class WorldScene extends Phaser.Scene {
       Q(f.q.map(p => P(p[0], p[1], p[2])), shadeC(f.col, lit(n)));
       if(f.glass) f.glass(f.q);
     } }
+    if(bedNear && !nose) bedNear();
     if(nose) line([GH.f0 + 2, -GH.w0 + 2, deck + 0.4], [GH.f0 + 2, GH.w0 - 2, deck + 0.4], TRIM, 1.6);   // the cowl
     mirror(nearB)();
     (nose ? atFront : atRear)();
@@ -123744,7 +123765,7 @@ class WorldScene extends Phaser.Scene {
       const W3 = [on(fq, u0, 0), on(fq, u1, 0), on(fq, u1, v1), on(fq, u0, v1)];        // (the window's hole: [a, b, h] on the face)
       const pieces = [[P(aT, fb, H(30)), P(aH, fb, H(30)), P(aH, fb, deck), P(aT, fb, deck)], W3.map(p => P(p[0], p[1], p[2]))];
       for(const op of pieces){
-        Q(op, 0x4a443e);
+        this._paintHole = true; try { Q(op, 0x4a443e); } finally { this._paintHole = false; }   // (the opening: a hole, for props kit SP13's test)
         const hull = op.map(q => ({ x: q.x, y: q.y })), own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
         this.quadOn = (gg, pts, col, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, col, aa); };
         try {
@@ -123875,6 +123896,9 @@ class WorldScene extends Phaser.Scene {
 
     /* ---- the camera-facing flank: glass, sill, stripe, the word ---- */
     const fb = nearB*hw*1.006, fbH = nearB*wHood*1.006;
+    /* THE NOSE'S FLANK IS SET IN from the box's (wHood < hw): with the tail to the eye the box's front corner hides the nose's flank back
+       to aJ, read off the eye -- its sill, stripe and band start there, or they are painted over the corner in front of them (props kit SP13) */
+    const aJ = noseSeen || edgeOn ? aC : aC + Math.abs(fb - fbH)*Math.abs(KV.eye[0]/KV.eye[1]);
     /* the batch 4 vans' flank kit, in (a, h) on the near flank */
     const F = (pts, col, k = 1.002) => Q(pts.map(([a, h]) => P(a, fb*k, h)), col);
     const rect = (a0, a1, h0, h1, col, k) => F([[a0, h0], [a1, h0], [a1, h1], [a0, h1]], col, k);
@@ -123896,11 +123920,11 @@ class WorldScene extends Phaser.Scene {
       const [cw0, cw1] = VK && VK.cabWin ? [hH + VK.cabWin[0], hH + VK.cabWin[1]] : [hH + 6, hW - 12];
       const h0 = cw0, h1 = cw1;
       /* a two-tone camper's upper body, under its windows */
-      if(has("twoTone")) rect(-hl, aC, hH + 2, hR, L.top, 1.001);
+      if(has("twoTone")) F([[-hl, hH + 2], [aRake(hH + 2), hH + 2], [aW, hW]].concat(stepped ? [[aRise, hR]] : []).concat([[-hl, hR]]), L.top, 1.001);   // (to the flank's own front edge, the screen's rake: out to aC it stood in the air before the screen)
       const win = [P(aB, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aB, fb, h1)];
       Q(win, CR.glass); E(win, trim);
       Q([P(-hl, fb, cz), P(aC, fb, cz), P(aC, fb, cz + V.sill), P(-hl, fb, cz + V.sill)], trim);
-      Q([P(aC, fbH, cz), P(hl, fbH, cz), P(hl, fbH, cz + V.sill), P(aC, fbH, cz + V.sill)], trim);
+      Q([P(aJ, fbH, cz), P(hl, fbH, cz), P(hl, fbH, cz + V.sill), P(aJ, fbH, cz + V.sill)], trim);
       /* the door's shut line, behind the cab window */
       g.lineStyle(1, trim, 1);
       { const p0 = P(aB - 2, fb, cz + V.sill), p1 = P(aB - 2, fb, VK ? hW - 6 : h1); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
@@ -123926,7 +123950,7 @@ class WorldScene extends Phaser.Scene {
         /* the red band, and a red cross in the middle of the cargo panel */
         const [s0, s1] = V.stripe;
         Q([P(-hl, fb, s0), P(aC, fb, s0), P(aC, fb, s1), P(-hl, fb, s1)], L.brand);
-        Q([P(aC, fbH, s0), P(hl, fbH, s0), P(hl, fbH, s1), P(aC, fbH, s1)], L.brand);
+        Q([P(aJ, fbH, s0), P(hl, fbH, s0), P(hl, fbH, s1), P(aJ, fbH, s1)], L.brand);
         const ca = (-hl + aB)/2, ch = (s1 + hR)/2 + 4, R = 22, w = 7.5;
         Q([P(ca - w, fb*1.002, ch - R), P(ca + w, fb*1.002, ch - R), P(ca + w, fb*1.002, ch + R), P(ca - w, fb*1.002, ch + R)], L.red);
         Q([P(ca - R, fb*1.002, ch - w), P(ca + R, fb*1.002, ch - w), P(ca + R, fb*1.002, ch + w), P(ca - R, fb*1.002, ch + w)], L.red);
@@ -123934,7 +123958,7 @@ class WorldScene extends Phaser.Scene {
       if(tipsey){
         const [s0, s1] = V.stripe;
         Q([P(-hl, fb, s0), P(aC, fb, s0), P(aC, fb, s1), P(-hl, fb, s1)], L.brand);
-        Q([P(aC, fbH, s0), P(hl, fbH, s0), P(hl, fbH, s1), P(aC, fbH, s1)], L.brand);
+        Q([P(aJ, fbH, s0), P(hl, fbH, s0), P(hl, fbH, s1), P(aJ, fbH, s1)], L.brand);
         /* TIPSEY across the cargo panel, condensed to fit it: six 24-wide
            letters squeezed to su across, full 34 tall, and read the right
            way round from whichever side is shown -- along +a when +a runs
@@ -123951,7 +123975,7 @@ class WorldScene extends Phaser.Scene {
           if(gl.cut) Q(gl.cut.map(([u, v]) => at(i, u, v)), L.body);
         });
       }
-      if(VK) this.drawVanDress(VK, has, { P, Q, F, rect, disc, word, line, solid, prismH, shadeC, L, CR, V, fb, fbH, nearB, hl, hw, cz, hR, hW, hH, aC, aW, aB, aRise, bd0, bd1, trim, t, data, g, vx: x, vy: y, vz: z, fdir });
+      if(VK) this.drawVanDress(VK, has, { P, Q, F, rect, disc, word, line, solid, prismH, shadeC, L, CR, V, fb, fbH, aJ, nearB, hl, hw, cz, hR, hW, hH, aC, aW, aB, aRise, bd0, bd1, trim, t, data, g, vx: x, vy: y, vz: z, fdir });
       /* the mirror, on the door's front corner */
       const m = [P(aC - 6, fb + nearB*7, hH + 8), P(aC - 1, fb + nearB*7, hH + 8),
                  P(aC - 1, fb + nearB*7, hH + 20), P(aC - 6, fb + nearB*7, hH + 20)];
@@ -124079,7 +124103,7 @@ class WorldScene extends Phaser.Scene {
     const hatchNear = !(k.data && k.data.vend !== undefined) || nearB > 0;
     const has = f => (hatchNear || (f !== "serve" && f !== "awning" && f !== "flap")) && has0(f);
     const GLASS = 0x4a5560, DARK = 0x2a2e35, STEEL = 0xb9bdc2, WHITE = 0xf4f5f2;
-    const FH = (pts, col) => Q(pts.map(([a, h]) => P(a, fbH*1.002, h)), col);
+    const FH = (pts, col) => Q(pts.map(([a, h]) => P(Math.max(a, k.aJ), fbH*1.002, h)), col);   // (on the nose's flank: from where the box's corner stops hiding it, aJ)
     if(has("band")){
       rect(-hl, aC, bd0, bd1, L.band);
       if(bd1 <= k.V.hoodF) FH([[aC, bd0], [hl, bd0], [hl, bd1], [aC, bd1]], L.band);
@@ -124122,8 +124146,11 @@ class WorldScene extends Phaser.Scene {
     if(has("serve") && vend > 0){
       wa1 = pa1 - 6; wa0 = wa1 - (pa1 - pa0)*0.44; sv0 = hH + 8; sv1 = hR - (has0("flap") ? 20 : 22);
       rect(wa0 - 2, wa1 + 2, sv0 - 2, sv1 + 2, trim);
-      rect(wa0, wa1, sv0, sv1, DARK, 1.003);
-      rect(wa0, wa1, sv1 - 10, sv1 - 4, shadeC(L.body, 0.55), 1.004);         // the shelf at the back
+      /* (the opening and the shelf at its back are a hole in the flank, not faces on it: props kit SP13's test sees the vendor in it as behind it) */
+      this._paintHole = true;
+      try { rect(wa0, wa1, sv0, sv1, DARK, 1.003);
+        rect(wa0, wa1, sv1 - 10, sv1 - 4, shadeC(L.body, 0.55), 1.004); }       // the shelf at the back
+      finally { this._paintHole = false; }
       /* THE VENDOR, A PERSON IN THE TRUCK (Sir: "the worker in the van is
          just a flat drawing on a blank black background"): the people's
          own hull, stood on the truck's floor just inside the near wall,
@@ -124145,6 +124172,13 @@ class WorldScene extends Phaser.Scene {
       rect(wa0, wa0 + (wa1 - wa0)*0.18, sv0, sv1, 0x8fb4c8, 1.004);           // the slid-back glass, at the end
       solid(prismH([[wa0 - 4, nearB*hw], [wa1 + 4, nearB*hw], [wa1 + 4, nearB*(hw + 9)], [wa0 - 4, nearB*(hw + 9)]], sv0 - 4, sv0 - 1), STEEL);
     }
+    /* the word: over the whole panel, or over the part behind the hatch (on the flank, so before the awning and the flap that stand out over it)*/
+    if(VK.word && !has("policeBand")){
+      const rearOnly = has("flap") || has("eagle");
+      const a0 = pa0 + 4, a1 = rearOnly ? (has("serve") ? wa0 - 10 : mid - 4) : pa1 - 4;
+      const h0 = rearOnly ? hR - 34 : hR - 22, hm = rearOnly ? 24 : 14;
+      word(VK.word, a0, a1, h0, hm, has("mailBands") ? L.accent : L.band === L.body ? WHITE : L.band, L.body);
+    }
     /* the ice cream truck's striped awning over the hatch, a scalloped edge */
     if(has("awning") && vend <= 0) rect(wa0 - 4, wa1 + 4, sv1 + 3, sv1 + 8, L.band, 1.004);   // rolled up in its cassette
     if(has("awning") && vend > 0){
@@ -124164,13 +124198,6 @@ class WorldScene extends Phaser.Scene {
       const fl = [P(wa0 - 4, nearB*(hw + 1), ht), P(wa1 + 4, nearB*(hw + 1), ht), P(wa1 + 4, bo, ho), P(wa0 - 4, bo, ho)];
       Q(fl, L.band); this.edgeOn(k.g, fl, shadeC(L.band, 0.7), 1);
       if(vend > 0.3) Q([P(wa0 - 4, bo, ho), P(wa1 + 4, bo, ho), P(wa1 + 4, bo, ho - 4), P(wa0 - 4, bo, ho - 4)], shadeC(L.band, 0.75));   // its front edge
-    }
-    /* the word: over the whole panel, or over the part behind the hatch */
-    if(VK.word && !has("policeBand")){
-      const rearOnly = has("flap") || has("eagle");
-      const a0 = pa0 + 4, a1 = rearOnly ? (has("serve") ? wa0 - 10 : mid - 4) : pa1 - 4;
-      const h0 = rearOnly ? hR - 34 : hR - 22, hm = rearOnly ? 24 : 14;
-      word(VK.word, a0, a1, h0, hm, has("mailBands") ? L.accent : L.band === L.body ? WHITE : L.band, L.body);
     }
     /* the ice cream truck's picture of a cone, behind the hatch */
     if(has("coneSign")){
@@ -125504,6 +125531,37 @@ class WorldScene extends Phaser.Scene {
     /* the silhouette filled with one colour first, so what the faces leave between them (a sliver at a corner where two passes meet) shows paint, not the street:
        what the outline rings is all body */
     const fillSilhouette = (faces, col) => { const sil = silhouetteOf(faces); if(sil) this.quadOn(g, sil, col); };
+    /* FACES IN DEPTH ORDER (props kit SP13): v.f the face's points, v.nr its outward normal (toward the eye), v.pts on screen. Two
+       that overlap on screen are ordered by their planes (Newell's test: A first when A lies wholly behind B's plane, or B wholly in
+       front of A's); the rest, and any loop, by their middles along the eye, the far one first */
+    const depthOrder = vis => {
+      const n = vis.length, tol = 0.05;
+      for(const v of vis){ let d = 0, x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+        for(const p of v.f) d += p[0]*eye[0] + p[1]*eye[1] + p[2]*eye[2];
+        for(const q of v.pts){ if(q.x < x0) x0 = q.x; if(q.x > x1) x1 = q.x; if(q.y < y0) y0 = q.y; if(q.y > y1) y1 = q.y; }
+        v.d = d/v.f.length; v.bb = [x0, y0, x1, y1]; }
+      /* side(A, B): +1 every point of A on the eye's side of B's plane (or in it), -1 every one behind it (or in it), 0 across it */
+      const side = (A, B) => { const o = B.f[0], nr = B.nr; let fr = false, bk = false;
+        for(const p of A.f){ const s = (p[0] - o[0])*nr[0] + (p[1] - o[1])*nr[1] + (p[2] - o[2])*nr[2]; if(s > tol) fr = true; else if(s < -tol) bk = true; }
+        return fr && bk ? 0 : fr ? 1 : bk ? -1 : 0; };
+      const after = vis.map(() => []), need = new Array(n).fill(0);
+      for(let i = 0; i < n; i++) for(let j = i + 1; j < n; j++){
+        const A = vis[i], B = vis[j];
+        if(A.bb[2] <= B.bb[0] || B.bb[2] <= A.bb[0] || A.bb[3] <= B.bb[1] || B.bb[3] <= A.bb[1]) continue;
+        const ab = side(A, B), ba = side(B, A);
+        const aFirst = ab < 0 || ba > 0, bFirst = ba < 0 || ab > 0;
+        if(aFirst && !bFirst){ after[i].push(j); need[j]++; }
+        else if(bFirst && !aFirst){ after[j].push(i); need[i]++; }
+      }
+      const out = [], done = new Array(n).fill(false);
+      for(let k = 0; k < n; k++){
+        let pick = -1;
+        for(let i = 0; i < n; i++) if(!done[i] && !need[i] && (pick < 0 || vis[i].d < vis[pick].d)) pick = i;
+        if(pick < 0) for(let i = 0; i < n; i++) if(!done[i] && (pick < 0 || vis[i].d < vis[pick].d)) pick = i;   // (a loop: the far one)
+        done[pick] = true; out.push(vis[pick]); for(const j of after[pick]) need[j]--;
+      }
+      return out;
+    };
     /* A CONVEX SOLID as its faces: each painted if it faces the eye, outward
        told from the solid's own middle; colOf(i, n) may recolour a face (null skips it) */
     const solid = (faces, col, colOf, flat) => {
@@ -125519,7 +125577,7 @@ class WorldScene extends Phaser.Scene {
           { const L = Math.hypot(nr[0], nr[1], nr[2]) || 1; nr = [nr[0]/L, nr[1]/L, nr[2]/L]; }
           const c0 = colOf(i, nr); if(c0 === null || c0 === undefined){ faces = raw; break; } } }
       let ca = 0, cb = 0, ch = 0, n = 0, open = !!faces.open, kLo = 9, kHi = 0;   // (faces.open: a piece with an open end, whose silhouette must not be filled across it)
-      const vis = [];
+      let vis = [];
       for(const f of faces) for(const p of f){ ca += p[0]; cb += p[1]; ch += p[2]; n++; }
       ca /= n; cb /= n; ch /= n;
       faces.forEach((f, i) => {
@@ -125537,6 +125595,12 @@ class WorldScene extends Phaser.Scene {
         if(k < kLo) kLo = k; if(k > kHi) kHi = k;
       });
       if(!vis.length) return;
+      /* FAR FACE FIRST (props kit SP13): a convex piece's faces that face the eye never overlap, so their order is nothing; a concave
+         one's do (a pod's waist, a hopper's mouth, a roof running out over a corner's bevel), and back-face culling alone paints a far
+         face over a near one. So two faces that overlap on screen are put in order by their planes, as the eye sees them: one wholly
+         behind the other's plane, or the other wholly in front of its own, goes first; the rest by their middles' depth -- asked of
+         the eye, the same in every facing */
+      if(vis.length > 1) vis = depthOrder(vis);
       /* NO SEAMS (the people's rule, drawPersonHull): the silhouette filled first in the solid's mid tone, so the hairline
          the anti-aliasing leaves between two faces shows paint, not the street. Only for a closed convex piece -- an open
          one (a face skipped) or a concave one (tested: no vertex outside a face's plane) would fill across its gap */
@@ -125817,6 +125881,11 @@ class WorldScene extends Phaser.Scene {
        a door handle and step, a glint in the glass, the tall mirrors,
        and at the nose a slatted grille, lamp housings with indicators,
        a bumper and a plate. Called inside the cab's draw, after its solids. */
+    /* A STEP ON THE NEAR FLANK (props kit SP13): its own part, sorted with the near wheels by depth -- the near wheel and the step stand
+       side by side, and which is in front turns with the truck -- and cut short of the wheel it ran into (parts meet face to face) */
+    const stepPart = (a0, a1, b0, b1, h0, h1, col) => { if(edgeOn) return;
+      for(const w of wheels){ if(a1 > w - r && a0 < w) a1 = Math.min(a1, w - r); if(a0 < w + r && a1 > w) a0 = Math.max(a0, w + r); }
+      if(a1 - a0 > 1) parts.push({ d: V.depth((a0 + a1)/2, nearB*hw*1.2, 0) + 9000, draw: () => solid(prismH([[a0, nearB*b0], [a1, nearB*b0], [a1, nearB*b1], [a0, nearB*b1]], h0, h1), col) }); };
     const cabTrim = (C, col, band) => {
       const { aBk, aC, aW, hR, hH, aRake, far } = C, h0 = hH + 6, h1 = hR - 12;
       if(far) return mirror(aC - 10, -nearB, hH + 4, hH + 46);
@@ -125825,7 +125894,6 @@ class WorldScene extends Phaser.Scene {
       Q([P(aBk + 14, fg, h0 + 6), P(aBk + 20, fg, h0 + 6), P(aBk + 30, fg, h1 - 4), P(aBk + 24, fg, h1 - 4)], 0x5c6874);   // a glint in the glass
       line([aBk + 4, fg, cz + 8], [aBk + 4, fg, hR - 6], shadeC(col, 0.7), 1.4);                                     // the door's shut line
       Q([P(aBk + 16, fg, hH - 2), P(aBk + 28, fg, hH - 2), P(aBk + 28, fg, hH + 1.5), P(aBk + 16, fg, hH + 1.5)], 0x8d959c);   // its handle
-      if(!edgeOn) solid(prismH([[aBk + 8, nearB*(hw - 2)], [aBk + 40, nearB*(hw - 2)], [aBk + 40, nearB*(hw + 4)], [aBk + 8, nearB*(hw + 4)]], cz + 2, cz + 6), 0x3b4148);   // the step
       mirror(aC - 10, nearB, hH + 4, hH + 46);
       if(nose){
         const a = hl + 0.6, w = hw*0.96;
@@ -125847,7 +125915,7 @@ class WorldScene extends Phaser.Scene {
     if(fire){
       const RED = 0xc8352e, WHITE = 0xeef0f0, CHROME = 0xc9ced3, aCab = hl - 128;
       /* the chassis under it all, dark */
-      parts.push({ d: -8000, draw: () => solid(prismH([[-hl + 6, -hw + 8], [hl - 6, -hw + 8], [hl - 6, hw - 8], [-hl + 6, hw - 8]], cz - 8, cz + 8), 0x2a2c30) });
+      parts.push({ d: -8000, draw: () => solid(prismH([[-hl + 6, -hw + 8], [hl - 6, -hw + 8], [hl - 6, hw - 8], [-hl + 6, hw - 8]], cz - 8, cz + 4), 0x2a2c30) });   // (its top at the cab's floor: up into the body and the cab, it was painted over by their ends)
       /* the body: the equipment box, its lockers on the seen side, the ladder on top */
       parts.push({ d: V.depth(-60, 0, 80), draw: () => {
         const H = 168, a0 = -hl, a1 = aCab - 4;
@@ -125887,7 +125955,8 @@ class WorldScene extends Phaser.Scene {
         Q([P(aCab + 46, fb*1.004, 100), P(aCab + 56, fb*1.004, 100), P(aCab + 56, fb*1.004, 103), P(aCab + 46, fb*1.004, 103)], CHROME);   // the door handles
         Q([P(aRk(100) - 20, fb*1.004, 100), P(aRk(100) - 10, fb*1.004, 100), P(aRk(100) - 10, fb*1.004, 103), P(aRk(100) - 20, fb*1.004, 103)], CHROME);
         Q([P(aCab + 16, fb*1.004, 120), P(aCab + 22, fb*1.004, 120), P(aCab + 32, fb*1.004, H - 16), P(aCab + 26, fb*1.004, H - 16)], 0x5c6874);   // a glint in the glass
-        for(const sb of [-1, 1]) solid(prismH([[aCab + 66, sb*(hw - 2)], [aCab + 110, sb*(hw - 2)], [aCab + 110, sb*(hw + 5)], [aCab + 66, sb*(hw + 5)]], cz + 2, cz + 7), CHROME);   // the steps
+        { const s0 = Math.max(aCab + 66, wheels[0] + r), sb = -nearB;   // the far step (the near one is its own part, stepPart, below)
+          solid(prismH([[s0, sb*(hw - 2)], [aCab + 110, sb*(hw - 2)], [aCab + 110, sb*(hw + 5)], [s0, sb*(hw + 5)]], cz + 2, cz + 7), CHROME); }
         for(const sb of [-nearB, nearB]) mirror(hl - 24, sb, 120, 166);
         if(nose){
           const a = hl + 0.6;
@@ -125907,6 +125976,7 @@ class WorldScene extends Phaser.Scene {
           Q([P(la0 + 2, b0, H + 12.4), P(la1 - 2, b0, H + 12.4), P(la1 - 2, b1, H + 12.4), P(la0 + 2, b1, H + 12.4)], col);
       }});
       parts.push({ d: -7000, draw: flaps });
+      stepPart(aCab + 66, aCab + 110, hw - 2, hw + 5, cz + 2, cz + 7, CHROME);   // the near step
       paint(parts);
       return;
     }
@@ -125922,7 +125992,10 @@ class WorldScene extends Phaser.Scene {
       const aC = hl - CAB.hoodLen, aW = aC - CAB.rake, aBk = aW - CAB.pillar - 10;
       const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
       const D0 = -hl + 2, D1 = aBk - 14;
-      parts.push({ d: -8000, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], TOP - 24, TOP - 8), 0x2a2c30); flaps(); } });
+      /* (the chassis just before the deck it carries: under the deck and behind the cab when the tail is seen, it went down first and
+         the cab's back was painted over it) */
+      parts.push({ d: V.depth((D0 + D1)/2, 0, 40) - 1, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], TOP - 24, TOP - 8), 0x2a2c30); flaps(); } });
+      stepPart(aBk + 8, aBk + 40, hw - 2, hw + 4, cz + 2, cz + 6, 0x3b4148);   // the cab's step
       /* the fuel tank, chromed, on the near rail behind the cab */
       parts.push({ d: edgeOn ? -7500 : 8500, draw: () => solid(loftSeg(aBk - 64, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), aBk - 18, oct(10, cz - 6, cz + 16, nearB*(hw - 14)), 3), 0xc9ced3) });
       /* the deck: planks along it, its edge boards, lamps at the tail */
@@ -125966,14 +126039,15 @@ class WorldScene extends Phaser.Scene {
     const hR = CAB.roofH + 6, hH = CAB.hoodH + 6, hF = CAB.hoodF + 6;
     const aC = hl - CAB.hoodLen - 6, aW = aC - CAB.rake, aBk = aW - CAB.pillar - 16;
     const aRake = h => aC - (h - hH)/(hR - hH)*(aC - aW);
-    parts.push({ d: -8000, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], cz - 6, cz + 12), 0x2a2c30); flaps(); } });
+    const T0 = -hl + 8, T1 = aBk - 12, sec = oct(hw - 2, cz + 16, 160, 0, 0.5);
+    parts.push({ d: V.depth((T0 + T1)/2, 0, 80) - 1, draw: () => { solid(prismH([[-hl + 6, -hw + 22], [aBk, -hw + 22], [aBk, hw - 22], [-hl + 6, hw - 22]], cz - 6, cz + 12), 0x2a2c30); flaps(); } });   // (just before the tank, as the flatbed's)
+    stepPart(aBk + 8, aBk + 40, hw - 2, hw + 4, cz + 2, cz + 6, 0x3b4148);   // the cab's step
     /* the hose reel cabinet's twin: a chromed fuel tank and a battery box on the near rail */
     parts.push({ d: edgeOn ? -7500 : 8500, draw: () => {
       solid(loftSeg(aBk - 70, oct(10, cz - 6, cz + 14, nearB*(hw - 14)), aBk - 22, oct(10, cz - 6, cz + 14, nearB*(hw - 14)), 3), 0xc9ced3);
       solid(prismH([[aBk - 104, nearB*(hw - 22)], [aBk - 76, nearB*(hw - 22)], [aBk - 76, nearB*(hw - 4)], [aBk - 104, nearB*(hw - 4)]], cz - 4, cz + 14), 0x2f343a);
     }});
     /* the tank: a long octagon on its saddle, the blue band round it, the walkway rail on top */
-    const T0 = -hl + 8, T1 = aBk - 12, sec = oct(hw - 2, cz + 16, 160, 0, 0.5);
     parts.push({ d: V.depth((T0 + T1)/2, 0, 80), draw: () => {
       solid(loftSeg(T0, sec, T1, sec, 3), TANK);
       const fb = nearB*(hw - 1.4);
@@ -126057,8 +126131,9 @@ class WorldScene extends Phaser.Scene {
       if(BPW.print){ const Lay = this.printLayout(BPW.print, [[aF, -bw], [aF, bw], [aR, bw], [aR, -bw]], hh, 'body'); this.printSide(g, BPW.print, Lay, nearB > 0 ? 1 : 3, bq, lit0, hh, 1, 'body'); }
       if(BPW.fin) this.hullFinish(g, BPW.fin, bq, lit0, nearB > 0 ? 1 : 3);
     };
-    const wrapBand = (aF, aR, bw, cwR, bands, cwF) => {
-      for(const [z0, z1, c] of bands) for(const e of [1, -1]){
+    /* (ends: which ends it wraps -- [-1] the tail only, where the nose's end is hidden under a headboard) */
+    const wrapBand = (aF, aR, bw, cwR, bands, cwF, ends = [1, -1]) => {
+      for(const [z0, z1, c] of bands) for(const e of ends){
         if(!sees(e, 0, 0)) continue;
         const cw = e > 0 && cwF != null ? cwF : cwR, ae = e > 0 ? aF + 0.3 : aR - 0.3, ew = bw - cw;
         Q([P(ae, -ew, z0), P(ae, ew, z0), P(ae, ew, z1), P(ae, -ew, z1)], c);
@@ -126205,8 +126280,8 @@ class WorldScene extends Phaser.Scene {
         solid(prismB(pr, -hw, hw).raw(), col.body, (i, n) => i === 4 ? shadeC(col.body, 0.93) : n[2] > 0.5 ? shadeC(col.body, 0.97) : col.body);   // (SQUARE, not cut and bevelled: the roof's bevel strips read as a lid wider than the walls on a flat nose)
         wearFlank(hl, aBk, cz + 6, top - 12, hw);                                                  // (his print and finish, the stripe and the arch over them)
         const tb = [[cz + 9, cz + 23, col.band]]; if(WEAR && SKIN.stripe2) tb.push([cz + 2, cz + 6, SKIN.stripe2]);   // (14 thick: the face's mouth light rides inside it)
-        for(const [z0, z1, c] of tb) quad(aBk + 9.3, hl - 9.3, z0, z1, fb*1.002, c);              // the orange down its flank, round the corners
-        wrapBand(hl, aBk, hw, 9.3, tb);
+        for(const [z0, z1, c] of tb) quad(aBk, hl, z0, z1, fb*1.002, c);                          // the orange down its flank, round the corners
+        wrapBand(hl, aBk, hw, 0, tb);                                                              // (the pod is square: the band's corners are its own, not a chamfer's diagonal across inside it)
         skinOn((aBk + hl)/2, { hx: (hl - aBk)/2, hy: hw, ch: 9.3, s0: cz + 9, s1: cz + 23, dz: 100, da: 0, dk: 1 });
         arch(W[0], fb);
         quad(aBk + 4, hl - 40, top - 10, top - 7, fb*1.002, shadeC(col.body, 0.8));                 // a seam under the roof
@@ -126243,7 +126318,9 @@ class WorldScene extends Phaser.Scene {
           solid(prismH([[116, -32], [184, -32], [184, 32], [116, 32]], cz + 10, cz + 17), 0x3b4148);
           solid(prismH([[124, -24], [176, -24], [176, 24], [124, 24]], cz + 17, cz + 20), 0x6a7178);
         } });
-        for(const sb of [-1, 1]) parts.push({ d: V.depth(140, sb*hw, cz + 34) + (sb === nearB ? 60 : -60), draw: () => {
+        /* (behind the pod, under the trailer's nose: when the pod's back faces the eye both fenders are in front of it, after it; else before it) */
+        const podD = V.depth((aBk + hl)/2, 0, 80), backSeen = sees(-1, 0, 0);
+        for(const sb of [-1, 1]) parts.push({ d: (d_ => backSeen ? Math.max(d_, podD + 1) : Math.min(d_, podD - 1))(V.depth(140, sb*hw, cz + 34) + (sb === nearB ? 60 : -60)), draw: () => {
           solid(prismH([[84, sb*(hw - 28)], [aBk - 2, sb*(hw - 28)], [aBk - 2, sb*(hw + 3)], [84, sb*(hw + 3)]], cz + 30, cz + 36), shadeC(col.body, 0.88));
           if(sb === nearB && !edgeOn){ quad(84, aBk - 2, cz + 30, cz + 36, sb*(hw + 3.1), shadeC(col.body, 0.8)); }
         } });
@@ -126362,7 +126439,7 @@ class WorldScene extends Phaser.Scene {
         for(let a = a0 + 24; a < a1 - 10; a += 44){ if(pr_) Q([P(a, fs, 74), P(a + 5, fs, 74), P(a + 5, fs, 174), P(a, fs, 174)], 0x14171c, 0.16); else quad(a, a + 5, 74, 174, fs, shadeC(col.box, 0.84)); }   // its ribs
         /* THE STRIPE at the pod's height, run on along the body and the tailgate (a, b: his stripe and second band; the pattern and badge by botSkinWear), under the arches */
         const gb = [[cz + 9, cz + 23, col.band]]; if(WEAR && SKIN.stripe2) gb.push([cz + 2, cz + 6, SKIN.stripe2]);
-        for(const [z0, z1, c] of gb) quad(-hl + 6, a1 - 2, z0, z1, fs*1.002, c);
+        for(const [z0, z1, c] of gb) quad(a0, a1 - 2, z0, z1, fs*1.002, c);                                   // (the body's run: the tailgate's is its own, over it)
         skinOn((a0 + a1)/2, { hx: (a1 - a0)/2, hy: hw - 1, ch: 6, s0: cz + 9, s1: cz + 23, dz: 140, da: 0, dk: 3.6 });
         tape(a0 + 4, a1 - 4, cz + 26, fs*1.003);
         for(const wa of W.slice(1)) arch(wa, nearB*(hw - 0.2));
@@ -126370,25 +126447,33 @@ class WorldScene extends Phaser.Scene {
       /* the tailgate: the hopper's slope, its dark mouth, the riders' steps and grab bars */
       parts.push({ d: V.depth(-hl + 30, 0, 100), draw: () => {
         solid(prismB([[-hl + 64, cz + 10], [-hl + 64, 212], [-hl + 34, 208], [-hl + 2, 134], [-hl + 2, cz + 24], [-hl + 20, cz + 10]], -hw + 1, hw - 1), shadeC(col.box, 0.9));
+        /* the stripe run on along the tailgate, over it (painted with the body it was under the tailgate, in front of it), on its flank only: cut to
+           its foot and its sloped lower corner */
+        if(!edgeOn){ const fs = nearB*(hw - 0.4), aS = zz => Math.max(-hl + 6, -hl + 2 + (cz + 24 - zz)/14*18);
+          const gb = [[cz + 9, cz + 23, col.band]]; if(WEAR && SKIN.stripe2) gb.push([cz + 2, cz + 6, SKIN.stripe2]);
+          for(const [z0, z1, c] of gb){ const zb = Math.max(z0, cz + 10); if(z1 <= zb) continue;
+            Q([P(aS(zb), fs*1.002, zb), P(-hl + 64, fs*1.002, zb), P(-hl + 64, fs*1.002, z1), P(aS(z1), fs*1.002, z1)], c); } }
         quad(-hl + 64, -hl + 66, cz + 12, 210, nearB*(hw - 0.6), TRIM);
         if(!nose){
           /* THE HOPPER IS A CAVITY (not a dark shape): a box let into the tailgate 64 deep, drawn through its opening (clipped to it) -- the back wall, the floor, the
              side wall that faces the eye, a lip of steel at the sill, and the packer's blade standing in it, so it changes with the heading */
           { const w0 = hw*0.8, z0 = cz + 30, z1 = 122, ab = -hl + 1.4, ad = ab + 64, c0 = this.drawClip, op = [P(ab, -w0, z0), P(ab, w0, z0), P(ab, w0, z1), P(ab, -w0, z1)];
             if(!c0) this.drawClip = op;
+            this._paintHole = true;                                                                        // (the cavity's own walls: a hole in the tailgate, for props kit SP13's test)
             try {
               Q([P(ad, -w0, z0), P(ad, w0, z0), P(ad, w0, z1), P(ad, -w0, z1)], 0x2c3138);                    // the back wall
               Q([P(ab, -w0, z0), P(ab, w0, z0), P(ad, w0, z0), P(ad, -w0, z0)], 0x4a5058);                    // the floor
               Q([P(ab, -w0, z1 - 4), P(ab, w0, z1 - 4), P(ad, w0, z1 - 4), P(ad, -w0, z1 - 4)], 0x1d2024, 0.0);
               if(sees(0, -1, 0)) Q([P(ab, w0, z0), P(ad, w0, z0), P(ad, w0, z1), P(ab, w0, z1)], 0x23272d);   // the side walls that face the eye
               if(sees(0, 1, 0)) Q([P(ab, -w0, z0), P(ad, -w0, z0), P(ad, -w0, z1), P(ab, -w0, z1)], 0x23272d);
+              this._paintHole = false;
               solid(prismH([[ad - 14, -w0 + 4], [ad - 4, -w0 + 4], [ad - 4, w0 - 4], [ad - 14, w0 - 4]], z0, z0 + 46), 0x3b4148);   // the packer blade standing in the back
-            } finally { this.drawClip = c0; } }
+            } finally { this.drawClip = c0; this._paintHole = false; } }
           endQ(-hl + 1.2, -hw*0.84, hw*0.84, cz + 26, cz + 30, STEEL);
+          tail(-hl + 2, cz - 2);                                                     // (the lamps and bumper before the riders' steps, which stand out over them)
           for(const sb of [-1, 1]){ endQ(-hl + 1.4, sb*hw*0.82, sb*hw*0.96, 124, 132, AMBER);
             line([-hl + 1, sb*hw*0.9, cz + 36], [-hl + 1, sb*hw*0.9, 112], STEEL, 2.4);
             solid(prismH([[-hl - 8, sb*(hw - 16)], [-hl + 4, sb*(hw - 16)], [-hl + 4, sb*(hw - 2)], [-hl - 8, sb*(hw - 2)]], cz + 2, cz + 6), STEEL); }
-          tail(-hl + 2, cz - 2);
         }
       }});
     } else if(RG.body === "recycle"){
@@ -126425,8 +126510,8 @@ class WorldScene extends Phaser.Scene {
         wearFlank(a1 - cF, a0, h0 + 8, H - 8, hw + 2);                                                                      // (his print and finish over the box's flank)
         for(let a = a0 + 46; a < a1 - cF - 6; a += 46){ if(WEAR && (BPW.print || BPW.fin)) Q([P(a, fb2*1.0005, h0 + 6), P(a + 2.4, fb2*1.0005, h0 + 6), P(a + 2.4, fb2*1.0005, H - 4), P(a, fb2*1.0005, H - 4)], 0x14171c, 0.16); else quad(a, a + 2.4, h0 + 6, H - 4, fb2*1.0005, shadeC(col.box, 0.86)); }   // its posts, under the livery (a shade over his print)
         if(col.band !== col.box || WEAR){ const tb = [[112, 126, col.band], [132, 136, WEAR && SKIN.stripe2 ? SKIN.stripe2 : col.band]];
-          for(const [z0, z1, c] of tb) quad(a0 + 9.3, a1 - cF, z0, z1, fb2*1.001, c);                                // (the stripe runs the box's length and round its ends)
-          wrapBand(a1, a0, hw + 2, 9.3, tb, cF);
+          for(const [z0, z1, c] of tb) quad(a0, a1 - cF, z0, z1, fb2*1.001, c);                                      // (the stripe runs the box's length and round its ends)
+          wrapBand(a1, a0, hw + 2, 0, tb, cF);                                                                         // (its tail's corners are square: the band's too -- cut 9.3 it ran inside the box)
           skinOn((a0 + a1 - cF)/2, { hx: (a1 - cF - a0)/2, hy: hw + 2, ch: 9.3, s0: 112, s1: 126, dz: 170, da: 0, dk: 3 }); }
         quad(a0, a1 - cF, h0, h0 + 6, fb2*1.001, STEEL);
         tape(a0 + 6, a1 - cF - 4, h0 + 8, fb2*1.002);
@@ -126548,13 +126633,14 @@ class WorldScene extends Phaser.Scene {
            side wall that faces the eye -- and the load of gravel standing in it, drawn up through the mouth (clipped to the mouth and the heap's height above it) */
         { const w0 = hw - 9, ar = a0 + 4, af = aHd - 9, zf = h0 + 14, c0 = this.drawClip, mouth = [P(ar, -w0, H), P(af, -w0, H), P(af, w0, H), P(ar, w0, H)];
           if(!c0) this.drawClip = mouth;
+          this._paintHole = true;                                                                            // (the tub's floor and walls: a hole in its top, for props kit SP13's test)
           try {
             Q([P(ar, -w0, zf), P(af, -w0, zf), P(af, w0, zf), P(ar, w0, zf)], 0x44484f);                         // the floor
             if(sees(-1, 0, 0)) Q([P(af, -w0, zf), P(af, w0, zf), P(af, w0, H), P(af, -w0, H)], 0x7a8089);          // the headboard's inner face
             if(sees(1, 0, 0)) Q([P(ar, -w0, zf), P(ar, w0, zf), P(ar, w0, H), P(ar, -w0, H)], 0x626771);           // the tailgate's
             if(sees(0, -1, 0)) Q([P(ar, w0, zf), P(af, w0, zf), P(af, w0, H), P(ar, w0, H)], 0x565b64);            // the side walls that face the eye
             if(sees(0, 1, 0)) Q([P(ar, -w0, zf), P(af, -w0, zf), P(af, -w0, H), P(ar, -w0, H)], 0x565b64);
-          } finally { this.drawClip = c0; }
+          } finally { this.drawClip = c0; this._paintHole = false; }
           if(!c0){ const hp = [[a0 + 22, -w0 + 6], [aHd - 28, -w0 + 6], [aHd - 28, w0 - 6], [a0 + 22, w0 - 6]], pts = [];
             for(const [aa, bb] of hp){ pts.push(P(aa, bb, zf), P(aa, bb, H + 18)); }
             this.drawClip = convexHullKeep([...mouth, ...hp.map(([aa, bb]) => P(aa, bb, H + 18))]);
@@ -126564,8 +126650,11 @@ class WorldScene extends Phaser.Scene {
         for(let a = a0 + 30; a < aHd - 10; a += 36){ if(WEAR && (BPW.print || BPW.fin)) Q([P(a, fs, h0 + 4), P(a + 6, fs, h0 + 4), P(a + 6, fs, H - 2), P(a, fs, H - 2)], 0x14171c, 0.16); else quad(a, a + 6, h0 + 4, H - 2, fs, shadeC(col.box, 0.82)); }     // its ribs
         quad(a0, aHd, H - 8, H, fs*1.002, shadeC(col.box, 0.78));                                              // the top rail
         { const tb = [[h0 + 6, h0 + 20, col.band]]; if(WEAR && SKIN.stripe2) tb.push([h0 + 22, h0 + 25, SKIN.stripe2]);
-          if(col.band !== col.box || WEAR){ for(const [z0, z1, c] of tb) quad(a0 + 2, aHd - 8, z0, z1, fs*1.003, c);
-            wrapBand(aHd, a0, hw, 6, tb);
+          /* (round the tail only -- the nose's end is under the headboard -- and on the tail's own face, which leans out 8 to its top: at the
+             band's top, so the band is on it, not inside it; the flank's run starts where the corner's piece ends) */
+          const aT = a0 - 8*(Math.max(...tb.map(b_ => b_[1])) - h0)/(H - h0);
+          if(col.band !== col.box || WEAR){ for(const [z0, z1, c] of tb) quad(aT + 6, aHd - 8, z0, z1, fs*1.003, c);
+            wrapBand(aHd, aT, hw, 6, tb, null, [-1]);
             skinOn((a0 + aHd)/2, { hx: (aHd - a0)/2, hy: hw, ch: 6, s0: h0 + 6, s1: h0 + 20, dz: h0 + 70, da: 0, dk: 3 }); } }
         quad(a0, a1, h0 - 6, h0, fs, DARK);
         tape(a0 + 8, aHd - 8, h0 + 2, fs*1.004);
@@ -126645,12 +126734,12 @@ class WorldScene extends Phaser.Scene {
       }});
       parts.push({ d: V.depth((a0 + a1)/2, 0, 90), draw: () => {
         solid(prismH([[a0 + 70, -hw + 8], [a0 + 120, -hw + 8], [a0 + 120, hw - 8], [a0 + 70, hw - 8]], 3, cz - 4), DARK);   // the pick-up head, under it
-        solid(prismB([[a0 + 4, cz + 8], [a1, cz + 8], [a1, H], [a0 + 30, H], [a0, H - 30]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 0.95) : col.box);
+        solid(prismB([[a0 + 4, cz + 10], [a1, cz + 10], [a1, H], [a0 + 30, H], [a0, H - 30]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 0.95) : col.box);   // (its floor on the chassis' top, not 2 down into it)
         solid(loftSeg(a0 + 40, oct(hw - 10, H, H + 26), a1 - 6, oct(hw - 10, H, H + 26), 3), WEAR ? shadeC(col.box, 1.06) : 0xe4e6e8);                // the water tank
         wearFlank(a1, a0 + 4, cz + 26, H - 6, hw);                                                              // (his print and finish over the body's flank)
         /* THE STRIPE at the pod's height, run on along the body and round its tail (his stripe; the pattern and badge by botSkinWear), under the arches */
         { const tb = [[cz + 9, cz + 23, col.band]];
-          if(col.band !== col.box || WEAR){ for(const [z0, z1, c] of tb) quad(a0 + 4, a1 - 2, z0, z1, fs*1.002, c);
+          if(col.band !== col.box || WEAR){ for(const [z0, z1, c] of tb) quad(a0 + 4 + 9.3, a1 - 9.3, z0, z1, fs*1.002, c);   // (the flank's run between the corners' pieces, not under them)
             wrapBand(a1, a0 + 4, hw, 9.3, tb);
             skinOn((a0 + a1)/2, { hx: (a1 - a0)/2, hy: hw, ch: 9.3, s0: cz + 9, s1: cz + 23, dz: 96, da: 0, dk: 2.6 }); } }
         line([a0 + 70, fs*1.003, cz + 44], [a0 + 70, fs*1.003, H - 6], shadeC(col.box, 0.7), 1.4);                       // the hopper door
