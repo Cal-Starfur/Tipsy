@@ -60381,6 +60381,9 @@ function houseCanopy(fn){
       return { pos, f, pose: { lift: [lift, lift], bend: [bend, bend], walk, gait }, bin, col }; };
     /* (in the arm's grip a bin is drawn as on the pods and the carts, amrLoad's: its body, the darker lid band, the white label with its dash on
        each face that shows -- Sir: "they should have lids"; an empty one open) */
+    const HELD3 = (col, p) => (box, w, z) => { const PC = { 1: 0x24262c, 2: 0x24262c, 3: 0x3d424c, 4: 0x2e8bd8, 5: 0x9aa3ad, 6: 0x3d424c, 7: 0xe03a2f }[p] || 0x3a3f46;
+      for(const j of [-1, 0, 1]){ const b = w[1] + 26*j; box(w[0] - 12, w[0] + 12, b - 11.5, b + 11.5, z - 17, z, col); box(w[0] - 10.5, w[0] + 10.5, b - 10, b + 10, z - 0.6, z + 0.05, _pdk(col, 0.4));   /* (open: its inside dark, no lid) */
+        box(w[0] - 7, w[0] + 1, b - 6, b + 6, z - 3, z + 3, PC); box(w[0] + 2, w[0] + 8, b - 5, b + 5, z - 3, z + 2.5, PC); } };   /* (the arm's three open bins of a colour at once, side by side as they go on the robot, their parts showing) */
     const HELDBIN = (col, empty) => (box, w, z, V) => { const z0 = z - 20, la = 12, lb = 11.5;
       { box(w[0] - la, w[0] + la, w[1] - lb, w[1] + lb, z0, z - 3, col); box(w[0] - la, w[0] + la, w[1] - lb, w[1] + lb, z - 3, z, _pdk(col, 0.72)); }
       if(!V) return;
@@ -60542,7 +60545,7 @@ function houseCanopy(fn){
             if(R.kind === 'station'){ out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p], p) })); continue; }
             const P = R.P, A = RBA[m], q = ((((R.rr - A) % SUP) + SUP) % SUP) + A;
             if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3, 3, p) })); continue; }
-            const no = [0, 1, 2].filter(j => q >= A + 4400 + 200*j + 150).length, stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => q >= A + 2000 + j*800 + 800*ARMU1).length;
+            const no = 3,   /* (open: no lids -- Sir: "they get a lid when he picks them up but they shouldn't") */ stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : (q >= A + 2000 + 2400*ARMU1 ? 3 : 0);
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) EMPTY3(P.a, P.b, P.fdir, 31, col); else if(nf) BIN3(P.a, P.b, P.fdir, 31, col, nf, no, p); } })); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
@@ -60659,7 +60662,7 @@ function houseCanopy(fn){
             if(R.kind === 'station'){ const [ba, bb] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p], p) })); continue; }
             const P = R.P, A = RBA[k], q = ((((R.rr - A) % SUP) + SUP) % SUP) + A;
             if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3, 3, 8 - k) })); continue; }
-            const no = [0, 1, 2].filter(j => q >= A + 4400 + 200*j + 150).length, stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => q >= A + 2000 + j*800 + 800*ARMU1).length;
+            const no = 3,   /* (open: no lids -- Sir: "they get a lid when he picks them up but they shouldn't") */ stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : (q >= A + 2000 + 2400*ARMU1 ? 3 : 0);
             rbAt[k] = R.kind;
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) EMPTY3(P.a, P.b, P.fdir, 31, col); else if(nf) BIN3(P.a, P.b, P.fdir, 31, col, nf, no, 8 - k); } })); } }
         CW_FLOW.runner = rbAt.join(' ');
@@ -60680,8 +60683,8 @@ function houseCanopy(fn){
           const L = SH.slice(), fullOf = i => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: i });
           let P1, fd = null, s0 = 0;
           for(let i = 0; i < 4; i++) for(let jj = 0; jj < 3; jj++){ let v;
-            const ta = RBA[i] + 2000 + jj*800, tr = SUP + RBA[i] + 4400 + 2000*(CARRY_GO - 0.65)/0.35, J = 2*SUP + JS(6 + i) - RB0;   /* (refilled at Receiving, spot B: the Receiver's jobs 5-8, on row B's clock) */
-            if(U < DV) v = U < ta ? fullOf(i) : U < ta + 200 ? Object.assign(fullOf(i), { off: [0, -27*ease((U - ta)/200)] }) : U < ta + 800*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null;
+            const ta = RBA[i] + 2000, tr = SUP + RBA[i] + 4400 + 2000*(CARRY_GO - 0.65)/0.35, J = 2*SUP + JS(6 + i) - RB0;   /* (refilled at Receiving, spot B: the Receiver's jobs 5-8, on row B's clock) */
+            if(U < DV) v = U < ta ? fullOf(i) : U < ta + 200 ? Object.assign(fullOf(i), { off: [0, -27*ease((U - ta)/200)] }) : U < ta + 2400*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null;
             else if(U < tr) v = null;
             else if(U < tr + 300) v = Object.assign(fullOf(i), { empty: true, off: [0, 27*(1 - ease((U - tr)/300))] });
             else if(U < J) v = Object.assign(fullOf(i), { empty: true });
@@ -60718,8 +60721,8 @@ function houseCanopy(fn){
         { const AA = SPOD[0] + 83, AB = SPOD[1] + 98, fr = w => [w[0] - AA, w[1] - AB, w[2]];
           const rest = i => [SROB[0] - 13, SROB[1] + RSL[i], 31];   /* (at rest over the runner's stop, not after the runner itself once it has gone -- its arm had stretched across the hall after it) */
           let arm = { pick: fr([rest(1)[0] + 10, rest(1)[1] + 30, 60]), place: fr(rest(0)), u: null, L1: 98, L2: 92 };
-          const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const jj = Math.floor((r - RBA[ka] - 2000)/800), u = ((r - RBA[ka] - 2000) % 800)/800, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[jj]), rw = [SROB[0], SROB[1] - 26 + 26*jj, 31];
-            arm = { pick: fr([pw[0], pw[1], pw[2] + 20]), place: fr([rw[0], rw[1], rw[2] + 20]), u, held: HELDBIN(col, false), L1: 98, L2: 92 }; }
+          const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const u = (r - RBA[ka] - 2000)/2400, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[1]), rw = [SROB[0], SROB[1], 31];   /* (all three of a colour in one move -- Sir, 2026-11-23: "he should do all 3") */
+            arm = { pick: fr([pw[0], pw[1], pw[2] + 20]), place: fr([rw[0], rw[1], rw[2] + 20]), u, held: HELD3(col, 8 - i), L1: 98, L2: 92 }; }
           out.push(bot(AA, AB, 0, { build: 'amrarm', arm })); }
         { const IDL = [515, 905];   /* (waiting north of the gap, clear of the arm's swing) */
           const kh = [0, 1, 2, 3].find(k => r >= RBA[k] && r < RBA[k] + 6400); if(kh != null){ const i = kh, q0 = r - RBA[i], rw = [SROB[0], SROB[1], 31], pw = podWR(GRP(i, false)[1]), prev = IDL;
@@ -60742,8 +60745,8 @@ function houseCanopy(fn){
           const L = POD_FULL.slice(), fullOf = i => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: i });
           let P1, fd = null, s0 = 0;
           for(let i = 0; i < 4; i++) for(let jj = 0; jj < 3; jj++){ let v;
-            const ta = RBA[i] + 2000 + jj*800, tr = SUP + RBA[i] + 4400 + 2000*(CARRY_GO - 0.65)/0.35, J = 2*SUP - 1900;   /* (full again as it joins the line: the wall's stock) */
-            if(U < DV) v = U < ta ? fullOf(i) : U < ta + 200 ? Object.assign(fullOf(i), { off: [0, -27*ease((U - ta)/200)] }) : U < ta + 800*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null;
+            const ta = RBA[i] + 2000, tr = SUP + RBA[i] + 4400 + 2000*(CARRY_GO - 0.65)/0.35, J = 2*SUP - 1900;   /* (full again as it joins the line: the wall's stock) */
+            if(U < DV) v = U < ta ? fullOf(i) : U < ta + 200 ? Object.assign(fullOf(i), { off: [0, -27*ease((U - ta)/200)] }) : U < ta + 2400*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null;
             else if(U < tr) v = null;
             else if(U < tr + 300) v = Object.assign(fullOf(i), { empty: true, off: [0, 27*(1 - ease((U - tr)/300))] });
             else if(U < 2*SUP + JS(2 + i)) v = Object.assign(fullOf(i), { empty: true });
@@ -60770,8 +60773,8 @@ function houseCanopy(fn){
         { const AA = APOD[0] + 83, AB = APOD[1] + 98, fr = w => [w[0] - AA, w[1] - AB, w[2]];
           const rest = i => [AROB[0] - 13, AROB[1] + RSL[i], 31];
           let arm = { pick: fr([rest(1)[0] + 10, rest(1)[1] + 30, 60]), place: fr(rest(0)), u: null, L1: 98, L2: 92 };
-          const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const jj = Math.floor((r - RBA[ka] - 2000)/800), u = ((r - RBA[ka] - 2000) % 800)/800, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[jj]), rw = [AROB[0], AROB[1] - 26 + 26*jj, 31];
-            arm = { pick: fr([pw[0], pw[1], pw[2] + 20]), place: fr([rw[0], rw[1], rw[2] + 20]), u, held: HELDBIN(col, false), L1: 98, L2: 92 }; }
+          const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const u = (r - RBA[ka] - 2000)/2400, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[1]), rw = [AROB[0], AROB[1], 31];   /* (all three of a colour in one move -- Sir, 2026-11-23: "he should do all 3") */
+            arm = { pick: fr([pw[0], pw[1], pw[2] + 20]), place: fr([rw[0], rw[1], rw[2] + 20]), u, held: HELD3(col, i + 1), L1: 98, L2: 92 }; }
           out.push(bot(AA, AB, 0, { build: 'amrarm', arm })); }
         { const IDL = [515, 235];
           const kh = [0, 1, 2, 3].find(k => r >= RBA[k] && r < RBA[k] + 6400); if(kh != null){ const i = kh, q0 = r - RBA[i], rw = [AROB[0], AROB[1], 31], pw = podWR(GRP(i, false)[1]), prev = IDL;
