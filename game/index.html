@@ -78016,9 +78016,10 @@ function houseCanopy(fn){
       /* (the band and the east rim: one run round their corner, 10 thick, the rim's outer face on the east wall -- pathRun, the
          corner rule; the back rim, 4 lower, stops at the rim's face) */
       { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
-        const backRim = () => box(a0 - e0, last ? a1 - 10 : a1 + e1, M.N.b0, M.N.b0 + 8, RZ, PZ - 4, shade(wall, 1.04), wallS, wallD);
+        const backRim = () => box(a0 - e0, last ? a1 - 8 : a1 + e1, M.N.b0, M.N.b0 + 8, RZ, PZ - 4, shade(wall, 1.04), wallS, wallD);
         if(!last || seeE) backRim();
-        if(last) pathRun([[a0 - e0, M.N.b1 - 3], [a1 - 5, M.N.b1 - 3], [a1 - 5, M.N.b0]], 5, RZ, PZ, shade(trim, 1.2), trim, trimD);
+        /* (each leg its own thickness, as it was before the run: the band 10, the rim 8 -- Sir, 2026-11-23, the lift's doorway) */
+        if(last) pathRun([[a0 - e0, M.N.b1 - 3], [a1 - 5, M.N.b1 - 3], [a1 - 5, M.N.b0]], [[5, 5], [5, 3]], RZ, PZ, shade(trim, 1.2), trim, trimD);
         if(last && !seeE) backRim(); }
       if(!last) box(a0 - e0, a1 + e1, M.N.b1 - 8, M.N.b1 + 2, RZ, PZ, shade(trim, 1.2), trim, trimD);
       if(state.roof && first) for(const [ra, rb] of [[200, -1520], [380, -1480]]) box(ra - 26, ra + 26, rb - 18, rb + 18, RZ, RZ + 22, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
@@ -78046,8 +78047,8 @@ function houseCanopy(fn){
          the front band's back, the two meeting along a: the far one first, whichever end is seen) */
       /* (the band and the south rim: one run round their corner, 10 thick, the rim's outer face on the south wall -- pathRun, the
          corner rule; the back rim, 4 lower, stops at the rim's face) */
-      box(M.W.a0, M.W.a0 + 8, b0 - e0, last ? b1 - 10 : b1 + e1, RZ, PZ - 4, shade(wall, 1.04), wallD, wallS);
-      if(last) pathRun([[M.W.a1 - 3, b0 - e0], [M.W.a1 - 3, b1 - 5], [M.W.a0, b1 - 5]], 5, RZ, PZ, shade(trim, 1.2), trim, trim);
+      box(M.W.a0, M.W.a0 + 8, b0 - e0, last ? b1 - 8 : b1 + e1, RZ, PZ - 4, shade(wall, 1.04), wallD, wallS);
+      if(last) pathRun([[M.W.a1 - 3, b0 - e0], [M.W.a1 - 3, b1 - 5], [M.W.a0, b1 - 5]], [[5, 5], [3, 5]], RZ, PZ, shade(trim, 1.2), trim, trim);   // (the band 10, the rim 8, as before)
       else box(M.W.a1 - 8, M.W.a1 + 2, b0 - e0, b1 + e1, RZ, PZ, shade(trim, 1.2), shade(trim, 0.9), trim);
     }});
     wTile(M.W.b0, -1012, true, false); wTile(-1012, M.W.b1, false, true);

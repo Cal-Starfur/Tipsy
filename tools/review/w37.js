@@ -16,6 +16,9 @@
               angle as two boxes, anywhere in the entry (Sir, 2026-11-22: "all of these corners ... aligned better and cleaner ... 1 piece"):
               a corner is one piece, pathRun (mitred, one top, its outer lines straight round); 'step' when their outer faces don't
               line up or their thicknesses differ, 'butt' when they line up but meet as two
+     jamb     the two sides of an opening (a doorway, a gate, an arch: two runs on one line with a gap 40..240 between them) that do not
+              match -- one thicker than the other, or its faces set further out (Sir, 2026-11-23, the ballroom's service lift: "the door
+              way standing out when it should not"): advisory, read each one
      behind   a part drawn after one it stands wholly behind (past its back face, within its width, no higher than its top) -- a
               fixture's far-side parts, its working face turned away (Seaglass's espresso machine: group heads over its back)
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
@@ -214,6 +217,25 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           found.push({ room: name, kind: 'corner', at: [Math.round((b.a0 + b.a1)/2), Math.round((a.b0 + a.b1)/2)],
             what: kind + ': a run along a (t ' + A.t.toFixed(0) + ', z ' + Math.round(a.z0) + '..' + Math.round(a.z1) + ') meets one along b (t ' + B.t.toFixed(0) + ') as two boxes (line ' + A.p.line + ', it line ' + B.p.line + ')' });
         } }
+      /* jamb: two runs along one line, an opening between them, their thickness or their faces differing */
+      { const runs2 = entryP.map(p => { const q = p.q, la = q.a1 - q.a0, lb = q.b1 - q.b0;
+          if(q.z1 - q.z0 < 40) return null;
+          if(la >= 2*lb && lb <= 40 && la >= 12) return { q, ax: 'a', t: lb, lo: q.a0, hi: q.a1, f0: q.b0, f1: q.b1, line: p.line };
+          if(lb >= 2*la && la <= 40 && lb >= 12) return { q, ax: 'b', t: la, lo: q.b0, hi: q.b1, f0: q.a0, f1: q.a1, line: p.line };
+          return null; }).filter(Boolean);
+        const seenJ = new Set();
+        for(const A of runs2) for(const B of runs2){ if(A === B || A.ax !== B.ax || B.lo < A.hi) continue;
+          const gap = B.lo - A.hi; if(gap < 40 || gap > 240) continue;
+          if(Math.min(A.q.z1, B.q.z1) - Math.max(A.q.z0, B.q.z0) < 0.6*Math.min(A.q.z1 - A.q.z0, B.q.z1 - B.q.z0)) continue;
+          /* on one line: their bands overlap across the run */
+          if(Math.min(A.f1, B.f1) - Math.max(A.f0, B.f0) < 1) continue;
+          const d0 = Math.abs(A.f0 - B.f0), d1 = Math.abs(A.f1 - B.f1); if(d0 < 1.5 && d1 < 1.5) continue;
+          /* (nothing between them on that line closing the opening -- else it is a wall in pieces, not an opening) */
+          if(runs2.some(C => C !== A && C !== B && C.ax === A.ax && C.lo < B.lo - 1 && C.hi > A.hi + 1 && Math.min(C.f1, A.f1) - Math.max(C.f0, A.f0) > 0)) continue;
+          const k = [A.ax, Math.round(A.hi), Math.round(B.lo), Math.round(A.f0), Math.round(B.f0)].join(','); if(seenJ.has(k)) continue; seenJ.add(k);
+          const mid = (A.hi + B.lo)/2, fm = (A.f0 + A.f1)/2;
+          found.push({ room: name, kind: 'jamb', at: A.ax === 'a' ? [Math.round(mid), Math.round(fm)] : [Math.round(fm), Math.round(mid)],
+            what: 'an opening ' + Math.round(gap) + ' wide along ' + A.ax + ': one side ' + (A.f1 - A.f0).toFixed(0) + ' thick (' + A.f0.toFixed(0) + '..' + A.f1.toFixed(0) + '), the other ' + (B.f1 - B.f0).toFixed(0) + ' (' + B.f0.toFixed(0) + '..' + B.f1.toFixed(0) + ') (line ' + A.line + ', it line ' + B.line + ')' }); } }
     }
     g.destroy(); for(const f of found) delete f.__L;
     return { rooms: rooms.length, found };
@@ -227,7 +249,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
   console.log(out.rooms + ' rooms checked');
-  for(const kind of ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'corner', 'order']){
+  for(const kind of ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'corner', 'jamb', 'order']){
     const rows = out.found.filter(f => f.kind === kind); console.log('\n' + kind + ': ' + rows.length);
     if(kind === 'order' && !process.argv.includes('--order')){ console.log('  (advisory: list them with --order)'); continue; }
     for(const f of rows.slice(0, 400)) console.log('  ' + f.room + ' @' + f.at + '  ' + f.what);
