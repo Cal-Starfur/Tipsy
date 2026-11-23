@@ -6,7 +6,9 @@ for f in sorted(os.listdir(new)):
     po, pn = os.path.join(old, f), os.path.join(new, f)
     if not os.path.exists(po): print('  new entry', f); continue
     a, b = Image.open(po).convert('RGB'), Image.open(pn).convert('RGB')
-    if a.size != b.size: print('  %-40s size %s -> %s' % (f[:-4], a.size, b.size)); n += 1; continue
+    if a.size != b.size:                                   # (grown or shrunk: both padded to the larger, top-left aligned, and compared)
+        print('  %-40s size %s -> %s' % (f[:-4], a.size, b.size)); W, H = max(a.width, b.width), max(a.height, b.height)
+        pa, pb = Image.new('RGB', (W, H), 'white'), Image.new('RGB', (W, H), 'white'); pa.paste(a, (0, 0)); pb.paste(b, (0, 0)); a, b = pa, pb
     d = ImageChops.difference(a, b).convert('L').point(lambda v: 255 if v > 24 else 0)
     c = d.histogram()[255]
     if c < 4: continue

@@ -48175,6 +48175,51 @@ function box(a0,a1,b0,b1,z0,z1,top,front,side){
   F(a0,a1,z0,z1, front, null,0, nearB);
   S(endA,b0,b1,z0,z1, side);
 }
+/* A RUN ROUND CORNERS IS ONE PIECE (the corner rule -- Sir, 2026-11-22: "can we come up with a rule where all of these corners and
+   corners in general can be aligned better and cleaner. is there a way to make it 1 piece even?"). A wall, a cap, a hedge, a kerb, a
+   parapet along a path of points [[a, b], ...]: half-thickness t either side of the path, MITRED at each corner, so its outer and inner
+   lines run straight round and its top is one face -- never boxes butted at a corner (a step where their outer lines differ, a seam
+   where their caps meet). Only the faces the eye sees, asked of P as box() does; the side faces far to near, then the top.
+   legs: the path's legs to draw (leg i runs pts[i] -> pts[i+1]) when a run must be split between two draws (its far legs before a
+   house, its near ones after): each leg's piece is cut at the corner's mitre, so the two still meet as one. Unset: the whole path.
+   front: the colour of a face along a (facing b), side: of a face along b (facing a), as box() */
+function pathRun(pts, t, z0, z1, top, front, side, legs){
+  const n = pts.length; if(n < 2) return;
+  const dir = i => { const da = pts[i+1][0] - pts[i][0], db = pts[i+1][1] - pts[i][1], l = Math.hypot(da, db) || 1; return [da/l, db/l]; };
+  const Lp = [], Rp = [];
+  for(let i = 0; i < n; i++){
+    const d0 = i > 0 ? dir(i - 1) : null, d1 = i < n - 1 ? dir(i) : null, p = pts[i];
+    const n0 = d0 && [-d0[1], d0[0]], n1 = d1 && [-d1[1], d1[0]];
+    let m, k = t;
+    if(n0 && n1){ m = [n0[0] + n1[0], n0[1] + n1[1]]; const ml = Math.hypot(m[0], m[1]) || 1; m = [m[0]/ml, m[1]/ml]; k = t/Math.max(0.2, m[0]*n0[0] + m[1]*n0[1]); }
+    else m = n0 || n1;
+    Lp.push([p[0] + m[0]*k, p[1] + m[1]*k]); Rp.push([p[0] - m[0]*k, p[1] - m[1]*k]);
+  }
+  const all = !legs, want = (legs || Array.from({ length: n - 1 }, (_, i) => i)).slice().sort((x, y) => x - y), has = new Set(want);
+  /* (where a leg carries on, along a straight line, from a leg another call drew -- the run split round a house -- its end goes a hair
+     into that leg, faces and top: no anti-aliased seam where the two calls meet) */
+  const straight = v => v > 0 && v < n - 1 && Math.abs(dir(v - 1)[0]*dir(v)[1] - dir(v - 1)[1]*dir(v)[0]) < 1e-6;
+  const ends = i => { const d = dir(i), e = [Lp[i], Lp[i+1], Rp[i], Rp[i+1]].map(q => q.slice());
+    if(!has.has(i - 1) && straight(i)){ e[0] = [e[0][0] - d[0]*0.6, e[0][1] - d[1]*0.6]; e[2] = [e[2][0] - d[0]*0.6, e[2][1] - d[1]*0.6]; }
+    if(!has.has(i + 1) && straight(i + 1)){ e[1] = [e[1][0] + d[0]*0.6, e[1][1] + d[1]*0.6]; e[3] = [e[3][0] + d[0]*0.6, e[3][1] + d[1]*0.6]; }
+    return e; };
+  const o = P(0, 0, 0), seen = (na, nb) => (P(na, nb, 0).y - o.y) > 0.0001;
+  const faces = [];
+  for(const i of want){
+    const d = dir(i), nl = [-d[1], d[0]], [l0, l1, r0, r1] = ends(i), E = [[l0, l1, nl], [r1, r0, [-nl[0], -nl[1]]]];
+    if(i === 0) E.push([r0, l0, [-d[0], -d[1]]]);
+    if(i === n - 2) E.push([l1, r1, d]);
+    for(const [e0, e1, nn] of E) if(seen(nn[0], nn[1])) faces.push({ e0, e1, nn, y: P((e0[0] + e1[0])/2, (e0[1] + e1[1])/2, z0).y });
+  }
+  faces.sort((x, y) => x.y - y.y);
+  for(const f of faces) poly([P(f.e0[0], f.e0[1], z1), P(f.e1[0], f.e1[1], z1), P(f.e1[0], f.e1[1], z0), P(f.e0[0], f.e0[1], z0)],
+                            Math.abs(f.nn[1]) >= Math.abs(f.nn[0]) ? front : side);
+  /* the top: one face for each chain of consecutive legs drawn here (the whole path, when all of it is) -- no seam at a mitre */
+  for(let c = 0; c < want.length; ){ let e = c; while(e + 1 < want.length && want[e + 1] === want[e] + 1) e++;
+    const i0 = want[c], i1 = want[e] + 1, Ls = Lp.slice(i0, i1 + 1).map(q => q.slice()), Rs = Rp.slice(i0, i1 + 1).map(q => q.slice());
+    const a = ends(i0), b = ends(i1 - 1), k = Ls.length - 1; Ls[0] = a[0]; Rs[0] = a[2]; Ls[k] = b[1]; Rs[k] = b[3];
+    poly(Ls.concat(Rs.reverse()).map(q => P(q[0], q[1], z1)), top); c = e + 1; }
+}
 /* box's two seen faces and no top: a band round something (a label) */
 function boxSides(a0,a1,b0,b1,z0,z1,front,side){
   const o = P(a0,b0,z0), pa = P(a0+1,b0,z0), pb = P(a0,b0+1,z0);
@@ -51202,6 +51247,21 @@ function houseYardFence(sh, c, part){
   const gA = f.backGate ? W/2 - f.backGate : 0, gB = f.backGate ? W/2 + f.backGate : 0;
   const rear = () => { if(!f.backGate) houseYardRun(f, col, 'a', bR, aL, aR, ext);
                        else { houseYardRun(f, col, 'a', bR, aL, gA, [ext[0], 0]); houseYardRun(f, col, 'a', bR, gB, aR, [0, ext[1]]); } };
+  /* ONE PIECE (the corner rule, pathRun): a wall that turns into the house's own front garden wall (f.join: that wall's centre line
+     b and the inner ends of its two segments, its half-thicknesses t and capT) is drawn as ONE run with it -- the front wall's west
+     segment, the west side, the rear, the east side, the front's east segment -- mitred at every corner, its legs split between the
+     far draw (before the house) and the near (after it). The house draws no front wall of its own then */
+  if(f.join && f.style === 'wall' && !f.backGate){
+    /* (each side split where it passes the house's front, J.split: its front stretch drawn with the front wall, so each front corner
+       is drawn whole, in one go; the split is on a straight stretch, where the two meet unseen) */
+    const J = f.join, c1 = col(f.col), cp = col(f.cap), h = f.h, sb = J.split != null ? J.split : -40;
+    const path = [[J.far, J.b], [aL, J.b], [aL, sb], [aL, bR], [aR, bR], [aR, sb], [aR, J.b], [J.near, J.b]];
+    const front = a => a === aL ? [0, 1] : [5, 6], sideLeg = a => a === aL ? 2 : 4;
+    const run = legs => { pathRun(path, J.t, 0, h, shade(c1,1.04), c1, shade(c1,.8), legs); if(cp) pathRun(path, J.capT, h, h + 4, cp, shade(cp,.9), shade(cp,.75), legs); };
+    if(part === 'far') run(!state.back ? [3, sideLeg(farA)] : front(farA).concat(front(nearA), [sideLeg(farA)]));
+    else run(!state.back ? [sideLeg(nearA)].concat(front(farA), front(nearA)) : [sideLeg(nearA), 3]);
+    return;
+  }
   if(part === 'far'){ if(!state.back){ rear(); side(farA); } else side(farA); }
   else { if(!state.back) side(nearA); else { side(nearA); rear(); } }
 }
@@ -86638,7 +86698,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'Hacienda: long tile roof over a seven-arch front arcade, courtyard wall',
   desc:'A long single-storey Spanish hacienda: a red-tile roof running out over a front arcade of seven arches on thick piers, deep-set grilled windows and a plank door in the shade behind, terracotta floor, a low courtyard wall with an open timber gate, and big clay pots.',
   tags:['double','hacienda','arcade','tile roof','spanish'],
-  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof', front:-14 },
+  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof', front:-14, join:{ b:-9, far:370, near:440, t:5, capT:6 } },   // (join: one piece with its front garden wall -- pathRun)
   door:[405, -150],
   liv:[ { wall:'#efe2cc', roof:'#b8583a', trim:'#5a3a28', leaf:'#5a3a28', floor:'#b86a4a' },
         { wall:'#f2dcc4', roof:'#a84e34', trim:'#3f4a3e', leaf:'#3f4a3e', floor:'#a8604a' },
@@ -86696,10 +86756,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseProfileRoof(60, 750, this.prof, 12, c.roof, c.wall, { noEnds:true });
     /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
-    for(const [a0, a1] of [[6, 370], [440, 804]]){
-      box(a0, a1, -14, -4, 0, 26, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
-      box(a0-1, a1+1, -15, -3, 26, 30, c.roof, shade(c.roof,.9), shade(c.roof,.75));
-    }
+    /* (its front garden wall: one piece with the yard wall, drawn by houseYardFence -- yardFence.join) */
     F(372, 378, 0, 44, c.trim, null, 0, -9); F(432, 438, 0, 44, c.trim, null, 0, -9);
     for(const [nm, aa] of [['pot L', 300], ['pot R', 520]])
       houseProp(nm, () => { ball(aa, -50, 18, 16, '#b86a4a'); cyl(aa, -50, 26, 36, 9, '#a55a3c'); ball(aa, -50, 44, 10, '#6b9a5a'); });
@@ -86713,7 +86770,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     this.yard(c); houseYardFence(this, c, 'far');
     this.arcade(c);
-    for(const [a0, a1] of [[6, 370], [440, 804]]) box(a0, a1, -14, -4, 0, 26, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
+    /* (its front garden wall: one piece with the yard wall -- yardFence.join) */
     houseProp('pot L', () => ball(300, -50, 18, 16, '#b86a4a'));
     houseProp('pot R', () => ball(520, -50, 18, 16, '#b86a4a'));
     this.back_wall(c, -1);
