@@ -61836,11 +61836,11 @@ function houseCanopy(fn){
        (RBPK). The station's robot goes west along the lane (b 1410) and up to the stop; it comes back by a 620 into its spot; as it leaves,
        the spare rolls in */
     const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBL = 1410, SPOD = [330, 1000], SROB = [500, 1000], RPOD = [430, 850], RBIN = [SROB[0], SROB[1], 31];   /* (RPOD: the empties' rack beside the picker) */
-    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[460, 580, 700, 820][k], 1620];   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
+    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[820, 700, 460, 580][k], 1620];   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
     const rbGeo = k => { const pa = rbPA(k), ST = [pa, 1330], PK = RBPK(k), A = RBA[k];
       const EMP = [ST, [pa, RBL], [SROB[0], RBL], SROB], RET = [SROB, [620, SROB[1]], [620, RBL], [PK[0], RBL], PK], ENT = [PK, [PK[0], RBL], [pa, RBL], ST];
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
-      const E0 = (80 + pa - SROB[0])/RBV0 + 400;   /* (the spare sets off once the empty is off the lane, turned up to the stop: never the two on the lane at once) */
+      const E0 = (80 + pa - SROB[0])/RBV0 + 400 + (k >= 2 ? 1500 : 0);   /* (stations 6 and 5's spares a little later: none meets a robot coming back along the lane -- worked out by sim) */   /* (the spare sets off once the empty is off the lane, turned up to the stop: never the two on the lane at once) */
       return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X: A - tin, E0 }; };
     /* -> the two robots of row B's station 8-k on the goods-to-person clock r */
     const rbBots = (k, r) => { const G = rbGeo(k), q = (((r - G.X) % SUP) + SUP) % SUP, out = [], sg = (Q, k2) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k2)), plenP(Q) - 0.01)); };
@@ -62072,10 +62072,10 @@ function houseCanopy(fn){
           else if(jr < 8300){ P = hold(A0, 1); jack = JACKIN([]); fork = 1 - ease((jr - 7900)/400); }
           else if(jr >= 8500 && jr < 23500){ const CHG = [A0, [1720, RBL], [1450, RBL], [1450, AY], [2070, AY], [2070, 1735]], CHB = [[2070, 1735], [2070, AY, 'r'], [1450, AY], [1450, RBL], [1720, RBL], A0];
             /* (phase 7: on charge in its long wait -- out to a pad by the reserve pods while the runner waits at goods to person, the way clear) */
-            if(jr < 14000) P = drv(CHG, (jr - 8500)/5500); else if(jr < 18000){ P = hold([2070, 1735], 2); const on = Math.floor(t/600) % 2;
-              out.push({ kind: 'cargo', a: 1980, b: 1735, cargo: () => box(1975.5, 1977, 1725, 1745, 24, 60, on ? '#bffcf8' : '#5fe8e0') }); } else P = drv(CHB, (jr - 18000)/5500); }
+            if(jr < 13500) P = drv(CHG, (jr - 8500)/5000); else if(jr < 15500){ P = hold([2070, 1735], 2); const on = Math.floor(t/600) % 2;
+              out.push({ kind: 'cargo', a: 1980, b: 1735, cargo: () => box(1975.5, 1977, 1725, 1745, 24, 60, on ? '#bffcf8' : '#5fe8e0') }); } else if(jr < 20500) P = drv(CHB, (jr - 15500)/5000); else P = hold(A0, 1); }   /* (back off row B's lane before station 8's robot is on it) */
           else P = hold(A0, 1);
-          CW_FLOW.jack = jr >= 8500 && jr < 23500 ? (jr >= 14000 && jr < 18000 ? 'charging' : 'to the charger') : jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
+          CW_FLOW.jack = jr >= 8500 && jr < 23500 ? (jr >= 13500 && jr < 15500 ? 'charging' : 'to the charger') : jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
           const nL = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;
           out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackIn', jack: nL >= 0 || underPal(P) ? 'under' : false, fork, wheel: (P.s || P.a + P.b)*0.12 })); if(nL >= 0) out.push(onForks(P, fork, nL)); }
         /* the shipping jack, on its own round from outside (u: from 9500 into the pallet clock): the parts pallet in, the empty to the stack,
