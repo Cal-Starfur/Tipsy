@@ -5366,6 +5366,11 @@ function vehicleSolid(rect, a, b, kind, prop, arr){
    standing in the asphalt with its pavement face on ROAD_HALF; painted
    white top, paler road face, dark seam. */
 const ADA_PAD = { pad: 0xf4c430, edge: 0xb9911f, dome: 0xd9a21f, cap: 0xffdc6e };   // a kerb ramp's tactile pad (tactilePad)
+/* a world kerb ramp's run and flares (drawProp's sidewalkend, THE SLOPE READS AS A SLOPE): the flares' concrete, how far the light
+   moves it (flareK) and the pad (padK, an overlay), the broom grooves (grooves per flare, along its contours), the joint with the
+   walk, its lit lip (lip: how far outside the joint), and the valley crease down each side of the run */
+const RAMP_ART = { flare: 0xcbc6b8, flareK: 0.24, padK: 0.14, grooves: 4, groove: 0x9d978a, grooveA: 0.42, shade: 0x4a443a,
+                   joint: 0x8a8477, lit: 0xe6e1d4, lip: 2.5, crease: 0x9b7a1a };
 const KERB_STONE = { h: 8, w: 22, top: 0xf4f1e8, face: 0xe2ded0, dk: 0x6e6a5e };
 const GUT_JOINT = 0x878174;    // ... and between two bays of the gutter channel
 const KERB_JOINT = 0xc4bfb0;   // the joint between two kerb stones (kerbRun: LAID IN STONES)
@@ -8941,15 +8946,34 @@ function owRampHash(grid){
   grid._rampHash = m;
   return m;
 }
-function owAtRampMouth(grid, x, y){
+function owAtRampMouth(grid, x, y, cx, cy){
   if(!grid) return true;               // no grid, no gate: never trap the robot
   if(sierraPadAt(x, y)) return true;   // the estate's own crossings
-  const m = owRampHash(grid);
+  /* THE MOUTH IS THE WHOLE DROPPED KERB, PAD AND FLARES (Sir, 2026-11-23: "we need to be able to get up that little piece
+     not hung up on it"). It was a square +/-T2 about the ramp's point -- but the kerb is cut, and drawn, wider than that: the
+     pad is +/-T2/2 across, and a flare runs a tile past it each side (the kerb loop's FL = T2), so the opening is +/-1.5*T2
+     across (WORLD_RAMP.baseCross, the extent owRampFeel already leans him over). The outer half of each flare was a wall to
+     the climb (its probe leads the body by botR on each axis, so at an angle it reached the wall 30 sooner still) and a
+     fall to the descent (owCurbDrop off the 'last pavement' point). MEASURED, 4 corners x 11 laterals x 5 headings x 2
+     speeds from the road: 160 of 440 climbs made it up, every failure pinned at u = 122 (the probe on the kerb face) with
+     the probe's lateral past 92. Along the ramp it is unchanged: u in [-T2, T2], kerb face to the back of the pad.
+     ACROSS IT, ASK WHERE HIS BODY IS (cx, cy: the centre the step would put him at, when the caller has one). The probe leads
+     him by botR on BOTH axes whenever he is not square to one, so on a slant it sits 30 out to the side of him: climbing a
+     flare on the slant, it read the full kerb past the flare's end while all of him was on the flare (measured: 92 of 300
+     climbs still pinned, centre at |v| 105..130, probe past 138). The along test stays on the probe -- that is where the
+     wheels meet the step -- and the across test is his centre, so the opening is the opening his body is in. */
+  const m = owRampHash(grid), RX = WORLD_RAMP.baseCross;
   const ci = Math.floor(x/T2), cj = Math.floor(y/T2);
-  for(let i = ci-1; i <= ci+1; i++) for(let j = cj-1; j <= cj+1; j++){
+  for(let i = ci-2; i <= ci+2; i++) for(let j = cj-2; j <= cj+2; j++){
     const a = m.get(i + "," + j);
     if(!a) continue;
-    for(const r of a) if(Math.abs(r.x - x) <= T2 && Math.abs(r.y - y) <= T2) return true;
+    for(const r of a){
+      const dv = DIRV[r.f], dx = x - r.x, dy = y - r.y;
+      const u = dx*dv.x + dy*dv.y;
+      const vx = (cx === undefined ? x : cx) - r.x, vy = (cy === undefined ? y : cy) - r.y;
+      const v = vx*dv.y - vy*dv.x;                            // (across the ramp, either sign)
+      if(Math.abs(u) <= T2 && Math.abs(v) <= RX) return true;
+    }
   }
   /* a driveway's mouth is a dropped kerb the width of the drive */
   for(const d of hoodDrivewaysOf(grid)){
@@ -8963,7 +8987,7 @@ function owAtRampMouth(grid, x, y){
    untouched. sfcCommit is the same committed-transition latch the lean
    kick reads -- deliberately not surfaceAt's raw per-frame answer,
    which flickers road/curb/road along a kerb (see CURB CROSSING). */
-function owCurbBlocks(ow, W, x, y){
+function owCurbBlocks(ow, W, x, y, cx, cy){
   /* ARM ON WHERE HE IS, NOT ONLY ON THE LATCH. sfcCommit is written
      ONLY when the surface reads 'road' or 'sidewalk' -- never on
      'curb', 'park' or 'lot' -- so it goes stale the moment he is
@@ -9038,7 +9062,7 @@ function owCurbBlocks(ow, W, x, y){
      curb -> sidewalk stays blocked, so the band is a one-way vestibule
      down to the roadway, never a route up onto the pavement. */
   if(here === 'curb' && to === 'curb') return false;
-  return !owAtRampMouth(W.grid, x, y);
+  return !owAtRampMouth(W.grid, x, y, cx, cy);   // (cx, cy: his centre after the step -- the mouth's across test, see owAtRampMouth)
 }
 
 function owCurbSign(ow, toSfc){
@@ -9476,7 +9500,7 @@ function owStep(scene, dt){
                             (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
                             (semiParkBlocks(x, y, D.botR) || bbRackBlocks(x, y, D.botR) || amrLoadBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // a trailer left standing; Brew & Bolt's scooter rack (BB_RACK)
                             (!FP.fly && gwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) || CITY_PEOPLE.blockAt('world', x, y, D.botR, FP.fly) ||   // THE GETAWAY's charter; the people who are solid (CITY_PEOPLE.blocks: the derby's, Sun Deck Motor Lodge's)
-                            (!FP.fly && !FP.step && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
+                            (!FP.fly && !FP.step && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0), x, y) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
@@ -130540,15 +130564,43 @@ class WorldScene extends Phaser.Scene {
          tile the kerb's own wedge (FL = T2) drops across, so paving flare
          and stone flare meet at the kerb. Drawn in the ramp's stone, under
          the slope and the pad, on the city's tiles rather than a patch. */
+      /* THE SLOPE READS AS A SLOPE (kerb ramps pass, 2026-11-23, Sir: "lets look at the kerb ramp slopes"). The ground is
+         flat on screen (the pad and the walk are within a unit of each other), so the tilt is told by the light, not by
+         height: the pad is the ramp's run, falling from the walk at its back edge (a = 0) to the road at the kerb (a = wHalf),
+         and each wing is a flare falling to the pad's side and to the kerb at once -- the plane through its three corners,
+         walk / road / walk, whose fall line is (1, -sg). A face that falls toward the light (screen up-left, as the pad's dome
+         caps) is lit by how squarely it does; one that falls away is shaded. The flares are poured concrete, finer and paler
+         than the walk's slabs and broomed ACROSS the fall, so their grooves run along the contours -- parallel to the flare's
+         outer edge -- and draw the slope down to the pad. Their outer edge is a tooled joint with the walk (dark groove, lit
+         lip on the walk's side), the crease where flare meets pad a dark valley line, and the ramp's back edge a lit
+         break-over where the walk tips into the run. No lip at the kerb: the pad runs flush to the gutter (owAtRampMouth). */
       if(data && data.basePatch === false){
+        const o = W(0, 0, 0), RA = RAMP_ART;
+        const lightOf = (da, db) => {                                // + lit, - shaded: the fall line's screen direction against the light
+          const q = W(da, db, 0), sx = q.x - o.x, sy = q.y - o.y, m = Math.hypot(sx, sy) || 1;
+          return (-sx - sy)/(m*Math.SQRT2);
+        };
+        const tone = (base, t, k) => t >= 0 ? mixC(base, 0xffffff, t*k) : mixC(base, RA.shade, -t*k);
+        const hw = T2s/2;
         for(const sg of [-1, 1]){
           /* alongside the PAD only (Sir's sketch, 2026-09-23: the wing
              starts at the pad's back corner, not the slope's) -- a short,
              steep flare reads as a drop, where the long one read flat */
-          const wing = [W(0, sg*T2s/2, sidewalkZ), W(wHalf, sg*T2s/2, streetZ),
+          const wing = [W(0, sg*hw, sidewalkZ), W(wHalf, sg*hw, streetZ),
                         W(wHalf, sg*crossHalf, sidewalkZ)];
-          this.quadOn(g, wing, 0xb5afa2);
-          this.edgeOn(g, wing, 0x968f81, 1.5);
+          this.quadOn(g, wing, tone(RA.flare, lightOf(1, -sg), RA.flareK));
+          /* the broom grooves, along the contours: v - a = const, from the pad's edge to the kerb */
+          g.lineStyle(1, RA.groove, RA.grooveA);
+          const span = crossHalf - hw;
+          for(let k = 1; k < RA.grooves; k++){
+            const c = span*k/RA.grooves, a = W(c, sg*hw, sidewalkZ), b = W(wHalf, sg*(hw + wHalf - c), sidewalkZ);
+            g.lineBetween(a.x, a.y, b.x, b.y);
+          }
+          /* the joint with the walk: groove on the line, the walk's lit lip just outside it */
+          const j0 = W(0, sg*hw, sidewalkZ), j1 = W(wHalf, sg*crossHalf, sidewalkZ);
+          g.lineStyle(Math.max(1, this.K*0.9), RA.joint, 1); g.lineBetween(j0.x, j0.y, j1.x, j1.y);
+          const l0 = W(-RA.lip, sg*(hw + RA.lip), sidewalkZ), l1 = W(wHalf - RA.lip, sg*(crossHalf + RA.lip), sidewalkZ);
+          g.lineStyle(1, RA.lit, 0.8); g.lineBetween(l0.x, l0.y, l1.x, l1.y);
         }
       }
       // tile 1: slopes sidewalk->street. tile 2: flat landing at street height.
@@ -130568,6 +130620,17 @@ class WorldScene extends Phaser.Scene {
                       W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0x968f81, 1.5);
       // ADA pad: the flat landing tile, dome-textured
       this.tactilePad(g, W, 0, wHalf, -T2s/2, T2s/2, streetZ);
+      if(data && data.basePatch === false){
+        /* the run's tilt over the pad (its domes tilt with it), the valley creases down its sides, and the break-over at
+           its back edge where the walk tips into it (see THE SLOPE READS AS A SLOPE above) */
+        const RA = RAMP_ART, o = W(0, 0, 0), q = W(1, 0, 0), sx = q.x - o.x, sy = q.y - o.y;
+        const t = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), hw = T2s/2;
+        this.quadOn(g, [W(0,-hw,streetZ), W(wHalf,-hw,streetZ), W(wHalf,hw,streetZ), W(0,hw,streetZ)], t >= 0 ? 0xffffff : RA.shade, Math.abs(t)*RA.padK);
+        g.lineStyle(Math.max(1, this.K*0.8), RA.crease, 0.7);
+        for(const sg of [-1, 1]){ const a = W(0, sg*hw, streetZ), b = W(wHalf, sg*hw, streetZ); g.lineBetween(a.x, a.y, b.x, b.y); }
+        const b0 = W(-RA.lip, -hw, sidewalkZ), b1 = W(-RA.lip, hw, sidewalkZ);
+        g.lineStyle(Math.max(1, this.K*0.9), RA.lit, 0.85); g.lineBetween(b0.x, b0.y, b1.x, b1.y);
+      }
     } else if(kind === "sidewalkbegin"){
       /* the ascending mirror of prop.sidewalkend — completes the pair.
          Restored: this and sidewalkbeginTurn were added in 728c97d but
