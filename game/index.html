@@ -62543,14 +62543,16 @@ function houseCanopy(fn){
 
     /* ---- FIVE TREADMILLS facing the north wall: each its own piece keyed at its middle (36 by 100: not a long fixture). Inside one, back to
        front: the deck, the motor hood on its far end, the belt and side rails, the uprights (west first), the console with its screen to the runner, the rails ---- */
-    SF_TREADS.forEach(c => items.push({ a: c, b: 72, z: 0, solids: [solid(c - 18, c + 18, 20, 124, 110, 'treadmill')], draw: () => {
-      box(c - 18, c + 18, 20, 124, 0, 6, charL, char, charD);
-      box(c - 18, c + 18, 20, 40, 6, 16, coral, coral, coralD);
-      T(c - 14, c + 14, 40, 122, 6.2, blk);
-      box(c - 18, c - 14, 40, 124, 6, 9, gear, gear, gearD); box(c + 14, c + 18, 40, 124, 6, 9, gear, gear, gearD);
-      box(c - 17, c - 14, 26, 31, 16, 100, gear, gear, gearD); box(c + 14, c + 17, 26, 31, 16, 100, gear, gear, gearD);   // (up to the console, which sits on them)
-      box(c - 19, c + 19, 22, 36, 100, 114, charL, char, charD); F(c - 11, c + 11, 103, 111, '#4fb3c8', null, 0, 36.1); F(c - 8, c - 2, 106, 108, cream, null, 0, 36.2);
-      tube(c - 16, 34, 102, c - 16, 66, 94, 1.3, gearD); tube(c + 16, 34, 102, c + 16, 66, 94, 1.3, gearD); } }));
+    /* (48 across, a 40 belt: a person's stance fits between the side rails -- Sir, 2026-11-23: "the treadmill needs to be slightly wider so the
+       person fits it") */
+    SF_TREADS.forEach(c => items.push({ a: c, b: 72, z: 0, solids: [solid(c - 24, c + 24, 20, 124, 110, 'treadmill')], draw: () => {
+      box(c - 24, c + 24, 20, 124, 0, 6, charL, char, charD);
+      box(c - 24, c + 24, 20, 40, 6, 16, coral, coral, coralD);
+      T(c - 20, c + 20, 40, 122, 6.2, blk);
+      box(c - 24, c - 20, 40, 124, 6, 9, gear, gear, gearD); box(c + 20, c + 24, 40, 124, 6, 9, gear, gear, gearD);
+      box(c - 23, c - 20, 26, 31, 16, 100, gear, gear, gearD); box(c + 20, c + 23, 26, 31, 16, 100, gear, gear, gearD);   // (up to the console, which sits on them)
+      box(c - 25, c + 25, 22, 36, 100, 114, charL, char, charD); F(c - 13, c + 13, 103, 111, '#4fb3c8', null, 0, 36.1); F(c - 10, c - 4, 106, 108, cream, null, 0, 36.2);
+      tube(c - 22, 34, 102, c - 22, 66, 94, 1.3, gearD); tube(c + 22, 34, 102, c + 22, 66, 94, 1.3, gearD); } }));
 
     /* ---- FOUR BIKES before them, facing north: each its own piece keyed at its middle. Inside one, back to front: the front foot, the flywheel
        under its guard, the bars' post and the bars, the frame, the back foot, the saddle's post and the saddle ---- */
