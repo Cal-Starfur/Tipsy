@@ -70964,14 +70964,6 @@ function houseCanopy(fn){
       box(pa-9, pa+9, pb-9, pb+9, 0, 58, shade(wall,.95), shade(wall,.8), shade(wall,.7));
       slab(pa-12, pa+12, 58, 64, pb+12, pb-12, shade(wall,.86));
     };
-    const fenceA = (bb, segs) => { for(const [s0,s1] of segs){
-      box(s0, s1, bb-5, bb+5, 0, WH, shade(wall,.9), shade(wall,.76), shade(wall,.66));
-      for(let x=s0+14; x<s1-8; x+=30) cyl(x, bb, WH, RH, 2.2, iron);
-      tube(s0, bb, RH-4, s1, bb, RH-4, 2.2, iron); } };
-    const fenceB = (aa, segs) => { for(const [s0,s1] of segs){
-      box(aa-5, aa+5, s1, s0, 0, WH, shade(wall,.9), shade(wall,.76), shade(wall,.66));
-      for(let y=s0-14; y>s1+8; y-=30) cyl(aa, y, WH, RH, 2.2, iron);
-      tube(aa, s0, RH-4, aa, s1, RH-4, 2.2, iron); } };
     /* IN PIECES (Sir, on-device: Tipsey inside the gate drew over the
        railing). Everything that stands up is an item for depthSort(), so
        the game can sort each into the world queue against him -- the
@@ -70988,14 +70980,42 @@ function houseCanopy(fn){
     const chunk = (s0, s1, n = 120) => { const out = [], d = s1 > s0 ? 1 : -1;
       for(let x = s0; d > 0 ? x < s1 - 0.5 : x > s1 + 0.5; x += d*n) out.push([x, d > 0 ? Math.min(s1, x+n) : Math.max(s1, x-n)]);
       return out; };
-    const railA = (bb, segs) => { for(const [s0,s1] of segs) for(const c of chunk(s0, s1))
-      items.push({ a: (c[0]+c[1])/2, b: bb, draw: () => fenceA(bb, [c]) }); };
-    const railB = (aa, segs) => { for(const [s0,s1] of segs) for(const c of chunk(s0, s1))
-      items.push({ a: aa, b: (c[0]+c[1])/2, draw: () => fenceB(aa, [c]) }); };
-    railB(0,    [[0,WN0],[WN1,-LOT]]);                        // left
-    railA(-LOT, [[0,CA-46],[CA+46,LOT]]);                     // back
-    railA(0,    [[0,CA-46],[CA+46,LOT]]);                     // front
-    railB(LOT,  [[0,WT0],[WT1,-LOT]]);                        // right
+    /* ONE RUN ROUND EACH CORNER (pathRun, the corner rule -- Sir, 2026-11-22): the railing's low wall goes from the gate on one
+       side round the lot's corner to the gate on the other, mitred, cut for depthSort as the runs are -- each corner 60 either way
+       one piece keyed at the corner, the straights between in pieces of up to 120 keyed at their middles; each piece's legs drawn
+       by the one path, so they meet as one. The uprights stand where the rails had them; the top rail runs along each leg. */
+    const runCut = (path, put, n = 120, c = 60) => {
+      const Q = [path[0]], G = [];
+      for(let i = 0; i < path.length - 1; i++){
+        const [pa, pb] = path[i], [qa, qb] = path[i+1], L = Math.hypot(qa - pa, qb - pb), da = (qa - pa)/L, db = (qb - pb)/L;
+        const cs = i > 0 ? Math.min(c, L/2) : 0, ce = i < path.length - 2 ? Math.min(c, L/2) : 0;
+        const leg = (u, g) => { Q.push([pa + da*u, pb + db*u]); G.push(g); };
+        if(cs > 0) leg(cs, 'c' + i);
+        for(let u = cs; u < L - ce - 0.5; ){ const v = Math.min(L - ce, u + n); leg(v, 'm' + i + ',' + u); u = v; }
+        if(ce > 0) leg(L, 'c' + (i + 1));
+      }
+      const by = new Map(); G.forEach((g, k) => { if(!by.has(g)) by.set(g, []); by.get(g).push(k); });
+      /* (put far to near, as depthSort would: a corner's far leg must not be pushed after the near piece beside it) */
+      [...by].map(([g, legs]) => ({ g, legs, k: g[0] === 'c' ? path[+g.slice(1)] : [(Q[legs[0]][0] + Q[legs[0]+1][0])/2, (Q[legs[0]][1] + Q[legs[0]+1][1])/2] }))
+        .sort((u, v) => P(u.k[0], u.k[1], 0).y - P(v.k[0], v.k[1], 0).y).forEach(({ g, legs, k }) => put(Q, legs, k[0], k[1], g));
+    };
+    const pk = [];                                             // the uprights, where the old 120 runs put them (14 in, 30 apart)
+    for(const bb of [-LOT, 0]) for(const [s0,s1] of [[0,CA-46],[CA+46,LOT]]) for(const [c0,c1] of chunk(s0, s1)) for(let x=c0+14; x<c1-8; x+=30) pk.push([x, bb]);
+    for(const [aa, segs] of [[0, [[0,WN0],[WN1,-LOT]]], [LOT, [[0,WT0],[WT1,-LOT]]]]) for(const [s0,s1] of segs) for(const [c0,c1] of chunk(s0, s1))
+      for(let y=c0-14; y>c1+8; y-=30) pk.push([aa, y]);
+    const onLeg = (Q, k, x, y) => { const [a0,b0] = Q[k], [a1,b1] = Q[k+1], L = Math.hypot(a1-a0, b1-b0), u = ((x-a0)*(a1-a0) + (y-b0)*(b1-b0))/L;
+      return Math.abs((x-a0)*(b1-b0) - (y-b0)*(a1-a0))/L < 1 && u >= 0 && u < L; };
+    const rail = path => runCut(path, (Q, legs, ka, kb) => {
+      const L = legs.map(k => ({ k, p: pk.filter(([x, y]) => onLeg(Q, k, x, y)), y: P((Q[k][0]+Q[k+1][0])/2, (Q[k][1]+Q[k+1][1])/2, 0).y }));
+      items.push({ a: ka, b: kb, draw: () => {
+        pathRun(Q, 5, 0, WH, shade(wall,.9), shade(wall,.76), shade(wall,.66), legs);
+        for(const l of L.slice().sort((u, v) => u.y - v.y)){ for(const [x, y] of l.p) cyl(x, y, WH, RH, 2.2, iron);
+          tube(Q[l.k][0], Q[l.k][1], RH-4, Q[l.k+1][0], Q[l.k+1][1], RH-4, 2.2, iron); }
+      } }); });
+    rail([[0, WN0], [0, 0], [CA-46, 0]]);                      // left, round to the front
+    rail([[0, WN1], [0, -LOT], [CA-46, -LOT]]);                // left, round to the back
+    rail([[CA+46, 0], [LOT, 0], [LOT, WT0]]);                  // front, round to the right
+    rail([[CA+46, -LOT], [LOT, -LOT], [LOT, WT1]]);            // back, round to the right
     for(const [pa,pb] of [[0,WN0],[0,WN1],[CA-46,-LOT],[CA+46,-LOT],[CA-46,0],[CA+46,0],[LOT,WT0],[LOT,WT1]])
       items.push({ a: pa, b: pb, draw: () => pier(pa, pb) });
 
@@ -72191,13 +72211,34 @@ function houseCanopy(fn){
       ball(ta, tb, 74*s, 17*s, '#4e8058');
       } });
     };
-    /* a low clipped hedge along the lot edge, open where a walk meets it */
-    const hedgeRunA = (a0, a1, bb) => { for(const [c0, c1] of chunk(a0, a1)) items.push({ a: (c0+c1)/2, b: bb, draw: () =>
-      box(c0, c1, bb-14, bb+14, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8)) }); };
-    const hedgeRunB = (b0, b1, aa) => { for(const [c0, c1] of chunk(b0, b1)) items.push({ a: aa, b: (c0+c1)/2, draw: () =>
-      box(aa-14, aa+14, c1, c0, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8)) }); };
-    hedgeRunA(24, CA-70, -LOT+24); hedgeRunA(CA+70, LOT-24, -LOT+24);       // back
-    hedgeRunB(-24, CB+70, 24);     hedgeRunB(CB-70, -LOT+24, 24);           // left side street
+    /* a low clipped hedge along the lot edge, open where a walk meets it: ONE RUN ROUND EACH CORNER of the lot (pathRun, the
+       corner rule -- Sir, 2026-11-22), from the walk on one side round to the walk on the other, mitred, cut for depthSort as the
+       runs are -- each corner 60 either way one piece keyed at the corner, the straights between in pieces of up to 120 keyed at
+       their middles; each piece's legs drawn by the one path, so they meet as one */
+    const runCut = (path, put, n = 120, c = 60) => {
+      const Q = [path[0]], G = [];
+      for(let i = 0; i < path.length - 1; i++){
+        const [pa, pb] = path[i], [qa, qb] = path[i+1], L = Math.hypot(qa - pa, qb - pb), da = (qa - pa)/L, db = (qb - pb)/L;
+        const cs = i > 0 ? Math.min(c, L/2) : 0, ce = i < path.length - 2 ? Math.min(c, L/2) : 0;
+        const leg = (u, g) => { Q.push([pa + da*u, pb + db*u]); G.push(g); };
+        if(cs > 0) leg(cs, 'c' + i);
+        for(let u = cs; u < L - ce - 0.5; ){ const v = Math.min(L - ce, u + n); leg(v, 'm' + i + ',' + u); u = v; }
+        if(ce > 0) leg(L, 'c' + (i + 1));
+      }
+      const by = new Map(); G.forEach((g, k) => { if(!by.has(g)) by.set(g, []); by.get(g).push(k); });
+      /* (put far to near, as depthSort would: a corner's far leg must not be pushed after the near piece beside it) */
+      [...by].map(([g, legs]) => ({ g, legs, k: g[0] === 'c' ? path[+g.slice(1)] : [(Q[legs[0]][0] + Q[legs[0]+1][0])/2, (Q[legs[0]][1] + Q[legs[0]+1][1])/2] }))
+        .sort((u, v) => P(u.k[0], u.k[1], 0).y - P(v.k[0], v.k[1], 0).y).forEach(({ g, legs, k }) => put(Q, legs, k[0], k[1], g));
+    };
+    /* (late: the path's legs that go in with the grounds in front of the building, below -- a corner with either of its legs) */
+    const lateOf = (g, late) => g[0] === 'c' ? late.includes(+g.slice(1) - 1) || late.includes(+g.slice(1)) : late.includes(+g.slice(1).split(',')[0]);
+    const hedgeLater = [];
+    const hedgeRun = (path, late = []) => runCut(path, (Q, legs, ka, kb, g) => (lateOf(g, late) ? hedgeLater : items).push({ a: ka, b: kb, draw: () =>
+      pathRun(Q, 14, 0, 30, shade(hedgeC,1.08), hedgeC, shade(hedgeC,.8), legs) }));
+    hedgeRun([[CA-70, -LOT+24], [24, -LOT+24], [24, CB-70]]);              // back, round to the left side street
+    hedgeRun([[CA+70, -LOT+24], [LOT-24, -LOT+24], [LOT-24, CB-70]], [1]); // back, round to the near side street
+    hedgeRun([[24, CB+70], [24, -24], [CA-70, -24]], [1]);                 // the left side street, round to the street
+    hedgeRun([[LOT-24, CB+70], [LOT-24, -24], [CA+70, -24]], [0, 1]);      // the near side street, round to the street
     /* the reflecting pool, on the axis behind the back entrance */
     { const p0 = CA-260, p1 = CA+260, q0 = bb1-150, q1 = bb1-470;
       box(p0-14, p1+14, q1-14, q0+14, 0, 14, shade(wall,.96), shade(wall,.82), shade(wall,.7));
@@ -72372,8 +72413,7 @@ function houseCanopy(fn){
     }
     for(const [ta, tb] of [[bx1+180,-220],[bx1+180,CB-240],[bx1+180,CB+240],[bx1+180,-800],[LOT-150,-1500],[LOT-150,-1200],
                            [CA-420,-60],[CA+420,-60]].sort((u,v) => (u[0]+u[1]) - (v[0]+v[1]))) tree(ta, tb);
-    hedgeRunB(-24, CB+70, LOT-24); hedgeRunB(CB-70, -LOT+24, LOT-24);      // near side street
-    hedgeRunA(24, CA-70, -24);     hedgeRunA(CA+70, LOT-24, -24);          // the street
+    items.push(...hedgeLater);                                              // the near side street and the street (hedgeRun above)
     depthSort(items);
     kerb(p,'none');
   }
@@ -74938,6 +74978,35 @@ function houseCanopy(fn){
       if(a1 - a0 >= b1 - b0) for(const [c0, c1] of chunk(a0, a1)) piece(c0, c1, b0, b1);
       else for(const [c0, c1] of chunk(b0, b1)) piece(a0, a1, c0, c1);
     };
+    /* ROUND A CORNER, ONE RUN (pathRun, the corner rule -- Sir, 2026-11-22): the wall and its coping along a path of corner
+       points, mitred, cut for depthSort as the runs are -- each corner 60 either way one piece keyed at the corner, the straights
+       between in pieces of up to 120 keyed at their middles; each piece's legs drawn by the one path, so they meet as one */
+    const runCut = (path, put, n = 120, c = 60) => {
+      const Q = [path[0]], G = [];
+      for(let i = 0; i < path.length - 1; i++){
+        const [pa, pb] = path[i], [qa, qb] = path[i+1], L = Math.hypot(qa - pa, qb - pb), da = (qa - pa)/L, db = (qb - pb)/L;
+        const cs = i > 0 ? Math.min(c, L/2) : 0, ce = i < path.length - 2 ? Math.min(c, L/2) : 0;
+        const leg = (u, g) => { Q.push([pa + da*u, pb + db*u]); G.push(g); };
+        if(cs > 0) leg(cs, 'c' + i);
+        for(let u = cs; u < L - ce - 0.5; ){ const v = Math.min(L - ce, u + n); leg(v, 'm' + i + ',' + u); u = v; }
+        if(ce > 0) leg(L, 'c' + (i + 1));
+      }
+      const by = new Map(); G.forEach((g, k) => { if(!by.has(g)) by.set(g, []); by.get(g).push(k); });
+      /* (put far to near, as depthSort would: a corner's far leg must not be pushed after the near piece beside it) */
+      [...by].map(([g, legs]) => ({ g, legs, k: g[0] === 'c' ? path[+g.slice(1)] : [(Q[legs[0]][0] + Q[legs[0]+1][0])/2, (Q[legs[0]][1] + Q[legs[0]+1][1])/2] }))
+        .sort((u, v) => P(u.k[0], u.k[1], 0).y - P(v.k[0], v.k[1], 0).y).forEach(({ g, legs, k }) => put(Q, legs, k[0], k[1], g));
+    };
+    /* the yard wall round its corners: 12 thick on the path, its coping 18 (3 proud) and 3 past the run's free ends */
+    const lateOf = (g, late) => g[0] === 'c' ? late.includes(+g.slice(1) - 1) || late.includes(+g.slice(1)) : late.includes(+g.slice(1).split(',')[0]);
+    const yLater = [];   // (the right run and the street wall's two ends: pushed with the street wall, below)
+    const yRun = (path, late) => runCut(path, (Q, legs, ka, kb, g) => {
+      const C = Q.map(q => q.slice()), m = C.length - 1, ext = (i, j) => { const d = Math.hypot(C[i][0] - C[j][0], C[i][1] - C[j][1]) || 1;
+        C[i] = [C[i][0] + (C[i][0] - C[j][0])/d*3, C[i][1] + (C[i][1] - C[j][1])/d*3]; };
+      ext(0, 1); ext(m, m - 1);
+      (lateOf(g, late) ? yLater : items).push({ a: ka, b: kb, draw: () => {
+        pathRun(Q, 6, 0, FH, shade(wall,.9), shade(wall,.66), shade(wall,.54), legs);
+        pathRun(C, 9, FH, FH+8, shade(wall,1.2), shade(wall,1.05), shade(shade(wall,1.05),.78), legs);
+      } }); });
 
     /* ---- the ground: pavement all round, gravel over the whole yard ---- */
     T(0, LOT, -LOT, 0, 0.4, '#b3a894');
@@ -74954,8 +75023,8 @@ function houseCanopy(fn){
        and simply were not there. Ninth order-versus-depth fault of the
        session, and the first where the thing that vanished was an
        entrance. */
-    yWall(YW0, YW1, YBK, YBK+12);
-    yWall(YW0, YW0+12, YBK, YB);
+    /* the yard wall, one run from the out gate round the back to the cart gate (the street wall's two middle runs below) */
+    yRun([[G1[0], YB-6], [YW0+6, YB-6], [YW0+6, YBK+6], [YW1-6, YBK+6], [YW1-6, YB-6], [G2[1], YB-6]], [0, 3, 4]);
     /* ---- the stock on the BACK run of the circuit, before the building ----
        These sit at b -780..-900, behind the brewhouse's back plane at
        -660, and on screen they land at a - b of 1100..1330 against a
@@ -75161,7 +75230,6 @@ function houseCanopy(fn){
     items.push({ a: 1290, b: -1014, draw: () => { const da = 1290, db = -1014;
       gameCar(da, db, 0, 1, 0, 'flatbed');
       for(const [ca, cb] of [[da-22,db-110],[da+22,db-110],[da-22,db-50],[da+22,db-50]]) cask(ca, cb, 44); } });
-    yWall(YW1-12, YW1, YBK, YB);                                       // the right run
     /* ---- the street wall, and the circuit has a gate at EACH end ----
        The left return of the yard was closed with a plain wall run and
        it read as a wall that stopped: the whole left arm of the circuit
@@ -75176,7 +75244,8 @@ function houseCanopy(fn){
        the other -- which is what the wrap was for, and it puts two of
        the landmark's four entrances on the same street as the tap room
        rather than leaving them on faces the camera never shows. */
-    for(const [a0,a1] of [[YW0, G1[0]], [G1[1], BA0-12], [BA1+12, G2[0]], [G2[1], YW1]]) yWall(a0, a1, YB-12, YB);
+    items.push(...yLater);                                             // the right run, the street wall's two ends (yRun above)
+    for(const [a0,a1] of [[G1[1], BA0-12], [BA1+12, G2[0]]]) yWall(a0, a1, YB-12, YB);
     const gate = (g0, g1) => {
       for(const ga of [g0, g1]){
         cyl(ga, YB-6, 0, 116, 10, shade(wall,.62));
@@ -75689,11 +75758,13 @@ function houseCanopy(fn){
     const BA0 = 96, BA1 = 300, FB = 0, BB = -296;      // the shop, mid-plot, on the line
     const YW0 = 20, YW1 = WW - 20, YBK = -DD + 20;      // the yard round it
     const FH = 46;
-    /* a run of the yard wall and its coping (3 proud of it all round). The corners belong to the arms: the back run stops at
-       their faces and its coping at theirs, so the runs meet face to face (W37 inside) */
-    const yBox = (a0,a1,b0,b1) => box(a0, a1, b0, b1, 0, FH, shade(wall,.86), shade(wall,.64), shade(wall,.52));
-    const yCap = (a0,a1,b0,b1) => slab(a0, a1, FH, FH+7, b1, b0, shade(wall,1.08), null, shade(wall,1.22));
-    const yWall = (a0,a1,b0,b1) => { yBox(a0, a1, b0, b1); yCap(a0-3, a1+3, b0-3, b1+3); };
+    /* THE YARD WALL, ONE RUN ROUND ITS CORNERS (pathRun, the corner rule -- Sir, 2026-11-22): the far arm, the back run, the near
+       arm, mitred, 12 thick, and its coping (3 proud of it all round) a second run on it. Its legs: the far arm and the back run
+       up to 60 short of the near corner go before the building; the rest, round that corner and the near arm, after it -- the
+       split on the back run's straight, not at a corner */
+    const yPath = e => [[YW0+6, -12+e], [YW0+6, YBK+6], [YW1-66, YBK+6], [YW1-6, YBK+6], [YW1-6, -12+e]];
+    const yWall = legs => { pathRun(yPath(0), 6, 0, FH, shade(wall,.86), shade(wall,.64), shade(wall,.52), legs);
+      pathRun(yPath(3), 9, FH, FH+7, shade(wall,1.22), shade(wall,1.08), shade(shade(wall,1.08),.78), legs); };
 
     /* ---- ground, and the far half of the perimeter ----
        Only the back and the far arm go before the building. The near
@@ -75704,13 +75775,8 @@ function houseCanopy(fn){
        was drawn with the back wall. */
     T(0, WW, -DD, 0, 0.4, '#cfc6b2');
     T(YW0, YW1, YBK, -12, 0.6, '#b8ae98');
-    /* (the back run and the far arm: both walls, then both copings on them -- W37 foot -- the two meeting along a, so the far
-       one first, whichever end the eye sees) */
-    { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
-      const back = [() => yBox(YW0+12, YW1-12, YBK, YBK+12), () => yCap(YW0+15, YW1-15, YBK-3, YBK+15)];
-      const arm = [() => yBox(YW0, YW0+12, YBK, -12), () => yCap(YW0-3, YW0+15, YBK-3, -9)];
-      const [f, n] = seeE ? [arm, back] : [back, arm];
-      f[0](); n[0](); f[1](); n[1](); }
+    /* (the far arm and the back run: the wall, then its coping on it -- W37 foot) */
+    yWall([0, 1]);
 
     /* ---- stock on the back run, before the building ---- */
     for(let k=0;k<4;k++)
@@ -75779,7 +75845,7 @@ function houseCanopy(fn){
     plateCircle(352, -282, 110, 7, shade(wall,.9));
 
     /* ---- the near perimeter, last ---- */
-    yWall(YW1-12, YW1, YBK, -12);
+    yWall([2, 3]);
 
     if(state.roof){
       box(150, 236, -140, -86, H, H+26, '#8f969d','#787f86','#697077');
@@ -77858,12 +77924,14 @@ function houseCanopy(fn){
       /* the parapet: a turquoise band along the front, a rim on the roof's other edges */
       /* (back to front and meeting face to face -- W37: the back rim first, stopping at the east end's rim; the east rim up to
          the front band's back; the band last. The back rim and the east rim meet along a: the far one first, whichever end is seen) */
+      /* (the band and the east rim: one run round their corner, 10 thick, the rim's outer face on the east wall -- pathRun, the
+         corner rule; the back rim, 4 lower, stops at the rim's face) */
       { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
-        const backRim = () => box(a0 - e0, last ? a1 - 8 : a1 + e1, M.N.b0, M.N.b0 + 8, RZ, PZ - 4, shade(wall, 1.04), wallS, wallD);
+        const backRim = () => box(a0 - e0, last ? a1 - 10 : a1 + e1, M.N.b0, M.N.b0 + 8, RZ, PZ - 4, shade(wall, 1.04), wallS, wallD);
         if(!last || seeE) backRim();
-        if(last) box(a1 - 8, a1, M.N.b0, M.N.b1 - 8, RZ, PZ, shade(trim, 1.2), trim, trimD);
+        if(last) pathRun([[a0 - e0, M.N.b1 - 3], [a1 - 5, M.N.b1 - 3], [a1 - 5, M.N.b0]], 5, RZ, PZ, shade(trim, 1.2), trim, trimD);
         if(last && !seeE) backRim(); }
-      box(a0 - e0, a1 + e1, M.N.b1 - 8, M.N.b1 + 2, RZ, PZ, shade(trim, 1.2), trim, trimD);
+      if(!last) box(a0 - e0, a1 + e1, M.N.b1 - 8, M.N.b1 + 2, RZ, PZ, shade(trim, 1.2), trim, trimD);
       if(state.roof && first) for(const [ra, rb] of [[200, -1520], [380, -1480]]) box(ra - 26, ra + 26, rb - 18, rb + 18, RZ, RZ + 22, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
       if(state.roof && !first && !last) box(760 - 26, 760 + 26, -1520 - 18, -1520 + 18, RZ, RZ + 22, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
     }});
@@ -77887,11 +77955,11 @@ function houseCanopy(fn){
       for(let k = 0; k < N; k++){ const u0 = M.bayW[0] + bw*k, u1 = u0 + bw; if(u0 < b0 - 0.5 || u1 > b1 + 0.5) continue; room(false, u0, u1, k + 3, 0); room(false, u0, u1, k + 4, GZ + 8); }
       /* (back to front and meeting face to face -- W37: the back rim first, stopping at the south end's rim; the south rim up to
          the front band's back, the two meeting along a: the far one first, whichever end is seen) */
-      box(M.W.a0, M.W.a0 + 8, b0 - e0, last ? b1 - 8 : b1 + e1, RZ, PZ - 4, shade(wall, 1.04), wallD, wallS);
-      { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, southRim = () => box(M.W.a0, M.W.a1 - 8, b1 - 8, b1, RZ, PZ, shade(trim, 1.2), trim, trimD);
-        if(last && seeE) southRim();
-        box(M.W.a1 - 8, M.W.a1 + 2, b0 - e0, b1 + e1, RZ, PZ, shade(trim, 1.2), shade(trim, 0.9), trim);
-        if(last && !seeE) southRim(); }
+      /* (the band and the south rim: one run round their corner, 10 thick, the rim's outer face on the south wall -- pathRun, the
+         corner rule; the back rim, 4 lower, stops at the rim's face) */
+      box(M.W.a0, M.W.a0 + 8, b0 - e0, last ? b1 - 10 : b1 + e1, RZ, PZ - 4, shade(wall, 1.04), wallD, wallS);
+      if(last) pathRun([[M.W.a1 - 3, b0 - e0], [M.W.a1 - 3, b1 - 5], [M.W.a0, b1 - 5]], 5, RZ, PZ, shade(trim, 1.2), trim, trim);
+      else box(M.W.a1 - 8, M.W.a1 + 2, b0 - e0, b1 + e1, RZ, PZ, shade(trim, 1.2), shade(trim, 0.9), trim);
     }});
     wTile(M.W.b0, -1012, true, false); wTile(-1012, M.W.b1, false, true);
 
@@ -78102,8 +78170,8 @@ function houseCanopy(fn){
       /* the roof, the parapet */
       poly(ktdeOutline(10).map(([a, b]) => P(a, b, RZ)), roofc);
       if(state.roof) for(const [ra, rb] of [[1000, -1200], [1150, -1250], [400, -1300], [1200, -600]]) box(ra - 30, ra + 30, rb - 20, rb + 20, RZ, RZ + 24, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
-      box(B.a0, B.a1, B.b0, B.b0 + 8, RZ, PZ, shade(wall, 1.04), wallS, wallS);          // the back rim
-      box(B.a0, B.a0 + 8, B.b0 + 8, B.b1, RZ, PZ, shade(wall, 1.04), wallS, wallS);      // the west rim (from the back rim's face: W37 inside)
+      /* the west rim and the back rim: one run round their corner (pathRun -- the corner rule) */
+      pathRun([[B.a0 + 4, B.b1], [B.a0 + 4, B.b0 + 4], [B.a1, B.b0 + 4]], 4, RZ, PZ, shade(wall, 1.04), wallS, wallS);
       band(RZ, PZ, wall, 0, B.a0, B.b0);
       band(PZ - 4, PZ, teal, 0.3, B.a0, B.b0);                                          // its teal coping
       /* the coping's top, round the corner */
