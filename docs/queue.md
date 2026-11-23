@@ -16,7 +16,7 @@ benches 40), the people kit's rules for who is in it.
 | Seabreeze Ballroom Interior | 0 | Done 2026-11-20: W37 clean; the banquet tables 66 and chairs 38, the bar 75 and its stools 48, the coat counter 75, the lounge's seats 38. Left: the walk-in recipe's people checks. |
 | Seabreeze Ballroom Basement | 0 (fixed 2026-11-20) | Done 2026-11-21: the ovens and the island at a kitchen counter's 75 (were 96, 92), what stands on them with them, the chopper's knife hand to the board; the cake table left at 76 (a display table, as the hall's). Left: the recipe's people checks. |
 | Maritime Mall Interior | 205 | The biggest. |
-| Marina General Interior | 82 | The hospital. |
+| Marina General Interior | 0 (the sweep, 2026-11-22) | Done 2026-11-23: W37 clean (the sweep), its cabinets' panels one piece; chairs 38 and whoever sits in them, desks 66 (the monitors with them), the station's worktop 62 and its rim 75, the pharmacy counter 75 (the till and goods with it); the lab benches left (workbenches), the beds already 50. Left: the recipe's people checks. |
 | Palmline Tower Floors | 4 (the doorways' light: drawn last on purpose) | Done 2026-11-21: W37; the sofas rebuilt; chairs 38, dining tables and the desk 66, the kitchen counter, island and bar 75, their stools 48, the armchairs 38. Left: the recipe's people checks. |
 | Brew & Bolt Roof | 0 (fixed 2026-11-22) | Done 2026-11-22: the shaft's ladder painted west rail, rungs rail to rail, east rail (the rungs ran into the west rail, drawn after them).  The west cap moved out onto the shell's west edge (a -31), the north run with it to meet it, and south to the front fascia's inner edge (b 847). No furniture to measure (the mast, a vent, the AC unit). |
 

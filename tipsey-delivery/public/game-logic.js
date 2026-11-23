@@ -63723,23 +63723,25 @@ function houseCanopy(fn){
     const BX = (q, z0, z1, c0, c1, c2) => box(q[0], q[1], q[2], q[3], z0, z1, c0, c1, c2);
     /* the desk faces the room, away from whoever sits at it between it and the wall: its screen at its front edge, turned to them */
     const desk = (r, face) => { const W = FW(r, face), Dd = FDp(r, face);
-      BX(RB(r, face, 4, 40, 4, Dd - 4), 0, 40, grey, greyD, greyS); BX(RB(r, face, Math.max(W - 40, 40), W - 4, 4, Dd - 4), 0, 40, grey, greyD, greyS);   // (a narrow desk's two pedestals meet: W37)
-      box(r[0], r[1], r[2], r[3], 40, 46, lam, lamD, lamS);
-      BX(RB(r, face, W/2 - 6, W/2 + 6, 12, 22), 46, 50, steelD, steelD, steelD); BX(RB(r, face, W/2 - 16, W/2 + 16, 14, 18), 50, 72, '#1d2125', '#2b3036', '#1a1d21');
-      BQ(r, face, W/2 - 14, W/2 + 14, 53, 70, '#2c4a66', 18.3); };
+      /* (a desk one sits at: its top at 66 -- docs/kits/library.md; Sir, 2026-11-23 -- the monitor on it with it) */
+      BX(RB(r, face, 4, 40, 4, Dd - 4), 0, 60, grey, greyD, greyS); BX(RB(r, face, Math.max(W - 40, 40), W - 4, 4, Dd - 4), 0, 60, grey, greyD, greyS);   // (a narrow desk's two pedestals meet: W37)
+      box(r[0], r[1], r[2], r[3], 60, 66, lam, lamD, lamS);
+      BX(RB(r, face, W/2 - 6, W/2 + 6, 12, 22), 66, 70, steelD, steelD, steelD); BX(RB(r, face, W/2 - 16, W/2 + 16, 14, 18), 70, 92, '#1d2125', '#2b3036', '#1a1d21');
+      BQ(r, face, W/2 - 14, W/2 + 14, 73, 90, '#2c4a66', 18.3); };
     const station = (r, front) => { const [a0, a1, b0, b1] = r;
-      box(a0, a1, b0, b1, 0, 56, lam, band, bandD);
+      box(a0, a1, b0, b1, 0, 62, lam, band, bandD);                                              // (its worktop, sat at: 62; its rim to the room a counter's 75)
       const rim = front === 's' ? [a0, a1, b1 - 8, b1] : front === 'n' ? [a0, a1, b0, b0 + 8] : front === 'w' ? [a0, a0 + 8, b0, b1] : [a1 - 8, a1, b0, b1];
-      const rimB = () => box(rim[0], rim[1], rim[2], rim[3], 56, 70, lam, lamD, lamS);
-      const scr = () => box((a0 + a1)/2 - 16, (a0 + a1)/2 + 16, (b0 + b1)/2 - 2, (b0 + b1)/2 + 2, 60, 80, '#1d2125', '#2b3036', '#1a1d21');
+      const rimB = () => box(rim[0], rim[1], rim[2], rim[3], 62, 75, lam, lamD, lamS);
+      const scr = () => box((a0 + a1)/2 - 16, (a0 + a1)/2 + 16, (b0 + b1)/2 - 2, (b0 + b1)/2 + 2, 66, 86, '#1d2125', '#2b3036', '#1a1d21');
       if(front === 's' || front === 'e'){ scr(); rimB(); } else { rimB(); scr(); } };   // (the screen behind a rim toward us, before it: W37)
     /* a chair in three parts -- legs, seat, back -- so whoever sits in it is drawn between them (it.seat, it.after: as the ballroom's sofa) */
     const CH = '#4f7fa8', CHd = '#3d6686', CHs = '#2f5068';
-    const chairLegs = (r) => { const [a0, a1, b0, b1] = r; for(const [a, b] of [[a0 + 4, b0 + 4], [a1 - 4, b0 + 4], [a0 + 4, b1 - 4], [a1 - 4, b1 - 4]]) cyl(a, b, 0, 22, 2.5, steelD, steelD); };
-    const chairSeat = (r) => box(r[0], r[1], r[2], r[3], 22, 28, CH, CHd, CHs);
+    /* (an adult's seat at 38 -- docs/kits/library.md; Sir, 2026-11-23 -- its back on it as before, whoever sits in it at 38) */
+    const chairLegs = (r) => { const [a0, a1, b0, b1] = r; for(const [a, b] of [[a0 + 4, b0 + 4], [a1 - 4, b0 + 4], [a0 + 4, b1 - 4], [a1 - 4, b1 - 4]]) cyl(a, b, 0, 32, 2.5, steelD, steelD); };
+    const chairSeat = (r) => box(r[0], r[1], r[2], r[3], 32, 38, CH, CHd, CHs);
     const chairBack = (r, back) => { const [a0, a1, b0, b1] = r;
       const bk = back === 'n' ? [a0, a1, b0, b0 + 5] : back === 's' ? [a0, a1, b1 - 5, b1] : back === 'w' ? [a0, a0 + 5, b0, b1] : [a1 - 5, a1, b0, b1];
-      box(bk[0], bk[1], bk[2], bk[3], 28, 56, CH, CHd, CHs); };
+      box(bk[0], bk[1], bk[2], bk[3], 38, 66, CH, CHd, CHs); };
     const chair = (r, back) => { chairLegs(r); chairSeat(r); chairBack(r, back); };
     const cabinet = (r, goods, face) => { const W = FW(r, face), Dd = FDp(r, face);
       if(!goods){ box(r[0], r[1], r[2], r[3], 0, 110, grey, greyD, greyS);
@@ -63783,13 +63785,14 @@ function houseCanopy(fn){
     /* the pharmacy's counter, its front to the room: white, a green cross on its front; on it the till, a basket of
        pill bottles and the white bags of what is ready to be picked up */
     const counter = (r, face) => { const W = FW(r, face), Dd = FDp(r, face), gr = '#2f9a5a';
-      box(r[0], r[1], r[2], r[3], 0, 56, lam, lamD, lamS); box(r[0] - 2, r[1] + 2, r[2] - 2, r[3] + 2, 56, 62, '#e8eef0', '#cfd8dc', '#bfc9cd');
+      /* (a counter's top at 75 -- docs/kits/library.md; Sir, 2026-11-23 -- what stands on it with it) */
+      box(r[0], r[1], r[2], r[3], 0, 69, lam, lamD, lamS); box(r[0] - 2, r[1] + 2, r[2] - 2, r[3] + 2, 69, 75, '#e8eef0', '#cfd8dc', '#bfc9cd');
       FQ(r, face, 0, W, 8, 12, band);
       FQ(r, face, W/2 - 5, W/2 + 5, 20, 46, gr, -0.4); FQ(r, face, W/2 - 13, W/2 + 13, 28, 38, gr, -0.5);
-      BX(RB(r, face, W*0.22 - 14, W*0.22 + 14, Dd - 26, Dd - 8), 62, 72, '#2b3036', '#3a3f44', '#24282c'); BX(RB(r, face, W*0.22 - 10, W*0.22 + 10, Dd - 22, Dd - 18), 72, 86, '#1d2125', '#2b3036', '#1a1d21');
-      BX(RB(r, face, W*0.5 - 22, W*0.5 + 22, 8, Dd - 10), 62, 70, '#c9a46a', '#b08a52', '#9a7846');
-      for(let k = 0; k < 6; k++){ const p = FP(r, face, W*0.5 - 14 + (k % 3)*14, 14 + Math.floor(k/3)*12); cyl(p[0], p[1], 70, 80, 3.6, '#d9822b', '#e89a46'); cyl(p[0], p[1], 80, 83, 3.8, '#f4f4f0', '#ffffff'); }
-      for(let k = 0; k < 3; k++) BX(RB(r, face, W*0.74 + k*18, W*0.74 + k*18 + 14, 10, Dd - 12), 62, 82 + (k % 2)*6, '#f6f5f0', '#e2e1dc', '#d2d1cc'); };
+      BX(RB(r, face, W*0.22 - 14, W*0.22 + 14, Dd - 26, Dd - 8), 75, 85, '#2b3036', '#3a3f44', '#24282c'); BX(RB(r, face, W*0.22 - 10, W*0.22 + 10, Dd - 22, Dd - 18), 85, 99, '#1d2125', '#2b3036', '#1a1d21');
+      BX(RB(r, face, W*0.5 - 22, W*0.5 + 22, 8, Dd - 10), 75, 83, '#c9a46a', '#b08a52', '#9a7846');
+      for(let k = 0; k < 6; k++){ const p = FP(r, face, W*0.5 - 14 + (k % 3)*14, 14 + Math.floor(k/3)*12); cyl(p[0], p[1], 83, 93, 3.6, '#d9822b', '#e89a46'); cyl(p[0], p[1], 93, 96, 3.8, '#f4f4f0', '#ffffff'); }
+      for(let k = 0; k < 3; k++) BX(RB(r, face, W*0.74 + k*18, W*0.74 + k*18 + 14, 10, Dd - 12), 75, 95 + (k % 2)*6, '#f6f5f0', '#e2e1dc', '#d2d1cc'); };
     const boiler = (r) => { const [a0, a1, b0, b1] = r, am = (a0 + a1)/2, bm = (b0 + b1)/2, rr = Math.min(a1 - a0, b1 - b0)/2 - 4;
       cyl(am, bm, 0, 150, rr, '#7a2e2a', '#8a3a33'); cyl(am, bm, 150, 160, rr - 12, '#5a1f1c', '#6a2a24'); tube(am, bm, 160, am, bm, H, 8, '#8d959c');
       ball(am, bm + rr, 100, 7, gold, '#ffffff'); };
@@ -64072,7 +64075,7 @@ function houseCanopy(fn){
           const back = u.back || 'n', th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[back], away = back === 's' || back === 'e';
           const seed = u.sit === 'security' ? (Math.round(am*7 + bm*13) & 0xffff) ^ 0x405b : (Math.round(am*7 + bm*13) & 0xffff) ^ 0x2c1d, kind = u.sit === 'patient' ? 'visitor' : /^(visitor|security)$/.test(u.sit) ? u.sit : (seed & 2) ? 'doctor' : 'nurse';   // (sat waiting, visiting, in for an appointment: in their own clothes, not a gown -- Sir, 2026-10-29, "regular people in the chairs not people in hospital gear")   // (the officer's seed as hospJailRoom's: the same man up and walking)
           items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
-            cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 28, seed, kind, role: u.sit === 'security' ? 'security' : undefined, lift: [0.3, 0.3], bend: 0.7, fl: n, waitSeat: u.waitSeat, staffSeat: n === 1 ? u.staffSeat : undefined }],   // (waitSeat: whoever sits there now, HOSP_WAIT; staffSeat: at their work, HOSP_STAFF_POSES)
+            cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 38, seed, kind, role: u.sit === 'security' ? 'security' : undefined, lift: [0.3, 0.3], bend: 0.7, fl: n, waitSeat: u.waitSeat, staffSeat: n === 1 ? u.staffSeat : undefined }],   // (waitSeat: whoever sits there now, HOSP_WAIT; staffSeat: at their work, HOSP_STAFF_POSES)
             draw: away ? () => chairLegs(r) : () => chair(r, back), seat: away ? () => chairSeat(r) : undefined, after: away ? () => chairBack(r, back) : undefined });
           continue;
         }
