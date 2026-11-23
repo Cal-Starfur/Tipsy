@@ -32953,7 +32953,7 @@ function sfPose(s, m, now, P){
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ const st = sk.seat;
     if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
-      P.pedal = { ph: now*0.009 + (s.seed & 63), c: [16, 13], r: 8 }; return; }                                                                //  the feet round the cranks)
+      P.pedal = { ph: now*0.009 + (s.seed & 63), c: [16, 28], r: 8 }; return; }   //  the feet round the cranks: the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
     if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
@@ -62539,7 +62539,10 @@ function houseCanopy(fn){
       box(c - 14, c + 14, 208, 214, 0, 4, char, char, charD);
       disc(c + 2, 224, 20, 16, steelD); disc(c + 2.4, 224, 20, 12, steelL); disc(c + 2.6, 224, 20, 4, char);
       box(c - 3, c + 3, 214, 236, 18, 40, coral, coral, coralD);
-      tube(c, 222, 38, c, 216, 58, 2, char); tube(c - 11, 214, 60, c + 11, 214, 60, 1.6, charD); box(c - 2, c + 2, 213, 219, 56, 62, charD, charD, blk);
+      /* the bars where a rider's hands are (seated at 38, arms out at the bike's pose: 34 before the saddle's middle, 16 either side, at 61 --
+         Sir, 2026-11-23: "the hands dont make contact to the handle bar grips"): the post up from the frame, the bar across, a grip each end */
+      tube(c, 222, 36, c, 230, 56, 2, char); box(c - 2, c + 2, 227, 233, 54, 59, charD, charD, blk); tube(c - 17, 230, 60, c + 17, 230, 60, 1.6, charD);
+      tube(c - 18.5, 230, 60, c - 13, 230, 60, 2.3, blk); tube(c + 13, 230, 60, c + 18.5, 230, 60, 2.3, blk);
       tube(c, 232, 8, c, 262, 4, 2.4, char); tube(c, 236, 22, c, 262, 6, 2.2, char);
       box(c - 14, c + 14, 262, 270, 0, 4, char, char, charD);
       tube(c, 248, 4, c, 248, 10, 2.2, char); disc(c + 3, 248, 13, 4.4, charD); disc(c + 3.3, 248, 13, 1.6, steelL);   // (the crank's hub, the rider's feet round it)
