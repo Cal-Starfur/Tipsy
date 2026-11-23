@@ -60349,14 +60349,19 @@ function houseCanopy(fn){
           if(u < 1000) P = null;
           else if(u < 4500){ P = drv(IN, (u - 1000)/3500); jack = JACKIN([0, 1, 2, 3]); fork = 1; }
           else if(jr2 < RCV_T0){ P = hold([JA, 360], 3); jack = JACKIN([0, 1, 2, 3]); fork = 1 - ease((u - 4500)/500); }
-          else if(jr2 < RCV_T1){ P = hold([JA, 360], 3); jack = JACKIN(rcvOn(jr2)); }
+          /* (Sir, 2026-11-23: "this pallet mover should be dropping off the supplies and then going away, only returning to pick up the empty":
+             the parts pallet set down at Receiving, the jack backs out and away through the door; it comes back in under the empty as the
+             Receiver takes the last carton off) */
+          else if(jr2 < RCV_T0 + 3000){ P = drv([[JA, 360], [JA, 455, 'r'], [DOOR[0] + 1, 455]], (jr2 - RCV_T0)/3000); jack = Math.hypot(P.a - JA, P.b - 360) < 110 ? 'under' : false; }
+          else if(jr2 < RCV_T1 - 2500) P = null;
+          else if(jr2 < RCV_T1){ P = drv(IN, (jr2 - RCV_T1 + 2500)/2500); jack = Math.hypot(P.a - JA, P.b - 360) < 110 ? 'under' : false; }
           else if(jr2 < RCV_T1 + 1000){ P = hold([JA, 360], 3); jack = JACKIN([]); fork = ease((jr2 - RCV_T1)/1000); }
           else if(jr2 < 48400){ P = drv(ST, (jr2 - RCV_T1 - 1000)/(48400 - RCV_T1 - 1000)); jack = JACKIN([]); fork = 1; }
           else if(jr2 < 49400){ P = hold(STK, 3); jack = JACKIN([]); fork = 1 - ease((jr2 - 48400)/1000); }
           else if(jr2 < 50600) P = drv(Q4, (jr2 - 49400)/1200);
           else if(jr2 < 51400){ P = drv(Q4, 1); jack = JACK; fork = ease((jr2 - 50600)/800); }
           else { P = drv(Q5, (jr2 - 51400)/(PALT + 9500 - 51400)); jack = JACK; fork = 1; }
-          CW_FLOW.ship = !P ? 'outside' : u < 4500 ? 'in with parts' : jr2 < RCV_T1 + 1000 ? 'receiving' : jr2 < 49400 ? 'empty to the stack' : jr2 < 51400 ? 'to bay ' + (ko + 1) : 'out with bay ' + (ko + 1);
+          CW_FLOW.ship = !P ? 'outside' : u < 4500 ? 'in with parts' : jr2 >= RCV_T0 && jr2 < RCV_T1 ? (jr2 < RCV_T0 + 3000 ? 'away' : 'back for the empty') : jr2 < RCV_T1 + 1000 ? 'receiving' : jr2 < 49400 ? 'empty to the stack' : jr2 < 51400 ? 'to bay ' + (ko + 1) : 'out with bay ' + (ko + 1);
           if(P){ const fade = clamp01((W + 50 - P.a)/80); if(fade > 0.01){ const own = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;   /* (the parts pallet stays the jack's own: its load the Receiver's) */
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackShip', jack: own >= 0 || (!jack && underPal(P)) ? 'under' : jack, fork, wheel: (P.s || P.a + P.b)*0.12, fade })); if(own >= 0 && fade > 0.99) out.push(onForks(P, fork, own)); } } }
         CW_FLOW.stored = SB.map((q, k) => bayHas(t, k) ? 'P' : '.').join('');
@@ -60424,6 +60429,9 @@ function houseCanopy(fn){
       /* the patrol bot by the door: turned to the lane, scanning a pallet through */
       const scan = jr > 8000 && jr < 9500 || jr > 10500 && jr < 12000;
       out.push({ kind: 'bot', botKind: 'patrolbot', bSkin: 'patrol:cratewell', a: 2395, b: 690, fdir: 2.6,   /* (outside the roller door, off the doorway -- Sir, 2026-11-20: "a lot of this is in the only doorway") */ cargo: scan ? () => { for(const k2 of [-1, 0, 1]) tube(2375, 676, 70, 2300 + k2*16, 470, 34, 0.6, '#3cd06a'); } : null });   /* (facing the door and the eye: his badge to the camera) */   /* (south of the door's lane, out of Receiving's way: turned to the door) */
+      /* THE PARTS PALLET SET DOWN at Receiving while the jack is away (Sir, 2026-11-23): what is still on it, as on the jack's forks */
+      if(jr >= RCV_T0 && jr < RCV_T1){ const on = rcvOn(jr); out.push({ kind: 'cargo', a: JA, b: PB, cargo: () => { palletKit(JA, PB, 0);
+          for(const i of [0, 1, 2, 3].filter(i => on.includes(i)).sort((x, y) => RCV[x].dz - RCV[y].dz)){ const it = RCV[i]; rcvItemKit(it, JA + it.da, PB + it.db, 10.5 + it.dz); } } }); }
       /* THE PARTS ROBOT (Sir, 2026-11-23: "unpack boxes to bins"): a stock robot parked north of the pallet, the two parts cartons set on it
          open off the pallet; he holds each empty bin over its carton and lifts the parts in. An emptied carton stays till the next pallet's
          takes its place */
