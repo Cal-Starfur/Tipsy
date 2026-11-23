@@ -29104,6 +29104,7 @@ const WALKIN_SHOP_BAN = (() => {
     'Seabreeze Florist Interior':   { by: ['counter', 'florist', 'helper'], who: 'Iris', say: "You've knocked a customer flat. Out you go, and don't come back in.",
       story: () => { try { return typeof ANNIV !== 'undefined' && ANNIV.stage === 'flowers'; } catch(e){ return false; } } },
     'Low Tide Juice Bar Interior':  { by: ['counter', 'juicer', 'helper'], who: 'Leilani', say: "You've knocked a customer down. Out you go, and don't come back in." },
+    'Surfside Fitness Interior':    { by: ['desk', 'trainer', 'floor'], who: 'Marisol', say: "You've knocked a member flat. Out you go, and don't come back in." },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -31061,6 +31062,182 @@ walkinLife(LT_IN.name, { keep: [[0, 2000, 318, 398]], looks: [
   { id: 'fridge', spots: [[130, 112, -Math.PI/2], [230, 112, -Math.PI/2]] },
   { id: 'fruit', spots: [[106, 168, Math.PI]] },
 ], browseNext: ltBrowseNext, pose: ltPose, drawState: ltDrawState });
+/* ==================== SURFSIDE FITNESS, WALK-IN (wi-surfside-fitness; the room: the LIB entry 'Surfside Fitness Interior') ====================
+   The Flats' gym on block 2,0's WEST edge (its front faces west, away from the camera: the street sees its back and roof), north of the juice
+   bar. Built by the shop recipe (docs/kits/walkin-shop-recipe.md, W33), the juice bar's way (the same edge): the exterior unchanged but for its
+   door -- its volume with the doorway open through its front wall (vol.opens), the door kit's single leaf 80 across ('french') in the entrance's
+   own surround; he is taken in in the doorway (glass < 0).
+   A DOOR IN THE FAR WALL: the room's door is in its WEST wall, which stands full height (walkinRoom's gapsW, the night's 'w'); from inside the
+   door is the away door's (walkinAwayDoor), whole. Its two big windows face away too, so the street never looks into the room: their glass is
+   seen from inside only, painted on the west wall at their own places.
+   BIGGER INSIDE THAN OUT (W31): the room runs back from the gym's front east into the block, north over the garage's and the bank's south ends
+   and south over the gap to the juice bar -- 850 x 672, what it covers drawn under it while he is inside. Only one room is live at a time.
+   Lab frame (the shop's, a west-edge shop's: a along the frontage NORTH to south, b west, 0 the wall, negative into the block east). Its lab z is
+   x1.95 in the world. Room frame a east, b south, world units: the west (front) wall a 0; the door b 302..406 in it; the windows b 125..281 and
+   427..583 */
+const SF_IN = { name: 'Surfside Fitness Interior', x0: 940000, y0: 400000, WALL: 30/1.3, A0: -70, A1: 470, BACK: -677, H: 300, LH: 66,
+  DOOR: [162.4, 242.4], DZ: 107.9, DOORZ: 107.9*1.95, WINS: [[26, 146], [258.8, 378.8]], WZ: [30, 140], WT: [96, 101] };   // (the gym's door and its two windows, lab a; the windows' sill, head and transom, lab z -- x1.95)
+SF_IN.rb = la => (la - SF_IN.A0)*1.3;                                      // a lab a (along the frontage) as the room's b
+const SF_PLAN = walkinDefine({ name: SF_IN.name, from: 'Surfside Fitness', x0: SF_IN.x0, y0: SF_IN.y0,
+  lab: [SF_IN.A0, SF_IN.A1 - SF_IN.WALL, SF_IN.BACK, -SF_IN.WALL], body: [[0, T2*4.4, -T2*3, 0]],
+  door: { a: (SF_IN.DOOR[0] + SF_IN.DOOR[1])/2, b: 0, half: (SF_IN.DOOR[1] - SF_IN.DOOR[0])/2*1.3, side: 'w', top: SF_IN.DOORZ },
+  H: SF_IN.H, LH: SF_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out onto the west pavement, along it either way to the cross streets and off west) */
+  street: { to: [-184, 0], routes: [[[-184, -806], [-1600, -806]], [[-184, 1218], [-1600, 1218]]] },
+  /* (the open doorway: W11 -- seen through from the far side only, the street's own side faces away) */
+  openings: [{ lab: [[SF_IN.DOOR[0], 0], [SF_IN.DOOR[1], 0]], z: [0, SF_IN.DZ] }] });
+/* (W31: what it covers -- the garage's and the bank's south ends -- and what stands over it on screen: the juice bar south, the bookshop and the
+   optician east, the depot in the block's middle) */
+POCKETS[POCKETS.length - 1].ghosts = ['Palmline Garage', 'Palmline Savings', 'Low Tide Juice Bar', 'Driftwood Books', 'Marina Optical', 'Tidewater Tea House', 'Charge depot'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE MENDOZAS, WHO KEEP IT: their own looks, set by hand (lookFn) -- a gym's dress, the shop's coral tees, charcoal track pants and white
+   trainers. Marisol at the front desk, the keyholder (long dark hair in a ponytail); her brother Dante, the trainer, on the floor (a crop, a
+   coral cap); her son Teo with an armful of fresh towels (a crop). The members are the street's own (look: 'visitor') */
+const SF_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), tee = C(0xe2574c), pants = C(0x2f3a3f), shoe = { c: 0xf4f4f0, dk: 0xcfcfc8 };
+  return {
+    marisol: { build: PEOPLE_BUILD[1], skin: { c: 0xc69472, dk: 0xa47454 }, hair: H(0x241a14, 'pony'), shirt: tee, pants, shoe, uniform: { shoeKind: 'sneaker' } },
+    dante:   { build: PEOPLE_BUILD[0], skin: { c: 0xb8865e, dk: 0x96684a }, hair: H(0x1e1814, 'crop'), shirt: tee, pants, shoe,
+               uniform: { cap: { c: 0xe2574c, dk: 0xb4443a, top: 0xec7a70, badge: 0xdfe4e2 }, shoeKind: 'sneaker' } },
+    teo:     { build: PEOPLE_BUILD[0], skin: { c: 0xc08c66, dk: 0x9e6c4a }, hair: H(0x2e2218, 'crop'), shirt: C(0xdfe4e2), pants, shoe, uniform: { vest: C(0xe2574c), shoeKind: 'sneaker' } },
+  };
+})();
+/* A MEMBER'S VISIT (as the juice bar's: reach ONCE, then do something with it): in at the desk (pay for the day, a towel handed over), then
+   one workout -- a run on a treadmill, a ride on a bike, a set of curls with a dumbbell off the rack, swings with a kettlebell, a press on the
+   bench, a stretch on the mats -- then some take a bottle of water out of the fridge, and all of them stop at the desk on the way out (the towel
+   back, the water paid for). What they paid for goes out of the door with them (pose.hold / drawState: WALKIN_STREET). Teo carries towels */
+const SF_SHELVES = ['mat', 'kb', 'dumbbells'];
+const SF_TREADS = [430, 510, 590, 670, 750], SF_BIKES = [470, 550, 630, 710];
+/* the stations they get on (as the juice bar's chairs): where they stand to get on, where they are on it, which way, the height (0: on the belt,
+   standing; the bikes' saddles and the bench at their seats) */
+const SF_SEATS = [
+  ...SF_TREADS.map((c, i) => ({ id: 'tread' + i, kind: 'tread', stand: [c, 152, -Math.PI/2], at: [c, 86], th: -Math.PI/2, z: 0 })),
+  ...SF_BIKES.map((c, i) => ({ id: 'bike' + i, kind: 'bike', stand: [c + 36, 262, Math.PI], at: [c, 264], th: -Math.PI/2, z: 38 })),
+  { id: 'bench', kind: 'bench', stand: [340, 528, -Math.PI/2], at: [340, 484], th: Math.PI/2, z: 40 },
+];
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a folded towel over the hand at
+   their side; a hex dumbbell across the hand; a kettlebell hanging from it; a bottle of water at their side, by its neck; Teo's stack of towels
+   before him in both hands */
+function sfHold(s){
+  if(s._sfH && s._sfH.v === s.visit) return s._sfH;
+  const hull = (g, at, pts, c, al) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, al == null ? 1 : al); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  const ring = (x, f, z, r) => { const o = []; for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; o.push([x + Math.cos(t)*r, f + Math.sin(t)*r, z]); } return o; };
+  const seed = ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, towel = [0xfbfaf6, 0xe2574c, 0xdfe4e2][seed % 3];
+  return (s._sfH = { v: s.visit,
+    /* the towel: folded over the hand, hanging either side of it */
+    towel: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, box(x - 2.4, x + 2.4, f - 4.2, f + 4.2, h - 13, h + 1.2), towel); hull(g, at, box(x - 2.6, x + 2.6, f - 4.4, f + 4.4, h - 0.6, h + 1.4), _pdk(towel, 0.88)); },
+    /* a hex dumbbell across the hand: the far head, the handle, the near head */
+    bell: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1], hd = 0x2a2e32;
+      hull(g, at, box(x - 2.6, x + 2.6, f - 9, f - 4, h - 3.6, h + 3.6), hd); hull(g, at, box(x - 0.9, x + 0.9, f - 4, f + 4, h - 0.9, h + 0.9), 0xb8bec2);
+      hull(g, at, box(x - 2.6, x + 2.6, f + 4, f + 9, h - 3.6, h + 3.6), hd); },
+    /* a kettlebell from the hand: its handle, the bell under it */
+    kb: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, ring(x, f, h - 8.5, 5.6).concat(ring(x, f, h - 3.5, 5.2), ring(x, f, h - 13, 3.6)), 0xe2574c); hull(g, at, box(x - 0.8, x + 0.8, f - 3.4, f + 3.4, h - 3.4, h + 1), 0x2a2e32); },
+    /* a bottle of water at their side: the water, its blue cap */
+    bottle: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, ring(x, f, h - 15, 2.4).concat(ring(x, f, h - 3, 2.4)), 0xbfe0ea, 0.9); hull(g, at, ring(x, f, h - 3, 2.4).concat(ring(x, f, h + 1, 1.2)), 0xe8eef0, 0.8);
+      hull(g, at, ring(x, f, h + 1, 1.3).concat(ring(x, f, h + 2.6, 1.3)), 0x3a8ac8); },
+    /* Teo's towels: a stack of five folded, before him in both hands */
+    stack: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 6, h = at.hand[1] - 3;
+      for(let k = 0; k < 5; k++) hull(g, at, box(-8, 8, f - 6, f + 6, h + k*3.2, h + k*3.2 + 3), k % 2 ? 0xe2574c : 0xfbfaf6); } });
+}
+/* (two in five take a bottle of water out of the fridge on the way out) */
+function sfTakesWater(s){ return (((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0) % 5 < 2; }
+function sfBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  const getOn = kind => { const fr = SF_SEATS.filter(q => q.kind === kind && !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id))), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = 22000 + rnd()*26000; return true; }
+    return false; };
+  const desk = () => { if(look('desk')){ m.atDesk = true; m.dwell = 4500 + rnd()*2500; return true; } return false; };
+  if(m.seat){ m.unseat = { seat: m.seat, t: now }; m.seat = null; m.worked = true; }                            // (the run, the ride, the set done: off)
+  if(m.atDesk){ m.atDesk = false;
+    if(!m.inside){ m.inside = true; m.towel = true; }                                                               // (in: paid for the day, a towel)
+    else { m.towel = false; if(m.water) m.paid = true; return leave(); } }                                          // (out: the towel back, the water paid)
+  /* (found already at it when the room opens round him -- mid-visit: in, a towel, and the workout still to do) */
+  if(!m.inside && m.look && m.look !== 'desk' && !m.path){ m.inside = true; m.towel = true; m.look = null; }
+  if(m.look && m.look !== 'fridge' && m.look !== 'desk' && !m.path) m.worked = true;
+  if(m.look === 'fridge' && !m.path){ if(Math.hypot(m.a - 66, m.b - 102) < 30) m.water = true; return desk() || leave(); }   // (a bottle out of the fridge -- if they got to it -- to the desk)
+  if(!m.inside){ if(desk()) return true; m.inside = true; m.towel = true; }
+  if(!m.worked){
+    const pick = rnd(), order = pick < 0.32 ? ['tread', 'bike'] : pick < 0.5 ? ['bike', 'tread'] : pick < 0.62 ? ['bench'] : [];
+    for(const k of order) if(getOn(k)) return true;
+    const ls = pick < 0.75 ? ['dumbbells', 'kb', 'mat'] : pick < 0.88 ? ['kb', 'mat', 'dumbbells'] : ['mat', 'dumbbells', 'kb'];
+    for(const id of ls) if(look(id)){ m.dwell = 12000 + rnd()*12000; return true; }
+    return false; }
+  if(!m.water && sfTakesWater(s) && look('fridge')){ m.dwell = 2600; return true; }
+  return desk() || leave();
+}
+function sfPose(s, m, now, P){
+  const H = sfHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                         // (Marisol at the desk: both hands on it)
+    if(s.id === 'trainer'){ const w = Math.sin(now*0.004 + 0.7);                                                 // (Dante: arms folded, now and then a hand out, talking it through)
+      if(((now/5200) | 0) % 3 === 0){ P.lift = [0.32, 0.5 + 0.12*w]; P.bend = [1.55, 1.2]; } else { P.lift = [0.32, 0.32]; P.bend = [1.55, 1.55]; } return; }
+    /* Teo: the towels on his arms, at each post set down a moment and folded */
+    if(m.work && since > 1500){ const w = Math.sin(now*0.008); P.lift = [0.3 + 0.05*w, 0.3 - 0.05*w]; P.bend = [0.9, 0.9]; P.headTilt = 0.3; return; }
+    P.lift = [0.26, 0.26]; P.bend = [1.15, 1.2]; P.hold = H.stack; return;
+  }
+  const sk = lcSeatK(m, now);
+  if(sk && sk.k > 0.5){ const st = sk.seat;
+    if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0; return; }   // (hands on the bars)
+    if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
+    P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
+  if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.5*Math.min(1, k*1.6)]; P.bend = [0.2, 0.3]; P.headTilt = 0.3; return; }
+    const w = 0.5 + 0.5*Math.sin(now*0.004); P.lift = [0.1, 0.2 + 0.3*w]; P.bend = [0.2, 0.4 + 1.3*w]; P.headTurn = 0; P.hold = H.bell; return; }
+  if(m.look === 'kb' && !m.path){                                                                                 // (a kettlebell off the rack, once; then swings)
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.45*Math.min(1, k*1.6)]; P.bend = [0.2, 0.3]; P.headTilt = 0.3; return; }
+    const w = 0.5 + 0.5*Math.sin(now*0.005); P.lift = [0.15 + 0.85*w, 0.15 + 0.85*w]; P.bend = [0.1, 0.1]; P.headTurn = 0; P.hold = H.kb; return; }
+  if(m.look === 'mat' && !m.path){ const ph = ((now + (s.seed & 4095))/6000) % 1, w = Math.sin(ph*Math.PI*2);    // (a stretch: arms up, then across)
+    if(ph < 0.5){ P.lift = [1.9 + 0.1*w, 1.9 + 0.1*w]; P.bend = [0.1, 0.1]; } else { P.lift = [0.9, 0.9]; P.bend = [0.2, 1.2]; } P.headTurn = 0; return; }
+  if(m.look === 'fridge' && !m.path && Math.hypot(m.a - 66, m.b - 102) < 30){                                   // (reaching into the fridge, once)
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.62*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = 0.1; return; }
+    P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.bottle; return; }
+  if(m.look === 'desk' && !m.path){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.headTilt = 0.15; P.headTurn = 0; if(m.water) P.hold = H.bottle; else if(m.towel) P.hold = H.towel; return; }
+  if(m.water){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.bottle; return; }
+  if(m.towel){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.towel; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];
+}
+function sfDrawState(s, m, now, q){
+  const sk = lcSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null);
+    /* (on the belt: running where they are, the belt under them) */
+    if(sk.seat.kind === 'tread' && sk.k >= 1 && m.seat){ q.moving = true; q.gait = now*0.11 + (s.seed & 63); q.pose = null; } }
+  if(m.moving){ const H = sfHold(s);
+    /* (out of the door with what they paid for -- the water; the towel carried while inside, left at the desk) */
+    if(s.look === 'visitor'){ if(m.water && (m.paid || s._day !== 'leaving')) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: H.bottle };
+      else if(m.towel && s._day !== 'leaving') q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: H.towel }; }
+    else if(s.id === 'floor') q.pose = { lift: [0.26, 0.26], bend: [1.15, 1.2], hold: H.stack }; }
+}
+walkinStaff(SF_IN.name, [
+  { id: 'desk', role: 'front desk', seed: 0x5f401, lookFn: () => SF_FAMILY.marisol, fixed: true, keys: true, posts: [[250, 140, Math.PI/2, 9000, true], [196, 140, Math.PI/2, 4000, true]] },
+  { id: 'trainer', role: 'personal trainer', seed: 0x5f402, lookFn: () => SF_FAMILY.dante,
+    posts: [[630, 424, Math.PI/2, 9000], [200, 600, 0, 7000], [812, 210, Math.PI, 6000]] },
+  { id: 'floor', role: 'gym attendant', seed: 0x5f403, lookFn: () => SF_FAMILY.teo, posts: [[250, 66, -Math.PI/2, 7000, true], [112, 520, Math.PI, 5000, true], [812, 140, -Math.PI/2, 5000, true]] },
+  { id: 'member-1', role: 'gym member', seed: 0x5f411, look: 'visitor', life: 'browse', only: SF_SHELVES },
+  { id: 'member-2', role: 'gym member', seed: 0x5f412, look: 'visitor', life: 'browse', only: SF_SHELVES },
+  { id: 'member-3', role: 'gym member', seed: 0x5f413, look: 'visitor', life: 'browse', only: SF_SHELVES },
+  { id: 'member-4', role: 'gym member', seed: 0x5f414, look: 'visitor', life: 'browse', only: SF_SHELVES },
+  { id: 'member-5', role: 'gym member', seed: 0x5f415, look: 'visitor', life: 'browse', only: SF_SHELVES },
+]);
+walkinLife(SF_IN.name, { keep: [[0, 2000, 314, 394]], looks: [
+  { id: 'desk', spots: [[212, 284, -Math.PI/2], [292, 284, -Math.PI/2]] },
+  { id: 'fridge', spots: [[66, 102, -Math.PI/2]] },
+  { id: 'kb', spots: [[78, 176, Math.PI], [78, 252, Math.PI]] },
+  { id: 'dumbbells', spots: [[90, 466, Math.PI], [90, 576, Math.PI]] },
+  { id: 'mat', spots: [[570, 500, Math.PI/2], [690, 500, Math.PI/2], [570, 604, Math.PI/2], [690, 604, Math.PI/2]] },
+], browseNext: sfBrowseNext, pose: sfPose, drawState: sfDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -60410,6 +60587,240 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE SURFSIDE FITNESS (SF_IN; the walk-in kit's walls, walkinRoom, its door in the WEST wall -- the gym's front faces west, away from the
+     camera, so the door is in a far wall, full height round it, as the juice bar's; the room runs back east into the block, north over the
+     garage's and the bank's south ends and south over the gap to the juice bar, and what it covers is taken off while he is inside --
+     pk.displace). Frame a east, b south, z up, world units. Built by the shop recipe (W33), in zones for its size:
+       the west wall    THE DOOR (b 302..406) between THE TWO WINDOWS seen from inside at their own places; THE KETTLEBELL RACK under the north
+                        one, THE DUMBBELL RACK under the south one
+       the north-west   THE DRINKS FRIDGE (a 20..110), THE TOWEL CUBBIES (a 140..360) behind THE FRONT DESK (a 150..350, b 190..240), Marisol at
+                        it: the tablet, a stack of towels, the card reader and a bowl of apples each their own piece on top
+       the north wall   FIVE TREADMILLS facing it under three screens and the name; FOUR BIKES in a row before them
+       b 314..394       the door's lane, door to east wall, clear
+       the south-west   the weights floor (black rubber): THE POWER RACK and its bar, a plate tree, THE BENCH
+       the south-east   four stretching mats, two exercise balls by the east wall, a monstera in the corner
+     Every long fixture a run of pieces (runPiece, W28); what stands on them its own piece. Heights (docs/kits/library.md): the desk 75, the bench
+     40, the bikes' saddles 38. */
+  name:'Surfside Fitness Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 850, dd: 672,
+  head:'Inside Surfside Fitness: treadmills and bikes under the screens, the front desk and its towels, kettlebell and dumbbell racks under the windows, a power rack, a bench, stretching mats',
+  tags:['interior','pocket','gym','treadmills','spin bikes','dumbbells','kettlebells','power rack','front desk'],
+  desc:'The Flats\' gym: pale grey plaster over a coral band, a maple floor and black rubber under the weights; five treadmills facing three screens and the name, four bikes before them; a drinks fridge and cubbies of rolled towels behind the front desk; a kettlebell rack and a dumbbell rack under the two big windows; a power rack with its bar on the hooks, a plate tree and a bench; four mats, two exercise balls and a monstera.',
+  draw(p){
+    const pl = (typeof SF_PLAN !== 'undefined' && SF_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 850, D = (pl && pl.D) || 672, H = SF_IN.H, LH = SF_IN.LH, DZ = SF_IN.DOORZ;
+    const door = (pl && pl.door) || { side: 'w', at: 354, half: 52 };
+    const plas = '#f1f3f2', dado = '#dfe5e5', coral = '#e2574c', coralD = '#b4443a', coralL = '#ec7a70', char = '#2f3a3f', charD = '#262e33', charL = '#3e4a50';
+    const maple = '#e2c898', mapleL = '#cfb27e', rub = '#3a3f44', rubL = '#454b50', cream = '#fbfaf6', gear = '#cfd6db', gearD = '#a8b0b6';
+    const steel = '#a8aeb0', steelL = '#c8ccd0', steelD = '#868c90', blk = '#1e2124', glassW = 'rgba(220,236,240,.34)', glassT = 'rgba(236,246,248,.5)';
+    const wood = '#b98a5c', woodT = '#cfa274', woodS = '#946a42', leaf = '#4f8f58', leafD = '#3f7a4a', leafL = '#6aa86c', teal = '#3fa7b0';
+    const drink = ['#bfe0ea', '#bfe0ea', '#f29b3a', '#3a8ac8', '#9ccf4a', '#bfe0ea'];
+    const extW = '#dfe4e2', extT = '#e2574c';                                                          // (the gym's own walls, outside: W4)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* a disc standing in the plane a (a flywheel, a weight plate on its bar), seen from the east */
+    const disc = (a, b, z, r, col) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(a, b + Math.cos(t)*r, z + Math.sin(t)*r)); } poly(pts, col); };
+    /* a kettlebell standing on z: the bell, its handle over it (the far post, the grip, the near post) */
+    const kbell = (a, b, z, r, col) => { ball(a, b, z + r, r, col, shade(col, 1.15)); tube(a, b - r*0.55, z + r*1.7, a, b - r*0.55, z + r*2.3, 1.2, charD);
+      tube(a, b - r*0.55, z + r*2.3, a, b + r*0.55, z + r*2.3, 1.2, charD); tube(a, b + r*0.55, z + r*1.7, a, b + r*0.55, z + r*2.3, 1.2, charD); };
+    /* a hex dumbbell lying across a rack along a: the west head, the grip, the east head */
+    const dbell = (a0, a1, b, z, r) => { box(a0, a0 + 5, b - r, b + r, z, z + r*2, charL, char, charD); tube(a0 + 5, b, z + r, a1 - 5, b, z + r, 1, steelL); box(a1 - 5, a1, b - r, b + r, z, z + r*2, charL, char, charD); };
+
+    /* ---- THE FLOOR: maple boards, black rubber under the weights (its tiles' seams), four mats, the door's mat; the threshold in the doorway (all
+       with the floor, under everything: a piece keyed at the door sorted after the leaves and painted over their feet -- the bank's, 2026-11-20) ---- */
+    T(0, W, 0, D, 0, maple);
+    for(let b = 16; b < D; b += 16) T(0, W, b - 0.3, b + 0.3, 0.1, mapleL);
+    for(let b = 0, j = 0; b < D; b += 16, j++) for(let a = (j % 3)*70 + 60; a < W; a += 210) T(a - 0.3, a + 0.3, b, Math.min(D, b + 16), 0.12, mapleL);
+    T(0, 450, 414, D, 0.2, rub);
+    for(let a = 50; a < 450; a += 50) T(a - 0.4, a + 0.4, 414, D, 0.25, rubL);
+    for(let b = 464; b < D; b += 50) T(0, 450, b - 0.4, b + 0.4, 0.25, rubL);
+    T(0, 450, 414, 418, 0.3, coral);                                                                   // (the weights floor's edge, a coral strip)
+    [[545, 595, 462, 544, coral], [665, 715, 462, 544, teal], [545, 595, 566, 648, teal], [665, 715, 566, 648, coral]].forEach(([a0, a1, b0, b1, c]) => {
+      T(a0, a1, b0, b1, 0.4, c); T(a0 + 3, a1 - 3, b0 + 3, b1 - 3, 0.45, shade(c, 1.08)); });
+    T(4, 74, door.at - 44, door.at + 44, 0.35, charD); T(10, 68, door.at - 38, door.at + 38, 0.4, coralD);
+    T(-40, 8, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#d4cec2');
+    T(-4, 0, door.at - door.half, door.at + door.half, 0.6, steelL);
+
+    /* ---- THE WALLS (the kit's): the west wall stands full height with the door in it (gapsW, the door's own) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 120, dado, null, 0, 0.05);
+        F(-30, W + 30, 0, 10, char, null, 0, 0.15); F(-30, W + 30, 120, 128, coral, null, 0, 0.2);
+        F(-30, W + 30, H - 14, H, char, null, 0, 0.3);
+        /* over the treadmills: three screens, the name over them */
+        [[440, 540], [560, 660], [680, 780]].forEach(([m0, m1], k) => { F(m0, m1, 150, 208, blk, null, 0, 0.4); F(m0 + 3, m1 - 3, 153, 205, ['#2f7f5a', '#2f6f9a', '#3a8ac8'][k], null, 0, 0.5);
+          F(m0 + 10, m0 + 40, 190, 198, cream, null, 0, 0.6); F(m1 - 30, m1 - 10, 158, 164, coral, null, 0, 0.6); });
+        F(450, 770, 230, 264, coral, null, 0, 0.4); blockWordIn('SURFSIDE FITNESS', 466, 754, 236, 258, 0.6, cream, null, 4);
+        /* over the desk: the opening hours, and a clock */
+        F(150, 290, 196, 222, char, null, 0, 0.4); blockWordIn('OPEN 6 - 10', 160, 280, 201, 217, 0.6, cream, null, 3);
+        faceCircle(330, 0.4, 212, 14, cream, char, 2); F(329.4, 330.6, 210, 222, char, null, 0, 0.6); F(330, 338, 211.4, 212.6, char, null, 0, 0.6);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.05, -30, D + 30, 0, 120, shade(dado, 0.94));
+        S(0.15, -30, D + 30, 0, 10, shade(char, 0.9)); S(0.2, -30, D + 30, 120, 128, shade(coral, 0.9)); S(0.3, -30, D + 30, H - 14, H, shade(char, 0.9));
+        /* the door's surround */
+        S(0.35, door.at - door.half - 10, door.at - door.half, 0, DZ + 10, coralD); S(0.35, door.at + door.half, door.at + door.half + 10, 0, DZ + 10, coralD);
+        S(0.35, door.at - door.half - 10, door.at + door.half + 10, DZ, DZ + 10, coralD);
+        /* THE TWO WINDOWS from inside, at their own places (the gym's: lab a 26..146 and 258.8..378.8, z 30..140, x1.95): the frame, the glass, the
+           street's light, the mullions and the transom where the street's are */
+        for(const [la0, la1] of SF_IN.WINS){ const w0 = SF_IN.rb(la0), w1 = SF_IN.rb(la1), z0 = SF_IN.WZ[0]*1.95, z1 = SF_IN.WZ[1]*1.95;
+          S(0.4, w0 - 5, w1 + 5, z0 - 5, z1 + 5, char); S(0.5, w0, w1, z0, z1, '#a8d4dc'); S(0.55, w0 + 10, w0 + 40, z0 + 30, z1 - 20, '#c4e4ea');
+          for(let k = 1; k < 4; k++){ const m = w0 + (w1 - w0)*k/4; S(0.6, m - 2.5, m + 2.5, z0, z1, '#e8ecec'); }
+          S(0.6, w0, w1, SF_IN.WT[0]*1.95, SF_IN.WT[1]*1.95, '#e8ecec'); }
+      },
+      low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#e8ecea' });
+
+    /* ---- THE DRINKS FRIDGE on the back wall: a white-framed cabinet, two glass doors on three shelves of water and sports drinks; a piece per
+       door (runPiece, its own stretch -- W28), keyed at the door's start (keyStart: against the wall, nothing behind it) ---- */
+    { const A0 = 20, A1 = 110, B0 = 0, B1 = 56, zTop = 200, n = 2, SH = [14, 70, 126];
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'fridge')], () => {
+        F(A0, A1, 0, 184, '#e4eef0', null, 0, B0 + 0.6);                                              // its lit back
+        T(A0, A1, B0 + 0.6, B1 - 2, 184, '#f2f8f8');                                                   // its ceiling, seen through the glass
+        SH.forEach((z, r) => {
+          box(A0 + 2, A1 - 2, B0 + 2, B1 - 4, z - 4, z, steelL, steelL, steelD);                     // a shelf
+          for(let i = 0; i < 7; i++){ const ba = A0 + 12 + i*(A1 - A0 - 24)/6, c = drink[(i + r*2) % drink.length];
+            cyl(ba, 28, z, z + 24, 4.4, c, shade(c, 1.1)); cyl(ba, 28, z + 24, z + 30, 2.4, '#e8eef0', '#f4f8f8'); cyl(ba, 28, z + 30, z + 33, 2.6, '#3a8ac8', '#5aa2d8'); } });
+        F(A0, A1, 0, 8, '#dfe4dc', null, 0, B1);                                                       // the plinth
+        F(A0, A1, 8, 184, 'rgba(200,232,236,.26)', null, 0, B1);                                       // the glass
+        F(A0, A1, 140, 144, 'rgba(255,255,255,.22)', null, 0, B1 + 0.05);
+        for(let k = 0; k <= n; k++){ const a = A0 + (A1 - A0)*k/n; F(Math.max(A0, a - 2.5), Math.min(A1, a + 2.5), 8, 184, '#f4f6f2', null, 0, B1 + 0.1);
+          if(k < n){ F(a + 6, a + 8, 74, 120, steelD, null, 0, B1 + 0.2); } }                         // (the frames, a handle on each door)
+        S(A1, B0, B1, 0, 184, '#e4e8e2');                                                              // (its east end: the west faces away)
+        box(A0 - 2, A1 + 2, B0, B1 + 2, 184, zTop, '#f4f6f2', '#eef1ec', '#dfe4dc');                  // the header
+        blockWordIn('COLD', A0 + 24, A1 - 24, 187, 197, B1 + 2.2, coral, null, 3);
+      }, { pad: 3, keyStart: true, run: (A1 - A0)/n });
+    }
+
+    /* ---- THE TOWEL CUBBIES on the north wall: an open case of three shelves, rolled towels in each cubby; in runs of 55 keyed at each stretch's
+       start (against the wall). Inside it, back to front: the back, the shelves with their towels, the dividers standing between them ---- */
+    { const A0 = 140, A1 = 360, B0 = 0, B1 = 34, zTop = 150, SH = [6, 54, 102], COL = 6, cw = (A1 - A0)/COL;
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'cubbies')], () => {
+        F(A0, A1, 0, zTop, woodS, null, 0, B0 + 0.6);
+        box(A0, A1, B0, B1, 0, 6, woodT, wood, woodS);                                                 // (the plinth: the bottom shelf)
+        SH.forEach((z, r) => { if(r) box(A0, A1, B0, B1, z - 4, z, woodT, wood, woodS);
+          for(let c = 0; c < COL; c++) for(let i = 0; i < 2; i++){ const a = A0 + cw*c + cw*(i + 0.5)/2, col = (c + r + i) % 3 ? cream : coral;
+            faceCircle(a, B1 - 2, z + 8, 7.6, col, shade(col, 0.82), 1); faceCircle(a, B1 - 1.9, z + 8, 2.4, shade(col, 0.9)); faceCircle(a, B1 - 2, z + 22, 7.6, (c + r + i) % 2 ? cream : '#dfe4e2', shade(cream, 0.8), 1); } });
+        for(let c = 0; c <= COL; c++){ const a = A0 + cw*c; box(Math.max(A0, a - 1.5), Math.min(A1, a + 1.5), B0, B1, 6, zTop - 4, woodT, wood, woodS); }
+        box(A0 - 2, A1 + 2, B0, B1 + 2, zTop - 4, zTop, woodT, wood, woodS);                          // the top
+      }, { pad: 3, keyStart: true, run: 55 });
+    }
+
+    /* ---- THE FRONT DESK: coral to the members over a charcoal kick, the kettlebell mark on it, a white top; 150 clear behind it for Marisol; in
+       runs of 40 on 50, keyed down its middle line. What stands on it its own piece ---- */
+    { const A0 = 150, A1 = 350, B0 = 190, B1 = 240, zT = 75;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'desk')], () => {
+        box(A0, A1, B0, B1, 0, zT - 4, coral, coral, coralD);
+        F(A0, A1, 0, 8, char, null, 0, B1 + 0.2);
+        for(let a = A0 + 25; a < A1; a += 25) F(a - 0.5, a + 0.5, 8, zT - 4, coralD, null, 0, B1 + 0.2);
+        faceCircle(250, B1 + 0.4, 36, 12, cream); F(244, 256, 48, 52, cream, null, 0, B1 + 0.4); F(243, 246, 44, 52, cream, null, 0, B1 + 0.4); F(254, 257, 44, 52, cream, null, 0, B1 + 0.4);
+        S(A1, B0, B1, 8, zT - 4, shade(coral, 0.86));
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, '#f4f6f4', '#e8ecea', '#d4dad8');
+      }, { pad: 5, run: 40, extra: { b: (B0 + B1)/2 } });
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 40, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* a stack of fresh towels, folded */
+      on(176, [162, 190, 200, 228, 102], () => { for(let k = 0; k < 6; k++) box(164, 188, 202, 226, zT + k*4, zT + k*4 + 3.6, k % 2 ? coral : cream, k % 2 ? coralD : '#eceae2', k % 2 ? shade(coralD, 0.9) : '#dcdad2'); });
+      /* the tablet on its stand (its screen on the far face, Marisol's: not painted -- W37) */
+      on(250, [238, 262, 196, 214, 104], () => { box(244, 256, 200, 210, zT, zT + 3, charD, char, blk); tube(250, 205, zT + 3, 250, 203, zT + 14, 1.4, steelD);
+        box(238, 262, 196, 200, zT + 12, zT + 29, charL, char, charD); });
+      /* the card reader */
+      on(300, [292, 308, 214, 232, 90], () => { box(294, 306, 216, 230, zT, zT + 3, blk, charD, blk); box(296, 304, 218, 226, zT + 3, zT + 12, char, charD, blk); F(297, 303, zT + 8, zT + 11, '#9fd4b4', null, 0, 226.1); });
+      /* a bowl of green apples */
+      on(332, [318, 346, 202, 230, 94], () => { cyl(332, 216, zT, zT + 7, 13, cream, '#ffffff'); for(const [da, db] of [[-5, -4], [5, -4], [-5, 5], [5, 5]]) ball(332 + da, 216 + db, zT + 8, 4.4, '#7cb342', '#9ccf5a'); ball(332, 216, zT + 13, 4.4, '#7cb342', '#9ccf5a'); });
+    }
+
+    /* ---- THE KETTLEBELL RACK under the north window, against the west wall: two steps, the bells on them; along b in runs (alongB), keyed at each
+       stretch's north end. Inside it, back to front: the north end, the low step, the high step set back with its bells, the low step's bells
+       before it, the south end ---- */
+    { const B0 = 140, B1 = 280, A0 = 2, A1 = 46, zTop = 54;
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(A0, A1, s0, s1, 40, 'kettlebell rack')], () => {
+        box(A0, A1, B0, B0 + 4, 0, 38, char, char, charD);
+        box(A0, A1, B0 + 4, B1 - 4, 10, 14, steelD, char, charD);
+        box(A0 + 20, A0 + 22, B0 + 4, B1 - 4, 14, 34, char, char, charD); box(A0, A0 + 22, B0 + 4, B1 - 4, 34, 38, steelD, char, charD);   // (its riser, then the step on it)
+        for(let k = 0, b = B0 + 16; b < B1 - 10; b += 22, k++) kbell(A0 + 11, b, 38, 5 + (k % 3), k % 2 ? char : coral);
+        for(let k = 0, b = B0 + 14; b < B1 - 10; b += 18, k++) kbell(A0 + 33, b, 14, 5.6 + (k % 4)*0.8, k % 2 ? coral : charL);
+        box(A0, A1, B1 - 4, B1, 0, 38, char, char, charD);
+      }, { alongB: true, keyStart: true, pad: 3, run: 47 });
+    }
+
+    /* ---- THE DUMBBELL RACK under the south window, against the west wall: two tiers on a steel frame, pairs of hex dumbbells lightest north;
+       along b in runs (alongB), keyed at each stretch's north end. Inside it: the north end, the low tier's tray, the high tier set back with its
+       pairs, the low tier's pairs before it, the south end ---- */
+    { const B0 = 430, B1 = 610, A0 = 2, A1 = 58, zTop = 59;
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(A0, A1, s0, s1, 56, 'dumbbell rack')], () => {
+        box(A0, A1, B0, B0 + 4, 0, 52, steelD, char, charD);
+        box(A0 + 24, A1, B0 + 4, B1 - 4, 22, 26, steelD, char, charD);
+        box(A0 + 26, A0 + 30, B0 + 4, B1 - 4, 26, 46, char, char, charD); box(A0 + 4, A0 + 30, B0 + 4, B1 - 4, 46, 50, steelD, char, charD);   // (its riser, then the tier on it)
+        for(let k = 0, b = B0 + 14; b < B1 - 10; b += 16, k++) dbell(A0 + 5, A0 + 29, b, 50, 3.2 + k*0.12);
+        for(let k = 0, b = B0 + 14; b < B1 - 10; b += 16, k++) dbell(A0 + 31, A1 - 2, b, 26, 4.4 + k*0.14);   // (clear of the riser)
+        box(A0, A1, B1 - 4, B1, 0, 52, steelD, char, charD);
+      }, { alongB: true, keyStart: true, pad: 3, run: 45 });
+    }
+
+    /* ---- FIVE TREADMILLS facing the north wall: each its own piece keyed at its middle (36 by 100: not a long fixture). Inside one, back to
+       front: the deck, the motor hood on its far end, the belt and side rails, the uprights (west first), the console with its screen to the runner, the rails ---- */
+    SF_TREADS.forEach(c => items.push({ a: c, b: 72, z: 0, solids: [solid(c - 18, c + 18, 20, 124, 110, 'treadmill')], draw: () => {
+      box(c - 18, c + 18, 20, 124, 0, 6, charL, char, charD);
+      box(c - 18, c + 18, 20, 40, 6, 16, coral, coral, coralD);
+      T(c - 14, c + 14, 40, 122, 6.2, blk);
+      box(c - 18, c - 14, 40, 124, 6, 9, gear, gear, gearD); box(c + 14, c + 18, 40, 124, 6, 9, gear, gear, gearD);
+      box(c - 17, c - 14, 26, 31, 16, 100, gear, gear, gearD); box(c + 14, c + 17, 26, 31, 16, 100, gear, gear, gearD);   // (up to the console, which sits on them)
+      box(c - 19, c + 19, 22, 36, 100, 114, charL, char, charD); F(c - 11, c + 11, 103, 111, '#4fb3c8', null, 0, 36.1); F(c - 8, c - 2, 106, 108, cream, null, 0, 36.2);
+      tube(c - 16, 34, 102, c - 16, 66, 94, 1.3, gearD); tube(c + 16, 34, 102, c + 16, 66, 94, 1.3, gearD); } }));
+
+    /* ---- FOUR BIKES before them, facing north: each its own piece keyed at its middle. Inside one, back to front: the front foot, the flywheel
+       under its guard, the bars' post and the bars, the frame, the back foot, the saddle's post and the saddle ---- */
+    SF_BIKES.forEach(c => items.push({ a: c, b: 240, z: 0, solids: [solid(c - 14, c + 14, 206, 276, 60, 'bike')], draw: () => {
+      box(c - 14, c + 14, 208, 214, 0, 4, char, char, charD);
+      disc(c + 2, 224, 20, 16, steelD); disc(c + 2.4, 224, 20, 12, steelL); disc(c + 2.6, 224, 20, 4, char);
+      box(c - 3, c + 3, 214, 236, 18, 40, coral, coral, coralD);
+      tube(c, 222, 38, c, 216, 58, 2, char); tube(c - 11, 214, 60, c + 11, 214, 60, 1.6, charD); box(c - 2, c + 2, 213, 219, 56, 62, charD, charD, blk);
+      tube(c, 232, 8, c, 262, 4, 2.4, char); tube(c, 236, 22, c, 262, 6, 2.2, char);
+      box(c - 14, c + 14, 262, 270, 0, 4, char, char, charD);
+      tube(c, 262, 4, c, 264, 34, 2.2, char); box(c - 4, c + 4, 256, 272, 34, 38, blk, charD, blk); } }));
+
+    /* ---- THE POWER RACK on the weights floor: four posts and a frame over, the bar on its hooks loaded with a plate each end; keyed at its middle.
+       Inside it, back to front: the north posts (west first) and the north rail, the bar and its plates, the south posts and the south rail ---- */
+    { const A0 = 250, A1 = 330, B0 = 550, B1 = 640, zR = 220, post = (a, b) => box(a - 2.5, a + 2.5, b - 2.5, b + 2.5, 0, zR - 5, char, char, charD);
+      items.push({ a: (A0 + A1)/2, b: (B0 + B1)/2, z: 0, solids: [solid(A0 - 4, A1 + 4, B0 - 4, B1 + 4, zR, 'power rack')], draw: () => {
+        box(A0 - 4, A1 + 4, B0 - 4, B0 + 4, 0, 3, charD, charD, blk); box(A0 - 4, A1 + 4, B1 - 4, B1 + 4, 0, 3, charD, charD, blk);
+        post(A0, B0); post(A1, B0); box(A0 - 2.5, A1 + 2.5, B0 - 2.5, B0 + 2.5, zR - 5, zR, charL, char, charD);
+        for(const a of [A0, A1]) box(a - 2, a + 2, B0 + 2, B0 + 8, 116, 122, coral, coral, coralD);
+        tube(A0 - 24, B0 + 8, 124, A1 + 24, B0 + 8, 124, 1.4, steelL);
+        for(const a of [A0 - 18, A0 - 12]) disc(a, B0 + 8, 124, 16, char); for(const a of [A1 + 12, A1 + 18]) disc(a, B0 + 8, 124, 16, char);
+        for(const a of [A1 + 18]) disc(a + 0.2, B0 + 8, 124, 5, steelD);
+        post(A0, B1); post(A1, B1);
+        box(A0 - 2.5, A1 + 2.5, B1 - 2.5, B1 + 2.5, zR - 5, zR, charL, char, charD); } });   // (a rail across each end on its posts: no corner to butt)
+    }
+    /* ---- A PLATE TREE: its foot, its post, the plates on its pegs (the far one first) ---- */
+    items.push({ a: 400, b: 604, z: 0, solids: [{ name: 'plate tree', c: [400, 604], r: 18, h: 90 }], draw: () => {
+      box(388, 412, 592, 616, 0, 4, char, char, charD); tube(400, 604, 4, 400, 604, 92, 2.4, char);
+      for(const [z, r] of [[70, 12], [44, 15]]){ tube(400, 604, z, 406, 604, z, 1.2, steelD); disc(406, 604, z, r, char); disc(406.3, 604, z, 3, steelD); } } });
+
+    /* ---- THE BENCH: a padded flat bench at 40 on two feet; keyed at its middle (a member sat on it a hair forward of it: SF_SEATS) ---- */
+    items.push({ a: 340, b: 482, z: 0, solids: [solid(300, 380, 470, 494, 44, 'bench')], draw: () => {
+      box(304, 312, 470, 494, 0, 3, char, char, charD); box(368, 376, 470, 494, 0, 3, char, char, charD);
+      box(306, 310, 479, 485, 3, 34, char, char, charD); box(310, 370, 479, 485, 30, 34, char, char, charD); box(370, 374, 479, 485, 3, 34, char, char, charD);
+      box(300, 380, 470, 494, 34, 40, blk, charD, blk); F(300, 380, 36.6, 37.4, coral, null, 0, 494.1); } });
+
+    /* ---- TWO EXERCISE BALLS by the east wall, A MONSTERA in the south-east corner ---- */
+    [[818, 446, 22, teal], [814, 494, 19, coral]].forEach(([ea, eb, r, c]) => items.push({ a: ea, b: eb, z: 0, solids: [{ name: 'ball', c: [ea, eb], r: r + 2, h: r*2 }], draw: () => {
+      ball(ea, eb, r, r, c, shade(c, 1.18)); } }));
+    items.push({ a: 812, b: 640, z: 0, solids: [{ name: 'plant', c: [812, 640], r: 22, h: 150 }], draw: () => {
+      cyl(812, 640, 0, 32, 18, char, charL); cyl(812, 640, 31.6, 32, 16, '#5a3e2a', '#5a3e2a');
+      const lv = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + 0.3, rr = 14 + (k % 3)*8; lv.push([812 + Math.cos(t)*rr, 640 + Math.sin(t)*rr*0.75, 60 + (k % 4)*20]); }
+      lv.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
+      for(const [la, lb, lz] of lv) tube(812, 640, 32, la, lb, lz - 6, 1.4, leafD);
+      for(const [la, lb, lz] of lv){ ball(la, lb, lz, 13, leafD, leaf); ball(la + 2, lb + 2, lz + 3, 9, leaf, leafL); } } });
+
+    /* (its door is the gym's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
+    walkinStaffSolids(items, SF_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -71410,6 +71821,13 @@ function houseCanopy(fn){
 {
   name:'Surfside Fitness', xh: 210, base:'Gym', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
+  see: true,   // (a walk-in: its doorway shows the gym's room, SF_IN -- W11; its front faces away, west, so only from inside)
+  /* THE DOORWAY OPEN through the front wall: he drives into it, and is taken into the room only once he is in it (SF_IN's glass < 0, W32) */
+  vol: {
+    foot:   [[0,0],[T2*4.4,0],[T2*4.4,-T2*3],[0,-T2*3]],
+    h:      210,
+    opens:  [{ name: 'doorway', poly: volRect(162.4, 242.4, -90, 2), walk: true }]
+  },
   head:'Double-width glass front, equipment on show, central entrance',
   tags:['double-width unit','full-height glazing','equipment on show','kettlebell sign','no pavement props'],
   desc:'Rebuilt at Sir\'s direction as a double-width unit with a glazed front: two full-height windows with real recesses, treadmills and a weight rack silhouetted behind the glass, and a central entrance between them.',
@@ -71527,7 +71945,10 @@ function houseCanopy(fn){
        202.4, so the number written is the number drawn -- worth stating
        because it is the first door in several shops that is. */
     F(158, 246.8, 0, 118, shade(wall,.9), null,0, 0.4);       // entrance surround
-    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW);
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the gym's coral, 80 across (a 162.4..242.4), its face 'french' -- two tall
+       lights over a low panel (the juice bar next door is 'six'); a walk-in's (see), its opening a hole onto the gym's room, its leaf live,
+       swinging in. Its front faces west, away from the camera: the street never sees it, the room does (walkinAwayDoor) */
+    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.72)', look: 'french' });
     slab(150, 254.8, 118, 130, -2, -9, trim);                 // header over the entrance
 
     /* ---- the fascia ----

@@ -204,7 +204,7 @@
 "title": "Walk-in interior: Surfside Fitness",
 "spec": "docs/kits/walkin-shop-recipe.md",
 "deps": [],
-"status": "pending",
+"status": "built",
 "note": "block 2,0 edge 3",
 "group": "Walk-in interiors: Flats shops"
 },
