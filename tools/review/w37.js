@@ -3,7 +3,7 @@
    the library (LIB.collect, LIB.drawItem), recording each drawing call's points, and reports:
      clip     a runPiece fixture whose zTop is above the top its draw reaches (the next run repaints the top over what stands on
               it: the bakery's cakes) -- or below it (its own top cut off)
-     back     a side face (S) painted at the WEST end of what that piece already drew (a face turned away from the eye, drawn over
+     back     (where it lies over what it drew first, on screen) a side face (S) painted at the WEST end of what that piece already drew (a face turned away from the eye, drawn over
               the front: the bakery's case), or a front face (F) at the NORTH side of it
      foot     a part drawn after one that STANDS ON IT -- a plate, plinth or base under something's foot, wider than it toward the
               eye, painted second: its top and its near faces land over the foot (Sir, 2026-11-20, Palmline Garage: "the base of
@@ -48,10 +48,16 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   const want = process.argv.slice(2).find((a, i, A) => !a.startsWith('--') && A[i - 1] !== '--png') || '';
   const h = await H.open({ instr: ADD, rev: process.env.REV || null }); await h.boot();
   const pi = process.argv.indexOf('--png'), PNG = pi > 0 ? process.argv[pi + 1] : null;
-  const out = await h.page.evaluate(([want, PNG, EVERY]) => {
+  /* THE TURNS THE GAME DRAWS EACH ENTRY IN (tools/review/orient.js -> orient.json): each entry is checked in every one, drawn as the
+     game draws it there (its frame turned, MIRROR on where it is mirrored, so the kit picks the same ends and faces), and what it draws is
+     read back in the eye's frame -- a' = da*a, b' = db*b: the eye sees +a', +b' -- and its pieces keyed where they are drawn, as the street's queues key
+     them (da*a + db*b, their own dk ignored there, as the block-edge queue does); one drawn whole and seen from behind (db -1) draws its rear elevation, back(), as the street does (rear). An entry the tour did not see: as the lab draws it (Sir, 2026-11-23: "lets do 3") */
+  const ORI = (() => { try { return JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'orient.json'), 'utf8')); } catch(e){ return {}; } })();
+  const out = await h.page.evaluate(([want, PNG, EVERY, ORI]) => {
+    let DA = 1, KA = 1, DB = 1;
     const sc = game.scene.getScene('world'), g = sc.add.graphics(), G = (a, b, z) => ({ x: a - b, y: (a + b)/2 - z });
     let cur = null, stack = 0;
-    window.__RVP3 = (a, b, z) => { if(cur && cur.prim) cur.prim.pts.push([a, b, z]); if(cur && window.__W37in) cur.runZ = Math.max(cur.runZ, z); };
+    window.__RVP3 = (a, b, z) => { if(cur && cur.prim) cur.prim.pts.push([DA*a, DB*b, z]); if(cur && window.__W37in) cur.runZ = Math.max(cur.runZ, z); };
     window.__RVK = (n, args, ph) => { if(!cur) return;
       if(ph === 0){ if(stack++ === 0) cur.prim = { n, args: Array.from(args).slice(0, 7), pts: [], inRun: !!window.__W37in, line: ((new Error().stack.split('\n')[3] || '').match(/:(\d+):\d+\)?$/) || [])[1] }; }
       else if(--stack === 0 && cur.prim){ cur.prims.push(cur.prim); cur.prim = null; } };
@@ -75,7 +81,8 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       const G4 = (a, b, z) => ({ x: (a - b)*S - x0 + pad, y: ((a + b)/2 - z)*S - y0 + pad }), w = Math.ceil(x1 - x0 + 2*pad), hh = Math.ceil(y1 - y0 + 2*pad);
       const g4 = sc.add.graphics(); g4.fillStyle(0xffffff, 1); g4.fillRect(0, 0, w, hh);
       const save = window.__RVP3, saveK = window.__RVK; window.__RVP3 = () => {}; window.__RVK = () => {};
-      try { if(it.draw === null) LIB.draw(name, g4, G4, undefined, S); else LIB.drawItem(name, g4, G4, S, it); } catch(err){}
+      const G4T = (a, b, z) => G4(KA*a, DB*b, z);   // (in its turn: points recorded in the eye's frame, drawn the same way)
+      try { if(it.draw === null) LIB.draw(name, g4, G4T, undefined, S, undefined, undefined, DB < 0); else LIB.drawItem(name, g4, G4T, S, it); } catch(err){}
       window.__RVP3 = save; window.__RVK = saveK;
       const outline = (q, c) => { const C = [[q.a0, q.b0], [q.a1, q.b0], [q.a1, q.b1], [q.a0, q.b1]]; g4.lineStyle(2, c, 1);
         for(const z of [q.z0, q.z1]){ g4.beginPath(); C.forEach(([a, b], k) => { const p = G4(a, b, z); k ? g4.lineTo(p.x, p.y) : g4.moveTo(p.x, p.y); }); g4.closePath(); g4.strokePath(); }
@@ -90,14 +97,21 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       const data = sc.textures.getBase64(key); sc.textures.remove(key);
       return { data, ov: ov.map(p => [Math.round(p.x), Math.round(p.y)]), hE: hE.map(p => [Math.round(p.x), Math.round(p.y)]), hL: hL.map(p => [Math.round(p.x), Math.round(p.y)]) }; };
     const rooms = (EVERY ? [...new Set(window.__RVK_shops().map(s => s.name))] : [...new Set(POCKETS.map(p => p.name))]).filter(n => LIB.get(n) && n.includes(want));   // (every room the library draws, the older pockets -- the ballroom -- as well as the walk-ins)
-    for(const name of rooms){
+    for(const name of rooms) for(const ori of (() => { const e = ORI[name]; if(!e) return ['1,1,1'];
+      /* (its pieces' turns when it is drawn in pieces, its whole draw's when it is drawn whole -- which it is, the check finds out
+         below; an entry with both: its pieces') */
+      let isPieces = false; try { isPieces = !!(LIB.collect(name, G, 1) || []).length; } catch(err){}
+      return (isPieces ? e.pieces : e.whole) || e.pieces || e.whole || ['1,1,1']; })()){
+      [DA, KA, DB] = ori.split(',').map(Number);
+      const MIR = DA !== KA, GT = (a, b, z) => G(KA*a, DB*b, z), oriTag = ori === '1,1,1' ? '' : ' [drawn ' + [MIR ? 'mirrored' : DA < 0 ? 'a turned' : '', DB < 0 ? 'b turned' : ''].filter(Boolean).join(', ') + ']';
+      const nFound0 = found.length;
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
-      let items = []; try { items = LIB.collect(name, G, 1) || []; } catch(e){ found.push({ room: name, kind: 'error', at: [0, 0], what: 'collect: ' + String(e).slice(0, 80) }); }
+      let items = []; try { items = LIB.collect(name, GT, 1, MIR ? false : undefined, MIR ? true : undefined) || []; } catch(e){ found.push({ room: name, kind: 'error', at: [0, 0], what: 'collect: ' + String(e).slice(0, 80) }); }
       let whole = false; if(!items.length && EVERY){ whole = true; items = [{ a: 0, b: 0, z: 0, draw: null }]; }
       const runs = new Map(), entryP = [], sortRec = [];
       items.forEach((it, i) => {
         cur = { prims: [], prim: null, runZ: -1e9 }; stack = 0;
-        try { if(whole) LIB.draw(name, g, G, undefined, 1); else LIB.drawItem(name, g, G, 1, it); } catch(e){ found.push({ room: name, kind: 'error', at: [Math.round(it.a), Math.round(it.b)], what: String(e).slice(0, 80) }); }
+        try { if(whole) LIB.draw(name, g, GT, undefined, 1, undefined, MIR ? false : undefined, DB < 0); else LIB.drawItem(name, g, GT, 1, it, MIR ? false : undefined, MIR ? true : undefined); } catch(e){ found.push({ room: name, kind: 'error', at: [Math.round(it.a), Math.round(it.b)], what: String(e).slice(0, 80) }); }
         const rec = cur; cur = null;
         const P = rec.prims.filter(p => p.pts.length >= 3).map(p => Object.assign(p, { q: bb(p.pts) }));
         for(const p of P) if(p.n === 'box' && !p.inRun) entryP.push(p);
@@ -105,11 +119,11 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
         if(!whole){ let shown = true; try { shown = !it.when || !!it.when(); } catch(e){}
           if(shown && !it.ghost){ const R = it.fpLab, along = it.__run ? it.__run.along : null, cut = [];
             for(const p of P){ if(!VOL.has(p.n) || p.n === 'prism') continue; const q = Object.assign({}, p.q);
-              if(R && along === 'a'){ q.a0 = Math.max(q.a0, R.a0); q.a1 = Math.min(q.a1, R.a1); }
-              if(R && along === 'b'){ q.b0 = Math.max(q.b0, R.b0); q.b1 = Math.min(q.b1, R.b1); }
+              if(R && along === 'a'){ const r0 = Math.min(DA*R.a0, DA*R.a1), r1 = Math.max(DA*R.a0, DA*R.a1); q.a0 = Math.max(q.a0, r0); q.a1 = Math.min(q.a1, r1); }
+              if(R && along === 'b'){ const r0 = Math.min(DB*R.b0, DB*R.b1), r1 = Math.max(DB*R.b0, DB*R.b1); q.b0 = Math.max(q.b0, r0); q.b1 = Math.min(q.b1, r1); }
               if(q.a1 - q.a0 < 0.5 || q.b1 - q.b0 < 0.5 || q.z1 - q.z0 < 0.5) continue; cut.push({ q, n: p.n, line: p.line }); }
             let dk = null; try { dk = typeof it.dk === 'function' ? it.dk() : it.dk; } catch(e){}
-            if(cut.length) sortRec.push({ i, it, occ: !!it.occ, key: dk != null ? dk : (it.a || 0) + (it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
+            if(cut.length) sortRec.push({ i, it, occ: !!it.occ, key: dk != null && !oriTag ? dk : DA*(it.a || 0) + DB*(it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
               fix: it.__run ? [it.__run.a0, it.__run.a1, it.__run.b0, it.__run.b1, it.__run.zTop].join(',') : null, line: it.__run ? it.__run.line : (P[0] && P[0].line) }); } }
         /* clip: one per fixture (its runs share the draw) */
         if(it.__run){ const R = it.__run, key = [R.a0, R.a1, R.b0, R.b1, R.zTop].join(',');
@@ -124,12 +138,12 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           if(L.n === 'S' && q.a1 - q.a0 < 0.5){
             const aa = q.a0, inR = p => p[1] > q.b0 + 1 && p[1] < q.b1 - 1 && p[2] > q.z0 + 1 && p[2] < q.z1 - 1;
             const pts = before.flatMap(p => p.pts).filter(inR);
-            if(pts.some(p => p[0] > aa + 2) && !pts.some(p => p[0] < aa - 2)) found.push({ room: name, kind: 'back', at: [Math.round(aa), Math.round((q.b0 + q.b1)/2)], what: 'S at a ' + aa.toFixed(1) + ' is the west end of what it drew first (line ' + L.line + ')' });
+            if(pts.some(p => p[0] > aa + 2) && !pts.some(p => p[0] < aa - 2) && before.some(p => p.pts.some(r => inR(r) && r[0] > aa + 2) && paintOver(q, p.q) > 4)) found.push({ room: name, kind: 'back', at: [Math.round(aa), Math.round((q.b0 + q.b1)/2)], what: 'S at a ' + aa.toFixed(1) + ' is the west end of what it drew first (line ' + L.line + ')' });
           }
           if(L.n === 'F' && q.b1 - q.b0 < 0.5){
             const bv = q.b0, inR = p => p[0] > q.a0 + 1 && p[0] < q.a1 - 1 && p[2] > q.z0 + 1 && p[2] < q.z1 - 1;
             const pts = before.flatMap(p => p.pts).filter(inR);
-            if(pts.some(p => p[1] > bv + 2) && !pts.some(p => p[1] < bv - 2)) found.push({ room: name, kind: 'back', at: [Math.round((q.a0 + q.a1)/2), Math.round(bv)], what: 'F at b ' + bv.toFixed(1) + ' is the north side of what it drew first (line ' + L.line + ')' });
+            if(pts.some(p => p[1] > bv + 2) && !pts.some(p => p[1] < bv - 2) && before.some(p => p.pts.some(r => inR(r) && r[1] > bv + 2) && paintOver(q, p.q) > 4)) found.push({ room: name, kind: 'back', at: [Math.round((q.a0 + q.a1)/2), Math.round(bv)], what: 'F at b ' + bv.toFixed(1) + ' is the north side of what it drew first (line ' + L.line + ')' });
           }
           /* foot: L drawn after E, L under E's foot (from at or below E's bottom up to no higher than partway up it), their footprints
              overlapping, L reaching nearer the eye (further east or south) than E: L's top and near faces paint over E's foot */
@@ -144,7 +158,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(!(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5)) continue;
             const s1 = scr(q), s2 = scr(e), ox = Math.min(s1.x1, s2.x1) - Math.max(s1.x0, s2.x0), oy = Math.min(s1.y1, s2.y1) - Math.max(s1.y0, s2.y0);
             if(ox > 1 && oy > 1){ const f = { room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') (line ' + L.line + ', it line ' + E.line + ')' };
-              f.__L = L; if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
+              f.__L = L; if(PNG && !MIR) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
           /* hung: L drawn after E, L HANGING UNDER E -- its top at E's bottom (within 2), their footprints overlapping, L no wider
              toward the eye than E (wider is foot's): L's top face lands on E's near faces (Brew & Bolt's goosenecks, a bulb under its
@@ -156,7 +170,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5) continue;                                     // (reaching nearer: foot's)
             const ar = paintOver(q, e);
             if(ar > 16){ const f = { room: name, kind: 'hung', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') hung under the ' + E.n + ' (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') and drawn after it (line ' + L.line + ', it line ' + E.line + ')' };
-              if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
+              if(PNG && !MIR) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
           /* behind: L drawn after E though it stands wholly BEHIND E -- past E's back face (north, or west), within E's width and no higher
              than its top: a fixture's far-side parts, its working face turned away from the eye (Seaglass Coffee's espresso machine: its
@@ -171,7 +185,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(!(bN || bW || bU) || fr) continue;
             const ar = paintOver(q, e);                                     // (how much of E it paints over, in square units at 1x)
             if(ar > 16){ const f = { room: name, kind: 'behind', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (b ' + Math.round(q.b0) + '..' + Math.round(q.b1) + ', a ' + Math.round(q.a0) + '..' + Math.round(q.a1) + ', z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' in front of it (its back at ' + (bN ? 'b ' + Math.round(e.b0) : 'a ' + Math.round(e.a0)) + ') (line ' + L.line + ', it line ' + E.line + ')' };
-              if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
+              if(PNG && !MIR) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
           /* inside: L and E (two solid boxes of the piece) SHARE A VOLUME -- one run partly into the other, a corner of each inside the
              other, so whichever is painted second cuts a notch out of the first (Dune's sofa: its arms run back under its back, a step at
@@ -196,7 +210,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(!(inside(q.z1, e.z0, e.z1) || inside(q.b1, e.b0, e.b1) || inside(q.a1, e.a0, e.a1))) continue;
             const f = { room: name, kind: 'inside', at: [Math.round((Math.max(q.a0, e.a0) + Math.min(q.a1, e.a1))/2), Math.round((Math.max(q.b0, e.b0) + Math.min(q.b1, e.b1))/2)],
               what: L.n + ' (a ' + Math.round(q.a0) + '..' + Math.round(q.a1) + ', b ' + Math.round(q.b0) + '..' + Math.round(q.b1) + ', z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') runs into the ' + E.n + ' (a ' + Math.round(e.a0) + '..' + Math.round(e.a1) + ', b ' + Math.round(e.b0) + '..' + Math.round(e.b1) + ', z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') by ' + [oa, ob, oz].map(v => v.toFixed(0)).join(' x ') + ' (line ' + L.line + ', it line ' + E.line + ')' };
-            if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break;
+            if(PNG && !MIR) f.png = shot(name, it, P, q, e); found.push(f); break;
           }
           /* order: L drawn after E, L behind E (it ends within 5 of E's near start on a or b and reaches well behind it), overlapping on screen */
           for(const E of before){ const e = E.q;
@@ -274,10 +288,12 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           const mid = (A.hi + B.lo)/2, fm = (A.f0 + A.f1)/2;
           found.push({ room: name, kind: 'jamb', at: A.ax === 'a' ? [Math.round(mid), Math.round(fm)] : [Math.round(fm), Math.round(mid)],
             what: 'an opening ' + Math.round(gap) + ' wide along ' + A.ax + ': one side ' + (A.f1 - A.f0).toFixed(0) + ' thick (' + A.f0.toFixed(0) + '..' + A.f1.toFixed(0) + '), the other ' + (B.f1 - B.f0).toFixed(0) + ' (' + B.f0.toFixed(0) + '..' + B.f1.toFixed(0) + ') (line ' + A.line + ', it line ' + B.line + ')' }); } }
+      /* (in a turn: its findings say so, and where -- in the eye's frame, a' and b' -- is turned back to the entry's own numbers) */
+      if(oriTag) for(let k = nFound0; k < found.length; k++){ const f = found[k]; f.at = [DA*f.at[0], DB*f.at[1]]; f.what += oriTag; }
     }
     g.destroy(); for(const f of found) delete f.__L;
     return { rooms: rooms.length, found };
-  }, [want, PNG, process.argv.includes('--every')]);
+  }, [want, PNG, process.argv.includes('--every'), ORI]);
   if(PNG){ const fs = require('fs'), path = require('path'); fs.mkdirSync(PNG, { recursive: true }); let k = 0;
     for(const f of out.found) if(f.png){ const fn = path.join(PNG, f.kind + '_' + (++k) + '.png'); fs.writeFileSync(fn, Buffer.from(f.png.data.split(',')[1], 'base64'));
       fs.writeFileSync(fn.replace(/\.png$/, '.json'), JSON.stringify({ room: f.room, at: f.at, what: f.what, ov: f.png.ov, hE: f.png.hE, hL: f.png.hL })); f.what += '  -> ' + fn; delete f.png; }

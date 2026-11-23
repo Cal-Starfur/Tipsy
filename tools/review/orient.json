@@ -1,0 +1,468 @@
+{
+ "Beach Modern Cantilever": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Beach Modern Terrace": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Beach Modern Tower": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Belvedere Italianate": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Breakwater Hardware": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Brenta Palladian Estate": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Charge depot": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Coastline Modern": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Coral Cafe Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Costa Palma Animal Shelter": {
+  "pieces": [
+   "-1,-1,1"
+  ]
+ },
+ "Cove Apothecary": {
+  "whole": [
+   "1,-1,-1"
+  ]
+ },
+ "Cove Pottery": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Cranberry Saltbox": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Driftwood Books": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Driftwood Books Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Driftwood Craftsman": {
+  "whole": [
+   "1,-1,1",
+   "1,1,-1"
+  ]
+ },
+ "Driftwood Home": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Estate Garage": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Flats Lifeguard Lookout": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Harbor Boat": {
+  "whole": [
+   "-1,-1,1",
+   "1,1,1"
+  ]
+ },
+ "Harbor Kiosk": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Harbor Light": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Harbor Sign": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Kauai Plantation Cottage": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Lagoon Baths": {
+  "pieces": [
+   "1,-1,1"
+  ]
+ },
+ "Lagoon Coffee Roasters": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Lagoon Coffee Roasters Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Lagoon Noodle Bar": {
+  "whole": [
+   "1,-1,-1"
+  ]
+ },
+ "Lot For Sale": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Low Tide Juice Bar": {
+  "whole": [
+   "1,-1,-1"
+  ]
+ },
+ "Marina Chandlery Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Marina Deli Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Marina General ER": {
+  "pieces": [
+   "1,1,-1"
+  ]
+ },
+ "Marina General Hospital": {
+  "pieces": [
+   "1,1,-1"
+  ]
+ },
+ "Marina General Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Marina General Parking": {
+  "pieces": [
+   "1,1,-1"
+  ]
+ },
+ "Marina General Tower": {
+  "pieces": [
+   "1,1,-1"
+  ]
+ },
+ "Marina Optical": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Marina Optical Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Marina Pharmacy": {
+  "whole": [
+   "1,-1,-1"
+  ]
+ },
+ "Maritime Mall": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Maritime Mall Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Maritime Mall Parking": {
+  "pieces": [
+   "1,1,1"
+  ],
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Marrakech Riad": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Miami Deco Tower House": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Montalcino Tuscan Villa": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Nantucket Cape": {
+  "whole": [
+   "1,-1,1",
+   "1,1,-1"
+  ]
+ },
+ "Palm Springs Modern": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Palmline Casita": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Palmline Garage": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Palmline Savings": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Palmline Savings Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Palmline Tower": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Palmline Tower Lobby": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Pelican Fish Market": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Pelican Harbor": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Pelican Port Office Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Pelican Stilt House": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Point Loma Keeper's Cottage": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Rancho Hacienda": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Saltwater Brewing": {
+  "pieces": [
+   "1,-1,1"
+  ]
+ },
+ "San Gabriel Mission Revival": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Sandcastle Toys": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Sandpiper Bakery": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Sandpiper Bakery Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Sandpiper Shoes": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sandpiper Suds": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Sea Lion Point Sign": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Sea Lion Statue": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Seabreeze Ballroom": {
+  "pieces": [
+   "-1,-1,1"
+  ]
+ },
+ "Seabreeze Bungalow": {
+  "whole": [
+   "1,-1,1",
+   "1,1,-1",
+   "1,1,1"
+  ]
+ },
+ "Seabreeze Florist": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Seabreeze Grocer": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Seabreeze Playhouse": {
+  "whole": [
+   "1,-1,1"
+  ]
+ },
+ "Sierra Garage": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Streamline Moderne": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Street Double Garage": {
+  "whole": [
+   "1,-1,1",
+   "1,1,-1"
+  ]
+ },
+ "Street Garage": {
+  "whole": [
+   "1,-1,1",
+   "1,1,-1"
+  ]
+ },
+ "Surfside Fitness": {
+  "whole": [
+   "1,-1,-1"
+  ]
+ },
+ "Terrazza Garage": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Terrazza Split-Level": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "The Flats Post Office": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "The Tide Gazette": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Tide Pool Elementary": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Tide Pool Elementary Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Tidewater Museum": {
+  "pieces": [
+   "-1,-1,1"
+  ]
+ },
+ "Tidewater Museum Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Tidewater Tea House": {
+  "whole": [
+   "1,1,1"
+  ]
+ },
+ "Tidewater Tea House Interior": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Vista Ridge Security Post": {
+  "pieces": [
+   "1,1,1"
+  ]
+ },
+ "Watch Hill Shingle Cottage": {
+  "whole": [
+   "1,-1,1",
+   "1,1,-1"
+  ]
+ }
+}
