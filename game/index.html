@@ -61631,7 +61631,7 @@ function houseCanopy(fn){
     for(const [a0, a1, b0, b1] of [[720, 2225, 632, 640], [720, 2225, 1242, 1250], [720, 728, 632, 1250], [2217, 2225, 632, 1250]]) T(a0, a1, b0, b1, 0.5, yel);
     for(const [pa, pb] of POS){ for(const [ca, cb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){ T(pa + ca*62 - (ca > 0 ? 18 : 0), pa + ca*62 + (ca < 0 ? 18 : 0), pb + cb*44 - (cb > 0 ? 4 : 0), pb + cb*44 + (cb < 0 ? 4 : 0), 0.6, '#f2efe6');
         T(pa + ca*62 - (ca > 0 ? 4 : 0), pa + ca*62 + (ca < 0 ? 4 : 0), pb + cb*44 - (cb > 0 ? 14 : 0), pb + cb*44 + (cb < 0 ? 14 : 0), 0.6, '#f2efe6'); } }
-    for(const a of [1560, 1400, 1100, 800]){ for(const [a0, a1, b0, b1] of [[a - 46, a + 46, 266, 270], [a - 46, a + 46, 390, 394], [a - 46, a - 42, 266, 394], [a + 42, a + 46, 266, 394]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (the full spares' spots) */
+    for(const a of [720, 840, 960, 1080]){ for(const [a0, a1, b0, b1] of [[a - 46, a + 46, 266, 270], [a - 46, a + 46, 390, 394], [a - 46, a - 42, 266, 394], [a + 42, a + 46, 266, 394]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (the full spares' spots) */
     T(2240, 2312, 530, 1428, 0.3, '#8f9599'); T(2240, 2246, 530, 1352, 0.5, yel); T(2306, 2312, 530, 1428, 0.5, yel);
     T(1682, 2312, 1352, 1428, 0.3, '#8f9599'); T(1682, 2246, 1352, 1358, 0.5, yel); T(1682, 2312, 1422, 1428, 0.5, yel);   /* (the pallet mover's way out) */
     T(1110, 2312, 1572, 1628, 0.3, '#8f9599'); T(1110, 2240, 1572, 1576, 0.5, yel); T(1110, 2312, 1624, 1628, 0.5, yel); T(2240, 2312, 1428, 1628, 0.3, '#8f9599'); T(2306, 2312, 1428, 1628, 0.5, yel);   /* (phase 6: the storage aisle, and the lane on to it) */
@@ -61839,7 +61839,7 @@ function houseCanopy(fn){
        the picker and the arm between. Two robots a station: one at it, the other waiting full in its spot north of the lane (RAPK); the
        station's robot goes west along the lane (b 520) and up to the stop, back down a 620 and along the lane to its spot; as it leaves,
        the spare rolls in. On the pallet clock (row B's is half a SUP on) */
-    const RAL = 520, APOD = [330, 330], AROB = [500, 330], ARPOD = [430, 180], RAPK = m => [m === 0 ? 1560 : POS[m + 1][0], 330];
+    const RAL = 520, APOD = [330, 330], AROB = [500, 330], ARPOD = [430, 180], RAPK = m => [[720, 840, 960, 1080][m], 330];   /* (the full spares side by side by the pick face, as row B's -- Sir, 2026-11-23: "I like how the lower group is tighter") */
     const raGeo = m => { const pa = POS[m + 1][0], ST = [pa, 658], PK = RAPK(m), A = RBA[m];
       const EMP = [ST, [pa, RAL], [AROB[0], RAL], AROB], RET = [AROB, [620, AROB[1]], [620, RAL], [PK[0], RAL], PK], ENT = PK[0] === pa ? [PK, ST] : [PK, [PK[0], RAL], [pa, RAL], ST];
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
