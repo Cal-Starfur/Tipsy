@@ -48131,12 +48131,14 @@ function svcLiftItems(items, H, U){
      building and elevator need to be unified"), 30 thick as that wall is --
      and the east face's south side with it, 30 thick, one run round the corner;
      the west is the building's west wall */
-  const FP = [[S0.a0 - 30, S0.b1 - 15], [S0.a1 - 14, S0.b1 - 15], [E - 15, S0.b1 - 15], [E - 15, S0.door[1]]];
+  /* (the front wall 30 thick, the east face's south side 16 as its north side is -- its outer face at E, its inner 16 in, the door frame's
+     depth: per-leg thicknesses, the outer line straight round the corner -- Sir, 2026-11-23: "should be inset like the other side") */
+  const FP = [[S0.a0 - 30, S0.b1 - 15], [S0.a1 - 14, S0.b1 - 15], [E - 15, S0.b1 - 15], [E - 15, S0.door[1]]], FT = [[15, 15], [15, 15], [15, 1]];
   items.push({ a: (S0.a0 + E)/2, b: S0.b0 - 8, z: 0, solids: [solid(S0.a0, E, S0.b0 - 16, S0.b0)], draw: () => wall(NP, 8, [0]) });
-  items.push({ a: (S0.a0 + E)/2, b: S0.b1 - 15, z: 0, solids: [solid(S0.a0 - 30, E, S0.b1 - 30, S0.b1)], draw: () => wall(FP, 15, [0]) });
+  items.push({ a: (S0.a0 + E)/2, b: S0.b1 - 15, z: 0, solids: [solid(S0.a0 - 30, E, S0.b1 - 30, S0.b1)], draw: () => wall(FP, FT, [0]) });
   /* its east face, the doors in it: each side the corner it turns (the north wall's, the front wall's) */
   for(const [b0, b1, pts, t] of [[S0.b0, S0.door[0], NP, 8], [S0.door[1], S0.b1 - 30, FP, 15]])
-    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(pts, t, [1, 2]) });
+    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(pts, pts === FP ? FT : t, [1, 2]) });
   /* the header over the doors, its frame round them and its lamp; the roof
      and its cornice, after everything of the car */
   /* (sorted at the doorway, not the car's far corner -- Sir, 2026-10-18: a
@@ -48189,14 +48191,18 @@ function box(a0,a1,b0,b1,z0,z1,top,front,side){
 function pathRun(pts, t, z0, z1, top, front, side, legs){
   const n = pts.length; if(n < 2) return;
   const dir = i => { const da = pts[i+1][0] - pts[i][0], db = pts[i+1][1] - pts[i][1], l = Math.hypot(da, db) || 1; return [da/l, db/l]; };
+  /* (t: one half-thickness, or per leg [its left side, its right side] -- a run whose legs differ, a 30 front wall turning into a
+     16 side wall, keeps its outer line straight round the corner: each side's offset line meets the next leg's at the corner) */
+  const tw = i => Array.isArray(t) ? (Array.isArray(t[i]) ? t[i] : [t[i], t[i]]) : [t, t];
+  const meet = (p0, d0, p1, d1) => { const den = d0[0]*d1[1] - d0[1]*d1[0];
+    if(Math.abs(den) < 1e-9) return [(p0[0] + p1[0])/2, (p0[1] + p1[1])/2];
+    const u = ((p1[0] - p0[0])*d1[1] - (p1[1] - p0[1])*d1[0])/den; return [p0[0] + d0[0]*u, p0[1] + d0[1]*u]; };
   const Lp = [], Rp = [];
   for(let i = 0; i < n; i++){
-    const d0 = i > 0 ? dir(i - 1) : null, d1 = i < n - 1 ? dir(i) : null, p = pts[i];
-    const n0 = d0 && [-d0[1], d0[0]], n1 = d1 && [-d1[1], d1[0]];
-    let m, k = t;
-    if(n0 && n1){ m = [n0[0] + n1[0], n0[1] + n1[1]]; const ml = Math.hypot(m[0], m[1]) || 1; m = [m[0]/ml, m[1]/ml]; k = t/Math.max(0.2, m[0]*n0[0] + m[1]*n0[1]); }
-    else m = n0 || n1;
-    Lp.push([p[0] + m[0]*k, p[1] + m[1]*k]); Rp.push([p[0] - m[0]*k, p[1] - m[1]*k]);
+    const p = pts[i], side = (j, sg) => { const d = dir(j), nl = [-d[1], d[0]], w = tw(j)[sg > 0 ? 0 : 1]*sg; return [[p[0] + nl[0]*w, p[1] + nl[1]*w], d]; };
+    if(i > 0 && i < n - 1){ const [a0, d0] = side(i - 1, 1), [a1, d1] = side(i, 1), [b0, e0] = side(i - 1, -1), [b1, e1] = side(i, -1);
+      Lp.push(meet(a0, d0, a1, d1)); Rp.push(meet(b0, e0, b1, e1)); }
+    else { const j = i > 0 ? i - 1 : 0; Lp.push(side(j, 1)[0]); Rp.push(side(j, -1)[0]); }
   }
   const all = !legs, want = (legs || Array.from({ length: n - 1 }, (_, i) => i)).slice().sort((x, y) => x - y), has = new Set(want);
   /* (where a leg carries on, along a straight line, from a leg another call drew -- the run split round a house -- its end goes a hair
