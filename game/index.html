@@ -62535,7 +62535,10 @@ function houseCanopy(fn){
         return [Math.max(-0.2, (thT - al - waist)/(Math.PI/2)), Math.min(2.6, al + be)]; };
       const A1 = arm(T1), A2 = arm(T2), ca = Math.acos(Math.max(-1, Math.min(1, 1 - crouch)));
       const legs = kn ? { [-1]: [0.05*kn, 1.55*kn], [1]: [1.45*kn, 1.5*kn] } : crouch > 0 ? { [-1]: [ca, 2*ca], [1]: [ca, 2*ca] } : undefined;
-      return { lift: [A1[0], A2[0]], bend: [A1[1], A2[1]], waist, drop, legs }; };
+      /* (both hands in to the work in front of him, not out at his shoulders' width: each arm swung in at the shoulder by the angle that brings
+         its hand from the shoulder, 16 out, to the middle at the reach it has -- Sir, 2026-11-23: "fix the other arm to look like it's working too") */
+      const inA = T => { const fw = Math.max(8, (T[0] - at[0])*fv[0] + (T[1] - at[1])*fv[1] - shf); return -Math.min(0.55, Math.atan2(B.torsoW/2 - 1, fw)); };
+      return { lift: [A1[0], A2[0]], bend: [A1[1], A2[1]], waist, drop, legs, armOut: [inA(T1), inA(T2)] }; };
     const faceTo = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
     const JOBAT = (p, a, b, u, t) => { const S = (k, ph) => Math.sin(t/k + (ph || 0)), N = p >= 5 ? 48 : -50;   /* (row B's from the south side now) */
       const job = (at, look, T1, T2, crouch, waist, kneel) => Object.assign({ at, f: faceTo(at, look), hT: T1 }, hP(at, faceTo(at, look), T1, T2, crouch, waist, kneel));
@@ -62557,7 +62560,7 @@ function houseCanopy(fn){
           else if(u < 4300){ const ang = 0.9*Math.sin(t/160); T1 = add(W, 2, -sg*4, 6); T2 = add(W, 0, -sg*8, 0); tool = [T2[0], T2[1], T2[2], ang]; }   /* (done up with his wrench) */
           else if(u < 4900){ const k = (u - 4300)/600; T1 = add(W, -2, -sg*4, -2); T2 = add(W, 6 - 12*ease(k % 1), -sg*4, 7); }   /* (a spin of the wheel) */
           else { T1 = add(W, -4, -sg*8, 14 + 22*E(4900, 5500)); T2 = add(W, 4, -sg*8, 14 + 22*E(4900, 5500)); }   /* (up again, done) */
-          return Object.assign(job(at, W, T1, T2, 0, 0.12 + 0.38*kn, kn), { tool, pp, fit: 1300 }); }
+          return Object.assign(job(at, W, T1, T2, 0, 0.1 + 0.15*kn, kn), { tool, pp, fit: 1300 }); }   /* (leaning in only a little: his shoulders far enough back that both arms reach down and forward to the wheel, elbows bent -- Sir: "fix the other arm to look like it's working on mounting the wheel too") */
         case 2: { const T = SK(a, b, -26, -5, 8), at = [T[0] - 2, b + N - Math.sign(N)*4], k = S(380);   /* (the front wheel on the fork: crouched, spinning it hand over hand to see it runs true) */
           return job(at, T, add(T, 6*k, -2, 9*Math.cos(t/380)), add(T, -6*k, -2, -9*Math.cos(t/380)), 0.38, 0.45); }
         case 3: { const sw = 22*S(650), T = SK(a, b, sw/1.45, 0, 16.4), at = [a + sw*0.4, b + N];   /* (the grip tape: bent over the deck, smoothing it down in long strokes, both hands) */
@@ -124714,7 +124717,7 @@ class WorldScene extends Phaser.Scene {
       finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Kickstand's door) */
     if(m.kind === 'scooter'){ this.drawScooterRider(g, x, y, z + (m.z || 0), m.th, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, m.brand, t, 0, null, true, null, m.stage); return; }   /* (the game's own scooter, part-built: Kickstand's line) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
-      try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, noLegs: m.noLegs, crew: true });   /* (m.noLegs: his top half only, a second pass after what he works over -- the line's row A) */ } finally { this._roomPerson = rp0; } }
+      try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, noLegs: m.noLegs, armOut: m.armOut, crew: true });   /* (m.noLegs: his top half only, a second pass after what he works over -- the line's row A) */ } finally { this._roomPerson = rp0; } }
     else if(m.kind === 'amr'){
       const saved = Object.assign({}, SKIN), jk = this._amrJack, lf = this._amrLift, cv = this._crewVel, tg = this._tug, tl = this._tugL, TS = this._crewTug || (this._crewTug = {});
       for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k];
