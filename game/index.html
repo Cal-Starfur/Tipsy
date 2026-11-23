@@ -4911,7 +4911,9 @@ const CAR_BODIES = {
     backGlass: [0.07, 0.93, 0.06, 0.9], mirrorBack: 10, grille: "slim", tail: "wide", bootLine: true, stepBumper: false, bed: null
   }),
   convertible: (hl, hw) => Object.assign(CAR_BODIES.coupe(hl, hw), {
-    gh: { f0: 52, r0: -78, hr0: 61, f1: 38, r1: -78, w0: hw - 5, w1: hw - 7, top: 90, open: true }
+    /* (its windscreen to 106, raked back to 28 -- Sir, 2026-11-23: "the wind shield is very low on the convertible": at 90 it stopped at
+       the riders' chests) */
+    gh: { f0: 52, r0: -78, hr0: 61, f1: 28, r1: -78, w0: hw - 5, w1: hw - 7, top: 106, open: true }
   }),
   wagon: (hl, hw) => ({
     st: [[hl, hw - 6, 30, 50], [hl - 8, hw - 1, 22, 58], [70, hw, 20, 66], [-hl + 6, hw - 1, 21, 66], [-hl, hw - 4, 26, 62]],
@@ -124612,7 +124614,9 @@ class WorldScene extends Phaser.Scene {
            seats and the riders sit on that floor. Everything in the well is
            clipped to what shows over the near side and the near end of the
            opening, so nothing in it paints over the door. */
-        const WELL = 20, fl = deck - WELL, Z = deck - 12;            // the floor; the cushions' top
+        /* (deeper, and the cushions low on the floor -- Sir, 2026-11-23: "lower the people in the convertible car ... the bench seats put
+           them to high": they sat 12 under the door top, shoulders and chests over it; now 26, only their shoulders and heads over the sides) */
+        const WELL = 34, fl = deck - WELL, Z = deck - 26;            // the floor; the cushions' top
         const half = (A, B) => { const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, ux = dx/L*1e5, uy = dy/L*1e5;
           const L1 = { x: A.x - ux, y: A.y - uy }, L2 = { x: B.x + ux, y: B.y + uy };
           return [L1, L2, { x: L2.x, y: L2.y - 1e6 }, { x: L1.x, y: L1.y - 1e6 }]; };
