@@ -13,6 +13,18 @@ for i, o in enumerate(spec['old']):
     rows.append((o, spec['neu'][n] if n is not None else None))
 for j, r in enumerate(spec['neu']):
     if j not in used: rows.append((None, r))
+if spec.get('changed'):   # (--changed: only the pieces whose drawing differs, old against new)
+    from PIL import ImageChops
+    def same(o, n):
+        if not o or not n: return False
+        a, b = Image.open(o['f']).convert('RGB'), Image.open(n['f']).convert('RGB')
+        return a.size == b.size and not ImageChops.difference(a, b).getbbox()
+    rows = [r for r in rows if not same(*r)]
+    seen = set(); keep = []
+    for r in rows:   # (one of each kind of change: its name, its old and new tops)
+        k = tuple((x['name'], x['h'], x['top']) if x else None for x in r)
+        if k not in seen: seen.add(k); keep.append(r)
+    rows = keep
 ims = [[Image.open(x['f']) if x else None for x in row] for row in rows]
 cw = [max((r[k].width for r in ims if r[k]), default=200) for k in (0, 1)]
 rh = [max((x.height for x in r if x), default=100) + 30 for r in ims]

@@ -5,7 +5,8 @@
      --names  solid names (comma list, each a regexp, case-insensitive): every piece holding a solid so named, one of each
               name and height (the first)
      --rev    the old build (default HEAD); the new one is the working tree
-     --all    every instance, not just the first of each name and height */
+     --all    every instance, not just the first of each name and height
+     --changed  only the pieces whose drawing differs between the two builds */
 const H = require('./harness.js'), fs = require('fs'), path = require('path'), { execSync } = require('child_process');
 const args = process.argv.slice(2), arg = (k, d) => args.includes(k) ? args[args.indexOf(k) + 1] : d;
 const room = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && !['--all'].includes(args[i - 1])));
@@ -54,7 +55,7 @@ async function shoot(rev){
   const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sheet'));
   const old = await shoot(REV), neu = await shoot(null);
   const dump = (L, tag) => L.out.map((r, i) => { const f = path.join(dir, tag + i + '.png'); fs.writeFileSync(f, Buffer.from(r.data.split(',')[1], 'base64')); delete r.data; return Object.assign(r, { f }); });
-  const spec = { old: dump(old, 'o'), neu: dump(neu, 'n'), out: path.resolve(OUT), room };
+  const spec = { old: dump(old, 'o'), neu: dump(neu, 'n'), out: path.resolve(OUT), room, changed: args.includes('--changed') };
   fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify(spec));
   execSync('python3 ' + JSON.stringify(path.join(__dirname, 'piece_sheet.py')) + ' ' + JSON.stringify(path.join(dir, 'spec.json')), { stdio: 'inherit' });
   for(const [t, L] of [['old', old], ['new', neu]]) if(L.errs.length) console.log(t, 'page errors', L.errs);
