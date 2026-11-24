@@ -32041,6 +32041,37 @@ const SS_SEATS = [
 /* the shop's colours: the shoes on the wall, the boxes, the bag */
 const SS_SHOE = [0xd0342c, 0x2f6fb8, 0xe8b13a, 0x3f8f5a, 0x1e1e20, 0xe0e0dc, 0xe2574c, 0x24435a];
 const SS_BOX = [0xe2874a, 0x24435a, 0xf2f0ec, 0x3f8f9a, 0xe2574c];
+/* THE SHOP'S SHOES, SIX KINDS (Sir, 2026-11-24: "the shoes all look the exact same ... we want multiple different pairs"): one table of parts
+   for every shoe the shop draws -- on the wall, on the risers, in a customer's hands -- so they match everywhere. Each kind is its parts, back
+   to front along the shoe (u: -11 the heel .. +11 the toe; z up from the shelf; i: how far in from its two sides): 'box' a solid, 'top' a plate
+   over a box (a collar's mouth), 'side' a face on its seen side (a stripe, a panel). Parts meet face to face, never inside one another (W37).
+     low     the skate shoe: a flat sole, the heel's upper, its collar, the toe, a stripe down the side
+     high    the high-top: the upper up past the ankle, its collar, the toe and a white toe cap, an ankle badge
+     runner  the running shoe: a dark outsole, a thick white midsole, a heel tab, the heel and the toe, two flashes down the side
+     slip    the slip-on: a gum sole, one low upper, its big opening, a white foxing band round the foot
+     boot    the chelsea boot: a lugged sole, a pull tab, the shaft, its mouth, the foot, the elastic gore
+     sandal  the slide sandal: a sole, a cork footbed, two straps across */
+const SS_KINDS = ['low', 'high', 'runner', 'slip', 'boot', 'sandal'];
+const SS_PARTS = {
+  low:    [['box', -11, 11, 0, 3, 'sl', 0], ['box', -10.5, 1, 3, 12, 'up', 0.6], ['top', -8.5, -2.5, 12, 0, 'dk', 2], ['box', 1, 10.5, 3, 7.5, 'up', 0.6], ['side', -6, 5, 5, 7.4, 'sl', 0.6]],
+  high:   [['box', -11, 11, 0, 3, 'sl', 0], ['box', -10.5, 2, 3, 19, 'up', 0.6], ['top', -8.5, -2, 19, 0, 'dk', 2], ['box', 2, 8, 3, 7.5, 'up', 0.6], ['box', 8, 10.8, 3, 7, 'sl', 0.6],
+           ['side', -7.5, -4, 12.5, 16, 'ac', 0.6], ['side', -3, 6, 4.5, 6.5, 'ac', 0.6]],
+  runner: [['box', -11, 11, 0, 2, 'dk', 0], ['box', -11, 10.5, 2, 5.5, 'mid', 0], ['box', -11.4, -10.6, 8, 14.5, 'ac', 1.5], ['box', -10.6, -1, 5.5, 13, 'up', 0.6], ['top', -8.5, -3, 13, 0, 'dk', 2],
+           ['box', -1, 10, 5.5, 9, 'up', 0.6], ['side', -5, 5, 6.5, 8.2, 'ac', 0.6], ['side', -9.5, -5.5, 9.5, 11.5, 'ac', 0.6]],
+  slip:   [['box', -11, 11, 0, 2.2, 'gum', 0], ['box', -10.5, 10.5, 2.2, 7.6, 'up', 0.6], ['top', -8.5, 1.5, 7.6, 0, 'dk', 1.8], ['side', -10.5, 10.5, 2.2, 3.6, 'mid', 0.6]],
+  boot:   [['box', -11, 11, 0, 3.5, 'dk', 0], ['box', -11.4, -10.5, 18, 25, 'ac', 2], ['box', -10.5, -1, 3.5, 23, 'up', 0.5], ['top', -8.5, -3, 23, 0, 'dk', 2],
+           ['box', -1, 10.5, 3.5, 9.5, 'up', 0.5], ['side', -7, -3, 10, 20, 'dk', 0.5]],
+  sandal: [['box', -11, 11, 0, 2.5, 'dk', 0], ['box', -10.5, 10.5, 2.5, 3.4, 'cork', 0.4], ['box', -6, -2.5, 3.4, 6.8, 'up', 0], ['box', 3, 6.5, 3.4, 6.2, 'up', 0]],
+};
+/* a shoe's colours: its upper, and the rest by its kind (a boot's leathers, a sandal's straps from the shop's own) */
+const SS_BOOTC = [0x6a4a32, 0x2a2826, 0xb8875a, 0x8a5a36];
+function ssShoeCols(kind, k){
+  const up = kind === 'boot' ? SS_BOOTC[k % SS_BOOTC.length] : SS_SHOE[k % SS_SHOE.length], light = up === 0xe0e0dc;
+  return { up, sl: light ? 0x9a9a9e : 0xf2f0ec, dk: 0x2a2a2e, mid: 0xf2f0ec, gum: 0xb8875a, cork: 0xc9a877,
+           ac: kind === 'boot' ? 0x2a2826 : SS_SHOE[(k + 3) % SS_SHOE.length] === up ? 0xf2f0ec : SS_SHOE[(k + 3) % SS_SHOE.length] };
+}
+/* which shoe stands at a place on the shop's shelves: its kind and its colour, from the place's own number (no two neighbours alike) */
+function ssShoeAt(n){ const h = Math.imul((n >>> 0) + 0x51ed, 0x9e3779b1) >>> 0; return { kind: SS_KINDS[(n + (h >>> 7) % 2) % SS_KINDS.length], col: (h >>> 11) % SS_SHOE.length }; }
 /* what they take off the wall (two visits in three take a shoe down, by the visit's own roll) */
 function ssItem(s){ const r = (((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0); return r % 3 === 0 ? null : 'shoe'; }
 /* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a sneaker held before them in
@@ -32053,13 +32084,15 @@ function ssHold(s){
     for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
     lo.pop(); hi.pop(); g.fillStyle(c, al == null ? 1 : al); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
   const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
-  const seed = ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, uc = SS_SHOE[(seed >>> 5) % SS_SHOE.length], sole = uc === 0xe0e0dc ? 0x9a9a9e : 0xf2f0ec;
-  /* a sneaker across them (its toe to their left): the sole, the heel's upper, the toe's lower upper, the collar's dark mouth, a stripe down its side */
-  const shoe = (g, at, f, h, c, sl) => { hull(g, at, box(-9.5, 9.5, f - 3.6, f + 3.6, h - 3, h), sl); hull(g, at, box(-1, 9, f - 3.2, f + 3.2, h, h + 9), c);
-    hull(g, at, box(-9.4, -0.5, f - 3.2, f + 3.2, h, h + 5.4), c); hull(g, at, box(2, 7.5, f - 2.2, f + 2.2, h + 8.6, h + 9.4), 0x2a2a2e);
-    hull(g, at, box(-5, 4, f + 3.2, f + 3.7, h + 2.4, h + 4.4), sl); };
+  const seed = ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, pick = ssShoeAt(seed >>> 5);
+  /* a shoe across them, its toe to their right: the shop's parts (SS_PARTS), each a box in their frame, its seen side to whoever they face */
+  const shoe = (g, at, f, h, kind, k) => { const C = ssShoeCols(kind, k), W = 3.6;
+    for(const [t, u0, u1, z0, z1, ck, i] of SS_PARTS[kind]){ const c = C[ck];
+      if(t === 'box') hull(g, at, box(u0*0.86, u1*0.86, f - W + i*0.6, f + W - i*0.6, h + z0*0.8 - 3, h + z1*0.8 - 3), c);
+      else if(t === 'top') hull(g, at, box(u0*0.86, u1*0.86, f - W + i*0.6, f + W - i*0.6, h + z0*0.8 - 3, h + z0*0.8 - 2.6), c);
+      else hull(g, at, box(u0*0.86, u1*0.86, f + W - i*0.6, f + W - i*0.6 + 0.4, h + z0*0.8 - 3, h + z1*0.8 - 3), c); } };
   return (s._ssH = { v: s.visit,
-    shoe: (g, p, K, at) => { if(!at) return; shoe(g, at, at.hand[0] + 3, at.hand[1] - 1, uc, sole); },
+    shoe: (g, p, K, at) => { if(!at) return; shoe(g, at, at.hand[0] + 3, at.hand[1] - 1, pick.kind, pick.col); },
     /* the bag hanging from the hand: its body, the coral band, the box's lid in its mouth, the handles' two loops up into the fist */
     bag: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
       hull(g, at, box(x - 3.2, x + 3.2, f - 9, f + 9, h - 30, h - 8), 0x24435a); hull(g, at, box(x - 3.4, x + 3.4, f - 9.2, f + 9.2, h - 18, h - 14.5), 0xe2574c);
@@ -32071,7 +32104,7 @@ function ssHold(s){
       [[0xe2874a, 0], [0x24435a, 9]].forEach(([c, dz]) => { hull(g, at, box(-11, 11, f - 6.5, f + 6.5, h + dz, h + dz + 8.6), c); hull(g, at, box(-11.3, 11.3, f - 6.8, f + 6.8, h + dz + 6, h + dz + 8.8), _pdk(c, 0.86));
         hull(g, at, box(-4, 4, f + 6.6, f + 7, h + dz + 1.5, h + dz + 5), 0xf2f0ec); }); },
     /* Kai's display shoe: the same sneaker, in the shop's coral */
-    show: (g, p, K, at) => { if(!at) return; shoe(g, at, at.hand[0] + 3, at.hand[1] - 1, 0xe2574c, 0xf2f0ec); } });
+    show: (g, p, K, at) => { if(!at) return; shoe(g, at, at.hand[0] + 3, at.hand[1] - 1, 'runner', 6); } });
 }
 function ssBrowseNext(R, s, m, now, bot){
   if(s.look !== 'visitor') return false;
@@ -62093,7 +62126,6 @@ function houseCanopy(fn){
     const white = '#f2f0ec', whiteF = '#e2e0da', whiteS = '#cfccc4', ash = '#dcc8a4', ashF = '#ccb68e', ashS = '#b89f78';
     const conc = '#d9d6d0', concL = '#cbc8c2', blk = '#2a2826', glass = '#b4d6dc', terra = '#b8653f', terraT = '#c97a52', leaf = '#4f8f58', leafL = '#6aa86c';
     const SHOE = ['#d0342c', '#2f6fb8', '#e8b13a', '#3f8f5a', '#1e1e20', '#e0e0dc', '#e2574c', '#24435a'], BOXC = ['#e2874a', '#24435a', '#f2f0ec', '#3f8f9a', '#e2574c'];
-    const solesOf = c => c === '#e0e0dc' ? '#9a9a9e' : white;
     const extW = '#e8e6e2', extT = '#24435a';                                                          // (the shop's own walls, outside: W4)
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
@@ -62138,21 +62170,17 @@ function houseCanopy(fn){
       },
       low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#ece9e4' });
 
-    /* a sneaker lying along b, its toe south (the west wall's: its side to the room): the sole, the heel's upper (far), its collar's mouth, the
-       toe (near), the stripe down its east side */
-    const shoeB = (a0, a1, bc, z, up, sl) => {
-      box(a0, a1, bc - 11, bc + 11, z, z + 3, sl, shade(sl, 0.88), shade(sl, 0.8));
-      box(a0 + 0.6, a1 - 0.6, bc - 10.5, bc + 1, z + 3, z + 12, up, shade(up, 0.86), shade(up, 0.78));
-      T(a0 + 2, a1 - 2, bc - 8.5, bc - 2.5, z + 12.05, '#2a2a2e');
-      box(a0 + 0.6, a1 - 0.6, bc + 1, bc + 10.5, z + 3, z + 7.5, up, shade(up, 0.86), shade(up, 0.78));
-      S(a1 - 0.5, bc - 6, bc + 5, z + 5, z + 7.4, sl); };
-    /* the same sneaker along a, its toe east (a riser's: its side to the camera): the sole, the heel (west, far), its collar, the toe, the stripe */
-    const shoeA = (ac, b0, b1, z, up, sl) => {
-      box(ac - 11, ac + 11, b0, b1, z, z + 3, sl, shade(sl, 0.88), shade(sl, 0.8));
-      box(ac - 10.5, ac - 1, b0 + 0.6, b1 - 0.6, z + 3, z + 12, up, shade(up, 0.86), shade(up, 0.78));
-      T(ac - 8.5, ac - 2.5, b0 + 2, b1 - 2, z + 12.05, '#2a2a2e');
-      box(ac - 1, ac + 10.5, b0 + 0.6, b1 - 0.6, z + 3, z + 7.5, up, shade(up, 0.86), shade(up, 0.78));
-      F(ac - 6, ac + 5, z + 5, z + 7.4, sl, null, 0, b1 - 0.5); };
+    /* A SHOE OF THE SHOP'S (SS_PARTS: six kinds, the same everywhere), lying along b with its toe south (the west wall's: its side to the room,
+       drawn on its east face) or along a with its toe east (a riser's: its side to the camera, its south face): its parts back to front, heel to
+       toe -- each a box, the plate over a collar's mouth, the stripes and panels on its seen side */
+    const hx = n => '#' + (n >>> 0).toString(16).padStart(6, '0');
+    const shoeOf = (alongB, w0, w1, c, z, at) => { const C = ssShoeCols(at.kind, at.col);
+      for(const [t, u0, u1, z0, z1, ck, i] of SS_PARTS[at.kind]){ const col = hx(C[ck]), q0 = w0 + i, q1 = w1 - i;
+        if(t === 'box'){ if(alongB) box(q0, q1, c + u0, c + u1, z + z0, z + z1, col, shade(col, 0.86), shade(col, 0.78)); else box(c + u0, c + u1, q0, q1, z + z0, z + z1, col, shade(col, 0.86), shade(col, 0.78)); }
+        else if(t === 'top'){ if(alongB) T(q0, q1, c + u0, c + u1, z + z0 + 0.05, col); else T(c + u0, c + u1, q0, q1, z + z0 + 0.05, col); }
+        else { if(alongB) S(q1 + 0.1, c + u0, c + u1, z + z0, z + z1, col); else F(c + u0, c + u1, z + z0, z + z1, col, null, 0, q1 + 0.1); } } };
+    const shoeB = (a0, a1, bc, z, at) => shoeOf(true, a0, a1, bc, z, at);
+    const shoeA = (ac, b0, b1, z, at) => shoeOf(false, b0, b1, ac, z, at);
 
     /* ---- A SNAKE PLANT in a white pot in the north-west corner: the pot, the soil, its blades (far first) ---- */
     items.push({ a: 24, b: 36, z: 0, solids: [{ name: 'plant', c: [24, 36], r: 18, h: 130 }], draw: () => {
@@ -62204,7 +62232,7 @@ function houseCanopy(fn){
           box(A0, A1, s0, s1, 0, 14, navyD, navyD, shade(navyD, 0.85));                                   // its plinth
           box(A0, A1, s0, s0 + 3, 14, zTop - 6, white, whiteF, whiteS);                                   // its far upright
           ZS.forEach((z, r) => { box(A0, A1 - 2, s0 + 3, s1 - 3, z - 3, z, white, whiteF, whiteS);      // a shelf (between its uprights)
-            for(let i = 0; i < 2; i++){ const c = SHOE[(k*3 + r*5 + i) % SHOE.length]; shoeB(12, 23, s0 + 3 + (s1 - s0 - 6)*(i + 0.5)/2, z, c, solesOf(c)); } });
+            for(let i = 0; i < 2; i++) shoeB(12, 23, s0 + 3 + (s1 - s0 - 6)*(i + 0.5)/2, z, ssShoeAt(k*10 + r*2 + i)); });
           box(A0, A1, s1 - 3, s1, 14, zTop - 6, white, whiteF, whiteS);                                   // its near upright
           box(A0, A1 + 2, s0, s1, zTop - 6, zTop, navy, navyD, navyD); S(A1 + 2.1, s0, s1, zTop - 4, zTop - 2.5, coral);   // the header
         }, { alongB: true, pad: 3, keyStart: true });
@@ -62215,8 +62243,8 @@ function houseCanopy(fn){
     const riser = (a0, a1, b0, b1, seed) => items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 64, 'display riser')], draw: () => {
       box(a0, a1, b0, b1, 0, 26, white, whiteF, whiteS);
       box(a0 + 20, a1 - 20, b0 + 6, b0 + 48, 26, 50, white, whiteF, whiteS); box(a0 + 19, a1 - 19, b0 + 5, b0 + 49, 50, 52, ash, ashF, ashS);
-      for(let i = 0; i < 3; i++){ const c = SHOE[(seed + i*3) % SHOE.length]; shoeA(a0 + 34 + i*26, b0 + 22, b0 + 32, 52, c, solesOf(c)); }
-      for(let i = 0; i < 4; i++){ const c = SHOE[(seed + 1 + i*5) % SHOE.length]; shoeA(a0 + 15 + i*30, b1 - 21, b1 - 11, 26, c, solesOf(c)); } } });
+      for(let i = 0; i < 3; i++) shoeA(a0 + 34 + i*26, b0 + 22, b0 + 32, 52, ssShoeAt(200 + seed*10 + i));
+      for(let i = 0; i < 4; i++) shoeA(a0 + 15 + i*30, b1 - 21, b1 - 11, 26, ssShoeAt(300 + seed*10 + i)); } });
     riser(150, 270, 190, 270, 0); riser(150, 270, 410, 490, 4);
 
     /* ---- THE TILL COUNTER: white to the floor, a navy front with a coral line, an ash top; 40 clear behind it for Dana; in runs of 36, keyed down
