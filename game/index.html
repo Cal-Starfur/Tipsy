@@ -123333,7 +123333,7 @@ class WorldScene extends Phaser.Scene {
       /* (up to under a vest's hem, where one is worn: the vest is nearer, drawn before; draped: its bottom edge lying on the thighs' tops, a unit over hipH, and flared out from the body to there -- cloth falling onto the
          lap, nearer than the thighs' roots it covers; a band stood straight down the body's own face was behind them, and painted over them) */
       const hv = build.heavy, zm = hipH + build.torsoH*0.42, zb = hipH - 1.5, z0 = hipH + 0.5, z1 = uniform && uniform.vest ? hipH + 5 : hipH + 9, b0 = hv ? 0.93 : 0.9, bt = hv ? 1.1 : 0.86, kz = z => b0 + (bt - b0)*(z - zb)/(zm + 1 - zb);
-      prism(0, 0, build.torsoW/2*1.02, build.torsoD/2*1.02, z0, z1, pShirt, { bot: kz(z0), top: kz(z1), botB: 1.22, frontOnly: 0.55, noTop: true, ring: true, n: 12 });   // (its front arc only, over the thighs)
+      prism(0, 0, build.torsoW/2*1.02, build.torsoD/2*1.02, z0, z1, pShirt, { bot: kz(z0), top: kz(z1), botB: 1.22, noTop: true, ring: true, n: 12 });   // (its front arc only, over the thighs)
     };
     const seatLeg = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6; let aC = side*build.hipW*0.3;
