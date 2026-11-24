@@ -37129,6 +37129,138 @@ function garageLanePaint(K, W, v0, v1, o){
     R(m, W - m, d + 7.5, d + 9, 0xb7bcc1, 0.8);                                                    // the near rim catches the light
   }
 }
+/* ==================== THE STREET'S ASPHALT (road pass, 2026-11-24) ====================
+   Sir: "the road itself". Every street was one flat quad of d.road under its dashes and zebras: the flattest thing left on
+   screen, a third of it at view 2. Now it is laid and lived on, with the garage lanes' vocabulary (GARAGE LANES) carried out
+   to the street, all ground (the ground cache paints it once a tile), every mark placed in the street's own (s, t) -- s along
+   the edge from its a node, t across from the centre line (+ the rv side) -- and seeded off the edge's two nodes, never the frame:
+   - TONE: soft blots of a lighter and a darker asphalt, the road resurfaced in pieces over the years;
+   - WHEELS: in each travel lane (TRAF_LANE out from the centre) two soft dark wheel paths and a dull oil strip down its middle,
+     darker toward the stop line where cars wait;
+   - PATCHES, CUTS AND SEAL: rectangles of newer asphalt edged with sealer, a utility trench across one half, tar snakes;
+   - IRONWORK: a round manhole lid in a lane now and then (a plane circle: its points are W of the circle, iso by construction),
+     a small valve box; one in the junction's box;
+   - PAINT: the centre dashes and zebra bars worn, each its own alpha (roadPaintWear).
+   Marks stay off the gutter (|t| <= ROAD_ART.edge) and off the junction box (each edge's mid run; the box has its own few).
+   Sir picked B, "lived-in", of three mock-ups (A clean: tone, wheels and lids only; C patchwork: B with resurfaced panels). */
+const ROAD_ART = { edge: 286, dk: 0x141518, lt: 0xa7abb2, seal: 0x1f2024, iron: 0x3a3c40, ironLit: 0x8c9096, ironDk: 0x1c1d20,
+  paint: 0xece7da, tread: 36, trackW: 13,
+  look: { tone: 0.08, track: 0.06, oil: 0.07, patch: 0.15, crack: 0.42, paintWear: 0.35 } };   // each mark's strength (alpha)
+const _roadWear = new Map();
+function roadWearOf(key, len){
+  let w = _roadWear.get(key);
+  if(w) return w;
+  const r = lotDriveRand(natStrSeed(key)), E = ROAD_ART.edge;
+  w = { h: natStrSeed(key + '#'), tone: [], patches: [], cracks: [], tracks: [], covers: [] };
+  for(let s = 40 + r()*200; s < len; s += 140 + r()*160)
+    w.tone.push({ s, t: (r()*2 - 1)*E*0.85, rs: 90 + r()*160, rt: 40 + r()*70, lt: r() < 0.5, al: 0.5 + r()*0.5, ph: r()*6 });
+  for(let s = 200 + r()*300; s < len - 100; s += 380 + r()*520){
+    const side = r() < 0.5 ? -1 : 1;
+    if(r() < 0.4) w.patches.push({ cut: 1, s0: s, s1: s + 22 + r()*16, t0: side < 0 ? -E : 0, t1: side < 0 ? 0 : E });  // a trench, kerb to centre
+    else { const t0 = (r()*2 - 1)*E*0.8, tw = 70 + r()*110, sw = 80 + r()*160;
+      w.patches.push({ s0: s, s1: s + sw, t0: Math.max(-E, t0 - tw/2), t1: Math.min(E, t0 + tw/2) }); }
+  }
+  for(let s = 120 + r()*200; s < len - 60; s += 220 + r()*300){
+    const pts = [];
+    if(r() < 0.4){ let t = -E*(0.2 + r()*0.7), ss = s; const t1 = t + E*(0.6 + r()*0.9);
+      while(t < Math.min(E, t1)){ pts.push({ s: ss, t }); t += 16 + r()*18; ss += (r() - 0.5)*14; } }
+    else { let t = (r()*2 - 1)*E*0.8; const L = 120 + r()*260;
+      for(let k = 0; k <= L; k += 18 + r()*14){ pts.push({ s: s + k, t }); t += (r() - 0.5)*12; } }
+    if(pts.length > 1) w.cracks.push(pts);
+  }
+  for(const side of [-1, 1]) for(const o of [-1, 1])
+    w.tracks.push({ t: side*TRAF_LANE + o*ROAD_ART.tread, amp: 3 + r()*5, k: 1/(180 + r()*200), ph: r()*6.283 });
+  for(let s = 300 + r()*500; s < len - 200; s += 900 + r()*900){
+    const side = r() < 0.5 ? -1 : 1;
+    w.covers.push(r() < 0.7 ? { s, t: side*(TRAF_LANE + (r() - 0.5)*40), r: 26, ph: r()*6 }
+                            : { s, t: side*(TRAF_LANE + 70 + r()*40), box: 1, ph: r()*6 });
+  }
+  _roadWear.set(key, w);
+  return w;
+}
+/* S the scene, g its ground layer. o: { ax, ay, dv, rv, s0, s1 (the run painted, along from a), key, stopAt: [s of each stop line,
+   with the side (t sign) of the lane that waits at it] } */
+function roadAsphaltPaint(S, g, o){
+  const L = ROAD_ART.look, A = ROAD_ART, E = A.edge, { ax, ay, dv, rv, s0, s1 } = o;
+  const w = roadWearOf(o.key, o.len), det = S.grainOn();
+  const P = (s, t) => S.W(ax + dv.x*s + rv.x*t, ay + dv.y*s + rv.y*t, 0);
+  const R = (a, b, t0, t1, c, al) => { a = Math.max(a, s0); b = Math.min(b, s1); t0 = Math.max(t0, -E); t1 = Math.min(t1, E);
+    if(b > a && t1 > t0 && al > 0) S.quadOn(g, [P(a, t0), P(b, t0), P(b, t1), P(a, t1)], c, al); };
+  const blot = (cs, ct, rs, rt, c, al, ph) => { if(cs + rs < s0 || cs - rs > s1 || al <= 0) return;
+    for(const q of [1, 0.72, 0.45]){ const pts = [];                       // soft-edged: three nested layers, the middle darkest
+      for(let k = 0; k < 14; k++){ const a = k/14*Math.PI*2, f = q*(1 + 0.12*Math.sin(3*a + ph));
+        pts.push(P(Math.max(s0, Math.min(s1, cs + rs*f*Math.cos(a))), Math.max(-E, Math.min(E, ct + rt*f*Math.sin(a))))); }
+      S.quadOn(g, pts, c, al/2); } };
+  const seg = (p, q, hw, c, al) => { if(Math.max(p.s, q.s) < s0 || Math.min(p.s, q.s) > s1) return;
+    const ds = q.s - p.s, dt = q.t - p.t, l = Math.hypot(ds, dt) || 1, ns = -dt/l*hw, nt = ds/l*hw;
+    const cl = x => Math.max(s0, Math.min(s1, x));
+    S.quadOn(g, [P(cl(p.s + ns), p.t + nt), P(cl(q.s + ns), q.t + nt), P(cl(q.s - ns), q.t - nt), P(cl(p.s - ns), p.t - nt)], c, al); };
+  /* 1. the asphalt's own tone: soft blots */
+  for(const m of w.tone) blot(m.s, m.t, m.rs, m.rt, m.lt ? A.lt : A.dk, L.tone*m.al*(m.lt ? 1 : 1.4), m.ph);
+  /* 2. patches and cuts: newer, darker asphalt, sealed round */
+  for(const p of w.patches){
+    R(p.s0, p.s1, p.t0, p.t1, A.dk, p.cut ? 0.2 : L.patch);
+    const sl = 0.5; R(p.s0 - 1.5, p.s0 + 1.5, p.t0, p.t1, A.seal, sl); R(p.s1 - 1.5, p.s1 + 1.5, p.t0, p.t1, A.seal, sl);
+    if(p.t0 > -E) R(p.s0, p.s1, p.t0 - 1.5, p.t0 + 1.5, A.seal, sl);
+    if(p.t1 < E) R(p.s0, p.s1, p.t1 - 1.5, p.t1 + 1.5, A.seal, sl); }
+  /* 3. the wheels: the oil strip down each lane's middle (darker before a stop line), two wheel paths each */
+  for(const side of [-1, 1]){
+    R(s0, s1, side*TRAF_LANE - 26, side*TRAF_LANE + 26, A.dk, L.oil);
+    for(const st of (o.stopAt || [])) if(st.side === side){
+      const a = st.s - st.dir*260, b = st.s;
+      R(Math.min(a, b), Math.max(a, b), side*TRAF_LANE - 30, side*TRAF_LANE + 30, A.dk, L.oil*1.3);
+      blot(st.s - st.dir*70, side*TRAF_LANE, 46, 22, A.dk, L.oil*2.2, st.s); }
+  }
+  const step = det ? 40 : 120;
+  for(const t of w.tracks) for(let s = Math.floor(s0/step)*step; s < s1; s += step){
+    const a = Math.max(s, s0), b = Math.min(s + step, s1); if(b <= a) continue;
+    const ta = t.t + t.amp*Math.sin(a*t.k + t.ph), tb = t.t + t.amp*Math.sin(b*t.k + t.ph);
+    for(const f of [1, 0.55]){ const hw = A.trackW*f;
+      S.quadOn(g, [P(a, ta - hw), P(b, tb - hw), P(b, tb + hw), P(a, ta + hw)], A.dk, L.track); }
+  }
+  /* 4. tar snakes, poured over all */
+  if(det) for(const cr of w.cracks) for(let i = 1; i < cr.length; i++) seg(cr[i - 1], cr[i], 1.6, A.seal, L.crack);
+  /* 5. ironwork */
+  for(const c of w.covers){ if(c.s < s0 + 30 || c.s > s1 - 30) continue; roadCover(S, g, P, c); }
+}
+/* a lid in the asphalt: round (a manhole: its rim, the lid's tone, its cross-hatch of raised bars) or a small square valve box */
+function roadCover(S, g, P, c){
+  const A = ROAD_ART;
+  if(c.box){ const h = 10;
+    S.quadOn(g, [P(c.s - h - 2, c.t - h - 2), P(c.s + h + 2, c.t - h - 2), P(c.s + h + 2, c.t + h + 2), P(c.s - h - 2, c.t + h + 2)], A.ironDk, 0.7);
+    S.quadOn(g, [P(c.s - h, c.t - h), P(c.s + h, c.t - h), P(c.s + h, c.t + h), P(c.s - h, c.t + h)], A.iron, 1);
+    S.quadOn(g, [P(c.s - h, c.t - 1.5), P(c.s + h, c.t - 1.5), P(c.s + h, c.t + 1.5), P(c.s - h, c.t + 1.5)], A.ironDk, 0.8);
+    return; }
+  const ring = (r, col, al) => { const pts = []; for(let k = 0; k < 20; k++){ const a = k/20*Math.PI*2;
+    pts.push(P(c.s + r*Math.cos(a), c.t + r*Math.sin(a))); } S.quadOn(g, pts, col, al); };
+  ring(c.r + 4, A.ironDk, 0.75);            // the frame's joint in the asphalt
+  ring(c.r, A.ironLit, 0.9);                // the frame, worn bright
+  ring(c.r - 3, A.iron, 1);                 // the lid
+  const ca = Math.cos(c.ph), sa = Math.sin(c.ph);
+  for(let k = -2; k <= 2; k++){ const off = k*8, h = Math.sqrt(Math.max(0, (c.r - 6)**2 - off*off));
+    const p0 = { s: c.s + ca*off - sa*h, t: c.t + sa*off + ca*h }, p1 = { s: c.s + ca*off + sa*h, t: c.t + sa*off - ca*h };
+    const ns = ca*1.4, nt = sa*1.4;
+    S.quadOn(g, [P(p0.s - ns, p0.t - nt), P(p1.s - ns, p1.t - nt), P(p1.s + ns, p1.t + nt), P(p0.s + ns, p0.t + nt)], A.ironDk, 0.7); }
+}
+/* the junction's box: a lid in its middle (now and then), a cut across it, the wheels' polish where every turn runs */
+function roadJunctionPaint(S, g, nd){
+  const L = ROAD_ART.look, A = ROAD_ART, E = ROAD_HALF - 60, h = natStrSeed('jn' + nd.x + ',' + nd.y);
+  const P = (s, t) => S.W(nd.x + s, nd.y + t, 0), r = lotDriveRand(h);
+  const blot = (cs, ct, rs, rt, c, al, ph) => { for(const q of [1, 0.72, 0.45]){ const pts = [];
+    for(let k = 0; k < 14; k++){ const a = k/14*Math.PI*2, f = q*(1 + 0.12*Math.sin(3*a + ph)); pts.push(P(cs + rs*f*Math.cos(a), ct + rt*f*Math.sin(a))); }
+    S.quadOn(g, pts, c, al/2); } };
+  for(let k = 0; k < 3; k++) blot((r()*2 - 1)*E*0.6, (r()*2 - 1)*E*0.6, 60 + r()*70, 40 + r()*50, r() < 0.5 ? A.lt : A.dk, L.tone*(0.6 + r()*0.6), r()*6);
+  for(const sx of [-1, 1]) for(const sy of [-1, 1]) blot(sx*TRAF_LANE, sy*TRAF_LANE, 70, 70, A.dk, L.oil*0.7, sx + 2*sy);   // where the turns run
+  if(r() < 0.5){ const s0 = (r()*2 - 1)*E*0.6, sw = 24 + r()*14, ax = r() < 0.5;
+    const Q = (a, b, t0, t1, c, al) => S.quadOn(g, ax ? [P(a, t0), P(b, t0), P(b, t1), P(a, t1)] : [P(t0, a), P(t0, b), P(t1, b), P(t1, a)], c, al);
+    Q(s0, s0 + sw, -E, E, A.dk, 0.2); Q(s0 - 1.5, s0 + 1.5, -E, E, A.seal, 0.5); Q(s0 + sw - 1.5, s0 + sw + 1.5, -E, E, A.seal, 0.5); }
+  if(r() < 0.6) roadCover(S, g, P, { s: (r() - 0.5)*120, t: (r() - 0.5)*120, r: 28, ph: r()*6 });
+}
+/* a paint mark's wear: 1 at full, less for the faded ones, seeded off where it lies */
+function roadPaintWear(x, y){
+  const L = ROAD_ART.look;
+  return 1 - L.paintWear*natHash((Math.imul(Math.round(x), 73856093) ^ Math.imul(Math.round(y), 19349663)) >>> 0);
+}
 /* THE MALL GARAGE'S DRIVEWAY (Sir, 2026-10-12): its lanes on across the
    footway to the kerb, as the hospital garage's -- a car turns in and out
    of it now (see HOSP_ERRANDS) */
@@ -116516,6 +116648,25 @@ class WorldScene extends Phaser.Scene {
         this.W(ax + rv.x*ROAD_HALF, ay + rv.y*ROAD_HALF, 0)
       ], d.road);
     }
+    /* THE STREET'S ASPHALT (road pass): each street's mid run laid and lived on, then each junction's box */
+    for(const edge of r.grid.edges){
+      if(!nearSeg(edge.a, edge.b, cullSpan)) continue;
+      const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4], len = Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y);
+      let s0 = ROAD_HALF, s1 = len - ROAD_HALF;
+      if(edge.a.svGate) s0 += sierraGeo().round.r - ROAD_HALF;          // (as the centre line: not into the gate's round)
+      if(edge.a.harborEnd) s0 += harborGeo().round.r - 260 - ROAD_HALF; // (nor the harbour's turning circle)
+      if(s1 <= s0) continue;
+      roadAsphaltPaint(this, g, { ax: edge.a.x, ay: edge.a.y, dv, rv, s0, s1, len,
+        key: edge.a.x + ',' + edge.a.y + '>' + edge.b.x + ',' + edge.b.y,
+        stopAt: [{ s: len - STOP_LINE_AT, side: -1, dir: 1 }, { s: STOP_LINE_AT, side: 1, dir: -1 }] });
+    }
+    { const deg = r.grid._roadDeg || (r.grid._roadDeg = (() => { const m = new Map();
+        for(const e of r.grid.edges) for(const n of [e.a, e.b]) m.set(n, (m.get(n) || 0) + 1); return m; })());
+      for(const nd of r.grid.nodes){
+        if((deg.get(nd) || 0) < 2 || nd.svGate || nd.harborEnd) continue;
+        if(Math.abs(nd.x - this.camX) + Math.abs(nd.y - this.camY) > cullSpan + ROAD_HALF) continue;
+        roadJunctionPaint(this, g, nd);
+      } }
 
     /* sidewalks: T2-square tiles for the safe mid-block stretch (real
        panel seams, provably conflict-free by construction — no classify()
@@ -116598,14 +116749,24 @@ class WorldScene extends Phaser.Scene {
       if(len <= 0) continue;
       const n = Math.max(1, Math.round(len / DASH_TARGET));
       const per = len / n, dash = per*0.5, phase = per*0.25;
+      /* clear of the zebras (road pass): the dash stops short of a crossing's bars, so no flat patch of asphalt is laid under
+         them to hide it -- that patch showed as a clean slab in the worn road */
+      const zs = r.grid._zebraAt || (r.grid._zebraAt = new Set((r.grid.curbRamps || []).map(cr => { const fv = DIRV[cr.f];
+        return Math.round((cr.x + fv.x*WORLD_RAMP.along)/10) + ',' + Math.round((cr.y + fv.y*WORLD_RAMP.along)/10); })));
+      const zAt = (x, y) => zs.has(Math.round(x/10) + ',' + Math.round(y/10));
+      const run0 = Math.hypot(sx - edge.a.x, sy - edge.a.y), zw = ZEBRA.half + 14;
+      const zLo = zAt(edge.a.x + dv.x*WORLD_RAMP.cross, edge.a.y + dv.y*WORLD_RAMP.cross) ? WORLD_RAMP.cross + zw - run0 : -1e9;
+      const zHi = zAt(edge.b.x - dv.x*WORLD_RAMP.cross, edge.b.y - dv.y*WORLD_RAMP.cross) ? Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y) - WORLD_RAMP.cross - zw - run0 : 1e9;
       for(let i = 0; i < n; i++){
-        const s0 = phase + i*per, s1 = s0 + dash;
+        let s0 = phase + i*per, s1 = s0 + dash;
+        s0 = Math.max(s0, zLo); s1 = Math.min(s1, zHi);
+        if(s1 - s0 < 8) continue;
         this.quadOn(g, [
           this.W(sx + dv.x*s0 - rv.x*LINE_HALF, sy + dv.y*s0 - rv.y*LINE_HALF, 3),
           this.W(sx + dv.x*s1 - rv.x*LINE_HALF, sy + dv.y*s1 - rv.y*LINE_HALF, 3),
           this.W(sx + dv.x*s1 + rv.x*LINE_HALF, sy + dv.y*s1 + rv.y*LINE_HALF, 3),
           this.W(sx + dv.x*s0 + rv.x*LINE_HALF, sy + dv.y*s0 + rv.y*LINE_HALF, 3)
-        ], d.roadLine);
+        ], d.roadLine, roadPaintWear(sx + dv.x*s0, sy + dv.y*s0));
       }
     }
     /* ZEBRA CROSSINGS (Sir, 2026-10-14, on the mall's street: "this cross
@@ -116628,11 +116789,10 @@ class WorldScene extends Phaser.Scene {
            zebra has a [sliver] under the curb") */
         const ZE = ROAD_HALF - KERB_STONE.w - 20;
         const tv = { x: -fv.y, y: fv.x }, lo = -ZE, hi = ZE, bw = (hi - lo)/(2*NB - 1);
-        const Q = (u0, u1, t0, t1, z, col) => this.quadOn(g, [
+        const Q = (u0, u1, t0, t1, z, col, al = 1) => this.quadOn(g, [
           this.W(cx + fv.x*u0 + tv.x*t0, cy + fv.y*u0 + tv.y*t0, z), this.W(cx + fv.x*u1 + tv.x*t0, cy + fv.y*u1 + tv.y*t0, z),
-          this.W(cx + fv.x*u1 + tv.x*t1, cy + fv.y*u1 + tv.y*t1, z), this.W(cx + fv.x*u0 + tv.x*t1, cy + fv.y*u0 + tv.y*t1, z)], col);
-        Q(lo - 10, hi + 10, -ZW - 10, ZW + 10, 3.2, d.road);
-        for(let k = 0; k < NB; k++){ const u0 = lo + 2*k*bw; Q(u0, u0 + bw, -ZW, ZW, 3.4, 0xece7da); }
+          this.W(cx + fv.x*u1 + tv.x*t1, cy + fv.y*u1 + tv.y*t1, z), this.W(cx + fv.x*u0 + tv.x*t1, cy + fv.y*u0 + tv.y*t1, z)], col, al);
+        for(let k = 0; k < NB; k++){ const u0 = lo + 2*k*bw; Q(u0, u0 + bw, -ZW, ZW, 3.4, 0xece7da, 0.6 + 0.4*roadPaintWear(cx + fv.x*u0, cy + fv.y*u0 + k)); }   // (bars wear less: renewed more often)
         /* the stop line (ZEBRA): behind the bars on the side away from the
            node, across the lane that drives toward it -- traffic keeps
            right, so that is the approaching car's +rv half */
