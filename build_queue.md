@@ -102,7 +102,7 @@ graph LR
 - [?] `wi-driftwood-home` Walk-in interior: Driftwood Home (block 3,1 edge 0) [docs/kits/walkin-shop-recipe.md]
 - [?] `wi-sandpiper-shoes` Walk-in interior: Sandpiper Shoes (block 3,1 edge 0) [docs/kits/walkin-shop-recipe.md]
 - [?] `wi-sandcastle-toys` Walk-in interior: Sandcastle Toys (block 3,1 edge 1) [docs/kits/walkin-shop-recipe.md]
-- [ ] `wi-cove-pottery` Walk-in interior: Cove Pottery (block 3,1 edge 1) [docs/kits/walkin-shop-recipe.md]
+- [?] `wi-cove-pottery` Walk-in interior: Cove Pottery (block 3,1 edge 1) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-pelican-pets` Walk-in interior: Pelican Pets (block 3,1 edge 1) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-cove-creamery` Walk-in interior: Cove Creamery (block 3,1 edge 2) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-palmline-bikes` Walk-in interior: Palmline Bikes (block 3,1 edge 2) [docs/kits/walkin-shop-recipe.md]

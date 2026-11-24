@@ -240,7 +240,7 @@
 "title": "Walk-in interior: Cove Pottery",
 "spec": "docs/kits/walkin-shop-recipe.md",
 "deps": [],
-"status": "pending",
+"status": "built",
 "note": "block 3,1 edge 1",
 "group": "Walk-in interiors: Flats shops"
 },

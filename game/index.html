@@ -31711,6 +31711,7 @@ const WALKIN_SHOP_BAN = (() => {
     'Driftwood Home Interior':      { by: ['desk', 'sales', 'stock'], who: 'June', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     'Sandpiper Shoes Interior':     { by: ['counter', 'fitter', 'stock'], who: 'Dana', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     'Sandcastle Toys Interior':     { by: ['counter', 'demo', 'stock'], who: 'Ingrid', say: "You've knocked a customer over. Out you go, and don't come back in." },
+    'Cove Pottery Interior':        { by: ['counter', 'kiln', 'thrower', 'potter'], who: 'Rosa', say: "You've knocked a customer over. Out you go, and don't come back in." },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -34536,6 +34537,150 @@ walkinLife(TT_IN.name, { keep: [[0, 2000, 193, 273]], looks: [
   { id: 'dollhouse', spots: [[58, 92, -Math.PI/2]] },
   { id: 'till', spots: [[500, 184, -Math.PI/2], [570, 184, -Math.PI/2]] },
 ], browseNext: ttBrowseNext, pose: ttPose, drawState: ttDrawState });
+/* ==================== COVE POTTERY, WALK-IN (wi-cove-pottery; the room: the LIB entry 'Cove Pottery Interior') ====================
+   The Flats' working pottery on block 3,1's EAST edge, south of Sandcastle Toys (its front faces east, to the camera). Built by the shop
+   recipe (docs/kits/walkin-shop-recipe.md, W33), Sandcastle Toys' way (the same edge): the exterior unchanged but for its door -- its volume
+   with the doorway open through its front wall (vol.opens), the door kit's single leaf 80 across ('panel'); its one tall studio window a hole
+   onto the room (revealOpen), the room's own wheel, its potter and the drying rack seen through it; he is taken in in the doorway (glass < 0).
+   BIGGER INSIDE THAN OUT (W31): the room runs back west from the shop's front into the block, and south along its own frontage over the gap
+   and Pelican Pets to the backs of the south edge's shops -- 700 x 800, what it covers drawn under it while he is inside.
+   Lab frame (the shop's): a south along the frontage from its north end, b east (0 the wall, negative into the block). Room frame a east,
+   b south, world units: the front (east) wall a 700; the door b 152..256 in it; the window b -12..144 */
+const CP_IN = { name: 'Cove Pottery Interior', x0: 1020000, y0: 400000, WALL: 30/1.3, ROOM_A0: 0, ROOM_A1: 860/1.3, ROOM_BACK: -760/1.3, H: 300, LH: 66,
+  DOOR: [140, 220], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [14, 134], WZ: [22, 118] };   // (the shop's door and window, lab a; the window's sill and head, lab z)
+CP_IN.ra = la => (la - CP_IN.ROOM_A0 - CP_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's b (la*1.3 - 30)
+const CP_PLAN = walkinDefine({ name: CP_IN.name, from: 'Cove Pottery', x0: CP_IN.x0, y0: CP_IN.y0,
+  lab: [CP_IN.ROOM_A0 + CP_IN.WALL, CP_IN.ROOM_A1 - CP_IN.WALL, CP_IN.ROOM_BACK + CP_IN.WALL, -CP_IN.WALL], body: [[0, 230, -276, 0]],
+  door: { a: (CP_IN.DOOR[0] + CP_IN.DOOR[1])/2, b: 0, half: (CP_IN.DOOR[1] - CP_IN.DOOR[0])/2*1.3 }, H: CP_IN.H, LH: CP_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out onto the east pavement, along it either way) */
+  street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
+  /* (seen through, W11: the open doorway and the tall studio window) */
+  openings: [{ lab: [[CP_IN.DOOR[0], 0], [CP_IN.DOOR[1], 0]], z: [0, CP_IN.DZ] }, { lab: [[CP_IN.WIN[0], 0], [CP_IN.WIN[1], 0]], z: CP_IN.WZ, glass: true }] });
+/* (W31: what it covers -- the gap south of it, Pelican Pets, the backs of Cove Creamery, Palmline Bikes and Pelican Photo on the south edge --
+   and what stands over it on screen: Sandcastle Toys up its frontage, the south edge's shops before its south wall) */
+POCKETS[POCKETS.length - 1].ghosts = ['Sandcastle Toys', 'Pelican Pets', 'Cove Creamery', 'Palmline Bikes', 'Pelican Photo'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE MORENOS, WHO KEEP IT: their own looks, set by hand (lookFn) -- a potter's dress, work shirts under canvas aprons splashed with slip.
+   Rosa at the till, the keyholder (her black hair in a bun, a terracotta apron); her husband Teo at the wheel in the window (a crop going
+   grey, a beard, a clay-brown apron); their daughter Lena at the second wheel (a dark ponytail, sea-blue shirt); their son Nico at the
+   kiln, the glaze buckets, the wedging table and the drying rack, a board of greenware in his hands between them. The customers are the
+   street's own (look: 'visitor') */
+const CP_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), pants = C(0x5a6470), shoe = { c: 0x6a4a32, dk: 0x4e3622 };
+  return {
+    rosa: { build: PEOPLE_BUILD[1], skin: { c: 0xd9a87e, dk: 0xb48660 }, hair: H(0x2a1e18, 'bun'), shirt: C(0xf2ede2), pants, shoe, uniform: { vest: C(0xb8664a) } },
+    teo:  { build: PEOPLE_BUILD[0], skin: { c: 0xd2a07a, dk: 0xae7e5a }, hair: H(0x8a8279, 'crop'), shirt: C(0x3f5a72), pants, shoe, uniform: { beard: 0x8a8279, vest: C(0x9c7a5a) } },
+    lena: { build: PEOPLE_BUILD[1], skin: { c: 0xdcae86, dk: 0xb88c66 }, hair: H(0x3a2618, 'pony'), shirt: C(0x3f8fb0), pants, shoe, uniform: { vest: C(0xd8cdb8) } },
+    nico: { build: PEOPLE_BUILD[0], skin: { c: 0xd6a47c, dk: 0xb2825c }, hair: H(0x2e2018, 'short'), shirt: C(0x6a7a5a), pants, shoe, uniform: { vest: C(0xc8b89a) } },
+  };
+})();
+/* A CUSTOMER'S VISIT (as Sandcastle Toys': reach ONCE, then do something with it): they look the ware over -- the ware wall, the display
+   tables, the big vases on the low shelf -- and most pick a piece up, a mug, a bowl or a vase; some watch Lena throw a while with it in hand,
+   and most pay for it at the till and go out of the door carrying it; the rest go. What they picked up and did not pay for stays (put back) */
+const CP_SHOW = ['ware', 'tables', 'vases', 'wheel'];
+const CP_TAKE = { ware: ['mug', 'bowl', 'vase'], tables: ['mug', 'bowl', 'mug'], vases: ['vase'] };
+/* the shop's glazes: sea blue, celadon, cream, terracotta, deep blue, honey, plum */
+const CP_GLAZE = [0x3f7f9a, 0x6aa086, 0xe8e0cf, 0xb8664a, 0x2f4a6a, 0xc9a23a, 0x7a5a8a];
+function cpSeed(s){ return ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0; }
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a mug, a bowl or a vase held
+   before them in both hands, in the glaze it was picked in; Nico's ware board, three cups of greenware on it */
+function cpHold(s){
+  if(s._cpH && s._cpH.v === s.visit) return s._cpH;
+  const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  /* a level ring (a pot's section at height h): hulled with another, a round body between them */
+  const ring = (x, f, h, r) => { const o = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; o.push([x + Math.cos(t)*r, f + Math.sin(t)*r, h]); } return o; };
+  const seed = cpSeed(s), gc = CP_GLAZE[(seed >>> 5) % CP_GLAZE.length], in_ = _pdk(gc, 0.6), cl = 0xd8ccb6;
+  return (s._cpH = { v: s.visit,
+    /* a mug: its body, the dark of its inside at the rim, the handle on its side */
+    mug: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1] - 3;
+      hull(g, at, ring(0, f, h, 4.2).concat(ring(0, f, h + 9, 4.4)), gc); hull(g, at, ring(0, f, h + 9, 3.4), in_);
+      hull(g, at, box(4.2, 6.8, f - 0.8, f + 0.8, h + 2, h + 7.5), _pdk(gc, 0.85)); },
+    /* a bowl: its foot, the flared body, the inside */
+    bowl: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 4, h = at.hand[1] - 2;
+      hull(g, at, ring(0, f, h - 1, 3.6).concat(ring(0, f, h + 5, 8.4)), gc); hull(g, at, ring(0, f, h + 5, 7.2), in_); },
+    /* a vase: the body to its shoulder, the neck over it, the lip */
+    vase: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 4, h = at.hand[1] - 9;
+      hull(g, at, ring(0, f, h, 3.8).concat(ring(0, f, h + 8, 6.6), ring(0, f, h + 15, 3.6)), gc);
+      hull(g, at, ring(0, f, h + 14, 2.4).concat(ring(0, f, h + 21, 2.4)), _pdk(gc, 0.92)); hull(g, at, ring(0, f, h + 21, 3.6).concat(ring(0, f, h + 22.5, 3.6)), gc); },
+    /* Nico's ware board: the plank, three cups of greenware stood on it */
+    board: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 6, h = at.hand[1];
+      hull(g, at, box(-17, 17, f - 5.5, f + 5.5, h - 1.2, h + 1.2), 0xb08a5e);
+      for(const x of [-11, 0, 11]){ hull(g, at, ring(x, f, h + 1.2, 3.2).concat(ring(x, f, h + 9, 3.6)), cl); hull(g, at, ring(x, f, h + 9, 2.8), 0xa89c88); } } });
+}
+function cpBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  if(m.atTill){ m.atTill = false; m.paid = true; return leave(); }                                                 // (paid: out with it)
+  if(m.look && CP_TAKE[m.look] && m.item && !m.got) m.got = true;                                                // (the piece picked up, in their hands)
+  m.n = (m.n || 0) + 1;
+  if(m.n === 1){ const id = ['ware', 'tables', 'tables', 'vases'][Math.floor(rnd()*4)];
+    if(rnd() < 0.85 && look(id)){ const T = CP_TAKE[id]; m.item = rnd() < 0.75 ? T[Math.floor(rnd()*T.length)] : null; m.dwell = 6000 + rnd()*5000; return true; } return false; }   // (or the kit's pick)
+  if(m.got && !m.watched){ m.watched = true; if(rnd() < 0.45 && look('wheel')){ m.dwell = 7000 + rnd()*6000; return true; } }   // (Lena throwing, the piece in hand)
+  if(m.got){ if(rnd() < 0.8 && look('till')){ m.atTill = true; m.dwell = 5000 + rnd()*3000; return true; } return leave(); }   // (bought -- or put back)
+  if(m.n <= 3) return false;
+  return leave();
+}
+/* (held before them in both hands, a piece of ware; the hands as Sandcastle Toys' for a boxed toy) */
+const CP_CARRY = { lift: [0.22, 0.22], bend: [1.1, 1.15] };
+function cpPose(s, m, now, P){
+  const H = cpHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.id === 'counter'){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                // (Rosa at the till: both hands on the counter)
+    /* (at a wheel: sat, both hands forward and low round the pot on the wheel head, a little up and down as it is pulled; head down to it) */
+    if(s.id === 'potter' || s.id === 'thrower'){ const w = Math.sin(now*0.0016 + (s.seed & 63));
+      P.lift = [0.62 + 0.05*w, 0.62 + 0.05*w]; P.bend = [0.45 - 0.08*w, 0.45 - 0.08*w]; P.headTilt = 0.18; P.headTurn = 0; return; }
+    /* Nico: at the wedging table both hands down on the clay, pushing; at the kiln one hand up into it; at the buckets both low; at the rack
+       the board up onto a shelf, once */
+    if(m.work && !m.path){ const T = m.task;
+      if(T == null){ const w = 0.5 + 0.5*Math.sin(now*0.006 + (s.seed & 63)); P.lift = [0.32 + 0.1*w, 0.32 + 0.1*w]; P.bend = [0.55 - 0.25*w, 0.55 - 0.25*w]; P.headTilt = 0.35; P.headTurn = 0; return; }
+      if(T === 1){ const k = since < 3000 ? Math.sin(Math.PI*since/3000) : 0; P.lift = [0.1, 0.5 + 0.5*k]; P.bend = [0.25, 0.6 - 0.3*k]; P.headTilt = 0.1; return; }
+      if(T === 2){ P.lift = [0.12, 0.2]; P.bend = [0.3, 0.45]; P.headTilt = 0.42; return; }
+      if(T === 3 && since > 1000 && since < 3800){ const k = Math.sin(Math.PI*(since - 1000)/2800); P.lift = [0.24 + 0.45*k, 0.24 + 0.45*k]; P.bend = [1.1 - 0.6*k, 1.15 - 0.6*k]; P.headTilt = -0.1*k; P.hold = H.board; return; } }
+    if(m.task === 3 && !m.path){ P.lift = [0.24, 0.24]; P.bend = [1.1, 1.15]; P.hold = H.board; return; }
+    P.lift = [0.08, 0.1]; P.bend = [0.25, 0.3]; return;
+  }
+  const take = m.look && CP_TAKE[m.look];
+  if(take && !m.path && m.item && !m.got){                                                                       // (the piece picked up off its shelf, once)
+    const low = m.look === 'vases';
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, (low ? 0.3 : 0.55) + 0.4*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = low ? 0.35 : 0.05; return; }
+    Object.assign(P, CP_CARRY); P.hold = H[m.item]; P.headTilt = 0.25; return; }
+  if(m.got && !m.paid){ Object.assign(P, CP_CARRY); P.hold = H[m.item]; P.headTilt = m.look === 'wheel' ? 0.32 : 0.2; P.headTurn = 0; return; }
+  if(m.look && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = m.look === 'vases' || m.look === 'wheel' ? 0.32 : 0.2; P.headTurn = 0; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];
+}
+function cpDrawState(s, m, now, q){
+  if(m.moving){ const H = cpHold(s);
+    /* (out of the door with what they paid for; a piece picked up carried about the shop, never out of it) */
+    if(s.look === 'visitor'){ if(m.got && m.item && (m.paid || s._day !== 'leaving')) q.pose = { lift: CP_CARRY.lift, bend: CP_CARRY.bend, hold: H[m.item] }; }
+    else if(s.id === 'kiln') q.pose = { lift: [0.24, 0.24], bend: [1.1, 1.15], hold: H.board }; }
+}
+walkinStaff(CP_IN.name, [
+  { id: 'counter', role: 'shopkeeper', seed: 0x0c701, lookFn: () => CP_FAMILY.rosa, fixed: true, keys: true, posts: [[560, 300, Math.PI/2, 9000, true], [612, 300, Math.PI/2, 4000, true]] },
+  { id: 'potter', role: 'potter', seed: 0x0c702, lookFn: () => CP_FAMILY.teo, fixed: true, sit: 35, posts: [[642, 18, Math.PI/4, 0, true]] },
+  { id: 'thrower', role: 'potter', seed: 0x0c703, lookFn: () => CP_FAMILY.lena, fixed: true, sit: 35, posts: [[334, 310, Math.PI/4, 0, true]] },
+  { id: 'kiln', role: 'studio assistant', seed: 0x0c704, lookFn: () => CP_FAMILY.nico,
+    posts: [[210, 284, Math.PI/2, 9000, true], [110, 350, Math.PI, 6000, true], [132, 544, Math.PI, 6000, true], [300, 86, -Math.PI/2, 6000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x0c711, look: 'visitor', life: 'browse', only: CP_SHOW },
+  { id: 'customer-2', role: 'customer', seed: 0x0c712, look: 'visitor', life: 'browse', only: CP_SHOW },
+  { id: 'customer-3', role: 'customer', seed: 0x0c713, look: 'visitor', life: 'browse', only: CP_SHOW },
+  { id: 'customer-4', role: 'customer', seed: 0x0c714, look: 'visitor', life: 'browse', only: CP_SHOW },
+]);
+walkinLife(CP_IN.name, { keep: [[0, 2000, 166, 242]], looks: [
+  { id: 'ware', spots: [[84, 660, Math.PI], [84, 752, Math.PI]] },
+  { id: 'tables', spots: [[245, 522, Math.PI/2], [245, 664, -Math.PI/2], [435, 522, Math.PI/2], [435, 664, -Math.PI/2], [528, 591, Math.PI]] },
+  { id: 'vases', spots: [[196, 702, Math.PI/2], [456, 702, Math.PI/2]] },
+  { id: 'wheel', spots: [[436, 320, Math.PI], [404, 266, 2.12], [292, 404, -Math.PI*0.25]] },   // (round its sides, never between it and the camera)
+  { id: 'till', spots: [[530, 410, -Math.PI/2], [600, 410, -Math.PI/2]] },
+], browseNext: cpBrowseNext, pose: cpPose, drawState: cpDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -65609,6 +65754,337 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE COVE POTTERY (CP_IN; the walk-in kit's walls, walkinRoom, its door in the east wall; the room runs back west into the block and
+     south over the gap and Pelican Pets to the south edge's backs, which are taken off while he is inside -- pk.displace). Frame a east,
+     b south, z up, world units. Built by the shop recipe (W33), in zones for its size -- the studio north and west, the shop south:
+       the north wall   THE DRYING RACK (a 40..600) of greenware on ware boards, a bay under a plastic sheet; THE WHEEL in the window
+                        (670, 46), Teo sat at it on his stool; the tool board and the name over him (in the window's sightline: a
+                        point a, b, z shows through it at b + (700 - a), z + (700 - a) on the front wall)
+       b 166..242       the door's lane, door to west wall, clear; the kiln log on the west wall at its end
+       the west wall    THE KILN, a front-loader, its door open on its shelves of bisque, its flue up the wall; THE TOP-LOADING KILN by
+                        it; THE GLAZE BUCKETS on their pallet under the test tiles; THE WARE WALL (b 620..790) of finished ware for sale
+       the middle       THE WEDGING TABLE (a 150..270, b 300..372, 78), Nico at it; THE SECOND WHEEL (360, 336), Lena at it; the clay
+                        bags on their pallet; THE TILL COUNTER (a 480..640, b 330..370, 75), Rosa behind it: the till, the kraft roll
+                        and a stack of bowls each their own piece on top
+       the shop         THE DISPLAY TABLES (two, 62) of mugs, bowls and vases on risers; THE LOW SHELF of big vases along the south
+                        wall; a floor urn of pampas in the south-east corner
+     Every long fixture a run of pieces (runPiece, W28); what stands on them its own piece. Heights (docs/kits/library.md): the counter 75,
+     the wedging table 78 (a workbench), the display tables 62, the stools 38. */
+  name:'Cove Pottery Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 700, dd: 800,
+  head:'Inside Cove Pottery: two wheels, a kiln open on its shelves, drying racks of greenware, glaze buckets, a wedging table, the ware wall, display tables, the till counter',
+  tags:['interior','pocket','pottery','studio','wheel','kiln','greenware','glaze','ceramics'],
+  desc:'The Flats\' working pottery: whitewashed walls over a terracotta skirting under a timber beam, a concrete studio floor and terracotta tiles in the shop; a drying rack of greenware along the north wall, the wheel in the tall window with Teo at it, a second wheel in the middle with Lena, a front-loading kiln open on its shelves of bisque and a top-loader beside it, glaze buckets under a board of test tiles, a canvas-topped wedging table with its clay, bags of clay on a pallet, a ware wall of glazed mugs, bowls, vases and plates, two display tables, a low shelf of big vases along the front, the till counter in plaster and tile, and a floor urn of pampas.',
+  draw(p){
+    const pl = (typeof CP_PLAN !== 'undefined' && CP_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 700, D = (pl && pl.D) || 800, H = CP_IN.H, LH = CP_IN.LH, DZ = CP_IN.DOORZ, ra = CP_IN.ra;
+    const door = (pl && pl.door) || { side: 'e', at: 204, half: 52 };
+    const plas = '#f0ebe1', terra = '#b8664a', terraD = '#9a5438', terraL = '#c97a5c', beam = '#8a6440', beamD = '#6e4e30';
+    const wood = '#c49a6c', woodF = '#b08658', woodS = '#9a7448', woodL = '#d8b488', steel = '#b4b9be', steelT = '#c6cace', steelS = '#9aa0a6', blk = '#2a2826';
+    const green = '#d4c8b2', greenD = '#bfae94', bisque = '#e8d8c0', wet = '#9c6b4c', wetD = '#83563a', slip = '#a88a70', canvas = '#d8ccb4', plaster = '#f2efe8';
+    const GLZ = ['#3f7f9a', '#6aa086', '#e8e0cf', '#b8664a', '#2f4a6a', '#c9a23a', '#7a5a8a'];
+    const extW = '#ece6da', extT = '#b8664a';                                                          // (the shop's own walls, outside: W4)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const hsh = i => { let x = Math.imul((i | 0) ^ 0x9e3779b9, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0)/4294967296; };
+    const oval = (ca, cb, r1, r2, z, c) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(ca + Math.cos(t)*r1, cb + Math.sin(t)*r2, z)); } poly(pts, c); };
+    /* A TURNED BODY: the screen hull of its level rings ([z, r], bottom up) -- a frustum between two, a bellied pot over three. Convex, so a
+       neck narrower than the body is its own body over it */
+    const hull2 = pts => { pts.sort((p, q) => p.x - q.x || p.y - q.y); const cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+      for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      lo.pop(); hi.pop(); return lo.concat(hi); };
+    const turn = (a, b, rings, c, st) => { const pts = []; for(const [z, r] of rings) for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, z)); }
+      poly(hull2(pts), c, st === undefined ? shade(c, 0.74) : st, 0.8); };
+    /* a disc stood on a face toward +b (discF) or +a (discS): a plate stood up, a wheel's face -- round in the world (Sandcastle Toys') */
+    const discF = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2; pts.push(P(a + Math.cos(t)*r, b, z + Math.sin(t)*r*0.82)); } poly(pts, c, shade(c, 0.78), 0.7); };
+    const discS = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2; pts.push(P(a, b + Math.cos(t)*r, z + Math.sin(t)*r*0.82)); } poly(pts, c, shade(c, 0.78), 0.7); };
+    /* A BAND round a turned body (W: a ring, only its front half -- the faces toward the eye, from a - b to a + b's far side) */
+    const band = (a, b, r, z0, z1, c) => { const pts = []; for(let k = 0; k <= 10; k++){ const t = -Math.PI/4 + k/10*Math.PI; pts.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, z0)); }
+      for(let k = 10; k >= 0; k--){ const t = -Math.PI/4 + k/10*Math.PI; pts.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, z1)); } poly(pts, c); };
+    /* A PIECE OF WARE stood at z: its unglazed foot, the glazed body, its rim and the dark of its inside; a mug's handle on its east side (the
+       side the eye sees), a jar's lid and knob. s its size (1 a shelf's; the low shelf's big vases more) */
+    const ware = (a, b, z, kind, c, s, raw) => { s = s || 1; const cr = raw ? c : shade(c, 1.12), ins = shade(c, raw ? 0.78 : 0.55), ft = raw ? shade(c, 0.92) : bisque;
+      if(kind === 'mug'){ turn(a, b, [[z, 3.7*s], [z + 1.6*s, 3.8*s]], ft); turn(a, b, [[z + 1.6*s, 3.8*s], [z + 9*s, 4.1*s]], c);
+        plateCircle(a, b, z + 9*s, 4.1*s, cr, shade(c, 0.75), 0.7); plateCircle(a, b, z + 9*s, 3.2*s, ins);
+        tube(a + 4*s, b, z + 7.4*s, a + 6.4*s, b, z + 6.6*s, 0.8*s, shade(c, 0.9)); tube(a + 6.4*s, b, z + 6.6*s, a + 6.4*s, b, z + 3.4*s, 0.8*s, shade(c, 0.9)); tube(a + 6.4*s, b, z + 3.4*s, a + 4*s, b, z + 2.6*s, 0.8*s, shade(c, 0.9)); return; }
+      if(kind === 'bowl'){ turn(a, b, [[z, 3.2*s], [z + 1.8*s, 3.4*s]], ft); turn(a, b, [[z + 1.8*s, 3.5*s], [z + 6.4*s, 7.4*s]], c);
+        plateCircle(a, b, z + 6.4*s, 7.4*s, cr, shade(c, 0.75), 0.7); plateCircle(a, b, z + 6.4*s, 6.3*s, ins); return; }
+      if(kind === 'jar'){ turn(a, b, [[z, 3.6*s], [z + 1.6*s, 3.9*s]], ft); turn(a, b, [[z + 1.6*s, 4.2*s], [z + 5*s, 5.6*s], [z + 10*s, 5.4*s], [z + 12*s, 4.2*s]], c);
+        plateCircle(a, b, z + 12*s, 4.5*s, shade(c, 0.92), shade(c, 0.72), 0.7); turn(a, b, [[z + 12*s, 1.3*s], [z + 14*s, 1.5*s]], cr); return; }
+      /* (a vase: its foot, the body to its shoulder, the neck, the lip) */
+      turn(a, b, [[z, 3.4*s], [z + 1.8*s, 3.8*s]], ft); turn(a, b, [[z + 1.8*s, 4*s], [z + 8*s, 6.4*s], [z + 14*s, 3.4*s]], c);
+      turn(a, b, [[z + 13.6*s, 2.3*s], [z + 19.6*s, 2.3*s]], shade(c, 0.94)); turn(a, b, [[z + 19.6*s, 2.4*s], [z + 21*s, 3.4*s]], c);
+      plateCircle(a, b, z + 21*s, 3.4*s, cr, shade(c, 0.75), 0.7); plateCircle(a, b, z + 21*s, 2.2*s, ins); };
+    const KINDS = ['mug', 'bowl', 'vase', 'mug', 'jar', 'bowl'];
+
+    /* ---- THE FLOOR: the studio's concrete in big squares, slip splashed round the wheels; the shop's terracotta tiles; the door's mat, the
+       threshold in the doorway ---- */
+    T(0, W, 0, D, 0, '#d2cabd');
+    for(let a = 100; a < W; a += 100) T(a - 0.4, a + 0.4, 0, 480, 0.1, '#c2b9aa');
+    for(let b = 100; b < 480; b += 100) T(0, W, b - 0.4, b + 0.4, 0.1, '#c2b9aa');
+    T(0, W, 480, D, 0.15, '#c4835c');
+    for(let a = 40; a < W; a += 40) T(a - 0.5, a + 0.5, 480, D, 0.2, '#ad6e4a');
+    for(let b = 520; b < D; b += 40) T(0, W, b - 0.5, b + 0.5, 0.2, '#ad6e4a');
+    oval(670, 46, 30, 40, 0.25, '#c4b4a0'); oval(360, 336, 40, 34, 0.25, '#c4b4a0'); oval(214, 336, 70, 46, 0.25, '#c8baa6');
+    T(W - 66, W - 4, door.at - 42, door.at + 42, 0.3, '#6e5a4a'); T(W - 60, W - 10, door.at - 36, door.at + 36, 0.35, '#8a7058');
+    items.push({ a: W - 6, b: door.at, z: 0, solids: [], draw: () => { T(W - 10, W + 40, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#d4cec2');
+      T(W - 2, W + 2, door.at - door.half, door.at + door.half, 0.6, '#b9bec2'); } });
+
+    /* ---- THE WALLS (the kit's) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 10, terra, null, 0, 0.15); F(-30, W + 30, 10, 12, terraD, null, 0, 0.2);
+        F(-30, W + 30, H - 16, H, beam, null, 0, 0.3); F(-30, W + 30, H - 16, H - 13, beamD, null, 0, 0.35);
+        /* the name over the wheel: a terracotta board, its letters in the whitewash */
+        F(530, 690, 226, 262, terra, null, 0, 0.4); F(530, 690, 226, 229, terraD, null, 0, 0.45); blockWordIn('COVE POTTERY', 540, 680, 234, 256, 0.6, plaster, null, 4);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.15, -30, D + 30, 0, 10, shade(terra, 0.9)); S(0.2, -30, D + 30, 10, 12, shade(terraD, 0.9));
+        S(0.3, -30, D + 30, H - 16, H, shade(beam, 0.9)); S(0.35, -30, D + 30, H - 16, H - 13, shade(beamD, 0.9));
+        /* THE TOOL BOARD north of the lane: a pegboard of ribs, wires, loop tools, a sponge and a needle, each on its peg */
+        S(0.4, 40, 150, 110, 186, '#c8a87e'); S(0.45, 42, 148, 112, 184, '#d4b68c');
+        for(let i = 0; i < 6; i++) for(let j = 0; j < 4; j++) S(0.5, 50 + i*17, 51.4 + i*17, 120 + j*17, 121.4 + j*17, '#9a7c58');
+        [[54, 'rib'], [70, 'wire'], [86, 'loop'], [102, 'sponge'], [118, 'rib'], [134, 'needle']].forEach(([tb, k], i) => {
+          const tz = 176 - (i % 2)*30;
+          if(k === 'rib') poly([P(0.55, tb - 6, tz), P(0.55, tb + 6, tz), P(0.55, tb + 4, tz - 14), P(0.55, tb - 5, tz - 12)], i % 3 ? '#e8d8b8' : '#8a6440');
+          else if(k === 'wire'){ S(0.55, tb - 0.5, tb + 0.5, tz - 24, tz, '#6a6a6e'); S(0.6, tb - 2.5, tb + 2.5, tz - 2, tz + 2, beam); S(0.6, tb - 2.5, tb + 2.5, tz - 26, tz - 22, beam); }
+          else if(k === 'loop'){ S(0.55, tb - 1.2, tb + 1.2, tz - 18, tz, beam); S(0.6, tb - 3, tb + 3, tz - 24, tz - 18, '#8a8a8e'); S(0.65, tb - 1.8, tb + 1.8, tz - 22.5, tz - 19.5, '#d4b68c'); }
+          else if(k === 'sponge'){ S(0.55, tb - 6, tb + 6, tz - 10, tz, '#e8c860'); S(0.6, tb - 4, tb + 4, tz - 8, tz - 6, '#d8b450'); }
+          else { S(0.55, tb - 0.4, tb + 0.4, tz - 22, tz - 8, '#8a8a8e'); S(0.6, tb - 1.4, tb + 1.4, tz - 8, tz, '#3a3a3e'); } });
+        /* THE KILN LOG at the lane's end: a chalkboard of firings, its frame, the chalk's lines and a cone drawn on it */
+        S(0.4, 166, 242, 104, 188, beam); S(0.5, 170, 238, 108, 184, '#3a4a3e');
+        for(let k = 0; k < 6; k++){ const z = 172 - k*11; S(0.6, 176, 176 + 18 + hsh(k)*30, z - 1, z + 1, '#e8e8e0'); S(0.6, 214, 214 + hsh(k + 9)*18, z - 1, z + 1, '#e8e8e0'); }
+        poly([P(0.6, 222, 128), P(0.6, 230, 128), P(0.6, 226, 146)], '#e8e8e0');
+        /* THE GLAZE TEST TILES over the buckets: a board of little tiles, each a glaze, their rows */
+        S(0.4, 480, 604, 92, 172, '#c8a87e');
+        for(let i = 0; i < 7; i++) for(let j = 0; j < 4; j++){ const tb = 488 + i*16.4, tz = 100 + j*18; S(0.5, tb, tb + 13, tz, tz + 14, GLZ[(i + j*3) % GLZ.length]); S(0.55, tb + 1.5, tb + 5, tz + 8, tz + 12, 'rgba(255,255,255,.28)'); }
+      },
+      /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's whitewash and its terracotta trim -- the near walls' outer faces are the
+         building's own; its tall window cut in at its own sill (the exterior's: lab a 14..134, z 22, x1.95 -- 42.9, under the low wall's 66) */
+      winE: [[Math.max(0, ra(CP_IN.WIN[0])), ra(CP_IN.WIN[1]), CP_IN.WZ[0]*1.95]],
+      glass: 'rgba(150,138,120,.30)', frame: shade(extW, 1.08),
+      low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#e4ddd0' });
+
+    /* ---- THE DRYING RACK along the north wall: bays of rough timber, four shelves of ware boards, greenware stood on them -- mugs, bowls,
+       vases and jars, leather-hard and bone dry; a bay under a plastic sheet (kept damp). In runs of 50 keyed at each stretch's start (against
+       the wall). Bay by bay, west to east: its west upright (the back post, then the front one), its boards and their ware, bottom up; the
+       last upright; the top ---- */
+    { const A0 = 40, A1 = 600, B0 = 0, B1 = 44, zTop = 196, SH = [14, 60, 106, 152], COL = 11, cw = (A1 - A0)/COL;
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'drying rack')], () => {
+        const up = a => { const a0 = Math.max(A0, a - 2), a1 = Math.min(A1, a + 2); box(a0, a1, B0, B0 + 4, 0, zTop - 4, woodF, woodF, woodS); box(a0, a1, B1 - 4, B1, 0, zTop - 4, wood, woodF, woodS); };
+        for(let c = 0; c < COL; c++){ const c0 = A0 + cw*c, c1 = c0 + cw; up(c0);
+          SH.forEach((z, r) => { box(c0 + (c ? 2 : 0), c1 - (c < COL - 1 ? 2 : 0), B0 + 4, B1 - 4, z - 3, z, woodL, wood, woodF);
+            const k0 = c*11 + r*5, n = 3;
+            for(let i = 0; i < n; i++){ const pa = c0 + 9 + (cw - 18)*(i + 0.5)/n, kind = KINDS[Math.floor(hsh(k0*13 + i)*KINDS.length)], dry = hsh(k0*7 + i*3) < 0.5;
+              if(kind === 'vase' && z > 140) continue;
+              ware(pa, 22, z, kind, dry ? green : greenD, kind === 'bowl' ? 0.85 : 1, true); } });
+          /* (the damp bay: a sheet of plastic hung over its front) */
+          if(c === 3){ F(c0 + 2, c1 - 2, 14, 150, 'rgba(214,226,232,.42)', null, 0, B1 + 0.4); F(c0 + 2, c1 - 2, 148, 151, 'rgba(240,246,250,.55)', null, 0, B1 + 0.5); } }
+        up(A1);
+        box(A0 - 2, A1 + 2, B0, B1 + 2, zTop - 4, zTop, wood, woodF, woodS);                         // the top
+      }, { pad: 3, keyStart: true, run: 50 });
+    }
+
+    /* ---- THE WALL SHELF over Teo, in the window's sightline (the street sees it through the glass): two ware boards on iron brackets, a
+       row of greenware drying on each; against the north wall, keyed at its west end (it is all behind him) ---- */
+    items.push({ a: 606, b: 0, z: 0, fpLab: { a0: 606, a1: 694, b0: 0, b1: 22, z1: 206 }, solids: [], draw: () => {
+      [140, 182].forEach((z, r) => {
+        for(const ba of [612, 688]){ box(ba - 1, ba + 1, 0, 3, z - 18, z - 3, '#3a3a3e', '#2e2e32', '#2a2a2e'); tube(ba, 2, z - 16, ba, 18, z - 4, 0.9, '#3a3a3e'); }
+        box(606, 694, 0, 22, z - 3, z, woodL, wood, woodF);
+        for(let i = 0; i < 5; i++){ const kind = ['mug', 'bowl', 'jar', 'mug', 'vase'][(i + r*2) % 5]; if(kind === 'vase' && r) continue;
+          ware(616 + i*17, 11, z, kind, (i + r) % 2 ? green : greenD, kind === 'bowl' ? 0.85 : 0.95, true); } }); } });
+
+    /* ---- A WHEEL: (ca, cb) its head's middle -- back to front: the pedal on the potter's side, the far legs, the body, the near legs, the
+       splash pan (its rim, the slip in it), the head, the pot being thrown on it (a cylinder pulled up, or a bowl opened), the water bucket and
+       its sponge by its east side. Keyed a little toward the back (whoever watches from its near side sorts after it) ---- */
+    const wheel = (ca, cb, kind) => items.push({ a: ca - 6, b: cb - 6, z: 0, solids: [{ name: 'wheel', c: [ca, cb], r: 24, h: 52 }, { name: 'bucket', c: [ca + 8, cb + 32], r: 10, h: 20 }], draw: () => {
+      const body = '#6e8492', bodyT = '#82989f', bodyS = '#5a6e7a';
+      box(ca - 34, ca - 22, cb - 30, cb - 20, 0, 4, blk, '#3a3836', '#1c1a18');                           // the pedal
+      for(const [la, lb] of [[-15, -15], [15, -15], [-15, 15], [15, 15]]) box(ca + la - 2.5, ca + la + 2.5, cb + lb - 2.5, cb + lb + 2.5, 0, 16, '#4a5a64', '#4a5a64', '#3e4c54');
+      box(ca - 18, ca + 18, cb - 18, cb + 18, 16, 34, bodyT, body, bodyS);
+      cyl(ca, cb, 34, 46, 22, '#c8ccc8', '#d6dad6'); plateCircle(ca, cb, 46, 19.5, slip, shade(slip, 0.8), 0.8);
+      cyl(ca, cb, 46, 48, 13, '#9aa2a8', '#b4bcc2');
+      if(kind === 'bowl'){ turn(ca, cb, [[48, 8], [50, 9.5], [56, 12]], wet); plateCircle(ca, cb, 56, 12, shade(wet, 1.12), wetD, 0.8); plateCircle(ca, cb, 56, 10, wetD); plateCircle(ca, cb, 52, 6, shade(wetD, 0.85)); }
+      else { turn(ca, cb, [[48, 8.5], [50, 7.6], [64, 6.4]], wet); turn(ca, cb, [[64, 6.4], [66, 6.8]], shade(wet, 1.08)); plateCircle(ca, cb, 66, 6.8, shade(wet, 1.15), wetD, 0.8); plateCircle(ca, cb, 66, 5.2, wetD); }
+      cyl(ca + 8, cb + 32, 0, 18, 9, '#d8dce0', '#7a8a94'); plateCircle(ca + 8, cb + 32, 18, 7.6, '#a8a08e'); box(ca + 4, ca + 11, cb + 29, cb + 35, 18, 20.5, '#e8c860', '#d8b450', '#c8a440'); } });
+    /* (a potter's stool, three legs and a round seat at 38, under them: keyed a little behind where they sit) */
+    const stool = (sa, sb) => items.push({ a: sa - 3, b: sb - 3, z: 0, solids: [], draw: () => {
+      const L = [[-Math.PI*0.75, '#6e4e30'], [Math.PI*0.05, '#7e5a38'], [Math.PI*0.55, '#7e5a38']];
+      for(const [t, c] of L) tube(sa + Math.cos(t)*9, sb + Math.sin(t)*9, 0, sa + Math.cos(t)*6, sb + Math.sin(t)*6, 35, 1.4, c);
+      cyl(sa, sb, 35, 38, 11, wood, woodL); } });
+    wheel(670, 46, 'tall'); stool(642, 18);
+    wheel(360, 336, 'bowl'); stool(334, 310);
+
+    /* ---- THE KILN against the west wall, a front-loader: shallow and tall, so its shelves show (a deep one under a low roof shows only its
+       ceiling) -- back to front: its stand, the steel body; through the open chamber (clipped to it) the brick back, the north side's face,
+       the floor, the shelves on their posts with bisque on them, bottom up; the chamber's gasket; the controller on its south face; the door
+       swung open on its north hinge, its brick-lined inside to the room; the flue up the wall ---- */
+    items.push({ a: 30, b: 346, z: 0, solids: [solid(0, 62, 296, 396, 150, 'kiln'), solid(58, 136, 290, 304, 140, 'kiln door')], draw: () => {
+      const A0 = 2, A1 = 58, B0 = 300, B1 = 392, ob0 = 312, ob1 = 380, oz0 = 26, oz1 = 134, back = 22, brick = '#e6d4b8', brickD = '#d4c0a2', brickL = '#efe2ca';
+      box(A0, A1, B0, B1, 0, 10, '#3e4448', '#3e4448', '#2e3438');
+      box(A0, A1, B0, B1, 10, 150, steelT, steel, steelS);
+      ctx.save(); poly([P(A1, ob0, oz0), P(A1, ob1, oz0), P(A1, ob1, oz1), P(A1, ob0, oz1)]); ctx.clip();
+      try {
+        S(back, ob0, ob1, oz0, oz1, brick); for(let z = oz0 + 9; z < oz1; z += 9) S(back + 0.05, ob0, ob1, z - 0.4, z + 0.4, brickD);
+        F(back, A1, oz0, oz1, brickD, null, 0, ob0);
+        T(back, A1, ob0, ob1, oz0, brickL);
+        const shelf = z => { T(back + 2, A1 - 2, ob0 + 2, ob1 - 2, z, '#d8ccb6'); F(back + 2, A1 - 2, z - 2, z, '#c4b69e', null, 0, ob1 - 2); S(A1 - 2, ob0 + 2, ob1 - 2, z - 2, z, '#ccbea6'); };
+        const posts = z => { for(const [pa, pb] of [[back + 6, ob0 + 6], [back + 6, ob1 - 6], [A1 - 7, ob0 + 6], [A1 - 7, ob1 - 6]]) cyl(pa, pb, z, z + 32, 2, '#d0c4ae', '#dcd2bc'); };
+        const L = [[oz0, ['bowl', 'vase', 'mug']], [oz0 + 34, ['mug', 'jar', 'mug']], [oz0 + 68, ['bowl', 'bowl', 'mug']]];
+        L.forEach(([z, ks], lv) => { if(lv){ posts(z - 34); shelf(z); }
+          ks.forEach((k, i) => ware((back + A1)/2 + (i - 1)*4, ob0 + 14 + i*20, z, k, bisque, k === 'vase' ? 0.9 : 1, true)); });
+      } finally { ctx.restore(); }
+      S(A1 + 0.1, ob0 - 4, ob0, oz0 - 4, oz1 + 4, '#7a7e82'); S(A1 + 0.1, ob1, ob1 + 4, oz0 - 4, oz1 + 4, '#7a7e82');
+      S(A1 + 0.1, ob0, ob1, oz1, oz1 + 4, '#7a7e82'); S(A1 + 0.1, ob0, ob1, oz0 - 4, oz0, '#7a7e82');
+      /* the controller on the south face: its box, the screen, two lights */
+      F(14, 48, 104, 140, '#2e3438', null, 0, B1 + 0.2); F(18, 38, 120, 134, '#6ab0a0', null, 0, B1 + 0.3); F(41, 44, 126, 129, '#e05a3a', null, 0, B1 + 0.3); F(41, 44, 118, 121, '#e8c040', null, 0, B1 + 0.3);
+      /* the door, open on its north hinge: the leaf stood out from the face, its brick inside to the room (south), steel on its top and edge */
+      box(A1, A1 + 76, B0 - 8, B0 + 2, 20, 140, steelT, brick, steelS);
+      F(A1 + 6, A1 + 70, 30, 130, brickL, null, 0, B0 + 2.1); for(let z = 39; z < 130; z += 9) F(A1 + 6, A1 + 70, z - 0.4, z + 0.4, brickD, null, 0, B0 + 2.2);
+      box(A1, A1 + 6, B0 - 10, B0 + 4, 40, 52, '#6a6e72', '#5a5e62', '#4a4e52'); box(A1, A1 + 6, B0 - 10, B0 + 4, 108, 120, '#6a6e72', '#5a5e62', '#4a4e52');
+      /* the flue: off the top, up the wall to the beam */
+      cyl(20, 330, 150, H - 16, 6, '#9aa0a6', '#b0b6ba'); band(20, 330, 6.2, 210, 214, '#7e848a'); } });
+
+    /* ---- THE TOP-LOADING KILN beside it: its stand's legs (far ones first), the drum, its steel bands (rings -- the faces toward the eye), a
+       peephole plug in the near band, the lid and its handle, the controller on its east side ---- */
+    items.push({ a: 44, b: 436, z: 0, solids: [{ name: 'kiln', c: [44, 436], r: 40, h: 90 }], draw: () => {
+      const ca = 44, cb = 436, r = 32;
+      for(const t of [-Math.PI*0.75, -Math.PI*0.25, Math.PI*0.75, Math.PI*0.25]) box(ca + Math.cos(t)*24 - 2, ca + Math.cos(t)*24 + 2, cb + Math.sin(t)*24 - 2, cb + Math.sin(t)*24 + 2, 0, 14, '#3e4448', '#3e4448', '#2e3438');
+      cyl(ca, cb, 14, 80, r, steel, steelT);
+      for(const z of [22, 46, 70]) band(ca, cb, r + 0.4, z, z + 3, steelS);
+      cyl(ca + r*0.68, cb + r*0.68, 47, 49.5, 2.4, '#e8dcc8', '#f0e6d4');
+      cyl(ca, cb, 80, 86, r + 1, steelS, steelT); plateCircle(ca, cb, 86, r - 6, '#bcc0c4', '#9aa0a6', 0.8);
+      tube(ca + 18, cb - 10, 89, ca + 18, cb + 10, 89, 1.6, '#3a3a3e'); tube(ca + 18, cb - 10, 86, ca + 18, cb - 10, 89, 1.2, '#3a3a3e'); tube(ca + 18, cb + 10, 86, ca + 18, cb + 10, 89, 1.2, '#3a3a3e');
+      box(ca + r, ca + r + 8, cb - 12, cb + 12, 40, 66, '#3a4046', '#2e3438', '#2e3438'); S(ca + r + 8.1, cb - 8, cb + 6, 52, 62, '#6ab0a0'); S(ca + r + 8.1, cb + 7, cb + 10, 56, 59, '#e05a3a'); } });
+
+    /* ---- THE GLAZE BUCKETS on a pallet against the west wall, under the test tiles: two rows of white pails (far ones first, by a + b), each
+       its body, a label to the eye, the rim and the glaze in it; a ladle stood in one, a whisk in another ---- */
+    items.push({ a: 50, b: 544, z: 0, solids: [solid(0, 100, 484, 604, 40, 'glaze buckets')], draw: () => {
+      box(4, 98, 484, 604, 0, 4, woodF, woodS, woodS); for(let b = 490; b < 604; b += 22) box(4, 98, b, b + 14, 4, 9, wood, woodF, woodS);
+      const BK = []; for(let i = 0; i < 2; i++) for(let j = 0; j < 4; j++) BK.push([28 + i*44, 500 + j*30, i*4 + j]);
+      BK.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+      for(const [ba, bb, n] of BK){ const c = GLZ[(n*3 + 1) % GLZ.length], r = 11.5;
+        cyl(ba, bb, 9, 36, r, '#ecebe6', '#f4f3ee');
+        const lab = []; for(let k = 0; k <= 6; k++){ const t = Math.PI/4 - 0.5 + k/6; lab.push(P(ba + Math.cos(t)*r, bb + Math.sin(t)*r, 18)); } for(let k = 6; k >= 0; k--){ const t = Math.PI/4 - 0.5 + k/6; lab.push(P(ba + Math.cos(t)*r, bb + Math.sin(t)*r, 28)); } poly(lab, c);
+        plateCircle(ba, bb, 36, r - 1.4, shade(c, 0.92), shade(c, 0.7), 0.8); plateCircle(ba - 2, bb - 2, 36, 3, 'rgba(255,255,255,.22)');
+        if(n === 2){ tube(ba + 2, bb + 1, 33, ba + 9, bb + 5, 56, 1, '#8a6440'); turn(ba + 1, bb, [[32, 3.4], [35, 3.6]], '#9aa0a6'); }
+        if(n === 5){ tube(ba, bb, 34, ba + 4, bb + 8, 52, 0.8, '#8a6440'); for(let w = -2; w <= 2; w++) tube(ba, bb, 34, ba + w*0.8, bb + 1, 37, 0.3, '#c8ccd0'); } } } });
+
+    /* ---- THE WEDGING TABLE, a workbench (78): heavy timber, a shelf low between its legs with bags of clay on it -- back to front: the far
+       leg, the shelf and its bags, the two side legs, the near leg, the top under its canvas; on it the plaster slab, a block of clay with
+       the wire through it, two balls of clay wedged ready (each sat on the canvas: its middle 0.8 of its radius up). Keyed a little toward
+       the back (Nico works it from its north side, a customer can pass its south) ---- */
+    items.push({ a: 204, b: 330, z: 0, solids: [solid(150, 270, 300, 372, 78, 'workbench')], draw: () => {
+      const A0 = 150, A1 = 270, B0 = 300, B1 = 372, zT = 78, leg = (a, b) => box(a, a + 9, b, b + 9, 0, zT - 8, woodF, woodF, woodS);
+      leg(A0, B0); leg(A1 - 9, B0);
+      box(A0 + 4, A1 - 4, B0 + 9, B1 - 9, 14, 18, wood, woodF, woodS);
+      for(const [ba, bb] of [[180, 323], [222, 323], [196, 347]]){ box(ba - 16, ba + 16, bb - 12, bb + 12, 18, 30, '#a8846a', '#98765c', '#8a6a50'); F(ba - 10, ba + 10, 22, 26, '#f0ece4', null, 0, bb + 12.1); }
+      leg(A0, B1 - 9); leg(A1 - 9, B1 - 9);
+      box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 8, zT, woodL, wood, woodF);
+      T(A0, A1, B0, B1, zT + 0.1, canvas); F(A0, A1, zT - 6, zT, shade(canvas, 0.9), null, 0, B1 + 3.1); S(A1 + 3.1, B0, B1, zT - 6, zT, shade(canvas, 0.84));
+      box(156, 198, 306, 366, zT, zT + 5, plaster, '#e2ded6', '#d4d0c8');
+      box(226, 230, 310, 313, zT + 15, zT + 19, beam, beamD, beamD);
+      box(216, 246, 316, 344, zT, zT + 16, shade(wet, 1.08), wet, wetD); F(231, 231.8, zT, zT + 16, wetD, null, 0, 344.1); T(231, 231.8, 316, 344, zT + 16.1, wetD);
+      tube(228, 312, zT + 17, 236, 348, zT + 17, 0.35, '#5a5a5e'); box(234, 238, 347, 350, zT + 15, zT + 19, beam, beamD, beamD);
+      for(const [ba, bb, r] of [[172, 328, 7.5], [184, 348, 6.5]].sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]))) ball(ba, bb, zT + 5 + r*0.8, r, shade(wet, 1.04), shade(wet, 1.2));
+      ball(258, 324, zT + 5, 6, '#e8c860', '#f2d878'); } });
+
+    /* ---- BAGS OF CLAY on a pallet by the wedging table: three layers of plastic-wrapped blocks, each layer by a + b, bottom up, a label on
+       each to the eye ---- */
+    items.push({ a: 190, b: 430, z: 0, solids: [solid(150, 232, 400, 462, 46, 'clay bags')], draw: () => {
+      box(150, 232, 400, 462, 0, 4, woodF, woodS, woodS); for(let a = 154; a < 232; a += 20) box(a, a + 12, 400, 462, 4, 9, wood, woodF, woodS);
+      const C = ['#a8846a', '#8a6a58', '#b8967a'];
+      for(let L = 0; L < 3; L++){ const z = 9 + L*12, P2 = []; for(let i = 0; i < 2; i++) for(let j = 0; j < 2; j++) P2.push([154 + i*38 + (L % 2)*2, 404 + j*28, i + j]);
+        P2.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+        for(const [ba, bb, k] of P2){ const c = C[(L + k) % 3]; box(ba, ba + 36, bb, bb + 26, z, z + 11.6, shade(c, 1.1), c, shade(c, 0.85)); F(ba + 8, ba + 24, z + 3, z + 8, '#f0ece4', null, 0, bb + 26.1); F(ba + 10, ba + 22, z + 4.6, z + 6, terra, null, 0, bb + 26.2); } } } });
+
+    /* ---- THE WARE WALL down the west wall, south of the buckets: wooden shelves of finished ware for sale on a terracotta plinth, five shelves
+       of glazed mugs, bowls, vases and jars, a plate stood at the back of each; a bay a piece along b, keyed at its start (against the wall),
+       clipped at its own top (W37). North to south -- its far upright, the shelves and their ware, then its near upright over them ---- */
+    { const A0 = 0, A1 = 40, B0 = 620, B1 = 790, ZS = [20, 56, 92, 128, 164], zTop = 200, n = 4;
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
+        runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'ware wall')], () => {
+          box(A0, A1, s0, s1, 0, 14, terraD, terraD, shade(terraD, 0.85));                               // its plinth
+          box(A0, A1, s0, s0 + 3, 14, zTop - 8, woodF, woodF, woodS);                                     // its far upright
+          ZS.forEach((z, r) => { box(A0, A1 - 2, s0 + 3, s1 - 3, z - 3, z, woodL, wood, woodF);          // a shelf (between its uprights)
+            const j = k*7 + r*3;
+            discS(7, (s0 + s1)/2, z + 12, 10, GLZ[(j + 2) % GLZ.length]); discS(7.1, (s0 + s1)/2, z + 12, 6.6, shade(GLZ[(j + 2) % GLZ.length], 1.14));   // (a plate stood at the back)
+            for(let i = 0; i < 2; i++){ const kind = KINDS[(j + i*2) % KINDS.length];
+              if(kind === 'vase' && r === ZS.length - 1) continue;
+              ware(22, s0 + 3 + (s1 - s0 - 6)*(i + 0.5)/2, z, kind, GLZ[(j + i*3) % GLZ.length], kind === 'bowl' ? 1.05 : 1.15); } });
+          box(A0, A1, s1 - 3, s1, 14, zTop - 8, woodF, woodF, woodS);                                     // its near upright
+          box(A0, A1 + 2, s0, s1, zTop - 8, zTop, wood, woodF, woodS); S(A1 + 2.1, s0, s1, zTop - 6, zTop - 2, terra);   // the header
+        }, { alongB: true, pad: 3, keyStart: true });
+      } }
+
+    /* ---- THE DISPLAY TABLES in the shop: timber tables (62) on a linen runner, a riser at the back -- its legs, the top, the runner; on the
+       riser vases (by a + b); before it rows of mugs and bowls (far row first). Keyed a little toward the back: customers stand all round ---- */
+    const table = (A0, B0, k0) => { const A1 = A0 + 110, B1 = B0 + 70, zT = 62;
+      items.push({ a: (A0 + A1)/2, b: B0 + 26, z: 0, solids: [solid(A0, A1, B0, B1, zT, 'table')], draw: () => {
+        for(const [la, lb] of [[A0 + 4, B0 + 4], [A1 - 10, B0 + 4], [A0 + 4, B1 - 10], [A1 - 10, B1 - 10]]) box(la, la + 6, lb, lb + 6, 0, zT - 5, woodF, woodF, woodS);
+        box(A0, A1, B0, B1, zT - 5, zT, woodL, wood, woodF);
+        T(A0 + 34, A1 - 34, B0, B1, zT + 0.1, '#ece4d4'); F(A0 + 34, A1 - 34, zT - 10, zT, '#e0d8c6', null, 0, B1 + 0.1);
+        box(A0 + 10, A1 - 10, B0 + 6, B0 + 28, zT, zT + 18, woodL, wood, woodF);
+        for(let i = 0; i < 3; i++) ware(A0 + 24 + i*31, B0 + 17, zT + 18, i === 1 ? 'vase' : 'jar', GLZ[(k0 + i*2) % GLZ.length], i === 1 ? 1.35 : 1.1);
+        for(const [bb, row] of [[B0 + 42, 0], [B0 + 58, 1]]) for(let i = 0; i < 5; i++){ const kind = (i + row) % 2 ? 'bowl' : 'mug';
+          ware(A0 + 15 + i*20 + row*5, bb, zT, kind, GLZ[(k0 + i + row*3) % GLZ.length], kind === 'bowl' ? 0.95 : 1.15); } } }); };
+    table(190, 556, 0); table(380, 556, 3);
+
+    /* ---- THE LOW SHELF along the south wall, stood off it (the low wall's top hides what stands near it below 66 less its distance): a
+       terracotta plinth (30) in runs of 36 keyed down its middle line; the big vases on it each their own piece ---- */
+    { const A0 = 110, A1 = 560, B0 = 738, B1 = 776, zT = 30, VB = (B0 + B1)/2;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'low shelf')], () => {
+        box(A0, A1, B0, B1, 0, zT - 4, plaster, '#e8e4dc', '#d8d4cc'); F(A0, A1, 0, 6, terraD, null, 0, B1 + 0.2); F(A0 + 4, A1 - 4, 10, 20, terra, null, 0, B1 + 0.2);
+        box(A0 - 2, A1 + 2, B0 - 2, B1 + 2, zT - 4, zT, wood, woodF, woodS);
+      }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
+      [[150, 'vase', 2.6, 0], [238, 'jar', 2.4, 4], [326, 'vase', 3.4, 1], [414, 'bowl', 2.1, 5], [500, 'vase', 2.8, 6]].forEach(([va, k, s, ci]) => {
+        const rr = k === 'bowl' ? 7.4*s : 6.4*s;
+        items.push({ a: va, b: VB, z: lcOnZ(A0, A1, 36, va - rr, va + rr, va), fpLab: { a0: va - rr, a1: va + rr, b0: VB - rr, b1: VB + rr, z1: zT + 21*s }, solids: [], draw: () => ware(va, VB, zT, k, GLZ[ci], s) }); });
+    }
+
+    /* ---- THE TILL COUNTER: whitewashed plaster to the floor, a band of terracotta tiles along its front, a timber top; Rosa behind it. In
+       runs of 36, keyed down its middle line; what stands on it its own piece ---- */
+    { const A0 = 480, A1 = 640, B0 = 330, B1 = 370, zT = 75;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'counter')], () => {
+        box(A0, A1, B0, B1, 0, zT - 4, plaster, plaster, '#dcd8d0');
+        F(A0, A1, 0, 8, terraD, null, 0, B1 + 0.2);
+        for(let i = 0; i < 10; i++){ const ta = A0 + 6 + i*14.8; F(ta, ta + 13.4, 30, 44, GLZ[(i*3) % GLZ.length], null, 0, B1 + 0.3); F(ta + 3, ta + 10, 34, 40, 'rgba(255,255,255,.22)', null, 0, B1 + 0.35); }
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, woodL, wood, woodF);
+      }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 36, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* the till (its screen on the far face, Rosa's: not painted -- W37) */
+      on(528, [516, 540, 336, 356, 104], () => { box(520, 536, 340, 352, zT, zT + 3, blk, blk, '#1c1a18'); tube(528, 346, zT + 3, 528, 344, zT + 14, 1.4, '#6a6662');
+        box(516, 540, 336, 340, zT + 12, zT + 29, '#3a3634', blk, '#1c1a18'); });
+      /* THE KRAFT ROLL on its stand, for wrapping: the stand's two ends, the roll between them, the torn sheet down over the counter's front */
+      on(612, [592, 634, 338, 362, 96], () => { box(596, 598, 342, 354, zT, zT + 16, beam, beamD, beamD);
+        tube(598, 348, zT + 12, 628, 348, zT + 12, 7, '#c49a6a'); discS(628.2, 348, zT + 12, 7, '#b08a5a'); discS(628.3, 348, zT + 12, 2, '#6a5030');
+        box(628, 630, 342, 354, zT, zT + 16, beam, beamD, beamD); T(600, 626, 352, 362, zT + 0.3, '#d4ae7e'); });
+      /* a stack of bowls, nested, for sale: the bottom one, each over it */
+      on(570, [558, 582, 338, 362, 98], () => { for(let k = 0; k < 4; k++) ware(570, 350, zT + k*2.4, 'bowl', GLZ[(k*2 + 1) % GLZ.length], 1.3 - k*0.04); });
+    }
+
+    /* ---- A FLOOR URN of pampas in the south-east corner: the glazed urn, the tall dried grasses stood in it (far ones first), their plumes ---- */
+    { const pa = 640, pb = 742; items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'plant', c: [pa, pb], r: 26, h: 200 }], draw: () => {
+      turn(pa, pb, [[0, 12], [4, 14]], bisque); turn(pa, pb, [[4, 15], [30, 24], [56, 13]], '#2f4a6a'); turn(pa, pb, [[54, 12], [62, 14]], '#3f5a7a');
+      plateCircle(pa, pb, 62, 14, '#3f5a7a', '#24384e', 0.8); plateCircle(pa, pb, 62, 11, '#1e2a36');
+      const st = []; for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; st.push([pa + Math.cos(t)*26, pb + Math.sin(t)*20, 150 + (k % 3)*22]); }
+      st.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+      /* (each stalk up out of the urn's mouth to its plume: a long soft feather on the stalk's end, leaning on as the stalk does, its lit side) */
+      for(const [sa, sb, sz] of st){ const da = (sa - pa)/(sz - 58), db = (sb - pb)/(sz - 58);
+        tube(pa, pb, 58, sa, sb, sz, 0.8, '#c8b48a');
+        tube(sa - da*4, sb - db*4, sz - 4, sa, sb, sz, 2.6, '#e6d8b8'); tube(sa, sb, sz, sa + da*14, sb + db*14, sz + 14, 4.8, '#e6d8b8');
+        tube(sa + da*14, sb + db*14, sz + 14, sa + da*24, sb + db*24, sz + 24, 2.6, '#e6d8b8'); tube(sa + da*3, sb + db*3, sz + 3, sa + da*18, sb + db*18, sz + 18, 2.2, '#f6eedc'); } } }); }
+
+    /* (its door is the shop's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
+    walkinStaffSolids(items, CP_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -73225,6 +73701,10 @@ function houseCanopy(fn){
 },
 {
   name:'Cove Pottery', xh: 200, base:'Pottery', hood:'The Flats', edited:true, sc:1.3, tall:true,
+  see: true,   // (a walk-in: its doorway and its tall window show the pottery's room, CP_IN -- W11)
+  /* THE DOORWAY OPEN through the front wall: he drives into it, and is taken into the room only once he is in it (CP_IN's glass < 0, W32) */
+  vol: { foot: volRect(0, 230, -276, 0), h: 200,
+         opens: [{ name: 'doorway', poly: volRect(140, 220, -90, 2), walk: true }] },
   head:'Studio: wheel and drying shelves behind tall glass, roof lantern',
   tags:['tall studio glazing','potter\'s wheel','drying shelves','roof lantern','raw brick','bare footway'],
   desc:'A working studio rather than a works: one tall window with the wheel and the drying shelves standing inside it, brick courses over, and a glazed lantern on the roof for the north light a potter actually needs. No industrial stack.',
@@ -73280,7 +73760,10 @@ function houseCanopy(fn){
 
     /* ---- one shopfront band, both openings cut out of it ---- */
     slab(0, W, 0, 130, 4, 0, shade(wall,1.1), null, trim);
-    reveal(14, 134, 22, 118, 22, inner);
+    /* (a walk-in's window, W11: a hole onto the room -- its own wheel, Teo at it and the drying rack seen through it; the painted wheel and
+       shelves only where no room is drawn under it) */
+    revealOpen(14, 134, 22, 118, 22, inner);
+    if(!SEE){
     ctx.save();
     poly([P(14,0,118),P(134,0,118),P(134,0,22),P(14,0,22)]);
     ctx.clip();
@@ -73316,10 +73799,14 @@ function houseCanopy(fn){
     cyl(108, -13, 71, 78, 7, clay[0]);
     plateCircle(108, -13, 78, 8, shade(clay[0],1.15), shade(clay[0],.8), 1.4);
     ctx.restore();
-    glaze(14, 134, 22, 118, null, 'rgba(150,138,120,.30)');
+    }
+    glaze(14, 134, 22, 118, null, SEE ? WALKIN_PANE : 'rgba(150,138,120,.30)');
     for(let k=1;k<4;k++) F(14 + 120*k/4 - 3, 14 + 120*k/4 + 3, 22, 118, shade(wall,1.2), null,0, 0.8);
 
-    shopDoor(178, wall, trim);                          // a 144.88..211.12
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the terracotta, 80 across (a 140..220), clear of the window -- its face
+       'panel', two raised panels under a top light (its neighbour Sandcastle Toys' is 'six'); a walk-in's (see), its opening a hole onto
+       the pottery's room, its leaf live, swinging in */
+    shopDoor(180, wall, trim, 'rgba(150,138,120,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(196,186,170,.72)', look: 'panel' });
 
     /* ---- fascia ---- */
     slab(0, W, 136, 164, 4, 0, shade(wall,1.14), null, trim);
