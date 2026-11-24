@@ -19301,6 +19301,65 @@ function hoodDrivewaysOf(grid){
     out.push({ col: "#a9a7a0", lines: false, arrows: "none", lane: true, blockKey: "fleet", edge: -1, e: dw.e, al0: dw.al0, al1: dw.al1 });
   return (grid._drives = out);
 }
+/* LOT DRIVES (Sir, 2026-11-24: "lets look at drive ways.. id like to upgrade them too"). The paving INSIDE a lot, from
+   the lot front (b1, where the street apron takes over -- see hoodDrivewaysOf) back to the garage door or carport (b0):
+   one flat T in a shade a touch off the apron's, with a joint or two, it read as a grey mat laid in front of the house,
+   not as the same drive the apron carries out to the kerb. Now it is what a poured drive is: the apron's own colour
+   (o.col: the entry's drive col), cut into slabs by tooled joints -- a seam down the middle of a two-car drive, joints
+   across about square to it, and the expansion joint at the lot front where it meets the apron -- each slab's broomed
+   field a touch lighter than its trowelled margin; tyre wear down each bay where the wheels run, and an oil stain under
+   where a car stands (seeded off the drive's own place and the livery: stable, never per frame -- it is drawn in the
+   building cache). o.asphalt: a drive-through lane in the lot's tarmac -- no slabs, the wheel tracks dulling its paint.
+   K is the caller's kit { P, poly, shade } (the shop library's, so its mirror and its checkers' recorders apply). */
+function lotDriveRand(seed){
+  let s = seed >>> 0;
+  return () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function lotDrivePaint(K, a0, a1, b0, b1, o){
+  const { P, poly, shade } = K, z = o.z != null ? o.z : 0.6, col = o.col, W = a1 - a0, L = b1 - b0;
+  let h = 2166136261;
+  for(const ch of String(o.seed || '')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const rnd = lotDriveRand(h ^ Math.round(a0*7 + b0*13) ^ ((o.pal || 0)*0x9E3779B1));
+  const Q = (pa0, pa1, pb0, pb1, zz, c) => poly([P(pa0, pb0, zz), P(pa1, pb0, zz), P(pa1, pb1, zz), P(pa0, pb1, zz)], c);
+  const blot = (ca, cb, ra, rb, zz, c) => { const pts = [];
+    for(let k = 0; k < 12; k++){ const t = k*Math.PI/6, w = 1 + 0.18*Math.sin(3*t + ca); pts.push(P(ca + ra*w*Math.cos(t), cb + rb*w*Math.sin(t), zz)); }
+    poly(pts, c); };
+  const bays = o.bays || (W > 200 ? 2 : 1), bw = W/bays;
+  if(!o.asphalt){
+    Q(a0, a1, b0, b1, z, col);                                                    // the trowelled margins (and the joints' ground)
+    const rows = Math.max(1, Math.round(L/(bw*0.85))), rl = L/rows, m = 3.2;
+    const field = shade(col, 1.035);
+    for(let i = 0; i < bays; i++) for(let r = 0; r < rows; r++)                   // each slab's broomed field
+      Q(a0 + i*bw + m, a0 + (i + 1)*bw - m, b0 + r*rl + m, b0 + (r + 1)*rl - m, z + 0.02, field);
+    /* (the broom's grain: a few faint strokes across each field, the way the broom was pulled -- across the drive) */
+    const grain = shade(col, 1.06);
+    for(let i = 0; i < bays; i++) for(let r = 0; r < rows; r++){
+      const fa0 = a0 + i*bw + m + 2, fa1 = a0 + (i + 1)*bw - m - 2;
+      for(let b = b0 + r*rl + m + 7; b < b0 + (r + 1)*rl - m - 3; b += 11) poly([P(fa0, b, z + 0.03), P(fa1, b, z + 0.03)], null, grain, 0.6);
+    }
+  }
+  /* the wheels' wear down each bay, and an oil stain where a car stands */
+  const wear = o.asphalt ? 'rgba(38,40,40,0.13)' : 'rgba(92,84,74,0.05)', wear2 = o.asphalt ? 'rgba(30,32,32,0.08)' : 'rgba(80,72,62,0.04)';
+  for(let i = 0; i < bays; i++){
+    const cm = a0 + (i + 0.5)*bw, tr = bw*0.27, tw = bw*0.075;
+    for(const s of [-1, 1]){
+      Q(cm + s*tr - tw, cm + s*tr + tw, b0 + 4, b1, z + 0.04, wear);
+      Q(cm + s*tr - tw*0.45, cm + s*tr + tw*0.45, b0 + 10, b1, z + 0.05, wear2);
+    }
+    if(rnd() < (o.oil != null ? o.oil : 0.75)){
+      const ob = o.oilB != null ? o.oilB : b0 + L*(0.22 + 0.25*rnd()), oa = cm + (rnd() - 0.5)*bw*0.16, r = Math.min(bw*0.09, 13)*(0.8 + 0.4*rnd());
+      blot(oa, ob, r, r*0.75, z + 0.06, o.asphalt ? 'rgba(20,20,22,0.14)' : 'rgba(52,46,40,0.075)');
+      blot(oa + r*0.2, ob - r*0.1, r*0.55, r*0.42, z + 0.07, o.asphalt ? 'rgba(14,14,16,0.12)' : 'rgba(44,38,32,0.065)');
+    }
+  }
+  if(o.asphalt) return;
+  /* the tooled joints, over all: the seam between bays, the joints across, the expansion joint at the lot front */
+  const jc = shade(col, 0.8), lip = shade(col, 1.09), rows = Math.max(1, Math.round(L/(bw*0.85))), rl = L/rows;
+  for(let i = 1; i < bays; i++){ const a = a0 + i*bw;
+    poly([P(a, b0, z + 0.08), P(a, b1, z + 0.08)], null, jc, 1); poly([P(a + 1.4, b0, z + 0.08), P(a + 1.4, b1, z + 0.08)], null, lip, 0.6); }
+  for(let r = 1; r <= rows; r++){ const b = b0 + r*rl - (r === rows ? 1 : 0);
+    poly([P(a0, b, z + 0.08), P(a1, b, z + 0.08)], null, jc, 1); if(r < rows) poly([P(a0, b + 1.4, z + 0.08), P(a1, b + 1.4, z + 0.08)], null, lip, 0.6); }
+}
 /* along / out-from-the-block of a point, in a driveway's own frame */
 function driveFrame(d, x, y){
   const dx = x - d.e.ox, dy = y - d.e.oy;
@@ -78696,6 +78755,8 @@ function houseCanopy(fn){
             P(am+8,ab+34,0),P(am+8,ab-6,0),P(am+22,ab-6,0)], line);
     }
     T(LA0, LA1, PW0+18, PW0+26, 0, line);                    // stop line at the window
+    /* the wheels' wear down the lane, dulling its paint where they run, and the drips where cars wait at the window (LOT DRIVES) */
+    lotDrivePaint({ P, poly, shade }, LA0, LA1, -LOT, 0, { asphalt: true, z: 0.1, bays: 1, oil: 1, oilB: PW0 - 20, seed: 'Pelican lane' });
     for(let x = 60; x < LOT-60; x += 120) if(x+60 < LA0 || x > LA1) T(x, x+60, (RA0+RA1)/2-3, (RA0+RA1)/2+3, 0.6, line);  // aisle centre line, broken where the lane crosses
     /* a rank: bay lines out from the back line to the aisle */
     const rank = (bBack, dir) => {
@@ -87890,9 +87951,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   yard(c){
     if(!this._paved){                                          // unless the estate has laid its drive to the door
-      T(36, 280, -60, 0, 0.6, '#b3aea3');                      // driveway
-      poly([P(158,-60,0.7), P(158,0,0.7)], null, '#98938a', 1);
-      for(let b = -45; b < 0; b += 15) poly([P(36,b,0.7), P(280,b,0.7)], null, '#a29d93', 1);
+      lotDrivePaint({ P, poly, shade }, 36, 280, -60, 0, { col: '#b3aea3', seed: this.name, pal: state.pal });   // driveway (LOT DRIVES)
     }
     T(430, 570, -60, 0, 0.7, '#c9a07a');                       // terracotta path
     for(let b = -54; b < 0; b += 11) poly([P(430,b,0.8), P(570,b,0.8)], null, '#a8825f', 1);
@@ -88940,8 +88999,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   yard(c){
     /* NO LOT SLAB (Sir, 2026-09-29, on the Cycladic house: "i dont want the pavement"). The lab painted the whole lot in paving under the house -- a house painting its own ground over the block's, the same fault NO HOUSE LAWNS names. The block's ground shows; the walk to the door stays. */
-    T(36, 280, -512, 0, 0.6, '#c3beb3');                        // carport / drive
-    for(let b = -40; b > -512; b -= 40) poly([P(36,b,0.7), P(280,b,0.7)], null, '#aaa59b', 1);
+    lotDrivePaint({ P, poly, shade }, 36, 280, -512, 0, { col: this.drive ? this.drive[0].col : '#c4bfb3', seed: this.name, pal: state.pal, oilB: -300 });   // carport / drive (LOT DRIVES)
     T(320, 440, -76, 0, 0.6, '#e4ded2');                        // entry walk
     houseLawn(464, 800, -46, -6, '#8aaa5e');
   },
@@ -89376,8 +89434,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     T(160, 240, -96, 0, 0.6, c.pave);                                   // the walk to the door
     for(let b = -86; b < -6; b += 22) T(330, 420, b, b + 12, 0.7, c.pave);   // stepping slabs
-    T(this.garage[0], this.garage[1], -96, 0, 0.65, '#cfc9bb');               // the drive
-    for(let b = -80; b < 0; b += 32) poly([P(this.garage[0], b, 0.7), P(this.garage[1], b, 0.7)], null, '#bdb6a6', 0.8);   // its joints
+    lotDrivePaint({ P, poly, shade }, this.garage[0], this.garage[1], -96, 0, { col: this.drive ? this.drive[0].col : '#c4bfb3', z: 0.65, seed: this.name, pal: state.pal });   // the drive (LOT DRIVES)
   },
   ground(c, d){
     const bf = d > 0 ? -96 : -500;
@@ -89454,8 +89511,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   yard(c){
     T(610, 690, -96, 0, 0.6, c.pave);
-    T(this.garage[0], this.garage[1], -96, 0, 0.65, '#cfc9bb');               // the drive (the stepping slabs were here)
-    for(let b = -80; b < 0; b += 32) poly([P(this.garage[0], b, 0.7), P(this.garage[1], b, 0.7)], null, '#bdb6a6', 0.8);
+    lotDrivePaint({ P, poly, shade }, this.garage[0], this.garage[1], -96, 0, { col: this.drive ? this.drive[0].col : '#c4bfb3', z: 0.65, seed: this.name, pal: state.pal });   // the drive, the stepping slabs were here (LOT DRIVES)
   },
   body(c, d){
     const bf = d > 0 ? -96 : -500;
@@ -91507,8 +91563,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   yard(c){
     houseLawn(300, 809.6, -80, 0, '#86a85e');
-    T(56, 300, -80, 0, 0.6, '#bdb8ae');
-    poly([P(178,-80,0.7), P(178,0,0.7)], null, '#a29d93', 1);
+    lotDrivePaint({ P, poly, shade }, 56, 300, -80, 0, { col: this.drive ? this.drive[0].col : '#c4bfb3', seed: this.name, pal: state.pal });   // the drive (LOT DRIVES)
     T(340, 460, -80, 0, 0.7, '#d4cdbd');
   },
   fore(p){
@@ -91702,8 +91757,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     houseLawn(300, 809.6, -120, 0, '#86a85e');
     houseLawn(0, 60, -90, 0, '#86a85e');
-    T(60, 300, -90, 0, 0.6, '#bdb8ae');
-    poly([P(180,-90,0.7), P(180,0,0.7)], null, '#a29d93', 1);
+    lotDrivePaint({ P, poly, shade }, 60, 300, -90, 0, { col: this.drive ? this.drive[0].col : '#c4bfb3', seed: this.name, pal: state.pal });   // the drive (LOT DRIVES)
     T(525, 595, -120, 0, 0.7, '#d4cdbd');
   },
   left(c, d){
@@ -92126,7 +92180,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   draw(p){
     const c = this.style(), { A0, A1, BF } = this.frame();
-    T(A0 + 14, A1 - 14, BF, 0, 0.35, '#cbc6ba');                                                  // the drive, to the lot front
+    lotDrivePaint({ P, poly, shade }, A0 + 14, A1 - 14, BF, 0, { col: this.drive ? this.drive[0].col : '#cbc6ba', z: 0.35, bays: this.bays, seed: this.name, pal: state.pal });   // the drive, to the lot front (LOT DRIVES)
     this.walls(c, 1);
     const n = this.bays, gap = 16, dw = (A1 - A0 - 36 - gap*(n - 1)) / n;
     for(let k = 0; k < n; k++){ const a0 = A0 + 18 + k*(dw + gap); this.door(a0, a0 + dw, c, BF); }
