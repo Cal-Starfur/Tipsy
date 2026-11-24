@@ -49948,10 +49948,63 @@ function houseBrick(a0, a1, z0, z1, b, col, d){
   F(a0, a1, z0, z1, col, null, 0, b);
   for(let z = z0 + 6; z < z1; z += 6) poly([P(a0, b + 0.2*(d||1), z), P(a1, b + 0.2*(d||1), z)], null, shade(col,.8), 1);
 }
-/* a small tree: trunk and a canopy of balls */
+/* a small tree: trunk and a canopy of balls -- now a labTree on the same reach */
 function houseTree(a, b, h, leaf){
-  cyl(a, b, 0, h*0.55, 4, '#6b5038');
-  ball(a, b, h*0.7, h*0.28, leaf); ball(a-8, b+4, h*0.6, h*0.2, shade(leaf,1.1)); ball(a+7, b-3, h*0.82, h*0.18, shade(leaf,.92));
+  labTree(a, b, { zt: h*0.55, tr: 4, R: h*0.12, zr: h*0.64, br: h*0.2, zc: h*0.8, cr: h*0.2, n: 5, leaf, bark: '#6b5038' });
+}
+/* A SHADE TREE IN AN ENTRY (the trees pass, 2026-11-23 -- Sir: "look over the parks and trees ... they need a pass"): the
+   library's trees were each a post under a ring of balls and a ball on top, each ball with its own highlight -- a bunch of
+   grapes on a stick, a dozen hand copies of it. One drawer now, the park tree's (drawShadeTree in the scene) in the kit's
+   own terms, on the REACH each site gave its old tree -- trunk to zt (radius tr) from z0, a ring of clumps R out at zr of
+   radius br, a cap at zc of radius cr -- so every collision, solid, cull box and draw key stays as it was:
+     - the trunk tapers from a flared foot, lit on its screen-left and in shade on its right (the props' light, SP13: asked of
+       P, so a mirrored frame is lit the same way), with three limbs out into the ring, seen under the crown;
+     - the crown is one mass of clumps (the ring, a smaller ring higher and inside, the cap): the whole silhouette in shade,
+       each clump's body, each clump's lit face, toned across the crown on the same light -- left and top lit, right and
+       underneath dark -- and a glint on the few at its top left;
+     - seeded off where it stands (never per frame): the ring turned, each clump's place and size jittered, a slight lean.
+   The trunk is inside the crown, so it goes down first and the crown over it. Drawn straight onto ctx (it draws as one
+   piece wherever it is called: houseCanopy has nothing of it to sort). o: { z0, zt, tr, R, zr, br, zc, cr, n, leaf, bark }. */
+function labTree(ta, tb, o){
+  const z0 = o.z0 || 0;
+  if(CUT !== null && z0 > CUT) return;
+  const rnd = mulberry32(((Math.round(ta*10)*7919) ^ (Math.round(tb*10)*104729) ^ 0x7ee5) >>> 0);
+  const leaf = Array.isArray(o.leaf) ? o.leaf[1 % o.leaf.length] : o.leaf, bark = o.bark || '#6b5a3a';
+  const R = o.R, br = o.br, zr = o.zr, zc = o.zc, cr = o.cr, zt = Math.max(o.zt, zr), n = o.n || 5;
+  const la = (rnd() - 0.5)*R*0.2, lb = (rnd() - 0.5)*R*0.2, ca = ta + la, cb = tb + lb;
+  const ph = rnd()*Math.PI*2, cl = [];
+  for(let k = 0; k < n; k++){ const q = ph + k/n*Math.PI*2 + (rnd() - 0.5)*0.5, d = R*(0.85 + rnd()*0.28);
+    cl.push([ca + d*Math.cos(q), cb + d*Math.sin(q), zr + (rnd() - 0.5)*br*0.3, br*(0.82 + rnd()*0.22)]); }
+  const limbs = [cl[0], cl[2 % n], cl[4 % n]];
+  const m = Math.max(2, n - 3);
+  for(let k = 0; k < m; k++){ const q = ph + (k + 0.5)/m*Math.PI*2 + (rnd() - 0.5)*0.4, d = R*(0.42 + rnd()*0.14);
+    cl.push([ca + d*Math.cos(q), cb + d*Math.sin(q), (zr + zc)/2, br*(0.76 + rnd()*0.14)]); }
+  cl.push([ca + (rnd() - 0.5)*R*0.2, cb + (rnd() - 0.5)*R*0.2, zc, cr]);
+  /* far to near on screen (the foot under each), low to high */
+  const key = c => P(c[0], c[1], 0).y;
+  cl.forEach(c => { c.k = key(c); }); cl.sort((p, q) => (p.k - q.k) || (p[2] - q[2]));
+  /* the screen's own step for one lab unit across (a cylinder's width on screen), off P */
+  const p0 = P(ta, tb, z0), pa = P(ta + 1, tb, z0), pb = P(ta, tb + 1, z0), u = Math.hypot(pa.x - p0.x, pb.x - p0.x) || 1;
+  /* THE TRUNK and its limbs */
+  { const top = Math.min(zt, CUT !== null ? CUT : zt), b1 = P(ta + la*0.5, tb + lb*0.5, z0 + (top - z0)*0.5), b2 = P(ca, cb, top);
+    const w0 = o.tr*1.35*u, wm = o.tr*0.8*u, w1 = o.tr*0.55*u, fk = P(ta + la*0.55, tb + lb*0.55, z0 + (top - z0)*0.62);
+    const fill = (pts, col) => { ctx.beginPath(); pts.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+    ctx.strokeStyle = shade(bark, 0.72); ctx.lineWidth = Math.max(1, o.tr*0.5*u); ctx.lineCap = 'round';
+    for(const c of limbs){ const e = P(c[0] + (ca - c[0])*0.25, c[1] + (cb - c[1])*0.25, c[2]); ctx.beginPath(); ctx.moveTo(fk.x, fk.y); ctx.lineTo(e.x, e.y); ctx.stroke(); }
+    ctx.lineCap = 'butt';
+    fill([[p0.x - w0, p0.y + 1], [p0.x + w0, p0.y + 1], [b1.x + wm, b1.y], [b2.x + w1, b2.y], [b2.x - w1, b2.y], [b1.x - wm, b1.y]], shade(bark, 0.7));
+    fill([[p0.x - w0, p0.y + 1], [p0.x, p0.y + 1], [b1.x - wm*0.05, b1.y], [b2.x - w1*0.05, b2.y], [b2.x - w1, b2.y], [b1.x - wm, b1.y]], bark);
+    fill([[p0.x - w0*0.78, p0.y], [p0.x - w0*0.42, p0.y], [b1.x - wm*0.45, b1.y], [b1.x - wm*0.8, b1.y]], shade(bark, 1.18)); }
+  /* THE CROWN, as a mass in three coats */
+  const Q = cl.filter(c => CUT === null || c[2] <= CUT).map(c => { const s = P(c[0], c[1], c[2]); return { x: s.x, y: s.y, r: c[3]*K }; });
+  if(!Q.length) return;
+  const oc = P(ca, cb, (zr + zc)/2), sx = (R*u + br*K)*1.0 || 1, sz = Math.max(1, oc.y - P(ca, cb, zc).y + cr*K);
+  const lit = q => { const v = (oc.y - q.y)/sz; return Math.max(0.72, Math.min(1.18, 1 - 0.2*(q.x - oc.x)/sx + (v > 0 ? 0.16 : 0.3)*v)); };
+  const disc = (x, y, r, col) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fillStyle = col; ctx.fill(); };
+  for(const q of Q) disc(q.x + q.r*0.08, q.y + q.r*0.12, q.r, shade(leaf, 0.6));
+  for(const q of Q) disc(q.x - q.r*0.04, q.y - q.r*0.04, q.r*0.9, shade(leaf, 0.88*lit(q)));
+  for(const q of Q){ const L = lit(q); disc(q.x - q.r*0.2, q.y - q.r*0.22, q.r*0.66, shade(leaf, 1.02*L));
+    if(L > 1.06) disc(q.x - q.r*0.34, q.y - q.r*0.38, q.r*0.3, shade(leaf, 1.16*L)); }
 }
 /* a saguaro */
 function houseCactus(a, b, h, col){
@@ -53714,12 +53767,7 @@ function houseCanopy(fn){
     }
     }});
     if(state.props){
-      const tree = (ta, tb) => {
-        cyl(ta, tb, 0, 150, 20, '#6b5a3a');
-        for(let k=0;k<5;k++)
-          ball(ta + 62*Math.cos(k*1.26+0.4), tb + 62*Math.sin(k*1.26+0.4), 210, 66, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
-        ball(ta, tb, 260, 62, '#4e8058');
-      };
+      const tree = (ta, tb) => labTree(ta, tb, { zt: 150, tr: 15, R: 62, zr: 210, br: 66, zc: 260, cr: 62, n: 6, leaf: '#4e8058' });   // (labTree)
       const shelter = (ca, cb) => {
         for(const q of [[ca-190,cb-70],[ca+190,cb-70],[ca-190,cb+70],[ca+190,cb+70]])
           cyl(q[0], q[1], 0, 260, 11, iron);
@@ -72420,9 +72468,7 @@ function houseCanopy(fn){
     const tree = (ta, tb, s = 1) => {
       if(!state.props) return;
       items.push({ a: ta, b: tb, draw: () => {
-      cyl(ta, tb, 0, 46*s, 6*s, '#6b5a3a');
-      for(let k=0;k<5;k++) ball(ta + 16*s*Math.cos(k*1.26+0.3), tb + 16*s*Math.sin(k*1.26+0.3), 58*s, 18*s, leaf[k%3]);
-      ball(ta, tb, 74*s, 17*s, '#4e8058');
+      labTree(ta, tb, { zt: 46*s, tr: 5*s, R: 16*s, zr: 58*s, br: 18*s, zc: 74*s, cr: 17*s, n: 5, leaf });   // (labTree)
       } });
     };
     /* a low clipped hedge along the lot edge, open where a walk meets it: ONE RUN ROUND EACH CORNER of the lot (pathRun, the
@@ -73179,12 +73225,7 @@ function houseCanopy(fn){
     const tree = (ta, tb, th) => items.push({ a: ta, b: tb, draw: () => {
       cyl(ta, tb, 0, 22, 14, '#9a8a68');
       plateCircle(ta, tb, 22, 11, '#5a4a30');
-      cyl(ta, tb, 22, th, 4, '#6b5a3a');
-      for(let k=0;k<5;k++){
-        const q = k*1.26 + 0.3;
-        ball(ta + 14*Math.cos(q), tb + 14*Math.sin(q), th-6, 14, ['#3f6b4a','#4e8058','#356045'][k%3]);
-      }
-      ball(ta, tb, th+6, 15, '#4e8058');
+      labTree(ta, tb, { z0: 22, zt: th - 14, tr: 3.4, R: 14, zr: th - 6, br: 14, zc: th + 6, cr: 15, n: 5, leaf: '#4e8058' });   // (a standard in its tub: labTree)
     } });
     const hA0 = 355+OA, hA1 = 695+OA, hB0 = -220, hB1 = -500, hH = 150, FB = hB0 + 0.5;   // (wk5: 340 x 280, so the room inside is 280 x 220 -- NURSERY_IN)
     /* the tree fields down the sides, behind the cross walk */
@@ -77352,9 +77393,7 @@ function houseCanopy(fn){
 
     /* ---- behind the store's faces: before it ---- */
     const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
-      cyl(ta, tb, 12, 46, 5, '#6b5a3a');
-      for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, leaf[k%3]);
-      ball(ta, tb, 66, 12, '#4e8058');
+      labTree(ta, tb, { z0: 12, zt: 46, tr: 4.2, R: 11, zr: 56, br: 13, zc: 66, cr: 12, n: 4, leaf });   // (labTree)
     } });
     const bed = (a0, a1, b0, b1, trees) => {                 // a planted island, b0 > b1
       box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
@@ -77798,9 +77837,7 @@ function houseCanopy(fn){
 
     /* ---- props BEHIND the store: before it, so it paints over them ---- */
     const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
-      cyl(ta, tb, 12, 46, 5, '#6b5a3a');
-      for(let k=0;k<4;k++) ball(ta + 11*Math.cos(k*1.57+0.5), tb + 11*Math.sin(k*1.57+0.5), 56, 13, leaf[k%3]);
-      ball(ta, tb, 66, 12, '#4e8058');
+      labTree(ta, tb, { z0: 12, zt: 46, tr: 4.2, R: 11, zr: 56, br: 13, zc: 66, cr: 12, n: 4, leaf });   // (labTree)
     } });
     const bed = (a0, a1, b0, b1, trees) => {                 // a planted island, b0 > b1
       box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
@@ -78061,9 +78098,7 @@ function houseCanopy(fn){
       if(state.props) for(let y = c0-27; y > c1; y -= 54) ball(aa, y, 24, 15, leaf[Math.round(-y/54)%3]);
     } }); };
     const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
-      cyl(ta, tb, 12, 58, 5, '#6b5a3a');
-      for(let k=0;k<4;k++) ball(ta + 12*Math.cos(k*1.57+0.5), tb + 12*Math.sin(k*1.57+0.5), 66, 14, leaf[k%3]);
-      ball(ta, tb, 78, 13, '#4e8058');
+      labTree(ta, tb, { z0: 12, zt: 58, tr: 4.2, R: 12, zr: 66, br: 14, zc: 78, cr: 13, n: 4, leaf });   // (labTree)
     } });
     const bed = (a0, a1, b0, b1, trees) => {                 // a planted bed, b0 > b1
       box(a0, a1, b1, b0, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
@@ -80887,18 +80922,7 @@ marinaEntry(),
       /* THE TRUNK RUNS UP INTO THE CROWN, AND THE CROWN IS DRAWN FAR TO
          NEAR (Sir, on-device: "can we fix these trees in the museum yard?"):
          the far balls, then the crown, then the near ones */
-      const tree = (ta, tb) => {
-        cyl(ta, tb, 0, 200, 17, '#6b5a3a');
-        const ring = [];
-        for(let k=0;k<5;k++){
-          const ba = ta + 54*Math.cos(k*1.26+0.4), bb = tb + 54*Math.sin(k*1.26+0.4);
-          ring.push({ ba, bb, col: ['#3f6b4a','#4e8058','#568a5e'][k%3], key: (ba - ta) + (bb - tb) });
-        }
-        ring.sort((m, n) => m.key - n.key);
-        for(const r of ring) if(r.key < 0) ball(r.ba, r.bb, 184, 56, r.col);
-        ball(ta, tb, 226, 52, '#4e8058');
-        for(const r of ring) if(r.key >= 0) ball(r.ba, r.bb, 184, 56, r.col);
-      };
+      const tree = (ta, tb) => labTree(ta, tb, { zt: 200, tr: 14, R: 54, zr: 184, br: 56, zc: 226, cr: 52, n: 6, leaf: '#4e8058' });   // (the trees pass: labTree)
       for(const [ta,tb] of TIDEWATER_MUSEUM.TREES)
         items.push({ a:ta, b:tb, z:0, draw:() => tree(ta,tb) });
       for(const [ha,hb,hh] of TIDEWATER_MUSEUM.HEDGES)
@@ -82136,9 +82160,7 @@ marinaEntry(),
       box(lo[0], lo[1], lo[2], lo[3], 22, 30, shade(stone, 1.16), shade(stone, 1.08), stoneD);
     });
     A.trees.forEach(([ta, tb]) => it(ta, tb, () => {
-      cyl(ta, tb, 0, 96, 13, '#6b5a3a');
-      for(let k = 0; k < 4; k++) ball(ta + 40*Math.cos(k*1.57 + 0.4), tb + 40*Math.sin(k*1.57 + 0.4), 140, 40, [leaf, '#4e8058'][k % 2]);
-      ball(ta, tb, 172, 38, '#4e8058');
+      labTree(ta, tb, { zt: 96, tr: 11, R: 40, zr: 140, br: 40, zc: 172, cr: 38, n: 5, leaf: '#4e8058' });   // (labTree)
     }));
     /* the gates' posts stand with the leaves (gateLeaves); here the lanterns over each mouth */
     /* THE GATEHOUSE STANDS NEARER THE CAMERA THAN THE COTTAGE'S ROOM (wk8, CTG_IN: it is the room's east neighbour, 400 high, and covers the room's north and
@@ -82455,10 +82477,7 @@ marinaEntry(),
          radius in screen units against z at ZSCALE 1.5, so a band of sky
          showed between them. It goes to 230 now and the balls cover its top. */
       for(const [ta, tb] of PL.trees) add([ta - 30, ta + 30, tb - 30, tb + 30], () => {
-        cyl(ta, tb, 0, 230, 18, '#6b5a3a');
-        for(let k=0;k<5;k++)
-          ball(ta + 58*Math.cos(k*1.26+0.4), tb + 58*Math.sin(k*1.26+0.4), 206, 62, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
-        ball(ta, tb, 254, 58, '#4e8058');
+        labTree(ta, tb, { zt: 230, tr: 15, R: 58, zr: 206, br: 62, zc: 254, cr: 58, n: 6, leaf: '#4e8058' });   // (the trees pass: labTree)
       });
       /* the flagpole by the west gate */
       { const [fa, fb] = PL.flag;
@@ -82529,9 +82548,7 @@ marinaEntry(),
         F(q1 - 86, q1 - 40, 6, 94, '#2b3138', null, 0, r1 + 1.0); F(q1 - 82, q1 - 44, 14, 88, 'rgba(150,190,206,.7)', null, 0, r1 + 1.2);
         box(q1 - 96, q1 - 30, r1, r1 + 54, 0, 8, stone, stoneD, stoneD); tube(q1 - 96, r1 + 54, 0, q1 - 96, r1 + 54, 44, 1.4, '#6a7076'); tube(q1 - 30, r1 + 54, 0, q1 - 30, r1 + 54, 44, 1.4, '#6a7076'); tube(q1 - 96, r1 + 54, 44, q1 - 30, r1 + 54, 44, 1.4, '#6a7076'); });
       for(const ta of PL.backTrees) add([ta - 30, ta + 30, PL.FBK + 30, PL.FBK + 90], () => {
-        cyl(ta, PL.FBK + 60, 0, 230, 18, '#6b5a3a');
-        for(let k=0;k<5;k++) ball(ta + 58*Math.cos(k*1.26+0.4), PL.FBK + 60 + 58*Math.sin(k*1.26+0.4), 206, 62, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
-        ball(ta, PL.FBK + 60, 254, 58, '#4e8058'); });
+        labTree(ta, PL.FBK + 60, { zt: 230, tr: 15, R: 58, zr: 206, br: 62, zc: 254, cr: 58, n: 6, leaf: '#4e8058' }); });
       { const [ta, tb] = PL.tether;
         add([ta - 30, ta + 30, tb - 30, tb + 30], () => { cyl(ta, tb, 0, 170, 4, stl, stlL); tube(ta, tb, 166, ta + 26, tb + 12, 70, 0.7, '#e8e4d6'); ball(ta + 26, tb + 12, 64, 8, yel, '#f6d27a'); }); }
       for(const [ra, rb] of PL.racks) add([ra - 10, ra + 66, rb - 18, rb + 18], () => {
@@ -86753,7 +86770,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   fore(p){
     houseProp('palm L', () => housePalm(40, -60, 180, '#5f8f4f'));
-    houseProp('olive R', () => { cyl(780, -70, 0, 34, 4, '#6b5a44'); ball(780, -70, 62, 30, '#7a8f5a'); });
+    houseProp('olive R', () => labTree(780, -70, { zt: 34, tr: 3.6, R: 11, zr: 54, br: 20, zc: 70, cr: 20, n: 5, leaf: '#7a8f5a', bark: '#6b5a44' }));
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -89621,7 +89638,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(let a = a0 + 8; a < a1; a += 16) ball(a, -14, 22, 7, '#4f7a42');
     }
     for(const [nm, aa] of [['tree L', 110], ['tree R', 700]])
-      houseProp(nm, () => { cyl(aa, -70, 0, 120, 8, '#6b5038'); ball(aa, -70, 170, 60, '#3f6b3e'); ball(aa-30, -60, 150, 40, '#4a7a48'); ball(aa+28, -78, 190, 36, '#36603a'); });
+      houseProp(nm, () => labTree(aa, -70, { zt: 120, tr: 7, R: 26, zr: 155, br: 44, zc: 184, cr: 44, n: 5, leaf: '#3f6b3e', bark: '#6b5038' }));
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
@@ -90054,7 +90071,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(const aa of [30]) for(const b of [-200, -360]) cyl(aa, b, 0, 100, 2.5, '#8a6848');
     poly([P(30,-200,96), P(30,-280,90), P(30,-360,96)], null, '#e8e4da', 1);
     for(const [b, col] of [[-230,'#e0602a'],[-262,'#f7f4ec'],[-300,'#3f6bd6'],[-330,'#f2d36a']]) S(30, b-12, b+12, 70, 91, col);
-    houseProp('breadfruit', () => { cyl(400, -80, 0, 90, 7, '#6b5038'); ball(400, -80, 130, 40, '#3f7a3e'); ball(376, -70, 112, 26, '#4a8a48'); ball(420, -90, 150, 24, '#36703a'); for(const [x, z] of [[392,118],[412,132],[384,140]]) ball(x, -60, z, 5, '#9ac05a'); });
+    houseProp('breadfruit', () => { labTree(400, -80, { zt: 90, tr: 6, R: 18, zr: 118, br: 30, zc: 142, cr: 30, n: 5, leaf: '#3f7a3e', bark: '#6b5038' }); for(const [x, z] of [[392,118],[412,132],[384,140]]) ball(x, -60, z, 5, '#9ac05a'); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -90898,7 +90915,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
     this.frame(c, 'front');
-    houseProp('oak', () => { cyl(400, -50, 0, 110, 8, '#5a4030'); ball(400, -50, 160, 56, '#3f6b3e'); ball(370, -40, 140, 38, '#4a7a48'); ball(426, -60, 180, 32, '#36603a'); });
+    houseProp('oak', () => labTree(400, -50, { zt: 110, tr: 7, R: 24, zr: 146, br: 40, zc: 174, cr: 42, n: 5, leaf: '#3f6b3e', bark: '#5a4030' }));
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -117738,6 +117755,54 @@ class WorldScene extends Phaser.Scene {
     if(!list) return;
     this.queueParkPlants(vq, list);
   }
+  /* A PARK SHADE TREE (the trees pass, 2026-11-23 -- Sir: "look over the parks and trees ... they need a pass"). It was a stick
+     under six balls, each with its own highlight: a bunch of grapes on a post. Now, the few big moves the props pass made:
+       - a TRUNK that tapers from a flared foot, lit on its left and in shade on its right (the props' light, SP13), leaning a
+         little, and forking into limbs that reach up into the crown -- seen in the gap under it;
+       - a CROWN that is one mass of foliage clumps round a dome (an outer ring, a smaller ring higher and inside, a cap),
+         painted as a mass, not as balls: the whole silhouette in shade first (lumpy, low on the right), then each clump's
+         body, then its lit face up on the left -- toned on the same light across the crown, so the clumps on its left and top
+         catch the sun and those on its right and underneath stay dark; a glint on the few at its top left;
+       - SEEDED VARIETY off its position (rr, never per frame): a round, a spreading or an upright form, the ring turned,
+         each clump's place and size and the lean jittered, so an avenue is not clones.
+     The trunk is inside the crown, so it goes down first and the crown over it (the limbs show only under the crown). Its reach
+     stays inside queueParkPlants' cull box (160h across, 350h up) and its foot is where it was (the trail's collision). */
+  drawShadeTree(g, x, y, h, col, rr){
+    const K = this.K, W = (a, b, z) => this.W(a, b, z);
+    const tone = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0);
+    const f = rr(), form = f < 0.55 ? 0 : f < 0.8 ? 1 : 2;                    // round, spreading, upright
+    const S = [[50, 182, 56, 150, 240, 50], [68, 170, 52, 134, 218, 48], [36, 198, 48, 160, 272, 44]][form];
+    const R = S[0]*h, zr = S[1]*h, br = S[2]*h, zt = S[3]*h, zc = S[4]*h, cr = S[5]*h;
+    const la = (rr() - 0.5)*16*h, lb = (rr() - 0.5)*16*h;                      // the lean, at the crown
+    const cx = x + la, cy = y + lb, ph = rr()*Math.PI*2, cl = [];
+    const n = 6 + Math.floor(rr()*2);
+    for(let k = 0; k < n; k++){ const q = ph + k/n*Math.PI*2 + (rr() - 0.5)*0.5, d = R*(0.82 + rr()*0.3);
+      cl.push([cx + d*Math.cos(q), cy + d*Math.sin(q), zr + (rr() - 0.5)*22*h, br*(0.78 + rr()*0.26)]); }
+    const limbs = [cl[0], cl[2], cl[4]];                                       // three limbs, out to every other clump of the ring
+    const m = n - 3;
+    for(let k = 0; k < m; k++){ const q = ph + (k + 0.5)/m*Math.PI*2 + (rr() - 0.5)*0.4, d = R*(0.4 + rr()*0.16);
+      cl.push([cx + d*Math.cos(q), cy + d*Math.sin(q), (zr + zc)/2 + (rr() - 0.5)*12*h, br*(0.74 + rr()*0.16)]); }
+    cl.push([cx + (rr() - 0.5)*R*0.25, cy + (rr() - 0.5)*R*0.25, zc, cr]);
+    cl.sort((p, q) => (p[0] + p[1] - q[0] - q[1]) || (p[2] - q[2]));         // far to near, low to high
+    /* THE TRUNK, and its limbs out into the ring */
+    { const bark = 0x6b4f36, barkL = 0x86644a, barkD = 0x48362a;
+      const b0 = W(x, y, 0), b1 = W(x + la*0.5, y + lb*0.5, zt*0.5), b2 = W(cx, cy, zr);
+      const w0 = 9.5*K*h, wm = 5.4*K*h, w1 = 3.6*K*h, fk = W(x + la*0.55, y + lb*0.55, zt*0.6);
+      g.lineStyle(3.6*K*h, barkD, 1);
+      for(const c of limbs){ const e = W(c[0] + (cx - c[0])*0.25, c[1] + (cy - c[1])*0.25, c[2]); g.lineBetween(fk.x, fk.y, e.x, e.y); }
+      this.quadOn(g, [{ x: b0.x - w0, y: b0.y + 2*K }, { x: b0.x + w0, y: b0.y + 2*K }, { x: b1.x + wm, y: b1.y }, { x: b2.x + w1, y: b2.y }, { x: b2.x - w1, y: b2.y }, { x: b1.x - wm, y: b1.y }], barkD);
+      this.quadOn(g, [{ x: b0.x - w0, y: b0.y + 2*K }, { x: b0.x, y: b0.y + 2*K }, { x: b1.x - wm*0.05, y: b1.y }, { x: b2.x - w1*0.05, y: b2.y }, { x: b2.x - w1, y: b2.y }, { x: b1.x - wm, y: b1.y }], bark);
+      this.quadOn(g, [{ x: b0.x - w0*0.78, y: b0.y + K }, { x: b0.x - w0*0.42, y: b0.y + K }, { x: b1.x - wm*0.45, y: b1.y }, { x: b1.x - wm*0.8, y: b1.y }], barkL); }
+    /* THE CROWN, as a mass in three coats: the shade under it all, each clump's body, each clump's lit face */
+    const o = W(cx, cy, (zr + zc)/2), P = cl.map(([a, b, z, r]) => { const c = W(a, b, z); return { x: c.x, y: c.y, r: r*K }; });
+    const sx = (R + br)*K, sz = Math.max(1, o.y - W(cx, cy, zc).y + cr*K);
+    const lit = q => { const v = (o.y - q.y)/sz; return Math.max(0.72, Math.min(1.18, 1 - 0.2*(q.x - o.x)/sx + (v > 0 ? 0.16 : 0.3)*v)); };
+    g.fillStyle(tone(col, 0.6), 1);
+    for(const q of P) g.fillCircle(q.x + q.r*0.08, q.y + q.r*0.12, q.r);
+    for(const q of P){ g.fillStyle(tone(col, 0.88*lit(q)), 1); g.fillCircle(q.x - q.r*0.04, q.y - q.r*0.04, q.r*0.9); }
+    for(const q of P){ const L = lit(q); g.fillStyle(tone(col, 1.02*L), 1); g.fillCircle(q.x - q.r*0.2, q.y - q.r*0.22, q.r*0.66);
+      if(L > 1.06){ g.fillStyle(tone(col, 1.16*L), 1); g.fillCircle(q.x - q.r*0.34, q.y - q.r*0.38, q.r*0.3); } }
+  }
   /* A PARK'S PLANTS, each culled on its own and each still one cached (the park trail's: shrubs, beds, trees, benches;
      anything else through drawProp) -- the park kit, also the Costa Palma letters' park's (cplQueuePark) */
   queueParkPlants(vq, list){
@@ -117802,14 +117867,8 @@ class WorldScene extends Phaser.Scene {
             dot(fx, fy, 16, 4.6, rr() < 0.6 ? p.bloom : p.bloom2);
           }
         } else if(p.kind === "tree"){
-          const h = p.h || 1;                                 // no ground shadow (Sir: "lose the shadows under the trees")
-          const b0 = this.W(x, y, 0), b1 = this.W(x, y, 140*h);
-          this.quadOn(g, [{ x: b0.x - 7*K, y: b0.y }, { x: b0.x + 7*K, y: b0.y }, { x: b1.x + 4*K, y: b1.y }, { x: b1.x - 4*K, y: b1.y }], 0x6b4f36);
-          g.fillStyle(0x543d29, 1); g.fillRect(b0.x, b1.y, 4*K, b0.y - b1.y);
-          const C = [[0,0,195,70],[-44,18,172,50],[40,-22,178,52],[22,34,160,44],[-28,-30,208,46],[0,-6,238,44]];
-          for(const [ox, oy, z, r] of C) dot(x + ox*h, y + oy*h, z*h, r*h + 6, shadeC(p.col, 0.7));
-          for(const [ox, oy, z, r] of C) dot(x + ox*h - 8, y + oy*h - 8, z*h + 6, r*h, p.col);
-          for(const [ox, oy, z, r] of C) dot(x + ox*h - 22, y + oy*h - 22, z*h + 18, r*h*0.45, shadeC(p.col, 1.2));
+          /* no ground shadow (Sir: "lose the shadows under the trees"); the tree itself: drawShadeTree */
+          this.drawShadeTree(g, x, y, p.h || 1, p.col, rr);
         } else if(p.kind === "bench"){
           /* (its sitters: a bench turned away from the eye has its back between them and the camera, so they go down first and the bench over
              them; one turned toward the eye, the bench first and they on it) */
