@@ -122967,7 +122967,7 @@ class WorldScene extends Phaser.Scene {
       o = o || {};
       const T = hullTones(col), kT = o.top == null ? 1 : o.top, kB = o.bot == null ? 1 : o.bot, R = o.n === 6 ? _HULL_RING6 : o.n === 12 ? _HULL_RING12 : _HULL_RING, n = R.length;
       /* (o.jit: a factor a vertex, the plan made lumpy; o.ztop: a lift a vertex of the top ring, the top made uneven -- hair) */
-      const P = (i, k, zz, top) => { const q = R[i % n], j = o.jit ? o.jit[i % n] : 1; return G(aC + q[0]*ra*k*j, bC + q[1]*rb*k*j, zz + (top && o.ztop ? o.ztop[i % n] : 0)); };
+      const P = (i, k, zz, top) => { const q = R[i % n], j = o.jit ? o.jit[i % n] : 1, fb = o.botB && !top && zz === z0 ? o.botB : 1; return G(aC + q[0]*ra*k*j, bC + q[1]*rb*k*j*fb, zz + (top && o.ztop ? o.ztop[i % n] : 0)); };   // (o.botB: the bottom ring carried out front and back only -- the seated shirt's hem draped onto the lap, hemOver)
       /* A SIDE FACE'S TILT (people_depth.js, Sir, 2026-11-20): a piece narrowing upward leans its faces up toward the eye, and its far ones
          show from above -- judged as if upright they were left out, and the silhouette under them showed down its sides as strips (a
          beanie's, a hard hat's). sv: a side face (its middle at ma, mb round the ring) toward the eye, its lean in */
@@ -122979,7 +122979,7 @@ class WorldScene extends Phaser.Scene {
         for(let i = 0; i < n; i++){ E0.push(P(i, kB, z0)); E1.push(P(i, kT, z1, true)); }
         if(sil) this.quadOn(g, convexHull(E0.concat(E1)), T.steps[5]);
         for(let i = 0; i < n; i++){ const q0 = R[i], q1 = R[(i + 1) % n], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
-          ti.push(!sv(ma, mb) || (o.openFront && mb/Math.hypot(ma, mb) > 0.3) ? -1 : Math.round(Math.abs(ma)/(Math.abs(ma) + Math.abs(mb))*8)); }   // (o.tri is for the close-up faces only: the fused LOD already reads in two)
+          ti.push(!sv(ma, mb) || (o.openFront && mb/Math.hypot(ma, mb) > 0.3) || (o.frontOnly && mb/Math.hypot(ma, mb) < o.frontOnly) ? -1 : Math.round(Math.abs(ma)/(Math.abs(ma) + Math.abs(mb))*8)); }   // (o.tri is for the close-up faces only: the fused LOD already reads in two)
         this.hullRuns(g, n, ti, E0, E1, T.steps[1], T.steps[5], !sil);
         if(!o.noTop && sees3(0, 0, 1)){ this.quadOn(g, E1, o.topCol || T.lt); if(o.edge !== false) this.edgeOn(g, E1, T.dk, 1); }
         return; }
@@ -122990,6 +122990,7 @@ class WorldScene extends Phaser.Scene {
         const q0 = R[i], q1 = R[(i + 1) % n], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
         if(!sv(ma, mb, o.eps)) continue;   // (o.eps: a ring's near edge-on faces are slivers -- they showed as horns)
         if(o.openFront && mb/Math.hypot(ma, mb) > 0.3) continue;                       // (open at the face: hair round the back and sides)
+        if(o.frontOnly && mb/Math.hypot(ma, mb) < o.frontOnly) continue;               // (only its front: the seated hem over the thighs, not down the sides past the arms)
         const t = Math.abs(ma)/(Math.abs(ma) + Math.abs(mb));                                       // (0 the front, 1 the side: a smooth ramp between)
         this.quadOn(g, [P(i, kB, z0), P(i + 1, kB, z0), P(i + 1, kT, z1, true), P(i, kT, z1, true)], T.steps[o.tri ? TRI(t) : Math.round(t*8)]);
       }
@@ -123205,10 +123206,26 @@ class WorldScene extends Phaser.Scene {
     };
     /* SEATED (pose.sit): the thigh out level from the hip, the shin down to
        the floor -- or, up on a stool, hanging */
+    /* THE SHIRT'S HEM OVER THE LAP (seated, facing the eye: the thighs come out over the lap after the body -- lapLate): the shirt's lowest
+       band again, a hair proud of the body, its faces toward the eye only (a ring: no silhouette laid over the thighs), so the shirt falls
+       over the thighs' roots and no seam shows where they leave the body. The torso's own taper at those heights (torso(): bot 0.9 at
+       hipH - 1.5, in toward the waist) */
+    const hemOver = () => {
+      if(dress || RB || pose.astride) return;   // (a robot's shell has no shirt to fall)
+      /* (up to under a vest's hem, where one is worn: the vest is nearer, drawn before; draped: its bottom edge lying on the thighs' tops, a unit over hipH, and flared out from the body to there -- cloth falling onto the
+         lap, nearer than the thighs' roots it covers; a band stood straight down the body's own face was behind them, and painted over them) */
+      const hv = build.heavy, zm = hipH + build.torsoH*0.42, zb = hipH - 1.5, z0 = hipH + 0.5, z1 = uniform && uniform.vest ? hipH + 5 : hipH + 9, b0 = hv ? 0.93 : 0.9, bt = hv ? 1.1 : 0.86, kz = z => b0 + (bt - b0)*(z - zb)/(zm + 1 - zb);
+      prism(0, 0, build.torsoW/2*1.02, build.torsoD/2*1.02, z0, z1, pShirt, { bot: kz(z0), top: kz(z1), botB: 1.22, frontOnly: 0.55, noTop: true, ring: true, n: 12 });   // (its front arc only, over the thighs)
+    };
     const seatLeg = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6; let aC = side*build.hipW*0.3;
       const thL = build.legH*0.48, shin = aidK === 'wheelchair' ? sit - shoeH - 6 : aidK === 'mobility' ? sit - shoeH - 8 : sit <= 60 ? Math.min(Math.max(8, sit - shoeH), build.legH < 40 ? build.legH*0.6 : Infinity) : build.legH*0.55;   // (a child's shin no longer than a child's: up on a bale it hangs -- Sir: "legs are way to long"; in a chair, up on the footrest)
-      let Kp = [thL, hipH], A = [thL + 3, hipH - shin];
+      /* THE THIGH UNDER THE HEM (Sir, 2026-11-24, Driftwood Home: "the legs are landing to high and the shirt should be falling over that
+         seem"): the thigh ran out level from the waist's own line, hipH, its middle there -- half its depth (7.5 at the hip) stood up over the
+         shirt's bottom edge, and facing the eye it was painted over the shirt. Its line is let down so its top meets the hem (hC: the thigh's
+         middle, its top a unit over hipH, where the shirt's hem band -- hemOver -- lies over it); the shin still reaches the floor */
+      const thHalf = legD*1.06*1.18, hC = pose.astride || RB ? hipH : hipH - (thHalf - 1);   // (a robot's shell keeps its hip joint: no shirt to fall, and its hip pieces are built round that line)
+      let Kp = [thL, hC], A = [thL + 3, hipH - shin];
       if(pose.astride){ aC = side*(build.hipW*0.3 + 6);                                      // ASTRIDE a bike: knee down and forward against the tank, the foot back up on its peg
         Kp = [thL*0.85, hipH - 10]; A = [thL*0.3, hipH - build.legH*0.5]; }
       /* PEDALLING (pose.pedal { ph, c: [forward, up] the crank's middle, r }, Sir, 2026-11-23, Surfside Fitness: "the person on the exercise
@@ -123216,9 +123233,9 @@ class WorldScene extends Phaser.Scene {
          the shin the rest of the leg's length), bent up and forward */
       if(pose.pedal){ const pd = pose.pedal, t = pd.ph + (side > 0 ? 0 : Math.PI), L1 = thL, L2 = build.legH - thL;   // (the leg its own length: not the seated shin, which is the seat's height)
         A = [pd.c[0] + Math.cos(t)*pd.r, pd.c[1] + Math.sin(t)*pd.r];
-        const dx = A[0], dy = A[1] - hipH, d = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, Math.hypot(dx, dy))), ang = Math.atan2(dy, dx),
+        const dx = A[0], dy = A[1] - hC, d = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, Math.hypot(dx, dy))), ang = Math.atan2(dy, dx),
           al = Math.acos(Math.max(-1, Math.min(1, (L1*L1 + d*d - L2*L2)/(2*L1*d))));
-        Kp = [L1*Math.cos(ang + al), hipH + L1*Math.sin(ang + al)]; }
+        Kp = [L1*Math.cos(ang + al), hC + L1*Math.sin(ang + al)]; }
       const thC = dress || pPants, shC = dress ? (dress.long ? dress : pSkin) : pPants;
       if(pose.part !== 'upper'){
         if(aid && aid.cast === side){ A = [thL + 22, hipH - shin*0.45];                       // (in plaster: the leg out straight in front, the heel down)
@@ -123228,7 +123245,7 @@ class WorldScene extends Phaser.Scene {
         limb(aC, [A[0], A[1] - 2], ext(Kp, A, 2.5), legW/1.15, legD/1.15, shC.c, shC.dk, 1.15, 1);   // (its knee end capped: open, its filled silhouette showed there as a flat lid -- people_depth.js)
         }
       }
-      if(pose.part !== 'shins') limb(aC, ext(Kp, [0, hipH], 2.5), [0, hipH], legW, legD, thC.c, thC.dk, 1.18, 2);   // (the knee end capped, as the shin's)
+      if(pose.part !== 'shins') limb(aC, ext(Kp, [0, hC], 2.5), [0, hC], legW, legD, thC.c, thC.dk, 1.18, hC < hipH ? 3 : 2);   // (the knee end capped, as the shin's -- and the hip end, let down under the body: from the side or behind it shows under the hips, open)
     };
     /* A DRESS (pose.dress), standing: a skirt flared from the waist, to the
        floor or the knee, its two faces to the eye as the torso's are */
@@ -124131,7 +124148,7 @@ class WorldScene extends Phaser.Scene {
     if(RB && RB.decal && RB.decal !== 'none' && faceB > 0) GS.decal(RB);
     if(RB && RB.packStyle && RB.packStyle !== 'none') GS.straps(RB, RB.packStyle, faceB > 0);   // (the pack's straps over his shoulders and down his chest)
     if(RB && faceB < 0) robotPack();   // (his back to the eye: the pack goes on over what he wears on his back -- the apron's straps, the vest, the sash -- and under his arms)
-    if(lapLate){ PT && PT('lap'); between('under'); if(!pose.astride) seatLeg(-nearSide); between(); seatLeg(nearSide); }
+    if(lapLate){ PT && PT('lap'); between('under'); if(!pose.astride) seatLeg(-nearSide); between(); seatLeg(nearSide); hemOver(); }
     /* (pose.armsLate: both hands up at the face -- Gideon's to his head, msDistressPose -- both arms over the head when they face the eye) */
     if(farFront && !noArms && !farLate){ PT && PT('farArmFront'); arm(-nearSide, false, 'front'); }
     PT && PT('held');
