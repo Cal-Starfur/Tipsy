@@ -64975,6 +64975,29 @@ function houseCanopy(fn){
     const hsh = i => { let x = Math.imul((i | 0) ^ 0x9e3779b9, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0)/4294967296; };
     /* an oval on the level at z (the train's track) */
     const oval = (ca, cb, ra_, rb_, z, c, st, lw) => { const pts = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; pts.push(P(ca + Math.cos(t)*ra_, cb + Math.sin(t)*rb_, z)); } poly(pts, c, st, lw); };
+    /* a disc on a face toward +b (discF) and toward +a (discS): a wheel, a porthole -- round in the world, z divided back (Marina Optical's) */
+    const discF = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; pts.push(P(a + Math.cos(t)*r, b, z + Math.sin(t)*r*0.82)); } poly(pts, c); };
+    const discS = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; pts.push(P(a, b + Math.cos(t)*r, z + Math.sin(t)*r*0.82)); } poly(pts, c); };
+    /* A BEACH BALL: its six panels in turn round its middle (the screen's circle, as ball()), a white cap, a gleam */
+    const beachBall = (a, b, z, r, cols) => { const o = P(a, b, z), R = r*K, sec = (t0, t1, c) => { const pts = [{ x: o.x, y: o.y }]; for(let k = 0; k <= 6; k++){ const t = t0 + (t1 - t0)*k/6; pts.push({ x: o.x + Math.cos(t)*R, y: o.y + Math.sin(t)*R }); } poly(pts, c); };
+      for(let i = 0; i < 6; i++) sec(-2.2 + i*Math.PI/3, -2.2 + (i + 1)*Math.PI/3, cols[i % cols.length]);
+      poly(Array.from({ length: 10 }, (_, k) => ({ x: o.x - R*0.22 + Math.cos(k/10*Math.PI*2)*R*0.2, y: o.y - R*0.28 + Math.sin(k/10*Math.PI*2)*R*0.2 })), '#ffffff');
+      poly(Array.from({ length: 8 }, (_, k) => ({ x: o.x - R*0.5 + Math.cos(k/8*Math.PI*2)*R*0.13, y: o.y - R*0.05 + Math.sin(k/8*Math.PI*2)*R*0.2 })), 'rgba(255,255,255,.5)'); };
+    /* A PLUSH TOY sat facing east (+a), s its size (1 a shelf's, 3.2 the giant): the far ear, the far arm, the body, its belly, the legs out before
+       it with their pads, the near arm, the head, the near ear, the muzzle, nose and eyes; a bunny's ears long (pink inside), a bear's round;
+       kind 2 a bear with a bow at its neck */
+    const plush = (pa, pb, z, c, kind, s) => { s = s || 1; const cl = shade(c, 1.16), cd = shade(c, 0.86), eye = '#2a2220', X = (a, b, zz, r, col) => ball(pa + a*s, pb + b*s, z + zz*s, r*s, col);
+      if(kind === 1) tube(pa - 1*s, pb - 3.2*s, z + 30*s, pa - 2*s, pb - 4.6*s, z + 47*s, 2.4*s, cd); else { X(0, -6.2, 33, 3.6, cd); X(0.6, -6.2, 33, 1.8, shade(cl, 0.95)); }
+      X(1, -8.6, 14, 3.6, cd);
+      X(0, 0, 12, 10, c); X(5.4, 0, 11, 6, cl);
+      X(8, -5, 4.5, 4.4, cd); X(11.2, -5, 4.5, 2.6, cl); X(8, 5, 4.5, 4.4, c); X(11.2, 5, 4.5, 2.6, cl);
+      X(2, 8.6, 14, 3.6, c);
+      X(1, 0, 28, 8.4, c);
+      if(kind === 1){ tube(pa - 1*s, pb + 3.2*s, z + 30*s, pa - 2*s, pb + 4.6*s, z + 47*s, 2.4*s, c); tube(pa - 0.1*s, pb + 3.4*s, z + 33*s, pa - 1*s, pb + 4.6*s, z + 45*s, 1.1*s, '#f0b0c0'); }
+      else { X(0, 6.2, 33, 3.6, c); X(0.8, 6.2, 33, 1.8, cl); }
+      X(7, 0, 25.5, 3.8, cl); X(10.4, 0, 26.8, 1.5, kind === 1 ? '#e88aa0' : eye);
+      X(7.6, -3.4, 30, 1.2, eye); X(7.6, 3.4, 30, 1.2, eye);
+      if(kind === 2){ X(8.2, -2.8, 19.6, 2.4, red); X(8.2, 2.8, 19.6, 2.4, red); X(9.2, 0, 19.6, 1.5, shade(red, 0.8)); } };
 
     /* ---- THE FLOOR: sand vinyl in big squares, the alphabet rug under the train table, the door's mat; the threshold in the doorway ---- */
     T(0, W, 0, D, 0, sand);
@@ -65027,9 +65050,24 @@ function houseCanopy(fn){
        the band over it; in runs of 50 keyed at each stretch's start (against the wall). Bay by bay, west to east: the upright on its west
        side, then its shelves with their boxes, bottom up; the last upright; the top ---- */
     { const A0 = 110, A1 = 430, B0 = 0, B1 = 40, zTop = 204, SH = [8, 58, 108, 158], COL = 5, cw = (A1 - A0)/COL;
-      const toyBox = (sa, sw, z, h, c) => { box(sa, sa + sw, B0 + 8, B1 - 3, z, z + h, shade(c, 1.08), c, shade(c, 0.82));
-        F(sa + 3, sa + sw - 3, z + 4, z + h - 9, '#dcecf2', null, 0, B1 - 2.9); F(sa + 4, sa + sw*0.45, z + 6, z + h - 12, 'rgba(255,255,255,.35)', null, 0, B1 - 2.8);
-        F(sa, sa + sw, z + h - 7, z + h - 2, shade(c, 0.7), null, 0, B1 - 2.8); };
+      /* a boxed toy: the box, its window, THE TOY BEHIND IT (a robot, a doll, a car, a rocket -- by the box's own roll), the cellophane's gleam,
+         the band over it with its label */
+      const toyBox = (sa, sw, z, h, c, kind) => { const bf = B1 - 2.85, x0 = sa + 3, x1 = sa + sw - 3, z0 = z + 4, z1 = z + h - 9, cx = (x0 + x1)/2, w = x1 - x0, hh = z1 - z0;
+        box(sa, sa + sw, B0 + 8, B1 - 3, z, z + h, shade(c, 1.08), c, shade(c, 0.82));
+        F(x0, x1, z0, z1, '#eef4f6', null, 0, B1 - 2.9);
+        if(kind === 0){ F(cx - w*0.28, cx + w*0.28, z0 + hh*0.62, z0 + hh*0.9, '#9aa4ae', null, 0, bf); F(cx - w*0.16, cx - w*0.04, z0 + hh*0.74, z0 + hh*0.8, '#f2c230', null, 0, bf + 0.02); F(cx + w*0.04, cx + w*0.16, z0 + hh*0.74, z0 + hh*0.8, '#f2c230', null, 0, bf + 0.02);
+          F(cx - w*0.34, cx + w*0.34, z0 + hh*0.22, z0 + hh*0.58, '#7d8790', null, 0, bf); F(cx - w*0.12, cx + w*0.12, z0 + hh*0.34, z0 + hh*0.48, red, null, 0, bf + 0.02);
+          F(cx - w*0.26, cx - w*0.08, z0 + hh*0.04, z0 + hh*0.22, '#5a646e', null, 0, bf); F(cx + w*0.08, cx + w*0.26, z0 + hh*0.04, z0 + hh*0.22, '#5a646e', null, 0, bf); }       // (a robot)
+        else if(kind === 1){ poly([P(cx, bf, z0 + hh*0.66), P(cx + w*0.36, bf, z0 + hh*0.06), P(cx - w*0.36, bf, z0 + hh*0.06)], shade(c, 1.25));
+          F(cx - w*0.3, cx + w*0.3, z0 + hh*0.68, z0 + hh*0.96, '#6a3a22', null, 0, bf); F(cx - w*0.2, cx + w*0.2, z0 + hh*0.66, z0 + hh*0.88, '#f0cdb2', null, 0, bf + 0.02); }   // (a doll)
+        else if(kind === 2){ F(x0 + w*0.08, x1 - w*0.08, z0 + hh*0.22, z0 + hh*0.46, shade(c, 1.3), null, 0, bf); F(x0 + w*0.26, x1 - w*0.2, z0 + hh*0.46, z0 + hh*0.64, shade(c, 1.3), null, 0, bf);
+          F(x0 + w*0.32, x1 - w*0.28, z0 + hh*0.48, z0 + hh*0.6, '#cfe6ee', null, 0, bf + 0.02);
+          for(const wx of [x0 + w*0.28, x1 - w*0.28]) F(wx - w*0.1, wx + w*0.1, z0 + hh*0.1, z0 + hh*0.28, '#2a2a2e', null, 0, bf + 0.03); }                                    // (a car)
+        else { poly([P(cx, bf, z0 + hh*0.98), P(cx + w*0.18, bf, z0 + hh*0.78), P(cx - w*0.18, bf, z0 + hh*0.78)], red); F(cx - w*0.18, cx + w*0.18, z0 + hh*0.2, z0 + hh*0.78, '#f4f2ee', null, 0, bf);
+          F(cx - w*0.08, cx + w*0.08, z0 + hh*0.52, z0 + hh*0.64, '#2f86c9', null, 0, bf + 0.02);
+          poly([P(cx - w*0.18, bf, z0 + hh*0.38), P(cx - w*0.4, bf, z0 + hh*0.1), P(cx - w*0.18, bf, z0 + hh*0.2)], red); poly([P(cx + w*0.18, bf, z0 + hh*0.38), P(cx + w*0.4, bf, z0 + hh*0.1), P(cx + w*0.18, bf, z0 + hh*0.2)], red); }   // (a rocket)
+        F(sa + 4, sa + sw*0.42, z0 + 2, z1 - 2, 'rgba(255,255,255,.28)', null, 0, B1 - 2.8);
+        F(sa, sa + sw, z + h - 7, z + h - 2, shade(c, 0.7), null, 0, B1 - 2.8); F(cx - w*0.3, cx + w*0.3, z + h - 6, z + h - 3, 'rgba(255,255,255,.75)', null, 0, B1 - 2.75); };
       runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'box wall')], () => {
         F(A0, A1, 0, zTop, whiteS, null, 0, B0 + 0.6);
         box(A0, A1, B0, B1, 0, 8, blueD, blueD, shade(blueD, 0.85));                                       // (the plinth)
@@ -65038,7 +65076,7 @@ function houseCanopy(fn){
           SH.forEach((z, r) => { if(r) box(c0 + (c ? 1.5 : 0), c1 - (c < COL - 1 ? 1.5 : 0), B0, B1, z - 4, z, white, whiteF, whiteS);
             let a = c0 + 3; const k0 = c*7 + r*3;
             for(let i = 0; a < c1 - 14; i++){ const sw = 14 + Math.floor(hsh(k0*17 + i)*3)*5, h = 28 + Math.floor(hsh(k0*29 + i)*3)*6;
-              if(a + sw > c1 - 3) break; toyBox(a, sw, z, Math.min(h, 46), TOY[(k0 + i*3) % TOY.length]); a += sw + 2; } }); }
+              if(a + sw > c1 - 3) break; toyBox(a, sw, z, Math.min(h, 46), TOY[(k0 + i*3) % TOY.length], Math.floor(hsh(k0*41 + i*5 + 3)*4)); a += sw + 2; } }); }
         up(A1);
         box(A0 - 2, A1 + 2, B0, B1 + 2, zTop - 4, zTop, white, whiteF, whiteS);                         // the top
       }, { pad: 3, keyStart: true, run: 50 });
@@ -65080,86 +65118,113 @@ function houseCanopy(fn){
        plinth -- two round towers and the wall between, crenellated, a flag on the far tower, a bucket and spade before it; the south bay A
        ROCKING HORSE on a blue plinth, a stack of alphabet blocks before it. Back to front in each ---- */
     items.push({ a: 653, b: 76, z: 0, solids: [solid(616, 690, 14, 138, 120, 'window display')], draw: () => {
+      const sd = '#e6cf96', sdT = '#f0dca8', sdF = '#dcc388', sdS = '#ccb378', dark = '#5a4630';
       box(616, 690, 14, 138, 0, 30, '#e8d6a8', '#d8c494', '#c8b484');
-      const tower = (ta, tb, h) => { cyl(ta, tb, 30, 30 + h, 13, '#e6cf96', '#f0dca8');
+      /* its moat round the castle's foot, on the plinth */
+      T(628, 676, 22, 134, 30.15, '#8fc4dc'); T(634, 670, 28, 128, 30.2, '#e8d6a8');
+      /* a tower: its drum, two arched windows on the faces the eye sees, its crenels (far ones first: W37), a flag on its pole */
+      const tower = (ta, tb, h, fl) => { cyl(ta, tb, 30, 30 + h, 13, sd, sdT);
+        for(const wz of [30 + h*0.38, 30 + h*0.68]){ F(ta - 2.2, ta + 2.2, wz, wz + 7, dark, null, 0, tb + 13.1); poly([P(ta - 2.2, tb + 13.1, wz + 7), P(ta, tb + 13.1, wz + 9.5), P(ta + 2.2, tb + 13.1, wz + 7)], dark);
+          S(ta + 13.1, tb - 2.2, tb + 2.2, wz, wz + 7, dark); poly([P(ta + 13.1, tb - 2.2, wz + 7), P(ta + 13.1, tb, wz + 9.5), P(ta + 13.1, tb + 2.2, wz + 7)], dark); }
         const cr = []; for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; if(Math.sin(t) < -0.2 && Math.cos(t) < 0.3) continue; cr.push(t); }
-        cr.sort((t, u) => (Math.cos(t) + Math.sin(t)) - (Math.cos(u) + Math.sin(u)));                 // (far ones first: W37)
-        for(const t of cr){ box(ta + Math.cos(t)*10 - 3, ta + Math.cos(t)*10 + 3, tb + Math.sin(t)*10 - 3, tb + Math.sin(t)*10 + 3, 30 + h, 36 + h, '#f0dca8', '#dcc388', '#ccb378'); } };
-      tower(650, 36, 70); tube(650, 36, 106, 650, 36, 136, 0.9, '#6a5a4a'); poly([P(650, 36, 136), P(650, 54, 130), P(650, 36, 124)], red);
-      box(640, 664, 46, 126, 30, 76, '#e6cf96', '#dcc388', '#ccb378');
-      for(let b = 48; b < 124; b += 14) box(640, 664, b, b + 8, 76, 84, '#f0dca8', '#dcc388', '#ccb378');
-      F(646, 658, 30, 58, '#6a4a2a', null, 0, 126.1); poly([P(646, 126.1, 58), P(652, 126.1, 64), P(658, 126.1, 58)], '#6a4a2a');
-      tower(650, 116, 64);
-      cyl(676, 60, 30, 44, 8, red, shade(red, 1.15)); tube(684, 66, 30, 684, 80, 52, 1.2, yel); box(682, 688, 78, 84, 30, 31, yel, yelD, yelD); } });
+        cr.sort((t, u) => (Math.cos(t) + Math.sin(t)) - (Math.cos(u) + Math.sin(u)));
+        for(const t of cr) box(ta + Math.cos(t)*10 - 3, ta + Math.cos(t)*10 + 3, tb + Math.sin(t)*10 - 3, tb + Math.sin(t)*10 + 3, 30 + h, 36 + h, sdT, sdF, sdS);
+        tube(ta, tb, 30 + h, ta, tb, 66 + h, 0.9, '#6a5a4a'); poly([P(ta, tb, 66 + h), P(ta, tb + 18, 60 + h), P(ta, tb, 54 + h)], fl); };
+      tower(650, 36, 70, red);
+      box(640, 664, 46, 126, 30, 76, sd, sdF, sdS);
+      for(let b = 48; b < 124; b += 14) box(640, 664, b, b + 8, 76, 84, sdT, sdF, sdS);
+      /* the gate: its arch, the drawbridge down over the moat; a shell or two pressed into the wall */
+      F(646, 658, 30, 56, dark, null, 0, 126.1); poly([P(646, 126.1, 56), P(652, 126.1, 63), P(658, 126.1, 56)], dark);
+      S(664.1, 70, 82, 54, 62, dark); poly([P(664.1, 70, 62), P(664.1, 76, 67), P(664.1, 82, 62)], dark);
+      tower(650, 116, 64, blue);
+      box(646, 658, 126, 134, 30.2, 31.6, '#a8743a', '#8a5a2a', '#7a4a22');
+      for(const [sa, sb, c] of [[626, 130, '#f2c4c8'], [684, 120, '#f8f2e8'], [680, 30, '#f2c4c8'], [622, 70, '#f8f2e8']]) ball(sa, sb, 31.6, 2.6, c);
+      /* a bucket and spade by it: the bucket's body, its rim, the spade stood in it, its T grip */
+      cyl(676, 60, 30, 44, 8, red, shade(red, 0.72)); cyl(676, 60, 42, 45, 8.6, shade(red, 0.85), shade(red, 0.7));
+      tube(678, 61, 38, 682, 64, 60, 1.2, yel); box(679, 685, 63, 65, 59, 61, yel, yelD, yelD); } });
     items.push({ a: 653, b: 392, z: 0, solids: [solid(616, 690, 326, 458, 120, 'window display')], draw: () => {
+      const wh = '#f4f2ee', whD = '#dcd8d0', mane = '#c0392b', gr = '#b8b4ac';
       box(616, 690, 326, 458, 0, 24, blue, blueD, shade(blueD, 0.85));
-      const blocks = L => L.forEach(([ba, bb, bz, c]) => { box(ba - 8, ba + 8, bb - 8, bb + 8, 24 + bz, 40 + bz, shade(c, 1.1), c, shade(c, 0.82)); F(ba - 5, ba + 5, 27 + bz, 37 + bz, white, null, 0, bb + 8.1); });
-      blocks([[628, 340, 0, red], [628, 340, 16, yel]]);                                               // (the stack behind the horse first)
-      /* the horse along b, its head south: the far rocker, the far legs, the body, the near legs, the near rocker, the mane, the head, the saddle */
-      const rock = (a, c) => { for(let k = 0; k < 10; k++){ const t0 = -0.7 + k*0.14, t1 = t0 + 0.14; tube(a, 392 + Math.sin(t0)*62, 24 + (1 - Math.cos(t0))*48 + 1, a, 392 + Math.sin(t1)*62, 24 + (1 - Math.cos(t1))*48 + 1, 2.6, c); } };
-      rock(644, '#a8743a');
-      for(const lb of [362, 422]) tube(644, lb, 30, 648, lb + (lb < 392 ? 6 : -6), 62, 2.6, '#f2ece2');
-      box(642, 664, 364, 422, 60, 80, '#f4f2ee', '#e4e0d8', '#d0ccc4');
-      for(const lb of [362, 422]) tube(660, lb, 30, 656, lb + (lb < 392 ? 6 : -6), 62, 2.6, '#f4f2ee');
-      rock(660, '#b8844a');
-      tube(653, 420, 78, 653, 438, 100, 6, '#f4f2ee');
-      for(let k = 0; k < 5; k++) box(651, 655, 416 + k*3, 420 + k*3, 82 + k*4, 92 + k*4, red, shade(red, 0.85), shade(red, 0.75));   // (the mane, then the head over it)
-      box(645, 661, 430, 452, 96, 108, '#f4f2ee', '#e4e0d8', '#d0ccc4');
-      box(642, 664, 378, 404, 80, 84, red, shade(red, 0.85), shade(red, 0.75)); tube(653, 364, 74, 653, 352, 60, 2.2, red);
-      F(660, 662, 100, 104, blk, null, 0, 452.1);
-      blocks([[680, 446, 0, grn]]); } });
+      const blocks = L => L.forEach(([ba, bb, bz, c, ch]) => { box(ba - 8, ba + 8, bb - 8, bb + 8, 24 + bz, 40 + bz, shade(c, 1.1), c, shade(c, 0.82)); F(ba - 5, ba + 5, 27 + bz, 37 + bz, white, null, 0, bb + 8.1);
+        S(ba + 8.1, bb - 5, bb + 5, 27 + bz, 37 + bz, white); blockWordIn(ch, ba - 4, ba + 4, 28 + bz, 36 + bz, bb + 8.2, c, null, 3); });
+      blocks([[628, 340, 0, red, 'A'], [628, 340, 16, yel, 'B']]);                                     // (the stack behind the horse first)
+      /* THE ROCKING HORSE along b, its head south -- back to front: the far rocker and its legs, the tail, the barrel, its dapples, the saddle and
+         stirrup, the near legs and rocker, the mane, the neck, the far ear, the head, the near ear, the eye, the bridle */
+      const rock = a => { for(let k = 0; k < 12; k++){ const t0 = -0.78 + k*0.13, t1 = t0 + 0.13; tube(a, 392 + Math.sin(t0)*64, 25 + (1 - Math.cos(t0))*50, a, 392 + Math.sin(t1)*64, 25 + (1 - Math.cos(t1))*50, 2.6, '#a8743a'); }
+        for(const t of [-0.5, 0.5]) tube(a, 392 + Math.sin(t)*64, 26 + (1 - Math.cos(t))*50, a, 392 + Math.sin(t)*64, 26 + (1 - Math.cos(t))*50 + 4, 1.6, '#8a5a2a'); };
+      const legs = a => { tube(a, 364, 32, a + (a < 653 ? 2 : -2), 372, 66, 2.8, wh); tube(a, 420, 32, a + (a < 653 ? 2 : -2), 412, 66, 2.8, wh); ball(a, 364, 32, 3.2, '#5a4630'); ball(a, 420, 32, 3.2, '#5a4630'); };
+      rock(645); legs(646);
+      tube(653, 364, 76, 653, 350, 52, 3, mane); tube(653, 362, 74, 652, 346, 56, 2, shade(mane, 1.2));
+      tube(653, 366, 72, 653, 416, 72, 11, wh);
+      for(const [db, dz] of [[376, 70], [388, 76], [400, 68], [406, 76]]) ball(663, db, dz, 2.2, '#dcd8d0');
+      box(643, 663, 380, 402, 82, 86, red, shade(red, 0.85), shade(red, 0.75)); F(643, 663, 82, 83.4, yel, null, 0, 402.1); S(663.1, 380, 402, 82, 83.4, yel);
+      tube(663.5, 391, 82, 663.5, 391, 66, 0.6, '#5a4630'); box(661, 666, 389, 393, 64, 66, '#9a9a9e', '#8a8a8e', '#7a7a7e');
+      legs(660); rock(661);
+      for(let k = 0; k < 6; k++) box(650, 656, 408 + k*3.6, 413 + k*3.6, 86 + k*3.4, 95 + k*3.4, mane, shade(mane, 0.85), shade(mane, 0.75));
+      tube(653, 412, 76, 653, 430, 100, 7, wh);
+      tube(649, 428, 104, 648, 425, 114, 1.8, whD);
+      tube(653, 428, 102, 653, 448, 93, 6.4, wh); ball(653, 449, 92.6, 4.6, '#ece6dc'); ball(656, 452, 92, 1.1, '#5a4630');
+      tube(657, 428, 104, 658, 425, 114, 1.8, wh);
+      ball(659.4, 434, 102, 1.7, blk);
+      tube(659.8, 438, 99.5, 659.8, 446, 95, 0.7, red); tube(659.8, 446, 95, 659.8, 446, 89, 0.7, red);
+      blocks([[680, 446, 0, grn, 'C']]); } });
 
     /* ---- THE PLUSH WALL down the west wall, south of the lane: white shelves on a blue plinth, three shelves of bears and bunnies sat facing
        the room, a yellow header; a piece per bay along b, keyed at its start (keyStart: against the wall), clipped at its own top (W37).
        North to south -- its far upright, the shelves and their toys, then its near upright over them ---- */
     { const A0 = 0, A1 = 40, B0 = 320, B1 = 690, ZS = [22, 80, 138], zTop = 200, n = 6;
-      /* a toy sat on a shelf, facing east: the far ear, the body, the head, the near ear (a bunny's tall), the muzzle, the feet before it */
-      const plush = (pa, pb, z, c, bunny) => { const ear = bunny ? 9 : 2.8;
-        if(bunny) tube(pa - 2, pb - 3, z + 24, pa - 2, pb - 4, z + 24 + ear*2, 1.8, shade(c, 0.9)); else ball(pa - 1, pb - 4.5, z + 25, ear, shade(c, 0.88));
-        ball(pa, pb, z + 9, 8, c); ball(pa + 1, pb, z + 21, 6.4, c);
-        if(bunny) tube(pa - 2, pb + 3, z + 24, pa - 2, pb + 4, z + 24 + ear*2, 1.8, c); else ball(pa - 1, pb + 4.5, z + 25, ear, c);
-        ball(pa + 6, pb, z + 19.5, 2.8, shade(c, 1.18)); ball(pa + 8, pb, z + 20.5, 1, '#2a2220');
-        ball(pa + 6, pb - 4, z + 3, 3, shade(c, 1.05)); ball(pa + 6, pb + 4, z + 3, 3, shade(c, 1.05)); };
+      const BUN = ['#f2ece2', '#d8d4ce', '#f0c4d0'];
       for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
         runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'plush wall')], () => {
           box(A0, A1, s0, s1, 0, 16, blueD, blueD, shade(blueD, 0.85));                                    // its plinth
           box(A0, A1, s0, s0 + 3, 16, zTop - 8, white, whiteF, whiteS);                                    // its far upright
           ZS.forEach((z, r) => { box(A0, A1 - 2, s0 + 3, s1 - 3, z - 3, z, white, whiteF, whiteS);       // a shelf (between its uprights)
-            for(let i = 0; i < 2; i++){ const j = k*5 + r*3 + i; plush(20, s0 + 3 + (s1 - s0 - 6)*(i + 0.5)/2, z, BEAR[j % BEAR.length], j % 3 === 2); } });
+            for(let i = 0; i < 2; i++){ const j = k*5 + r*3 + i, kind = j % 3; plush(15, s0 + 3 + (s1 - s0 - 6)*(i + 0.5)/2, z, kind === 1 ? BUN[j % BUN.length] : BEAR[j % BEAR.length], kind); } });
           box(A0, A1, s1 - 3, s1, 16, zTop - 8, white, whiteF, whiteS);                                    // its near upright
           box(A0, A1 + 2, s0, s1, zTop - 8, zTop, yel, yelD, yelD); S(A1 + 2.1, s0, s1, zTop - 5, zTop - 3, red);   // the header
         }, { alongB: true, pad: 3, keyStart: true });
       } }
 
-    /* ---- THE GIANT BEAR sat in the south-west corner, facing the room: the far arm, the body, the legs out before it, the near arm, the ears,
-       the head, the muzzle, the nose and eyes, a red bow ---- */
-    items.push({ a: 66, b: 744, z: 0, solids: [{ name: 'giant bear', c: [70, 744], r: 46, h: 120 }], draw: () => {
-      const c = '#a8743a', cl = '#c89a5e', cd = '#8a5a2a';
-      ball(70, 712, 46, 11, cd); ball(60, 744, 40, 30, c);
-      ball(96, 724, 14, 13, c); ball(96, 764, 14, 13, c); ball(108, 724, 14, 7, cl); ball(108, 764, 14, 7, cl);
-      ball(74, 776, 46, 11, c);
-      ball(56, 724, 104, 9, cd); ball(56, 764, 104, 9, c); ball(58, 726, 104, 5, cl); ball(58, 762, 104, 5, cl);
-      ball(62, 744, 86, 22, c); ball(80, 744, 80, 9, cl); ball(88, 744, 82, 3.2, blk); ball(80, 736, 92, 2.2, blk); ball(80, 752, 92, 2.2, blk);
-      ball(78, 734, 66, 5, red); ball(78, 754, 66, 5, red); ball(80, 744, 66, 3.4, shade(red, 0.85)); } });
+    /* ---- THE GIANT BEAR sat in the south-west corner, facing the room: the shelf's bear (plush) at three times its size, a red bow ---- */
+    items.push({ a: 66, b: 744, z: 0, solids: [{ name: 'giant bear', c: [70, 744], r: 46, h: 120 }], draw: () => plush(52, 744, 0, '#a8743a', 2, 3.2) });
 
     /* ---- THE TRAIN TABLE, a child's height (44): its legs, a green top on a wood frame; on it the track's oval (ballast, two rails), a hill
        with a tunnel, the station, the train on the near straight, two trees by the near corners; keyed at its middle ---- */
     items.push({ a: 260, b: 400, z: 0, solids: [solid(170, 350, 340, 460, 44, 'train table')], draw: () => {
+      const zt = 44, wheel = (a, b, r) => { discF(a, b, zt + 3, r, blk); discF(a, b + 0.05, zt + 3, r*0.5, '#c8c4bc'); };
       for(const [la, lb] of [[174, 344], [346, 344], [174, 456], [346, 456]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 38, woodS, woodF, woodS);
-      box(170, 350, 340, 460, 38, 44, '#5aa85c', woodF, woodS);
-      oval(260, 400, 72, 46, 44.2, '#b8a488'); oval(260, 400, 60, 36, 44.3, '#5aa85c');
-      oval(260, 400, 69, 43.5, 44.4, null, '#6a6a70', 1.2); oval(260, 400, 63, 38.5, 44.4, null, '#6a6a70', 1.2);
-      /* the hill over the far straight, its tunnel mouth to the camera */
-      box(232, 288, 346, 368, 44, 60, '#4f9a52', '#478c4a', '#3f7e42'); box(240, 280, 348, 366, 60, 68, '#5aa85c', '#4f9a52', '#478c4a');
-      F(250, 270, 44, 56, '#2a2a2a', null, 0, 368.1);
-      /* the station inside the oval: its platform, the building, the roof */
-      box(232, 290, 388, 402, 44, 47, '#d0ccc4', '#c0bcb4', '#b0aca4'); box(244, 278, 388, 398, 47, 60, '#f4e8d0', '#e8dcc0', '#d8ccb0'); box(240, 282, 386, 400, 60, 63, red, shade(red, 0.85), shade(red, 0.75));
-      /* the train on the near straight, heading east: two carriages, the engine (its cab, boiler, chimney) */
-      box(214, 236, 440, 448, 45, 55, yel, yelD, shade(yelD, 0.9)); box(240, 262, 440, 448, 45, 55, grn, shade(grn, 0.85), shade(grn, 0.75));
-      box(266, 276, 440, 448, 45, 60, red, shade(red, 0.85), shade(red, 0.75)); box(264, 278, 439, 449, 60, 62, blk, blk, blk);
-      box(276, 296, 441, 447, 47, 54, blue, blueD, shade(blueD, 0.85)); cyl(291, 444, 54, 60, 2.4, blk, '#4a4644');
-      /* two trees by the near corners */
-      for(const [ta, tb] of [[186, 448], [336, 448]]){ cyl(ta, tb, 44, 52, 2, '#7a5a3a', '#7a5a3a'); ball(ta, tb, 58, 7, leaf, leafL); } } });
+      box(170, 350, 340, 460, 38, zt, '#5aa85c', woodF, woodS);
+      /* the scenery's ground: a pond in the far corner, a road across the near end to the level crossing */
+      oval(196, 362, 16, 11, zt + 0.15, '#6ab0d8'); oval(195, 361, 9, 5, zt + 0.2, '#9acce6');
+      /* THE TRACK: its ballast, the sleepers round it, the two rails */
+      oval(260, 400, 72, 46, zt + 0.25, '#b8a488'); oval(260, 400, 60, 36, zt + 0.3, '#5aa85c');
+      for(let k = 0; k < 44; k++){ const t = k/44*Math.PI*2, c = Math.cos(t), sn = Math.sin(t), d = 0.025;
+        poly([P(260 + Math.cos(t - d)*61, 400 + Math.sin(t - d)*37, zt + 0.35), P(260 + Math.cos(t - d)*71, 400 + Math.sin(t - d)*45, zt + 0.35), P(260 + Math.cos(t + d)*71, 400 + Math.sin(t + d)*45, zt + 0.35), P(260 + Math.cos(t + d)*61, 400 + Math.sin(t + d)*37, zt + 0.35)], '#7a5a3a'); }
+      oval(260, 400, 69, 43.5, zt + 0.45, null, '#8a8a92', 1.4); oval(260, 400, 63, 38.5, zt + 0.45, null, '#8a8a92', 1.4);
+      /* the hill over the far straight, its tunnel's portal to the camera, a tree on it */
+      box(228, 292, 344, 370, zt, 60, '#4f9a52', '#478c4a', '#3f7e42'); box(238, 282, 347, 367, 60, 70, '#5aa85c', '#4f9a52', '#478c4a');
+      F(248, 272, zt, 58, '#9a9088', null, 0, 370.1); F(252, 268, zt, 54, '#2a2a2a', null, 0, 370.2); poly([P(252, 370.2, 54), P(260, 370.2, 57), P(268, 370.2, 54)], '#2a2a2a');
+      cyl(270, 356, 70, 74, 1.6, '#7a5a3a', '#7a5a3a'); ball(270, 356, 80, 6.5, leaf, leafL);
+      /* the station inside the oval: its platform, the building (a door and windows to the line), the roof, a clock */
+      box(228, 292, 388, 404, zt, zt + 3, '#d0ccc4', '#c0bcb4', '#b0aca4'); box(242, 280, 388, 400, zt + 3, zt + 17, '#f4e8d0', '#e8dcc0', '#d8ccb0');
+      for(const wa of [248, 266]) F(wa, wa + 6, zt + 8, zt + 14, '#8fc4dc', null, 0, 400.1); F(258, 263, zt + 3, zt + 13, '#7a5a3a', null, 0, 400.1);
+      box(238, 284, 386, 402, zt + 17, zt + 20, red, shade(red, 0.85), shade(red, 0.75)); discF(261, 402.2, zt + 23, 2.6, white);
+      /* two houses by the pond: walls, a door, a pitched roof */
+      for(const [ha, hb, c] of [[206, 384, '#f2c230'], [210, 426, '#e8a0b4']]){ box(ha - 8, ha + 8, hb - 7, hb + 7, zt, zt + 11, shade(c, 1.1), c, shade(c, 0.85)); F(ha - 2, ha + 2, zt, zt + 6, '#7a5a3a', null, 0, hb + 7.1);
+        poly([P(ha - 9, hb + 8, zt + 11), P(ha + 9, hb + 8, zt + 11), P(ha + 9, hb, zt + 18), P(ha - 9, hb, zt + 18)], red); poly([P(ha + 9, hb + 8, zt + 11), P(ha + 9, hb, zt + 18), P(ha + 9, hb - 8, zt + 11)], shade(red, 0.8)); }
+      /* THE TRAIN on the near straight, heading east: two coaches (their windows, a roof, wheels), the engine (cab, boiler along its length,
+         its smokebox face, the dome and chimney, the buffer beam, its wheels) */
+      const coach = (a0, a1, c) => { box(a0, a1, 439, 449, zt + 4, zt + 13, c, shade(c, 0.88), shade(c, 0.78)); for(let a = a0 + 3; a + 4 < a1; a += 6) F(a, a + 4, zt + 8, zt + 11.5, '#dcecf2', null, 0, 449.1);
+        box(a0 - 0.6, a1 + 0.6, 438.4, 449.6, zt + 13, zt + 14.6, shade(c, 0.7), shade(c, 0.62), shade(c, 0.55)); wheel(a0 + 4, 449.2, 2.4); wheel(a1 - 4, 449.2, 2.4); };
+      box(212, 296, 440, 448, zt + 2, zt + 4, blk, blk, blk);
+      coach(212, 233, yel); coach(237, 258, grn);
+      box(262, 274, 439, 449, zt + 4, zt + 19, red, shade(red, 0.88), shade(red, 0.76)); F(265, 271, zt + 12, zt + 17, '#dcecf2', null, 0, 449.1); box(261, 275, 438, 450, zt + 19, zt + 21, blk, blk, blk);
+      tube(274, 444, zt + 10, 294, 444, zt + 10, 5.2, blue); discS(294.1, 444, zt + 10, 5.2, '#2a2e34'); discS(294.2, 444, zt + 10, 2, '#f2c230');
+      ball(282, 444, zt + 15.6, 2.4, yel); cyl(290, 444, zt + 14, zt + 21, 2, blk, '#4a4644'); cyl(290, 444, zt + 20, zt + 22, 2.8, blk, '#4a4644');
+      box(295, 297, 439, 449, zt + 3, zt + 8, red, shade(red, 0.85), shade(red, 0.75));
+      for(const wa of [266, 279, 289]) wheel(wa, 449.2, wa === 266 ? 3 : 3.6);
+      /* trees by the near corners */
+      for(const [ta, tb] of [[184, 450], [338, 450], [336, 352]]){ cyl(ta, tb, zt, zt + 8, 2, '#7a5a3a', '#7a5a3a'); ball(ta, tb, zt + 14, 7, leaf, leafL); ball(ta - 1, tb - 1, zt + 20, 4.6, leafL, '#86c088'); } } });
 
     /* ---- THE GAMES TOWER, freestanding, seen from the east: a double-sided stand along b of four shelves of board games laid flat, in runs
        SHORTER THAN IT IS DEEP (20 on 40) keyed down its middle line (W28), a sign on its south end ---- */
@@ -65188,11 +65253,18 @@ function houseCanopy(fn){
       runPiece(items, A0, A1, B0, B1, zT + 4, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'gondola')], () => {
         box(A0, A1, B0, B1, 0, 10, blue, blueD, shade(blueD, 0.85));
         box(A0 + 4, A1 - 4, 577, 583, 10, zT, white, whiteF, whiteS);
-        for(const [r, z] of [[0, 84], [1, 50], [2, 16]]) for(let i = 0; i < 10; i++){ const pa = A0 + 10 + i*23, c = TOY[(i*3 + r*2) % TOY.length];
-          box(pa, pa + 15, 585, 588, z, z + 26, white, '#e8eef2', whiteS); F(pa, pa + 15, z + 19, z + 26, c, null, 0, 588.1);
-          if((i + r) % 2) { F(pa + 2, pa + 13, z + 5, z + 12, c, null, 0, 588.2); F(pa + 3, pa + 6, z + 3, z + 6, blk, null, 0, 588.3); F(pa + 9, pa + 12, z + 3, z + 6, blk, null, 0, 588.3); }   // (a toy car)
-          else { F(pa + 5.5, pa + 9.5, z + 4, z + 13, c, null, 0, 588.2); F(pa + 6, pa + 9, z + 13, z + 17, '#f0cdb2', null, 0, 588.2); }                      // (a doll)
-          box(pa + 7, pa + 8, 583, 588, z + 28, z + 29, '#9a9a9e', '#9a9a9e', '#8a8a8e'); }
+        /* a blister card on its peg: the card (its header in the toy's colour, its hang hole), the toy in its bubble -- a car (body, cabin, its
+           windows, two wheels) or a doll (her dress, arms, face, hair) -- the bubble's gleam; the peg over it */
+        for(const [r, z] of [[0, 82], [1, 48], [2, 14]]) for(let i = 0; i < 9; i++){ const pa = A0 + 9 + i*25.5, c = TOY[(i*3 + r*2) % TOY.length], f = 588.15, m = pa + 10;
+          box(pa, pa + 20, 585, 588, z, z + 30, white, '#eef2f4', whiteS); F(pa, pa + 20, z + 22, z + 30, c, null, 0, 588.1); F(m - 1.5, m + 1.5, z + 26, z + 28, whiteS, null, 0, 588.15);
+          F(pa + 2, pa + 18, z + 2, z + 21, '#e4eef2', null, 0, f);
+          if((i + r) % 2){ const bc = TOY[(i + r + 3) % TOY.length]; F(pa + 3, pa + 17, z + 6, z + 11, bc, null, 0, f + 0.05); F(pa + 6, pa + 14, z + 11, z + 15, bc, null, 0, f + 0.05);
+            F(pa + 7, pa + 13, z + 11.5, z + 14, '#cfe6ee', null, 0, f + 0.08); discF(pa + 6.5, f + 0.1, z + 6, 2.4, blk); discF(pa + 13.5, f + 0.1, z + 6, 2.4, blk); }   // (a car)
+          else { const dc = TOY[(i + r + 1) % TOY.length]; poly([P(m, f + 0.05, z + 14), P(m + 4.6, f + 0.05, z + 4), P(m - 4.6, f + 0.05, z + 4)], dc);
+            F(m - 4, m - 2.6, z + 8, z + 13, '#f0cdb2', null, 0, f + 0.04); F(m + 2.6, m + 4, z + 8, z + 13, '#f0cdb2', null, 0, f + 0.04);
+            F(m - 3.6, m + 3.6, z + 13.4, z + 20, '#6a3a22', null, 0, f + 0.06); F(m - 2.6, m + 2.6, z + 13.4, z + 18.4, '#f0cdb2', null, 0, f + 0.08); }       // (a doll)
+          F(pa + 3, pa + 7, z + 4, z + 19, 'rgba(255,255,255,.45)', null, 0, f + 0.12);
+          box(m - 0.5, m + 0.5, 583, 589, z + 27, z + 28, '#9a9a9e', '#9a9a9e', '#8a8a8e'); }
         box(A0, A1, B0, B1, zT, zT + 4, yel, yelD, yelD);
       }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
     }
@@ -65200,15 +65272,20 @@ function houseCanopy(fn){
     /* ---- THE BEACH BINS along the south wall: open crates, each the inside of its back panel, what is heaped in it (buckets, spades, beach
        balls), its front panel and its east side; in runs of 36 keyed down its middle line ---- */
     { const A0 = 120, A1 = 540, B0 = 744, B1 = 790, zT = 44, n = 4, bw = (A1 - A0)/n;
-      runPiece(items, A0, A1, B0, B1, zT + 18, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'beach bins')], () => {
+      runPiece(items, A0, A1, B0, B1, zT + 20, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'beach bins')], () => {
         for(let k = 0; k < n; k++){ const c0 = A0 + bw*k + 2, c1 = c0 + bw - 4, cc = TOY[(k*2 + 1) % TOY.length];
           T(c0, c1, B0, B1, 2, shade(cc, 0.7)); F(c0, c1, 2, zT, shade(cc, 0.8), null, 0, B0 + 2);
-          if(k % 2 === 0){ for(let i = 0; i < 4; i++){ const ba = c0 + 14 + i*22, bb = B0 + 16 + (i % 2)*12, c = TOY[(i*3 + k) % TOY.length];
-              cyl(ba, bb, zT - 12, zT + 4, 8, c, shade(c, 0.7)); tube(ba - 7, bb, zT + 4, ba + 7, bb, zT + 4, 0.6, '#3a3a3e'); }
-            for(let i = 0; i < 3; i++){ const sa = c0 + 24 + i*26; tube(sa, B0 + 22, zT - 4, sa + 4, B0 + 20, zT + 14, 1.2, TOY[(i + 4) % TOY.length]); box(sa + 2, sa + 8, B0 + 18, B0 + 22, zT + 12, zT + 18, TOY[(i + 2) % TOY.length], TOY[(i + 2) % TOY.length], TOY[(i + 2) % TOY.length]); } }
-          else { const bl = []; for(let i = 0; i < 7; i++) bl.push([c0 + 14 + (i*17 % (bw - 28)), B0 + 14 + (i % 3)*9, zT + 2 + (i % 2)*4, i]);
+          /* buckets in rows (far row first), each its body, the rim's band, the inside's dark, a spade stood in it to its T grip, the handle's
+             arc over the near half; or a heap of beach balls, far ones first */
+          if(k % 2 === 0){ const bk = []; for(let i = 0; i < 4; i++) bk.push([c0 + 14 + i*22, B0 + 14 + (i % 2)*16, i]);
+            bk.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+            for(const [ba, bb, i] of bk){ const c = TOY[(i*3 + k) % TOY.length], sc = TOY[(i*3 + k + 2) % TOY.length];
+              cyl(ba, bb, zT - 12, zT + 4, 8, c, shade(c, 0.6)); cyl(ba, bb, zT + 1, zT + 4.6, 8.5, shade(c, 1.12), shade(c, 0.6)); cyl(ba, bb, zT + 4.5, zT + 4.6, 6.6, shade(c, 0.5), shade(c, 0.5));
+              if(i % 2 === 0){ tube(ba - 1, bb - 1, zT + 3, ba + 1, bb, zT + 16, 1.1, sc); box(ba - 3, ba + 5, bb - 1, bb + 1, zT + 15, zT + 17, sc, shade(sc, 0.85), shade(sc, 0.75)); }
+              for(let q = 0; q < 6; q++){ const t0 = q/6*Math.PI, t1 = (q + 1)/6*Math.PI; tube(ba + Math.cos(t0)*8.2*0.7, bb + Math.cos(t0)*8.2*0.7, zT + 4.6 + Math.sin(t0)*7, ba + Math.cos(t1)*8.2*0.7, bb + Math.cos(t1)*8.2*0.7, zT + 4.6 + Math.sin(t1)*7, 0.5, '#3a3a3e'); } } }
+          else { const bl = []; for(let i = 0; i < 6; i++) bl.push([c0 + 15 + (i*19 % (bw - 30)), B0 + 14 + (i % 3)*9, zT + 3 + (i % 2)*5, i]);
             bl.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
-            for(const [ba, bb, bz, i] of bl){ ball(ba, bb, bz, 9, TOY[(i*2 + k) % TOY.length]); ball(ba + 1, bb + 1, bz + 1, 3.4, white); } }
+            for(const [ba, bb, bz, i] of bl){ const c1 = TOY[(i*2 + k) % TOY.length], c2 = TOY[(i*2 + k + 3) % TOY.length]; beachBall(ba, bb, bz, 9.5, [c1, white, c2, white, yel, white]); } }
           F(c0, c1, 0, zT, cc, null, 0, B1); F(c0 + 4, c1 - 4, zT - 10, zT - 6, shade(cc, 1.15), null, 0, B1 + 0.1);
           S(c1, B0, B1, 0, zT, shade(cc, 0.82)); T(c0, c1, B1 - 2, B1, zT, shade(cc, 1.1)); }
       }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
