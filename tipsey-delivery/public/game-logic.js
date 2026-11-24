@@ -65617,8 +65617,13 @@ function houseCanopy(fn){
           if(u < mid) return job(atL, LP, add(LP, -2, -4, -3), add(LP, 2*Math.cos(t/150), 0, 2*Math.sin(t/150)), 0, 0.1);
           if(u < mid + 700){ const k = (u - mid)/700, at = [atL[0] + (atT[0] - atL[0])*k, atL[1] + (atT[1] - atL[1])*k]; return { at, f: faceTo(atL, atT), walk: 1, gait: k*(atT[0] - atL[0])/7, lift: [0.1, 0.1], bend: [0.2, 0.2] }; }
           return job(atT, TL, add(TL, 0, -4, 2), add(TL, 2*Math.cos(t/150), 2, 2*Math.sin(t/150)), 0.36, 0.45); }
-        case 8: { const tap = Math.floor(t/2600) % 3 === 2, G = SK(a, b, -26, -12, 66), at = [a - 10, b + N + Math.sign(N)*6], tab = [at[0] + 6, at[1] - Math.sign(N)*22, 74];   /* (the test: the tablet in his hands, now and then a hand to the throttle at the grip, the lamps blinking) */
-          return tap ? job(at, G, tab, add(G, 0, 0, 0), 0, 0) : Object.assign({ at, f: faceTo(at, [a - 10, b]) + 0.15*S(1700) }, hP(at, faceTo(at, [a - 10, b]), add(tab, -4, 0, 2*Math.max(0, S(200))), add(tab, 4, 0, 0), 0, 0)); }
+        case 8: { const G = SK(a, b, -26, -12, 66), at = [a - 10, b + N + Math.sign(N)*6], tab = [at[0] + 6, at[1] - Math.sign(N)*22, 74];   /* (the test: the tablet in his hands, now and then a hand to the throttle at the grip, the lamps blinking) */
+          /* (the hand to the throttle and back eased, not a snap -- Sir, 2026-11-24: "lets do them all", station 8's pose snaps) */
+          const ph = ((t % 7800) + 7800) % 7800, kT = ph < 5200 ? 0 : ease(clamp01((ph - 5200)/350))*(1 - ease(clamp01((ph - 7450)/350)));
+          const TP = job(at, G, tab, add(G, 0, 0, 0), 0, 0), fN = faceTo(at, [a - 10, b]), NT = Object.assign({ at, f: fN + 0.15*S(1700) }, hP(at, fN, add(tab, -4, 0, 2*Math.max(0, S(200))), add(tab, 4, 0, 0), 0, 0));
+          if(kT <= 0) return NT; if(kT >= 1) return TP;
+          let dF = TP.f - NT.f; dF = ((dF + 2) % 4 + 4) % 4 - 2;
+          return Object.assign({ at, f: NT.f + dF*kT, hT: TP.hT }, POSEMIX(NT, TP, kT)); }
       }
       return null; };
     /* STATIONS 2 TO 7 AT THEIR PIECES (Sir, 2026-11-24: "give stations 2 -> 7 the same treatment as stations 0 and 1"): the set he fetched
@@ -65996,8 +66001,10 @@ function houseCanopy(fn){
              the box and closes it; the robot takes it to the arm (7000). age: from the last stage done */
           const age = (((t - UNL) % CYC) + CYC) % CYC, PK = [PKD[0], RB + 5], E = (a0, a1) => ease(clamp01((age - a0)/(a1 - a0)));
           const f = age < 900 ? 2 - 2*E(0, 900) : age < 1500 ? 0 : age < 2000 ? E(1500, 2000) : age < 2600 ? 1 : age < 2850 ? 1 + E(2600, 2850) : age < 3100 ? 2 : age < 4200 ? 2 - E(3200, 4200) : age < 8000 ? 1 : 1 + E(8000, 8900);
-          const pose = age < 900 ? {} : age < 1500 ? REACH(t + p*500) : age < 2600 ? { lift: [0.55 + 0.25*(age > 2000 ? 1 - E(2000, 2500) : 0), 0.55 + 0.25*(age > 2000 ? 1 - E(2000, 2500) : 0)], bend: [0.7, 0.7] }
-            : age < 3100 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : age < 4300 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : age < 5000 ? { lift: [0.6, 0.6], bend: [0.4, 0.4], waist: 0.35 } : age < 5900 ? Object.assign(WORK(t + p*700), { waist: 0.35 }) : {};
+          const PKP = g => g < 900 ? { lift: [0, 0], bend: [0, 0] } : g < 1500 ? REACH(t + p*500) : g < 2600 ? { lift: [0.55 + 0.25*(g > 2000 ? 1 - E(2000, 2500) : 0), 0.55 + 0.25*(g > 2000 ? 1 - E(2000, 2500) : 0)], bend: [0.7, 0.7] }
+            : g < 3100 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : g < 4300 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : g < 5000 ? { lift: [0.6, 0.6], bend: [0.4, 0.4], waist: 0.35 } : g < 5900 ? Object.assign(WORK(t + p*700), { waist: 0.35 }) : { lift: [0, 0], bend: [0, 0] };
+          /* (each step's arms eased in from the last, not snapped -- Sir, 2026-11-24: "lets do them all") */
+          let pose = PKP(age); for(const B of [0, 900, 1500, 2600, 4300, 5000, 5900]) if(age >= B && age < B + 300){ pose = POSEMIX(PKP(B ? B - 1 : CYC - 1), pose, ease((age - B)/300)); break; }
           out.push(man(PK[0], PK[1], f, pose));
           const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), ha = PK[0] + fa*30, hb = PK[1] + fb*30;
           if(age >= 1200 && age < 2500){ const zz = age < 2000 ? 40 : 40 - 9*E(2000, 2500); out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => openCarton(ha, hb, zz, false) }); }   /* (the box off his supply, opened, onto the robot) */
@@ -66031,7 +66038,7 @@ function houseCanopy(fn){
               pose = Object.assign({ walk: kw > 0 && kw < 1 ? 1 : 0, gait: kw*Math.abs(S[1] - at0[1])/7 }, hP(pos, f, [pp[0] - 18, pp[1], pp[2]], [pp[0] + 18, pp[1], pp[2]], 0, 0.05)); }   /* (turned back to the line with it, waiting at his place for the next robot) */
             if(pp){ const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)]; out.push(SCO(pp[0], pp[1], pp[2] - 12 - 1.5, 0, fv[0] + fv[1] > 0 ? Math.max(4, pos[0] + pos[1] + 10 - pp[0] - pp[1]) : Math.min(-2, pos[0] + pos[1] - 6 - pp[0] - pp[1]))); }
             out.push(man(pos[0], pos[1], f, pose)); continue; } }
-        if(p === 0 && here && !on && !(u >= w0 && u < 1500)){ const o = u > w1 ? u - w1 : u + CYC - w1, OFF = CYC - w1 + w0, at0 = J0.at, E = (u0, u1) => ease(clamp01((o - u0)/(u1 - u0)));
+        if(p === 0 && here && !on && !(u >= w0 && u < 1500)){ const o = u >= w1 ? u - w1 : u + CYC - w1, OFF = CYC - w1 + w0, at0 = J0.at, E = (u0, u1) => ease(clamp01((o - u0)/(u1 - u0)));
           const S = [at0[0], FEED[1] + 40], fB = 3, fW = 1, inC = [FEED[0], FEED[1] + 4, 40];
           let pos = at0, f = fW, pose = {}, held = false, pp = null;
           if(o < 500){ f = fW + 2*E(0, 500); pose = POSEMIX(JOBAT(0, pa, pb, w1 - 1, t + p*700), { lift: [0.08, 0.08], bend: [0.15, 0.15] }, E(0, 400)); }   /* (his hands off the deck, eased, as he turns) */
@@ -66092,6 +66099,10 @@ function houseCanopy(fn){
         if(p === 7 && u > w1){ const T7 = JOBAT(7, pa, pb, DWELL, t), k = clamp01((u - w1)/900); at = [T7.at[0] + (J0.at[0] - T7.at[0])*k, T7.at[1] + (J0.at[1] - T7.at[1])*k];
           if(k < 1){ out.push(man(at[0], at[1], faceTo(T7.at, J0.at), { walk: 1, gait: k*(J0.at[0] - T7.at[0])/7 })); continue; } }   /* (the lamp man back along from the tail) */
         let df = fb - J0.f; df = ((df + 2) % 4 + 4) % 4 - 2;   /* (the short way round) */
+        if(p === 8 && here){   /* (the tester turned to his bench and back eased, his hands from the tablet down to his sides and on to the tag -- not snapped: Sir, 2026-11-24, "lets do them all") */
+          const Jx = u > w1 ? JOBAT(p, pa, pb, w1 - OF*0.6, t + p*700) : JOBAT(p, pa, pb, Math.max(500, w0 - OF*0.6), t + p*700); let dx = (((fb - Jx.f) % 4) + 4) % 4; if(dx > 2.3) dx -= 4;   /* (a half turn always the same way round, though his facing sways) */
+          const fx = Jx.f + dx*ease(s), RS = REST(at, fx), PZ = s < 0.55 ? POSEMIX(Jx, RS, ease(s/0.55)) : POSEMIX(RS, REACH(t + p*500), ease((s - 0.55)/0.45));
+          out.push(man(at[0], at[1], fx, PZ)); continue; }
         out.push(man(at[0], at[1], J0.f + df*s, s > 0.9 ? REACH(t + p*500) : {}));
         if(p >= 1 && p <= 7 && here && s > 0.9){ const ff = (J0.f + df*s)*Math.PI/2, ha = at[0] + Math.cos(ff)*39, hb = at[1] + Math.sin(ff)*39;   /* (at his hands: REACH's arms, 19 to the elbow and 21 on, swung 0.78 of level from the shoulder at 95 -- out 39, down to 85) */   /* (the next part out of his bin and in his hands, as he turns back to the scooter) */
           out.push({ kind: 'cargo', a: ha, b: hb, dd: Math.max(2, (at[0] + at[1]) - (ha + hb) + 4), cargo: () => {} }); out.push(PIECE(p, ha, hb, 84, Math.cos(ff), Math.sin(ff), Math.max(ha + hb + 2, at[0] + at[1] + 4))); }   /* (the next piece in his hands, as it goes on) */   /* (after him: in front of his chest) */
@@ -66108,7 +66119,12 @@ function houseCanopy(fn){
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => SLOTS3(P.a, P.b, P.fdir, 31, col, st, p) })); WHEELS3(out, P.a, P.b, P.fdir, st, p, col); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
-      { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(PM(jr5 - DW0 - LC_A.tPick) < DECK_SET - DW0 - LC_A.tPick); CW_FLOW.decks = on ? n : 'swap';
+      /* (the carton swapped as it runs empty -- Sir, 2026-11-24: "lets do them all": a deck leaves it the moment it is in his hands (DRU, his
+         lift between scooters), and after a carton swap the first comes out as he fetches it on his way back (DFJ) -- six to a carton, none
+         left in the one he takes to the baler, none left in the new one while he holds it) */
+      { const E5 = DW0 + P5W, Ls0 = (((PAL0 + E5 - 400 - LOF[0]) % CYC) + CYC) % CYC, DFJ = E5 + 1100/Math.max(1, 3000/(CYC - Ls0)) - DECK_SET, DRU = DWELL - 400 - LOB[0] + 1600,
+          d1 = (((DRU - PAL0 - DECK_SET) % CYC) + CYC) % CYC, jd = PM(jr5 - DECK_SET), nD = partsLeft(t, SUPT[0], DRU);
+        const n = Math.max(0, nD + (jd >= d1 && jd < DFJ ? 1 : 0) - (jd >= DFJ && jd < d1 ? 1 : 0)), on = !(PM(jr5 - DW0 - LC_A.tPick) < DECK_SET - DW0 - LC_A.tPick); CW_FLOW.decks = on ? n : 'swap';
         out.push(bot(FEED[0], FEED[1], 0, { build: 'amrstock', loads: [], cargo: on ? () => openDeckCarton(FEED[0], FEED[1], 31, -2) : null }));   /* (its floor and back walls) */
         /* (the decks in it drawn by the scooter's own drawer, the very deck he lays on the jig -- Sir, 2026-11-23, station 0 "the same way"), then its
            front wall over them */
