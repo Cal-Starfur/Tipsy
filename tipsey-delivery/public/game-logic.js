@@ -19326,8 +19326,15 @@ function lotDrivePaint(K, a0, a1, b0, b1, o){
   let h = 2166136261;
   for(const ch of String(o.seed || '')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
   const rnd = lotDriveRand(h ^ Math.round(a0*7 + b0*13) ^ ((o.pal || 0)*0x9E3779B1));
-  const Q = (pa0, pa1, pb0, pb1, zz, c) => poly([P(pa0, pb0, zz), P(pa1, pb0, zz), P(pa1, pb1, zz), P(pa0, pb1, zz)], c);
-  const blot = (ca, cb, ra, rb, zz, c) => { const pts = [];
+  /* o.clip [a0, a1, b0, b1]: paint only inside it -- a landmark cut into cells paints its own share of a drive that crosses
+     their line (LOTS, round two); without it, as before */
+  const CL = o.clip;
+  const Q = (pa0, pa1, pb0, pb1, zz, c) => { if(CL){ pa0 = Math.max(pa0, CL[0]); pa1 = Math.min(pa1, CL[1]); pb0 = Math.max(pb0, CL[2]); pb1 = Math.min(pb1, CL[3]); if(pa1 <= pa0 || pb1 <= pb0) return; }
+    poly([P(pa0, pb0, zz), P(pa1, pb0, zz), P(pa1, pb1, zz), P(pa0, pb1, zz)], c); };
+  const Ln = (pa, pb, qa, qb, zz, c, lw) => { if(CL){ if(pa === qa){ if(pa < CL[0] || pa > CL[1]) return; const lo = Math.max(Math.min(pb, qb), CL[2]), hi = Math.min(Math.max(pb, qb), CL[3]); if(hi <= lo) return; pb = lo; qb = hi; }
+      else { if(pb < CL[2] || pb > CL[3]) return; const lo = Math.max(Math.min(pa, qa), CL[0]), hi = Math.min(Math.max(pa, qa), CL[1]); if(hi <= lo) return; pa = lo; qa = hi; } }
+    poly([P(pa, pb, zz), P(qa, qb, zz)], null, c, lw); };
+  const blot = (ca, cb, ra, rb, zz, c) => { if(CL && (ca < CL[0] || ca >= CL[1] || cb < CL[2] || cb >= CL[3])) return; const pts = [];
     for(let k = 0; k < 12; k++){ const t = k*Math.PI/6, w = 1 + 0.18*Math.sin(3*t + ca); pts.push(P(ca + ra*w*Math.cos(t), cb + rb*w*Math.sin(t), zz)); }
     poly(pts, c); };
   const bays = o.bays || (W > 200 ? 2 : 1), bw = W/bays;
@@ -19341,7 +19348,7 @@ function lotDrivePaint(K, a0, a1, b0, b1, o){
     const grain = shade(col, 1.06);
     for(let i = 0; i < bays; i++) for(let r = 0; r < rows; r++){
       const fa0 = a0 + i*bw + m + 2, fa1 = a0 + (i + 1)*bw - m - 2;
-      for(let b = b0 + r*rl + m + 7; b < b0 + (r + 1)*rl - m - 3; b += 11) poly([P(fa0, b, z + 0.03), P(fa1, b, z + 0.03)], null, grain, 0.6);
+      for(let b = b0 + r*rl + m + 7; b < b0 + (r + 1)*rl - m - 3; b += 11) Ln(fa0, b, fa1, b, z + 0.03, grain, 0.6);
     }
   }
   /* the wheels' wear down each bay, and an oil stain where a car stands */
@@ -19362,9 +19369,134 @@ function lotDrivePaint(K, a0, a1, b0, b1, o){
   /* the tooled joints, over all: the seam between bays, the joints across, the expansion joint at the lot front */
   const jc = shade(col, 0.8), lip = shade(col, 1.09), rows = Math.max(1, Math.round(L/(bw*0.85))), rl = L/rows;
   for(let i = 1; i < bays; i++){ const a = a0 + i*bw;
-    poly([P(a, b0, z + 0.08), P(a, b1, z + 0.08)], null, jc, 1); poly([P(a + 1.4, b0, z + 0.08), P(a + 1.4, b1, z + 0.08)], null, lip, 0.6); }
+    Ln(a, b0, a, b1, z + 0.08, jc, 1); Ln(a + 1.4, b0, a + 1.4, b1, z + 0.08, lip, 0.6); }
   for(let r = 1; r <= rows; r++){ const b = b0 + r*rl - (r === rows ? 1 : 0);
-    poly([P(a0, b, z + 0.08), P(a1, b, z + 0.08)], null, jc, 1); if(r < rows) poly([P(a0, b + 1.4, z + 0.08), P(a1, b + 1.4, z + 0.08)], null, lip, 0.6); }
+    Ln(a0, b, a1, b, z + 0.08, jc, 1); if(r < rows) Ln(a0, b + 1.4, a1, b + 1.4, z + 0.08, lip, 0.6); }
+}
+/* LOTS, ROUND TWO (Sir, 2026-11-24: "lets do inside lots and garage lanes"). The car parks were one flat sheet of tarmac with
+   crisp new paint on it -- a lot nobody had ever parked in -- and the street's drive, worn and stained, ran into it and stopped
+   being worn at the lot line. A real car park has aged: patched where it failed, its cracks sealed in tar, the tone of the
+   asphalt varying where it has been resurfaced; its paint dulled where wheels cross it, the aisles polished dark where the
+   tyres run, a drip of oil under where each car stands. In two passes, both seeded off the lot's own name (stable, never per
+   frame -- all of it in the building or ground cache, as the paint it lies with):
+   - 'base' (o.phase), right after the lot's asphalt and before its paint: a mottle of resurfaced tone, saw-cut patches, sealed
+     cracks;
+   - 'wear', after the paint: tyre polish down each aisle (o.aisles: { u0, u1, v0, v1, along 'u' | 'v', lanes, fade: +1 the
+     polish strongest at the high end, -1 the low }), wheel scuffs over the line ends and oil under each stall (o.stalls:
+     { u, v, nu, nv, w, l } -- its middle, the way its nose points, its width and length), the arrows worn in flecks
+     (o.arrows: [u, v]).
+   u, v are the caller's ground plane (lab a, b or world x, y): K = { P(u, v, z), poly, shade }. o.clip [u0, u1, v0, v1]: only
+   what lies inside it (a landmark painted cell by cell); o.col the asphalt. lotGfxKit makes K for a scene's ground pass. */
+const LOT_ART = { mot: 0.06, patch: 0.93, patchOld: 1.04, patchEdge: 0.8, seal: 0.7, crackW: [0.9, 1.6], polish: [24, 26, 28, 0.035],
+                  oil: 'rgba(18,18,20,0.15)', oil2: 'rgba(12,12,14,0.12)', scuffA: 0.25, fleckA: 0.5 };
+function lotSeed(o){
+  let h = 2166136261;
+  for(const ch of String(o.seed || '')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return lotDriveRand(h ^ ((o.pal || 0)*0x9E3779B1) ^ (o.phase === 'wear' ? 0x5bd1e995 : 0));
+}
+function lotRGBA(hex, f, a){
+  const n = parseInt(hex.slice(1), 16), c = v => Math.max(0, Math.min(255, Math.round(v*f)));
+  return 'rgba(' + c((n >> 16) & 255) + ',' + c((n >> 8) & 255) + ',' + c(n & 255) + ',' + a + ')';
+}
+function lotParkPaint(K, r, o){
+  const { P, poly, shade } = K, CL = o.clip, col = o.col, z = o.z != null ? o.z : 0.05, rnd = lotSeed(o);
+  const [U0, U1, V0, V1] = r, A = (U1 - U0)*(V1 - V0);
+  const inside = (u0, u1, v0, v1) => !CL || (u0 >= CL[0] && u1 <= CL[1] && v0 >= CL[2] && v1 <= CL[3]);
+  const Q = (u0, u1, v0, v1, zz, c) => {
+    if(CL){ u0 = Math.max(u0, CL[0]); u1 = Math.min(u1, CL[1]); v0 = Math.max(v0, CL[2]); v1 = Math.min(v1, CL[3]); if(u1 <= u0 || v1 <= v0) return; }
+    poly([P(u0, v0, zz), P(u1, v0, zz), P(u1, v1, zz), P(u0, v1, zz)], c); };
+  const blot = (cu, cv, ru, rv, rot, zz, c) => {
+    if(!inside(cu - ru, cu + ru, cv - ru, cv + ru)) return;
+    const pts = [], cr = Math.cos(rot), sr = Math.sin(rot);
+    for(let k = 0; k < 12; k++){ const t = k*Math.PI/6, w = 1 + 0.18*Math.sin(3*t + cu*0.37), x = ru*w*Math.cos(t), y = rv*w*Math.sin(t);
+      pts.push(P(cu + x*cr - y*sr, cv + x*sr + y*cr, zz)); }
+    poly(pts, c); };
+  const pick = (m) => [U0 + m + rnd()*(U1 - U0 - 2*m), V0 + m + rnd()*(V1 - V0 - 2*m)];
+  if(o.phase !== 'wear'){
+    /* resurfaced tone: broad, faint, a shade either way */
+    const nM = Math.round(A/(420*420));
+    for(let i = 0; i < nM; i++){ const [cu, cv] = pick(140), ru = 90 + rnd()*120, rv = ru*(0.5 + 0.4*rnd()), rot = rnd()*Math.PI;
+      blot(cu, cv, ru, rv, rot, z, lotRGBA(col, rnd() < 0.5 ? 0.9 : 1.1, LOT_ART.mot)); }
+    /* saw-cut patches: square to the lot, newer (darker) or old (faded), their cut edge sealed */
+    const nP = Math.round(A/(640*640));
+    for(let i = 0; i < nP; i++){ const [cu, cv] = pick(120), hu = 30 + rnd()*70, hv = 24 + rnd()*50, pc = shade(col, rnd() < 0.7 ? LOT_ART.patch : LOT_ART.patchOld);
+      if(!inside(cu - hu, cu + hu, cv - hv, cv + hv)) continue;
+      Q(cu - hu, cu + hu, cv - hv, cv + hv, z + 0.02, pc);
+      poly([P(cu - hu, cv - hv, z + 0.03), P(cu + hu, cv - hv, z + 0.03), P(cu + hu, cv + hv, z + 0.03), P(cu - hu, cv + hv, z + 0.03)], null, shade(col, LOT_ART.patchEdge), 1); }
+    /* cracks, sealed in tar: a wandering band, wider where the crack opened */
+    const nC = Math.round(A/(380*380)), sc = shade(col, LOT_ART.seal);
+    for(let i = 0; i < nC; i++){
+      let [cu, cv] = pick(60), th = rnd()*Math.PI*2;
+      const n = 3 + Math.floor(rnd()*4), pts = [[cu, cv]], ws = [];
+      for(let k = 0; k < n; k++){ th += (rnd() - 0.5)*1.3; cu += Math.cos(th)*(30 + rnd()*45); cv += Math.sin(th)*(30 + rnd()*45); pts.push([cu, cv]); ws.push(rnd()); }
+      if(!pts.every(([u, v]) => u > U0 + 8 && u < U1 - 8 && v > V0 + 8 && v < V1 - 8 && inside(u, u, v, v))) continue;
+      for(let k = 0; k < pts.length - 1; k++){
+        const [pu, pv] = pts[k], [qu, qv] = pts[k + 1], L = Math.hypot(qu - pu, qv - pv) || 1, w = (k === 0 || k === pts.length - 2 ? LOT_ART.crackW[0] : LOT_ART.crackW[1]) + ws[k]*0.6;
+        const nu = -(qv - pv)/L*w, nv = (qu - pu)/L*w;
+        poly([P(pu + nu, pv + nv, z + 0.04), P(qu + nu, qv + nv, z + 0.04), P(qu - nu, qv - nv, z + 0.04), P(pu - nu, pv - nv, z + 0.04)], sc);
+      }
+    }
+    return;
+  }
+  /* 'wear': tyre polish down each aisle, two tracks a lane, soft-edged (three widths laid over each other); faded toward
+     one end where the aisle says so */
+  for(const a of o.aisles || []){
+    const pc = a.rgb || LOT_ART.polish;                                          // (a.rgb: [r, g, b, a] -- ruts in gravel, not tyre polish)
+    const alongU = a.along === 'u', n = a.lanes || 1, w = alongU ? a.v1 - a.v0 : a.u1 - a.u0, lw = w/n;
+    const s0 = alongU ? a.u0 : a.v0, s1 = alongU ? a.u1 : a.v1, steps = a.fade ? 4 : 1;
+    for(let l = 0; l < n; l++) for(const s of [-1, 1]){
+      const c = (alongU ? a.v0 : a.u0) + (l + 0.5)*lw + s*lw*0.26, tw = Math.min(lw*0.08, 12);
+      for(let k = 0; k < steps; k++){
+        const t0 = s0 + (s1 - s0)*k/steps, t1 = s0 + (s1 - s0)*(k + 1)/steps;
+        const fa = !a.fade ? 1 : a.fade > 0 ? (k + 1)/steps : 1 - k/steps;
+        if(fa < 0.3) continue;
+        const cz = 'rgba(' + pc[0] + ',' + pc[1] + ',' + pc[2] + ',' + (pc[3]*fa*(a.k || 1)).toFixed(3) + ')';
+        for(const f of [1, 0.6, 0.3]){
+          if(alongU) Q(t0, t1, c - tw*f, c + tw*f, z + 0.6, cz);
+          else Q(c - tw*f, c + tw*f, t0, t1, z + 0.6, cz);
+        }
+      }
+    }
+  }
+  /* each stall: the wheels' scuff over the line ends at its mouth, and oil under the engine (not every stall) */
+  const scuff = lotRGBA(col, 1, LOT_ART.scuffA);
+  for(const st of o.stalls || []){
+    const mu = st.u - st.nu*st.l/2, mv = st.v - st.nv*st.l/2, hw = st.w/2 + 6, d = 34 + rnd()*14;
+    if(st.nu) Q(Math.min(mu, mu + st.nu*d), Math.max(mu, mu + st.nu*d), st.v - hw, st.v + hw, z + 0.62, scuff);
+    else Q(st.u - hw, st.u + hw, Math.min(mv, mv + st.nv*d), Math.max(mv, mv + st.nv*d), z + 0.62, scuff);
+    const oil = rnd(), k = 0.12 + 0.12*rnd(), ju = rnd() - 0.5, rr = 11 + rnd()*9, rot = rnd()*Math.PI;
+    if(st.noOil || oil > (o.oil != null ? o.oil : 0.55)) continue;
+    const ou = st.u + st.nu*st.l*k + ju*st.w*0.2*(st.nu ? 0 : 1), ov = st.v + st.nv*st.l*k + ju*st.w*0.2*(st.nv ? 0 : 1);
+    blot(ou, ov, rr, rr*0.7, rot, z + 0.64, LOT_ART.oil);
+    blot(ou + rr*0.2, ov - rr*0.1, rr*0.5, rr*0.38, rot, z + 0.65, LOT_ART.oil2);
+  }
+  /* the arrows, worn in flecks where the wheels have taken the paint */
+  const fleck = lotRGBA(col, 1, LOT_ART.fleckA);
+  for(const [au, av] of o.arrows || []) for(let i = 0; i < 9; i++){
+    const r0 = 3 + rnd()*6, du = (rnd() - 0.5)*56, dv = (rnd() - 0.5)*56, rot = rnd()*Math.PI;
+    blot(au + du, av + dv, r0, r0*0.7, rot, z + 0.66, fleck);
+  }
+}
+/* a scene's ground pass as the lot painters' kit: P is the scene's W (swap: u along -x... u = y, v = -x, for a lot whose
+   drive comes in along x), poly fills ('#rrggbb' or 'rgba(...)') and strokes on g, culled by `on` (the pass's own test) */
+const _lotCss = new Map();
+function lotCss(c){
+  let v = _lotCss.get(c);
+  if(!v){ if(c[0] === '#') v = [parseInt(c.slice(1), 16), 1];
+          else { const m = c.match(/[\d.]+/g); v = [((+m[0]) << 16) | ((+m[1]) << 8) | (+m[2]), m[3] != null ? +m[3] : 1]; }
+          _lotCss.set(c, v); }
+  return v;
+}
+function lotShade(hex, m){ const n = parseInt(hex.slice(1), 16), c = v => Math.min(255, Math.max(0, v*m))|0;
+  return '#' + ((1 << 24) + (c((n >> 16) & 255) << 16) + (c((n >> 8) & 255) << 8) + c(n & 255)).toString(16).slice(1); }   // (the shop library's shade, which lives in its closure)
+function lotGfxKit(S, g, on, swap){
+  return { shade: lotShade,
+    P: swap ? (u, v, z) => S.W(-v, u, z || 0) : (u, v, z) => S.W(u, v, z || 0),
+    poly(pts, fill, stroke, lw){
+      if(on && !on(pts)) return;
+      if(fill){ const [c, a] = lotCss(fill); g.fillStyle(c, a); g.fillPoints(pts, true); }
+      if(stroke){ const [c, a] = lotCss(stroke); g.lineStyle(lw || 1, c, a); g.strokePoints(pts, false); }
+    } };
 }
 /* along / out-from-the-block of a point, in a driveway's own frame */
 function driveFrame(d, x, y){
@@ -34461,7 +34593,7 @@ const AIR = (() => {
   /* THE APRON'S GATE: a drive off the south street, 590 wide as the ER's,
      clear of the crossing ramps at the corners (22494, 24426: a drive keeps
      250 off one) and the signal pole by the middle node */
-  const drives = [{ x0: 23586, x1: 24176, y: 21160, out: 1 }];
+  const drives = [{ x0: 23586, x1: 24176, y: 21160, out: 1, col: '#bdb8ad' }];   // (col: the airfield's concrete, as its run-in -- one drive, LOTS round two)
   /* THE FLEET'S HANGAR (FLEET_HALL_DEFS F7h; Sir, 2026-10-31: "put it at the airfield", on the grass east of the
      terminal). The strip between the taxiway (y 20110) and the wall (21160) is 1046 deep, under the 1110 three lanes
      need side by side, so the hall's doors face south, the camera's face, onto three apron pads on concrete of the
@@ -52201,8 +52333,12 @@ function houseCanopy(fn){
                   poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], 'rgba(242,236,216,0.84)'); } } }); }
           /* the car park: its asphalt, its stall lines, its aisles' arrows */
           const lr = clipR([LT.x0, LT.x1, LT.y0, LT.y1]);
+          /* (LOTS, round two: the lot aged and worn as the city's car parks are -- lotParkPaint, in the world's x, y, each cell
+             its own share) */
+          const KW = { P: (x, y, z) => P(A(x), B(y), z), poly, shade }, CLW = [R[0], R[1], R[2] - 4, R[3] + 4];
           if(okR(lr)){
             Tw(lr, 0.5, '#6a6d72');
+            lotParkPaint(KW, [LT.x0, LT.x1, LT.y0, LT.y1], { phase: 'base', col: '#6a6d72', seed: 'Marina General lot', z: 0.52, clip: CLW });
             for(const rw of C.lotRows){
               const yb = rw.fd === 3 ? [rw.y - 120, rw.y + 120] : [rw.y - 120, rw.y + 120];
               for(let x = LT.s0 + 30; x <= LT.s1 - 30; x += 120) if(mine(x, rw.y)) T(A(x - 2), A(x + 2), B(yb[1]), B(yb[0]), 0.7, '#e8e2d0');
@@ -52210,6 +52346,12 @@ function houseCanopy(fn){
             for(const x of [LT.s0 + 400, LT.s0 + 1300]) if(mine(x, 4300)){
               poly([P(A(x), B(4310), 0.8), P(A(x + 80), B(4300), 0.8), P(A(x), B(4290), 0.8)], '#e8e2d0');
               poly([P(A(x), B(4990), 0.8), P(A(x - 80), B(4980), 0.8), P(A(x), B(4970), 0.8)], '#e8e2d0'); }
+            /* the tyres' polish in off the ER drive and down the two aisles, the stalls' mouths scuffed, oil under the cars */
+            { const st = [];
+              for(const rw of C.lotRows) for(let x = LT.s0 + 90; x <= LT.s1 - 90; x += 120) st.push({ u: x, v: rw.y, nu: 0, nv: rw.fd === 1 ? -1 : 1, w: 120, l: 240 });
+              lotParkPaint(KW, [LT.x0, LT.x1, LT.y0, LT.y1], { phase: 'wear', col: '#6a6d72', seed: 'Marina General lot', z: 0.2, clip: CLW, stalls: st,
+                aisles: [{ u0: LT.x0, u1: LT.s1, v0: 4110, v1: 4400, along: 'u', lanes: 2 }, { u0: LT.x0, u1: LT.s1, v0: 4880, v1: 5270, along: 'u', lanes: 2 }],
+                arrows: [[LT.s0 + 440, 4300], [LT.s0 + 1340, 4300], [LT.s0 + 360, 4980], [LT.s0 + 1260, 4980]] }); }
           }
           /* the ER drive: one concrete lane from the south kerb, through the
              ambulance bay, out to the north kerb -- edge lines and a dashed
@@ -52218,6 +52360,9 @@ function houseCanopy(fn){
           { const d0 = C.drives[0], d1 = C.drives[1], cn = C.er.canopy, CON = '#a9a7a0';
             const ln = clipR([Math.min(d0.x0, d1.x0), Math.max(d0.x1, d1.x1), d1.y - 4, d0.y + 4]);   // over the paving's 4 under the footway, onto the apron
             if(okR(ln)) Tw(ln, 0.55, CON);
+            /* (LOTS, round two) poured as the apron is, in its slabs, the wheels' wear down each way and a drip where the
+               ambulances wait: one drive from kerb to kerb */
+            if(okR(ln)) lotDrivePaint(KW, Math.min(d0.x0, d1.x0), Math.max(d0.x1, d1.x1), d1.y - 4, d0.y + 4, { col: CON, bays: 2, z: 0.56, seed: 'Marina General ER', clip: CLW });
             const bay = clipR([cn[0], d0.x0, cn[2], cn[3]]);
             if(okR(bay)) Tw(bay, 0.55, CON);
             const line = (x, y0, y1) => { const r = clipR([x - 3, x + 3, y0, y1]); if(okR(r)) T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), 0.7, '#d9d5c6'); };
@@ -53311,6 +53456,11 @@ function houseCanopy(fn){
           slabs(C.apron); slabs(C.cargo); slabs(C.tiedown); slabs(C.south); slabs(C.fuelPad); slabs(C.fireApron); slabs(C.radarPad);
           slabs([C.hangar2.x1, C.spur[0], C.hangar2.y0, C.hangar2.y1]);
           G_([D.x0, D.x1, C.apron[3] - 4, D.y + 4], 0.45, conc);                  // the gate's drive
+          /* ...poured as the street's apron is, in the airfield's concrete (its drive's col), the wheels' wear down each way in
+             through the gate (LOTS, round two) */
+          if(D.x1 > R[0] && D.x0 < R[1] && D.y + 4 > R[2] && C.apron[3] - 4 < R[3])
+            lotDrivePaint({ P: (x, y, z) => P(A(x), B(y), z), poly, shade }, D.x0, D.x1, C.apron[3] - 4, D.y + 4,
+                          { col: conc, bays: 2, z: 0.46, oil: 0.4, seed: 'Sun Deck gate', clip: [R[0], R[1], R[2], R[3]] });
           /* THE FLEET'S APRON (AIR.fleet): the airfield's concrete, from the hall's doors to the street wall; its pads
              (flyApronPads: a darker disc, the Fleet's orange ring, a white H square to the door, eight flush edge
              lights lit at night by queueFleetBays), a yellow lead-in line from each door to its pad, and the hold
@@ -76753,6 +76903,13 @@ function houseCanopy(fn){
     /* ---- the ground: pavement all round, gravel over the whole yard ---- */
     T(0, LOT, -LOT, 0, 0.4, '#b3a894');
     T(YW0, YW1, YBK, YB, 0.6, '#9a917f');
+    /* THE GATES' DRIVES CARRIED IN (LOTS, round two): the street's apron, poured in its own concrete, runs on through each gate
+       as a slab pad -- one drive from the kerb to the yard -- and past the pad the drays' wheels have pressed two ruts into the
+       gravel, darkest at the gate and fading up the arm */
+    for(const [g0, g1, nm] of [[G1[0], G1[1], 'out'], [G2[0], G2[1], 'cart']])
+      lotDrivePaint({ P, poly, shade }, g0, g1, -240, 0, { col: '#9a917f', bays: 1, z: 0.65, oil: 0.5, seed: 'Saltwater ' + nm + ' gate', pal: state.pal });
+    lotParkPaint({ P, poly, shade }, [YW0, YW1, YBK, YB], { phase: 'wear', col: '#9a917f', seed: 'Saltwater yard', z: 0.05,
+      aisles: [G1, G2].map(([g0, g1]) => ({ u0: g0, u1: g1, v0: -960, v1: -240, along: 'v', lanes: 1, fade: 1, rgb: [70, 60, 46, 0.1] })) });
 
     /* ---- the far half of the perimeter, before the building ----
        Only the back and left runs go here. The rest of the wall is
@@ -78844,6 +79001,7 @@ function houseCanopy(fn){
 
     /* ---- the ground, and everything painted on it ---- */
     T(0, LOT, -LOT, 0, 0, asph);
+    lotParkPaint({ P, poly, shade }, [0, LOT, -LOT, 0], { phase: 'base', col: asph, seed: 'Dune lot', pal: state.pal });   // aged: patched, cracks sealed (LOTS, round two)
     /* IN PIECES, as Pelican Drug: what stands up is an item for
        depthSort(), sorted into the world against Tipsey; paint and the
        islands' low kerbs are the ground. Hedges go in 54-long runs. */
@@ -78886,6 +79044,16 @@ function houseCanopy(fn){
       const arrowA = (am, bb, k) => poly([P(am+k*40,bb,0),P(am+k*6,bb-22,0),P(am+k*6,bb-8,0),P(am-k*34,bb-8,0),
                                           P(am-k*34,bb+8,0),P(am+k*6,bb+8,0),P(am+k*6,bb+22,0)], line);
       const ab = (R1 - BD + R2 + BD)/2; arrowA(90, ab-55, 1); arrowA(90, ab+55, -1); }
+    /* THE LOT WORN (LOTS, round two): the tyres' polish in off the front street and the side street and down the aisle, and
+       in off the back street to the yard; the paint scuffed at the stalls' mouths, oil under where the cars stand, the
+       arrows at the mouths worn */
+    { const st = [], stall = (a0, n, v, nv) => { for(let i = 0; i < n; i++) st.push({ u: a0 + (i + 0.5)*BW, v, nu: 0, nv, w: BW, l: BD }); };
+      stall(190, 4, R1 - BD/2, 1); stall(DR1 + 10, 5, R1 - BD/2, 1); stall(190, 11, R2 + BD/2, -1);
+      const ab = (R1 - BD + R2 + BD)/2, dm = (DR0 + DR1)/2;
+      lotParkPaint({ P, poly, shade }, [0, LOT, -LOT, 0], { phase: 'wear', col: asph, seed: 'Dune lot', pal: state.pal, z: 0.1, stalls: st,
+        aisles: [{ u0: 0, u1: 1530, v0: R2 + BD, v1: R1 - BD, along: 'u', lanes: 2 }, { u0: DR0, u1: DR1, v0: R1 - BD, v1: 0, along: 'v', lanes: 2 },
+                 { u0: 1100, u1: 1300, v0: -LOT, v1: -1420, along: 'v', lanes: 2 }],
+        arrows: [[dm - 55, -190], [dm + 55, -190], [90, ab - 55], [90, ab + 55]] }); }
 
     /* ---- behind the store's faces: before it ---- */
     const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
@@ -79246,6 +79414,7 @@ function houseCanopy(fn){
 
     /* ---- the ground ---- */
     T(0, LOT, -LOT, 0, 0, asph);
+    lotParkPaint({ P, poly, shade }, [0, LOT, -LOT, 0], { phase: 'base', col: asph, seed: 'Pelican Drug lot', pal: state.pal });   // aged: patched, cracks sealed (LOTS, round two)
     /* IN PIECES: what stands up is an item for depthSort(), which the game
        sorts into the world against Tipsey (see queueCommercialEdgeAt); the
        paint, walks and the low kerbs of the islands are the ground, drawn
@@ -79332,6 +79501,15 @@ function houseCanopy(fn){
       for(const db of [104, 130, 156]) for(const da of [-34, 26]) T(m+da, m+da+8, R2+db, R2+db+10, 0.9, line);   // wheels
       T(m-3, m+3, R2+170, R2+196, 0.9, line); T(m-7, m+7, R2+196, R2+202, 0.9, line);   // its antenna and flag
     }
+    /* THE LOT WORN (LOTS, round two): the tyres' polish down the aisle off the side street and the service aisle, the paint
+       scuffed at the stalls' mouths, oil under where the cars stand (never the robots' bay), the side street's arrows worn */
+    { const st = [];
+      for(let i = 0; i < 7; i++){ const u = PK0 + (i + 0.5)*BW;
+        st.push({ u, v: R1 - BD/2, nu: 0, nv: 1, w: BW, l: BD }, { u, v: R2 + BD/2, nu: 0, nv: -1, w: BW, l: BD, noOil: i === 2 }); }
+      const ab = (R1 - BD + R2 + BD)/2;
+      lotParkPaint({ P, poly, shade }, [0, LOT, -LOT, 0], { phase: 'wear', col: asph, seed: 'Pelican Drug lot', pal: state.pal, z: 0.1, stalls: st,
+        aisles: [{ u0: 0, u1: PK1 + 40, v0: R2 + BD, v1: R1 - BD, along: 'u', lanes: 2 }, { u0: 0, u1: LOT, v0: RA1, v1: RA0, along: 'u', lanes: 2 }],
+        arrows: [[90, ab - 55], [90, ab + 55]] }); }
 
     /* ---- props BEHIND the store: before it, so it paints over them ---- */
     const tree = (ta, tb) => items.push({ a: ta, b: tb, draw: () => {
@@ -79606,6 +79784,7 @@ function houseCanopy(fn){
 
     /* ---- THE GROUND: the lot's asphalt, the court's paving, the galleries, the office's walk; all the site's ---- */
     T(0, LOT, -LOT, 0, 0, asph);
+    lotParkPaint({ P, poly, shade }, [0, LOT, -LOT, 0], { phase: 'base', col: asph, seed: 'Motor Lodge lot', pal: state.pal });   // aged: patched, cracks sealed (LOTS, round two)
     { const C = M.court; T(C.a0, C.a1, C.b0, C.b1, 0.3, conc);
       for(let a = C.a0 + 90; a < C.a1; a += 90) T(a - 1, a + 1, C.b0, C.b1, 0.45, concD);
       for(let b = C.b1 - 90; b > C.b0; b -= 90) T(C.a0, C.a1, b - 1, b + 1, 0.45, concD); }
@@ -79627,6 +79806,14 @@ function houseCanopy(fn){
       const dm = (M.mouthF[0] + M.mouthF[1])/2; arrowB(dm - 55, -150, -1); arrowB(dm + 55, -150, 1);
       const arrowA = (am, bb, k) => poly([P(am+k*40,bb,0.7),P(am+k*6,bb-22,0.7),P(am+k*6,bb-8,0.7),P(am-k*34,bb-8,0.7),P(am-k*34,bb+8,0.7),P(am+k*6,bb+8,0.7),P(am+k*6,bb+22,0.7)], line);
       const ab = (M.mouthE[0] + M.mouthE[1])/2; arrowA(1560, ab - 55, 1); arrowA(1560, ab + 55, -1); }
+    /* THE LOT WORN (LOTS, round two): the tyres' polish in off both streets and along the aisle, the paint scuffed at the
+       stalls' mouths, oil under where the cars stand (never the robotaxi's bay), the arrows at the mouths worn */
+    { const st = [], dm = (M.mouthF[0] + M.mouthF[1])/2, ab = (M.mouthE[0] + M.mouthE[1])/2;
+      for(let k = 0; k < M.rankF.n; k++) st.push({ u: M.rankF.a0 + (k + 0.5)*M.BW, v: M.rankF.b - M.BD/2, nu: 0, nv: 1, w: M.BW, l: M.BD, noOil: k === 0 });
+      for(let k = 0; k < M.rankN.n; k++) st.push({ u: M.rankN.a0 + (k + 0.5)*M.BW, v: M.rankN.b + M.BD/2, nu: 0, nv: -1, w: M.BW, l: M.BD });
+      lotParkPaint({ P, poly, shade }, [0, LOT, -LOT, 0], { phase: 'wear', col: asph, seed: 'Motor Lodge lot', pal: state.pal, z: 0.1, stalls: st,
+        aisles: [{ u0: O.a1, u1: LOT, v0: M.aisle[0], v1: M.aisle[1], along: 'u', lanes: 2 }, { u0: M.mouthF[0], u1: M.mouthF[1], v0: M.aisle[1], v1: 0, along: 'v', lanes: 2 }],
+        arrows: [[dm - 55, -150], [dm + 55, -150], [1560, ab - 55], [1560, ab + 55]] }); }
     /* THE POOL, in the court's paving: its coping, the inside walls the eye looks down on (north and west), the water
        with its lane line and a sparkle of light; the ends rounded */
     { const Pl = M.pool, rr = 60, rnd = (a0, a1, b0, b1, z, r, col) => { const pts = [];
@@ -83220,7 +83407,7 @@ marinaEntry(),
     /* A TUNNEL YOU CAN SEE INTO (not a flat dark fill): through a round-headed mouth in face fc, depth d deep -- the way out at
        the far end lit, the vault's underside, the near wall of the passage (the camera sees the low-u one), the floor. All
        clipped to the mouth, so nothing leaks onto the face. */
-    const tunnelView = (fc, c, hw, z1, rise, depth) => {
+    const tunnelView = (fc, c, hw, z1, rise, depth, floor) => {   // (floor: what more is laid on its floor -- the carriage arch's drive)
       const ringP = d => { const pts = [[c - hw, 0], [c - hw, z1]];
         for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([c + hw*Math.cos(t), z1 + rise*Math.sin(t)]); }
         pts.push([c + hw, z1], [c + hw, 0]);
@@ -83233,6 +83420,7 @@ marinaEntry(),
       for(let k = 1; k < near.length - 2; k++) poly([near[k], near[k + 1], far[k + 1], far[k]], shade('#4c4236', k % 2 ? .92 : 1.04));   // the vault's underside, ribbed
       poly([fc.dp(c - hw, 0, 0), fc.dp(c - hw, z1 + 4, 0), fc.dp(c - hw, z1 + 4, depth), fc.dp(c - hw, 0, depth)], shade(stone, .56));   // the passage's wall
       poly([fc.dp(c - hw, 0, 0), fc.dp(c + hw, 0, 0), fc.dp(c + hw, 0, depth), fc.dp(c - hw, 0, depth)], shade('#a89d86', .8));            // its floor
+      if(floor) floor();
       poly([fc.dp(c - hw, 0, 0), fc.dp(c - hw, z1 + 4, 0), fc.dp(c - hw, z1 + 4, depth*0.35), fc.dp(c - hw, 0, depth*0.35)], 'rgba(12,10,8,.28)');   // shade at the mouth
       ctx.restore();
       /* the lantern hung from the vault 16 in: its chain, cage and glass (its night light is in `lamps`) */
@@ -83495,7 +83683,10 @@ marinaEntry(),
       f.proj(g0, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
       headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
-      tunnelView(f, GM, A.FGW, 182, 76, RD);
+      /* THE CARRIAGE PATH CARRIED THROUGH (LOTS, round two): the street's apron runs on under the arch to the gate in its own
+         concrete and its own slabs, in the passage's shade, the wheels' wear down each way -- one drive, kerb to court */
+      tunnelView(f, GM, A.FGW, 182, 76, RD, () => lotDrivePaint({ P, poly, shade }, 1404, 1724, CB1 - RD, CB1,
+                                                                 { col: shade('#bdb299', .82), bays: 2, z: 0.3, oil: 0.3, seed: 'Ferris Taylor arch' }));
 
       for(let k = 0; k < 11; k++){
         const t0 = Math.PI*(1 - k/11), t1 = Math.PI*(1 - (k + 1)/11), hw = A.FGW;
@@ -111007,7 +111198,9 @@ class WorldScene extends Phaser.Scene {
     /* the pod's bay: a white box, a yellow chevron at its head */
     { const D = P.POD, hw = 70, hl = 130; for(const [x0, x1, y0, y1] of [[D.x - hw, D.x - hw + 6, D.y - hl, D.y + hl], [D.x + hw - 6, D.x + hw, D.y - hl, D.y + hl], [D.x - hw, D.x + hw, D.y - hl, D.y - hl + 6]]) rect(x0, x1, y0, y1, 0xf4f4ee); }
     /* the strip west of the lot (the truck's yard), in the drive's own concrete from the footway back */
-    { const R = P.STRIP; rect(R.x0, R.x1, R.y0, P.Y1, R.col); }
+    { const R = P.STRIP; rect(R.x0, R.x1, R.y0, P.Y1, R.col);
+      /* ...poured in slabs as its apron is, the wheels' wear down it and a drip where the truck stands (LOTS, round two) */
+      lotDrivePaint(lotGfxKit(this, g, pts => this.ptsOnScreen(pts)), R.x0, R.x1, R.y0, P.Y1, { col: '#b9b6ad', bays: 2, z: 0.3, oil: 0.9, seed: 'Fish market strip' }); }
     /* the truck's bay in the strip at the west end: two white lines, open to its drive */
     { const T = P.TRUCK, hw = 100; for(const x of [T.x - hw, T.x + hw - 6]) rect(x, x + 6, T.y - 300, P.Y1 - 40, 0xf4f4ee);
       rect(T.x - hw, T.x + hw, T.y - 300, T.y - 294, 0xf4f4ee); }
@@ -112685,6 +112878,9 @@ class WorldScene extends Phaser.Scene {
     /* THE BAIT SHOP'S LOT (BT_PLAN): concrete off its drive, white lines between three bays */
     { const D = BT_PLAN.DRIVE, x0 = hg.apron.x0, x1 = hg.apron.x0 + 560;
       rect({ x0, x1, y0: D.y1, y1: D.y0 }, 0.35, 0xb9b6ad);
+      /* ...poured as its apron is, a slab a bay, the tyres' wear in off the road and oil where the cars stand (LOTS, round two;
+         the kit turned so its drive runs in along x, its bays across y) */
+      lotDrivePaint(lotGfxKit(this, g, onScreen, true), D.y1, D.y0, -x1, -x0, { col: '#b9b6ad', bays: 3, z: 0.35, seed: 'Bait lot' });
       for(const c of BT_PLAN.CARS) for(const s2 of [-1, 1]) rect({ x0: x0 + 60, x1: x1 - 20, y0: c.y + s2*130 - 3, y1: c.y + s2*130 + 3 }, 0.4, 0xf4f4ee);
       rect({ x0: x1 - 26, x1: x1 - 20, y0: BT_PLAN.CARS[2].y - 130, y1: BT_PLAN.CARS[0].y + 130 }, 0.4, 0xf4f4ee); }
     /* a gentle ripple on the basin, tied to the docks' lee */
