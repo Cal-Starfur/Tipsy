@@ -8040,9 +8040,10 @@ function owBuildWorld(route){
      stone's road face, and the stone itself answers 'kerb'. Everything else answers exactly as surfaceAt does. */
   const surfaceK = (x, y, kerb) => {
     if(pocketAt(x, y)) return 'sidewalk';                        // an interior's floor (see POCKETS)
-    { const sr = sierraRoundSurface(x, y); if(sr) return sr; }   // the estate's gate round, which straddles the wall
-    { const hr = harborRoundSurface(x, y); if(hr) return hr; }   // PELICAN HARBOR's turning circle, at the road's end
-    { const sv = sierraSurface(x, y); if(sv) return sv; }   // the estate's streets, city-standard
+    /* (asked as the wall, these three answer as the city's street does: their stone 'kerb', their road ending at its face) */
+    { const sr = sierraRoundSurface(x, y, kerb); if(sr) return sr; }   // the estate's gate round, which straddles the wall
+    { const hr = harborRoundSurface(x, y, kerb); if(hr) return hr; }   // PELICAN HARBOR's turning circle, at the road's end
+    { const sv = sierraSurface(x, y, kerb); if(sv) return sv; }   // the estate's streets, city-standard
     const nx = Math.round(x / BLOCK) * BLOCK, ny = Math.round(y / BLOCK) * BLOCK;
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     const dx = Math.abs(x - nx), dy = Math.abs(y - ny);
@@ -10883,7 +10884,7 @@ function owCurbBlocks(ow, W, x, y, cx, cy){
      over something the classifier does not name). Descending is
      unaffected either way, because a target of 'road' returns below. */
   /* ASKED AS THE WALL (kerbSurfaceAt, kerb collision 2026-11-24): 'road' ends at the drawn stone's road face, and the stone
-     itself is 'kerb'. Where there is no city kerb (the estate, the harbor's round) it answers as surfaceAt does. */
+     itself is 'kerb'. The estate, its gate round and the harbor's circle answer it so too (sierraKerbRoad, kerbRoundK). */
   const KS = W.kerbSurfaceAt || W.surfaceAt;
   const here = KS(ow.px, ow.py);
   if(here !== 'road' && here !== 'curb' && here !== 'kerb' && ow.sfcCommit !== 'road') return false;
@@ -156944,7 +156945,8 @@ const SV_FOUNTAIN_R = 124;
 /* the tennis court's measures (see THE TENNIS COURT): world units to the
    metre, and its fence's height */
 const TN = { m: 80, fenceH: 3.05*80 };
-function sierraSurface(x, y){
+/* kerb: true asks it as the kerb's wall (kerbSurfaceAt): see THE ESTATE'S KERB IS THE STONE'S ROAD FACE, above sierraRoundSurface */
+function sierraSurface(x, y, kerb){
   /* VISTA RIDGE SECURITY POST, east of the wall (a rect of its own: spSurface): its gravel, drive and dock are ground */
   { const sp = WORLDGEN_COAST ? spSurface(x, y) : null; if(sp) return sp; }
   if(!sierraInside(x, y)) return null;
@@ -156976,7 +156978,94 @@ function sierraSurface(x, y){
     if(r > oc.R + S.SW + CURB_W || Math.abs(sierraZ(x, y) - S.z[oc.k]) > 1) continue;
     d = Math.max(d, r - oc.R);
   }
-  return d <= 0 ? 'road' : d <= CURB_W ? 'curb' : d <= S.SW ? 'sidewalk' : 'lot';
+  const sf = d <= 0 ? 'road' : d <= CURB_W ? 'curb' : d <= S.SW ? 'sidewalk' : 'lot';
+  if(!kerb) return sf;
+  return sf === 'curb' ? 'sidewalk' : sf === 'road' && !sierraKerbRoad(x, y) ? 'kerb' : sf;
+}
+/* THE ESTATE'S KERB IS THE STONE'S ROAD FACE (kerb collision, 2026-11-24, after the city's: Sir, "Lining up the kerb's
+   collision with the drawn stone"). The estate, its gate round and the harbor's turning circle lay the city's kerb -- the
+   stone KERB_STONE.w INSIDE the asphalt's edge, the channel inside that (streetFeatures and the circle in drawSierraVista;
+   drawKerbRound) -- but answered 'road' out to the asphalt's edge and 'curb' past it, so the wall he met was the stone's
+   BACK edge: his front stopped 22 into the drawn stone all round (measured: see the commit). Asked as the wall (kerb = true)
+   each answers what the drawing leaves of the road: 'road' out to the stone's road face, the stone itself 'kerb', the old
+   'curb' band (the paving's outer row, or the island's raised lawn) 'sidewalk'. It only ever takes road away -- every face
+   is inside the asphalt -- so a plain 'road' it does not keep is the stone. Asked plainly, nothing changes. The crossings'
+   pads and the drives' mouths stay open through owAtRampMouth (sierraPadAt, sierraDriveAt). */
+/* a round's road, asked as the wall: sf its plain answer; c the round (r, rf, and ri where it has an island); RH its
+   streets' half-width; r and ax how far out and across; onSt whether a street runs through on that side; inF / pr the
+   fillet's sector and the distance from its centre (as the round's own classifier has them). Road out to the ring stone's
+   face (c.r - KW), the streets' (RH - KW), each fillet's (rf + KW about its centre); never inside the island's (ri + KW). */
+function kerbRoundK(sf, c, RH, r, ax, onSt, inF, pr){
+  if(sf === 'curb') return 'sidewalk';
+  if(sf !== 'road') return sf;
+  const KW = KERB_STONE.w;
+  if(c.ri !== undefined && r < c.ri + KW) return 'kerb';
+  if(r <= c.r - KW || (onSt && ax <= RH - KW) || (inF && pr >= c.rf + KW)) return 'road';
+  return 'kerb';
+}
+/* the estate's streets, asked as the wall, at a point sierraSurface calls 'road': inside the faces streetFeatures draws --
+   each level stretch and each ramp RH - KW from its centreline (and an end carried past a bend short of the other street's
+   stone too), the turning circle's ring (c.r - KW), the stone round each outside fillet (OUT_R - KW about O) -- and out to
+   the arcs the stone sweeps where those faces meet: inside a bend (KERB_ARC_R + KW about a centre RH + KERB_ARC_R in on
+   both), and where the drive meets the circle (the same arc, tangent to the drive's kerb and the ring). The shapes are
+   worked out once (sierraKerbGeo). */
+function sierraKerbRoad(x, y){
+  const S = sierraGeo(), KW = KERB_STONE.w, RH = S.RH, KR = KERB_ARC_R, K = sierraKerbGeo(S);
+  for(const oc of S.outer){                                   // the outside fillets' stone
+    const px = x - oc.O.x, py = y - oc.O.y;
+    if(px*oc.dv.x + py*oc.dv.y < 0 || px*oc.side.x + py*oc.side.y < 0) continue;
+    const r = Math.hypot(px, py);
+    if(r > oc.R - KW && r <= oc.R + 0.5 && Math.abs(sierraZ(x, y) - S.z[oc.k]) <= 1) return false;
+  }
+  for(const q of K.rects) if(x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1) return true;
+  for(const rp of S.ramps) if(y <= rp.yS && y >= rp.yN && x >= rp.c0 && x <= rp.c1 && Math.abs(x - rp.x) <= RH - KW) return true;
+  const c = S.circle;
+  if(Math.hypot(x - c.x, y - c.y) <= c.r - KW && Math.abs(sierraZ(x, y) - S.z[c.k]) <= 1) return true;
+  for(const a of K.arcs){                                     // where two faces meet, out to the arc's face
+    const px = x - a.x, py = y - a.y;
+    if(Math.abs(px) > a.lim || Math.abs(py) > a.lim) continue;
+    if(a.u){                                                  // inside a bend: (u, w) from the corner, toward the arc's centre
+      const u = (x - a.bx)*a.u.x + (y - a.by)*a.u.y, w = (x - a.bx)*a.w.x + (y - a.by)*a.w.y;
+      if(u > RH - KW && w > RH - KW && u <= RH + KR && w <= RH + KR && Math.hypot(px, py) > KR + KW) return true;
+    } else {                                                  // the circle's fillet: in its sector, past its face
+      const c1 = a.t1.x*py - a.t1.y*px, c2 = px*a.t2.y - py*a.t2.x;
+      if(c1*a.sg >= 0 && c2*a.sg >= 0 && Math.hypot(px, py) >= KR + KW) return true;
+    }
+  }
+  return false;
+}
+function sierraKerbGeo(S){
+  if(S._kerb) return S._kerb;
+  const KW = KERB_STONE.w, RH = S.RH, KR = KERB_ARC_R, C = RH + KR, rects = [], arcs = [];
+  /* the level stretches as sierraGeo lays S.roads (carried RH past each bend), brought in to the stone's face: KW off both
+     sides, and KW off an end carried past a bend (that end is the other street's kerb line); an end at a ramp's foot, the
+     round or the circle runs on into the next piece's road */
+  for(const rn of S.runs){
+    const dv = DIRV[rn.f];
+    for(let q = 0; q < rn.pts.length - 1; q++){
+      const p = rn.pts[q], p2 = rn.pts[q+1];
+      if(p.z !== p2.z) continue;
+      const e0 = (q === 0 && rn.prev !== null) ? RH - KW : 0, e1 = (q === rn.pts.length - 2 && rn.next !== null) ? RH - KW : 0;
+      const ax = p.x - dv.x*e0, ay = p.y - dv.y*e0, bx = p2.x + dv.x*e1, by = p2.y + dv.y*e1;
+      const px = Math.abs(dv.y)*(RH - KW), py = Math.abs(dv.x)*(RH - KW);
+      rects.push({ x0: Math.min(ax, bx) - px, x1: Math.max(ax, bx) + px, y0: Math.min(ay, by) - py, y1: Math.max(ay, by) + py });
+    }
+    /* inside each bend, the corner arc (streetFeatures' THE CORNER ARC): its centre C back along the arriving run, C inward */
+    if(rn.next !== null){
+      const sd = DIRV[rn.next];
+      arcs.push({ x: rn.b.x - dv.x*C + sd.x*C, y: rn.b.y - dv.y*C + sd.y*C, lim: KR + KW + 1, bx: rn.b.x, by: rn.b.y,
+                  u: { x: sd.x, y: sd.y }, w: { x: -dv.x, y: -dv.y } });
+    }
+  }
+  /* where the drive meets the circle (the ring's two fillets, east of its centre, as the circle is drawn): from each centre,
+     the sector between its tangent on the drive (straight back to it, (0, -sg)) and its tangent on the ring (toward c) */
+  { const c = S.circle, FX = Math.sqrt((c.r + KR)**2 - (RH + KR)**2);
+    for(const sg of [1, -1]){
+      const Fl = Math.hypot(FX, RH + KR), t1 = { x: 0, y: -sg }, t2 = { x: -FX/Fl, y: -sg*(RH + KR)/Fl };
+      arcs.push({ x: c.x + FX, y: c.y + sg*(RH + KR), lim: KR + KW + 60, t1, t2, sg: Math.sign(t1.x*t2.y - t1.y*t2.x) });
+    }
+  }
+  return (S._kerb = { rects, arcs });
 }
 /* THE GATE ROUND, in the city's words (see round in sierraGeo). It
    straddles the wall, so neither the estate's classifier (inside the wall
@@ -156988,13 +157077,13 @@ function sierraSurface(x, y){
    in the CURB_W band past the edge, 'sidewalk' out to SIDEWALK_W -- and
    the ring of paving is exactly that band, so what you see is what you
    stand on. Beyond the ring the city and the estate answer as before. */
-function sierraRoundSurface(x, y){
+function sierraRoundSurface(x, y, kerb){
   if(!WORLDGEN_COAST) return null;
   const S = sierraGeo(), c = S.round, dx = x - c.x, dy = y - c.y;
   if(Math.abs(dx) > c.out + 1 || Math.abs(dy) > c.out + 1) return null;
   const r = Math.hypot(dx, dy);
   if(r > c.out) return null;
-  if(r < c.ri) return r < c.ri - CURB_W ? 'lot' : 'curb';          // the island, and its kerb
+  if(r < c.ri) return r < c.ri - CURB_W ? 'lot' : kerb ? 'sidewalk' : 'curb';          // the island, and its kerb (as the wall: its raised lawn)
   let d = Math.min(Math.max(0, r - c.r), Math.max(0, Math.abs(dx) - S.RH));
   /* the fillets: inside the fillet's circle, in the sector facing the road,
      the edge is its arc (it only ever reads nearer than the two straights) */
@@ -157002,14 +157091,22 @@ function sierraRoundSurface(x, y){
   const px = ax - fxc, py = ay - fyc, pr = Math.hypot(px, py);
   /* the sector between its tangent on the street (-x from the fillet's
      centre) and its tangent on the ring (toward the round's centre) */
-  if(py <= 0 && py * fxc - px * fyc >= 0) d = Math.min(d, Math.max(0, c.rf - pr));
-  return d <= 0 ? 'road' : d <= CURB_W ? 'curb' : 'sidewalk';
+  const inF = py <= 0 && py * fxc - px * fyc >= 0;
+  if(inF) d = Math.min(d, Math.max(0, c.rf - pr));
+  const sf = d <= 0 ? 'road' : d <= CURB_W ? 'curb' : 'sidewalk';
+  return kerb ? kerbRoundK(sf, c, S.RH, r, ax, true, inF, pr) : sf;
 }
 /* ...and its crossings, for owAtRampMouth: the same footprint test the
    city's ramps get */
 function sierraPadAt(x, y){
   if(!WORLDGEN_COAST || !sierraInside(x, y)) return false;
-  for(const p of sierraGeo().pads) if(Math.abs(p.x - x) <= T2 && Math.abs(p.y - y) <= T2) return true;
+  /* toward the road it runs on to the stone's road face, where the wall stands now (u up to T2 + the stone, as the city's
+     opening: owAtRampMouth); across it +/-T2 as before */
+  const UR = T2 + KERB_STONE.w;
+  for(const p of sierraGeo().pads){
+    const dv = DIRV[p.f], u = (x - p.x)*dv.x + (y - p.y)*dv.y, v = (x - p.x)*dv.y - (y - p.y)*dv.x;
+    if(u >= -T2 && u <= UR && Math.abs(v) <= T2) return true;
+  }
   return sierraDriveAt(x, y);
 }
 /* ...and a driveway's mouth is a dropped kerb too (see THE DRIVEWAYS in
@@ -158028,7 +158125,7 @@ function harborHouseAt(x, y){ return harborGeo().house.some(r => inHarborRect(r,
 /* the turning circle: road, its kerb, then sidewalk -- asked before the
    lattice, as the estate's round is, because the street's own bands would
    call the bulb's asphalt pavement */
-function harborRoundSurface(x, y){
+function harborRoundSurface(x, y, kerb){
   if(!WORLDGEN_COAST) return null;
   const c = harborGeo().round, dx = x - c.x, dy = y - c.y;
   if(Math.abs(dx) > c.out || Math.abs(dy) > c.out) return null;
@@ -158039,8 +158136,10 @@ function harborRoundSurface(x, y){
   let dd = Math.max(0, r - c.r);
   if(dy > 0) dd = Math.min(dd, Math.max(0, Math.abs(dx) - ROAD_HALF));
   const fxc = ROAD_HALF + c.rf, fyc = c.fx, px = Math.abs(dx) - fxc, py = dy - fyc, pr = Math.hypot(px, py);
-  if(py <= 0 && py * fxc - px * fyc >= 0) dd = Math.min(dd, Math.max(0, c.rf - pr));
-  return dd <= 0 ? 'road' : dd <= CURB_W ? 'curb' : 'sidewalk';
+  const inF = py <= 0 && py * fxc - px * fyc >= 0;
+  if(inF) dd = Math.min(dd, Math.max(0, c.rf - pr));
+  const sf = dd <= 0 ? 'road' : dd <= CURB_W ? 'curb' : 'sidewalk';
+  return kerb ? kerbRoundK(sf, c, ROAD_HALF, r, Math.abs(dx), dy > 0, inF, pr) : sf;
 }
 /* the harbor's own surface names, for the HUD and the kerb rules: planks
    are boardwalk (a surface the city already knows), the paved ground is lot */
