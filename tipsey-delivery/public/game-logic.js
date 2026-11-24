@@ -107569,42 +107569,114 @@ class WorldScene extends Phaser.Scene {
       const q4 = (sA, sB, oA, oB, h, col) => quad4([F(sA, oA, h), F(sB, oA, h), F(sB, oB, h), F(sA, oB, h)], col);
       const quad4 = (P, col) => { if(onScreen(P)) this.quadOn(g, P, col); };
       const line = (P, col) => { if(onScreen(P)) this.edgeOn(g, P, col, 1); };
-      /* the apron: a tile row of concrete, darker toward the kerb where it
-         falls to the channel, so the drop reads without a step */
-      const APR = 0xdcd6c8, APJ = 0xaaa396, o0 = RH, o1 = RH + d.AP;
-      for(let i = 0; i < 3; i++)
-        q4(d.s0, d.s1, o0 + (o1 - o0)*i/3, o0 + (o1 - o0)*(i + 1)/3, 0.35, shade(APR, 0.93 + 0.035*i));
-      /* the wings, over the kerb's flares: from the flare's top down to the
-         apron's back corner */
+      /* THE APRON (drive pass, 2026-11-24). It was three bands of
+         concrete, each lighter than the last back from the kerb: stripes
+         parallel to the kerb, which read as steps. Now as it is poured:
+         one slab a paving tile wide, so its joints run on from the
+         sidewalk's own, each with a smooth trowelled margin round a
+         broom-finished field (a touch lighter, its strokes along the kerb),
+         and the fall to the channel a soft shade at the front, no edge. */
+      const APM = 0xd8d2c5, APR = 0xe0dacd, APJ = 0xa49d90, o0 = RH, o1 = RH + d.AP, MW = 7, TS = (d.s1 - d.s0)/4;
+      q4(d.s0, d.s1, o0, o1, 0.35, APM);
+      for(let i = 0; i < 4; i++){
+        const a = d.s0 + i*TS, b = a + TS;
+        q4(a + MW, b - MW, o0 + MW, o1 - MW, 0.36, APR);
+        for(const f of [0.34, 0.5, 0.66])                                     // the broom's strokes, along the kerb
+          line([F(a + MW + 4, o0 + (o1 - o0)*f, 0.37), F(b - MW - 4, o0 + (o1 - o0)*f, 0.37)], 0xd8d2c5);
+        if(i) line([F(a, o0, 0.4), F(a, o1, 0.4)], APJ);                     // the tooled joints, on the sidewalk's
+      }
+      { const P = [F(d.s0, o0, 0.38), F(d.s1, o0, 0.38), F(d.s1, o0 + d.AP*0.3, 0.38), F(d.s0, o0 + d.AP*0.3, 0.38)];
+        if(onScreen(P)) this.quadOn(g, P, 0x6f685c, 0.07); }                // the fall to the lip
+      /* THE WINGS over the kerb's flares: a triangle from the flare's top
+         down to the apron's back corner, which slopes down toward the mouth
+         -- so lit or shaded as the props are (SP13: screen-left lit,
+         screen-right dark), asked of W which way the mouth lies on screen,
+         never assumed; their tooled diagonal is the only edge they have */
+      const sDir = F(1, o0, 0).x - F(0, o0, 0).x;
       for(const [sa, sb] of [[d.s0 - d.DFL, d.s0], [d.s1 + d.DFL, d.s1]]){
-        quad4([F(sa, o0, 0.35), F(sb, o0, 0.35), F(sb, o1, 0.35), F(sb, o1, 0.35)], shade(APR, 0.95));
+        const lit = (sb - sa)*sDir < 0;                                         // falls toward +s: faces right when +s is screen-right
+        quad4([F(sa, o0, 0.35), F(sb, o0, 0.35), F(sb, o1, 0.35)], hillShade(APM, lit ? 1.035 : 0.9));
         line([F(sa, o0, 0.4), F(sb, o1, 0.4)], APJ);
       }
       line([F(d.s0, o0, 0.4), F(d.s0, o1, 0.4)], APJ);
       line([F(d.s1, o0, 0.4), F(d.s1, o1, 0.4)], APJ);
       line([F(d.s0, o1, 0.4), F(d.s1, o1, 0.4)], APJ);
-      line([F((d.s0 + d.s1)/2, o0, 0.4), F((d.s0 + d.s1)/2, o1, 0.4)], APJ);     // the control joint
-      /* the drive */
+      /* THE DRIVE, from the back of the apron across the sidewalk to the
+         garage. Each house's own (a house drive is not a garage lane): the
+         villas' sandstone pavers in running bond along the street inside a
+         soldier course; the split-levels' terracotta brick turned to run
+         up the drive; the casita's poured concrete, slab on slab, as its
+         apron is */
       const BW = 23, P0 = RH + d.AP, P1 = d.oEnd;
-      const BORD = 0xab9270, FIELD = [0xd6c29e, 0xccb690, 0xdac8a6], JNT = 0xb39d79;
-      q4(d.s0, d.s1, P0, P1, 0.4, BORD);
-      const fs0 = d.s0 + BW, fs1 = d.s1 - BW, fo0 = P0 + BW, fo1 = P1 - BW, PL = 92, PD = 46;
-      for(let r = 0, o = fo0; o < fo1 - 0.5; r++, o += PD){
-        const oB = Math.min(o + PD, fo1);
-        for(let s = fs0 - (r & 1 ? PL/2 : 0), c = 0; s < fs1 - 0.5; s += PL, c++){
-          const sa = Math.max(s, fs0), sb = Math.min(s + PL, fs1);
-          q4(sa, sb, o, oB, 0.45, FIELD[(r*7 + c*3 + (r >> 1)) % 3]);
-          if(sa > fs0 + 0.5) line([F(sa, o, 0.5), F(sa, oB, 0.5)], JNT);
+      if(d.kind === 'casita'){
+        const SL = TS*2;
+        q4(d.s0, d.s1, P0, P1, 0.4, APM);
+        for(let o = P0, r = 0; o < P1 - 0.5; o += SL, r++){
+          const oB = Math.min(o + SL, P1);
+          for(let i = 0; i < 2; i++){
+            const a = d.s0 + i*2*TS, b = a + 2*TS;
+            q4(a + MW, b - MW, o + MW, oB - MW, 0.45, hillShade(APR, 0.985 + 0.02*((r + i) & 1)));
+          }
+          line([F(d.s0, oB, 0.5), F(d.s1, oB, 0.5)], APJ);
         }
-        line([F(fs0, o, 0.5), F(fs1, o, 0.5)], JNT);
+        line([F(d.s0 + 2*TS, P0, 0.5), F(d.s0 + 2*TS, P1, 0.5)], APJ);
+      } else {
+        const terr = d.kind === 'terrazza';
+        const BORD = terr ? 0x94705a : 0xab9270, FIELD = terr ? [0xc79e82, 0xbd9377, 0xcfa98c] : [0xd6c29e, 0xccb690, 0xdac8a6], JNT = terr ? 0xa8836a : 0xb39d79;
+        q4(d.s0, d.s1, P0, P1, 0.4, BORD);
+        const fs0 = d.s0 + BW, fs1 = d.s1 - BW, fo0 = P0 + BW, fo1 = P1 - BW;
+        if(!terr){
+          const PL = 92, PD = 46;
+          for(let r = 0, o = fo0; o < fo1 - 0.5; r++, o += PD){
+            const oB = Math.min(o + PD, fo1);
+            for(let s = fs0 - (r & 1 ? PL/2 : 0), c = 0; s < fs1 - 0.5; s += PL, c++){
+              const sa = Math.max(s, fs0), sb = Math.min(s + PL, fs1);
+              q4(sa, sb, o, oB, 0.45, FIELD[(r*7 + c*3 + (r >> 1)) % 3]);
+              if(sa > fs0 + 0.5) line([F(sa, o, 0.5), F(sa, oB, 0.5)], JNT);
+            }
+            line([F(fs0, o, 0.5), F(fs1, o, 0.5)], JNT);
+          }
+        } else {
+          const PL = 70, PD = 35;                                               // brick, its long side up the drive
+          for(let c = 0, s = fs0; s < fs1 - 0.5; c++, s += PD){
+            const sB = Math.min(s + PD, fs1);
+            for(let o = fo0 - (c & 1 ? PL/2 : 0), r = 0; o < fo1 - 0.5; o += PL, r++){
+              const oa = Math.max(o, fo0), ob = Math.min(o + PL, fo1);
+              q4(s, sB, oa, ob, 0.45, FIELD[(c*7 + r*3 + (c >> 1)) % 3]);
+              if(oa > fo0 + 0.5) line([F(s, oa, 0.5), F(sB, oa, 0.5)], JNT);
+            }
+            line([F(s, fo0, 0.5), F(s, fo1, 0.5)], JNT);
+          }
+        }
+        for(let s = d.s0 + BW; s < d.s1 - 1; s += 46) line([F(s, P0, 0.5), F(s, P0 + BW, 0.5)], JNT);   // the soldier course's own joints
+        line([F(fs0, fo0, 0.5), F(fs0, fo1, 0.5)], JNT); line([F(fs1, fo0, 0.5), F(fs1, fo1, 0.5)], JNT);
+        line([F(fs0, fo0, 0.5), F(fs1, fo0, 0.5)], JNT); line([F(fs0, fo1, 0.5), F(fs1, fo1, 0.5)], JNT);
+        /* its edges on the lawn and the sidewalk */
+        line([F(d.s0, P0, 0.5), F(d.s0, P1, 0.5)], hillShade(BORD, .75));
+        line([F(d.s1, P0, 0.5), F(d.s1, P1, 0.5)], hillShade(BORD, .75));
       }
-      for(let s = d.s0 + BW; s < d.s1 - 1; s += PD) line([F(s, P0, 0.5), F(s, P0 + BW, 0.5)], JNT);   // the soldier course's own joints
-      line([F(fs0, fo0, 0.5), F(fs0, fo1, 0.5)], JNT); line([F(fs1, fo0, 0.5), F(fs1, fo1, 0.5)], JNT);
-      line([F(fs0, fo1, 0.5), F(fs1, fo1, 0.5)], JNT);
-      /* its edges on the lawn and the sidewalk, and its joint with the apron */
-      line([F(d.s0, P0, 0.5), F(d.s0, P1, 0.5)], shade(BORD, .75));
-      line([F(d.s1, P0, 0.5), F(d.s1, P1, 0.5)], shade(BORD, .75));
-      line([F(d.s0, P0, 0.5), F(d.s1, P0, 0.5)], PAVEEDGE);
+      line([F(d.s0, P0, 0.5), F(d.s1, P0, 0.5)], PAVEEDGE);                    // its joint with the apron
+      /* THE WEAR (see ITS WEAR in sierraGeo): the tyre tracks, darkest on
+         the apron where the cars turn in and brake, fading up the drive;
+         and the oil stain where one stands */
+      const wr = d.wear;
+      if(wr){
+        for(const ts of wr.tr){
+          const a = ts - wr.tw/2, b = ts + wr.tw/2;
+          for(const [oa, ob, al] of [[o0 + 6, o1, 0.075], [P0, P0 + (P1 - P0)*0.5, 0.06], [P0 + (P1 - P0)*0.5, P1 - 30, 0.035]]){
+            const P = [F(a, oa, 0.55), F(b, oa, 0.55), F(b, ob, 0.55), F(a, ob, 0.55)];
+            if(onScreen(P)) this.quadOn(g, P, 0x3b352c, al);
+          }
+        }
+        if(wr.oil){
+          const ov = wr.oil;
+          for(const [rr, al] of [[1, 0.09], [0.6, 0.1]]){
+            const P = [];
+            for(let j = 0; j < 10; j++){ const t = j/10*Math.PI*2; P.push(F(ov.s + Math.cos(t)*ov.r*rr, ov.o + Math.sin(t)*ov.r*rr*ov.e, 0.56)); }
+            if(onScreen(P)) this.quadOn(g, P, 0x2a2620, al);
+          }
+        }
+      }
     } };
     if(paint)     for(let k = 3; k >= 0; k--){
       const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
@@ -151569,7 +151641,19 @@ function sierraGeo(){
       const gyF = lt.yF + frontB*lt.sc;
       drives.push({ run:hit.n, side:sd, s0:Math.min(sa, sb), s1:Math.max(sa, sb), x0, x1,
                     oEnd:Math.abs(gyF - rn.a.y), z:rn.a.z, DFL, AP,
-                    yK:rn.a.y + rv.y*sd*RH, ySw:rn.a.y + rv.y*sd*STREET, yEnd:gyF });
+                    yK:rn.a.y + rv.y*sd*RH, ySw:rn.a.y + rv.y*sd*STREET, yEnd:gyF,
+                    kind: own ? 'casita' : split ? 'terrazza' : 'villa' });
+      /* ITS WEAR (drive pass, 2026-11-24): where the cars run, seeded off
+         where it is (never time), worked out once here and only painted by
+         THE DRIVEWAYS' GROUND -- the two tyre tracks (s from the drive's
+         middle, each a touch off true) and, on most, an oil stain where a
+         car stands before the garage (o out from the centreline) */
+      { const D = drives[drives.length - 1];
+        let h = ((x0*2654435761) ^ (Math.round(rn.a.y)*40503) ^ 0x9e3779b9) >>> 0;
+        const rnd = () => { h ^= h << 13; h >>>= 0; h ^= h >> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; };
+        const mid = (D.s0 + D.s1)/2, trk = 0.19*(D.s1 - D.s0);   // (inside the slabs, off the apron joints)
+        D.wear = { tr: [mid - trk + (rnd() - 0.5)*14, mid + trk + (rnd() - 0.5)*14], tw: 26 + rnd()*8,
+                   oil: rnd() < 0.7 ? { s: mid + (rnd() - 0.5)*60, o: D.oEnd - 80 - rnd()*90, r: 22 + rnd()*16, e: 0.55 + rnd()*0.3 } : null }; }
       if(own){ lt.paved = true; continue; }
       /* and the garage, overhanging the drive by 16 each side; its frame's
          a 0 is 50 west of it (see SIERRA VISTA'S GARAGES) */
