@@ -31279,7 +31279,7 @@ function sfPose(s, m, now, P){
     const w = 0.5 + 0.5*Math.sin(now*0.004); P.lift = [0.1, 0.22]; P.bend = [0.2, 0.3 + 1.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (the elbow at the side, the forearm curling)
   if(m.look === 'kb' && !m.path){                                                                                 // (a kettlebell off the rack, once; then swings)
     if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.45*Math.min(1, k*1.6)]; P.bend = [0.2, 0.3]; P.headTilt = 0.3; return; }
-    const w = 0.5 + 0.5*Math.sin(now*0.005); P.lift = [0.15 + 0.85*w, 0.15 + 0.85*w]; P.bend = [0.1, 0.1]; P.headTurn = 0; P.hold = H.kb; return; }
+    const w = 0.5 + 0.5*Math.sin(now*0.005); P.lift = [0.15 + 0.85*w, 0.15 + 0.85*w]; P.bend = [0.1, 0.1]; P.headTurn = 0; P.hold = H.kb; P.holdRaised = true; return; }
   if(m.look === 'mat' && !m.path){ const ph = ((now + (s.seed & 4095))/6000) % 1, w = Math.sin(ph*Math.PI*2);    // (a stretch: arms up, then across)
     if(ph < 0.5){ P.lift = [1.9 + 0.1*w, 1.9 + 0.1*w]; P.bend = [0.1, 0.1]; } else { P.lift = [0.9, 0.9]; P.bend = [0.2, 1.2]; } P.headTurn = 0; return; }
   if(m.look === 'fridge' && !m.path && Math.hypot(m.a - 66, m.b - 102) < 30){                                   // (reaching into the fridge, once)
@@ -120354,14 +120354,16 @@ class WorldScene extends Phaser.Scene {
         if(!back){ upperOut(); if(crosses) fore(); else { fore(); hem(); } }                // (the 'front' half, over the torso)
         else if(foreNear){ upper(); if(crosses) fore(); else { fore(); hem(); } } else { fore(); upper(); hem(); }
         aidHand(side, shoulderAx, Hd, ang + bend, E);
-        if(raised) return false;
+        /* (pose.holdRaised: what the hand holds stays in it with the arm raised -- a kettlebell swung up to the eyes, Sir, 2026-11-24, Surfside
+           Fitness: "only has the kettle bell at the bottom of the rep". Without it a raised hand holds nothing, as before) */
+        if(raised && !pose.holdRaised) return false;
         /* what it holds: over the face when they face the eye (after the head) */
         if(isCarryArm && pose.hold){
           /* where the hand is, and the mouth (for a microphone held up to it) */
           const hp = G(shoulderAx, Hd[0], Hd[1]), at = { G, a: shoulderAx, hand: Hd, mouth: [build.headR + 1, shoulderH + build.headR*0.6] };
           if(faceB > 0) heldLate = [hp, at]; else pose.hold(g, hp, this.K, at);
         }
-        return;
+        return raised ? false : undefined;
       }
       if(liftT <= 0.001 || (!isCarryArm && !bothArms)){
         /* at rest — flat box, walk-swing only. Also always used for
