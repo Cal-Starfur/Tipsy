@@ -64003,8 +64003,9 @@ function houseCanopy(fn){
     /* ---- THE SECURITY DOG, OUTSIDE (Sir, 2026-11-20: "let's get the dog bot outside of the building doing a patrol along these walls"): seen
        from inside, walking just outside the hall's south wall and up its east wall short of the roller door, and back (outside, the street's
        own: cwDogQueue) ---- */
-    { const DP = [[-40, D + 46], [W + 46, D + 46], [W + 46, door.at + door.half + 90]], DL = DP.slice(1).map((q, i) => Math.hypot(q[0] - DP[i][0], q[1] - DP[i][1])), DT = DL.reduce((x, y) => x + y, 0);
-      items.push({ a: W/2, b: D + 46, z: 0, solids: [], draw: () => {}, fx: { crew: t => { const ph = ((t*0.075) % (2*DT) + 2*DT) % (2*DT), fwd = ph < DT; let r = fwd ? ph : 2*DT - ph, P = null;
+    const DOGO = CW_DOGO;   /* (far enough out that the wall's top never crosses him -- Sir, 2026-11-24: "the dog outside the building is being cut by the building, he's too close") */
+    { const DP = [[-40, D + DOGO], [W + DOGO, D + DOGO], [W + DOGO, door.at + door.half + 90]], DL = DP.slice(1).map((q, i) => Math.hypot(q[0] - DP[i][0], q[1] - DP[i][1])), DT = DL.reduce((x, y) => x + y, 0);
+      items.push({ a: W/2, b: D + DOGO, z: 0, solids: [], draw: () => {}, fx: { crew: t => { const ph = ((t*0.075) % (2*DT) + 2*DT) % (2*DT), fwd = ph < DT; let r = fwd ? ph : 2*DT - ph, P = null;
         for(let i = 1; i < DP.length; i++){ if(r <= DL[i - 1] || i === DP.length - 1){ const k = Math.min(1, r/DL[i - 1]), A = DP[i - 1], B = DP[i]; P = { a: A[0] + (B[0] - A[0])*k, b: A[1] + (B[1] - A[1])*k, f: Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2) + (fwd ? 0 : 2) }; break; } r -= DL[i - 1]; }
         return [{ kind: 'bot', botKind: 'patrolbot', bSkin: 'pdog:cratewell', build: 'pdog', a: P.a, b: P.b, fdir: P.f, wheel: ph*0.12 }]; } } }); }
 
@@ -100291,11 +100292,12 @@ function spTick(scene, ow){
 /* KICKSTAND SCOOTER CO.' SECURITY DOG (Sir, 2026-11-20: "let's get the dog bot outside of the building doing a patrol along the building, along
    these walls"): the patrol bot's dog build in Kickstand's colours, walking the hall's south wall and up its east wall as far as short of the
    roller door, and back -- drawn as a room's crew member is (drawRoomBot: its skin and build put on for the draw) */
+const CW_DOGO = 100;   /* (how far out from the hall's walls the dog walks: the room's view and the street's the same -- Sir, 2026-11-24: "he's too close") */
 function cwDogQueue(scene, t, queuePerson){
   if(typeof FAC === 'undefined' || !FAC.hall || scene._inside) return;   /* (inside, the hall's room draws its own, outside its walls) */
   /* (the walls toward the eye: the larger x and the larger y -- the lab's b runs against the world's y) */
   const H = FAC.hall, xA = Math.min(H.x0, H.x1), xB = Math.max(H.x0, H.x1), yB = Math.max(H.y0, H.y1), d = H.edoor || [yB, yB];
-  const yS = yB + 60, xE = xB + 60, dNear = Math.abs(d[0] - yB) < Math.abs(d[1] - yB) ? d[0] : d[1], yN = dNear + Math.sign(yB - dNear)*110;
+  const yS = yB + CW_DOGO, xE = xB + CW_DOGO, dNear = Math.abs(d[0] - yB) < Math.abs(d[1] - yB) ? d[0] : d[1], yN = dNear + Math.sign(yB - dNear)*110;
   const pts = [[xA - 40, yS], [xE, yS], [xE, yN]], L = [];
   let T = 0; for(let i = 1; i < pts.length; i++){ const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(l); T += l; }
   const v = 0.045, ph = ((scene.time.now*v) % (2*T) + 2*T) % (2*T), fwd = ph < T, s = fwd ? ph : 2*T - ph;
