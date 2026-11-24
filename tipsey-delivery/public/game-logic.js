@@ -50701,9 +50701,50 @@ const PAL = [
    sign geometry, roof kit and kerb props — identity comes
    from the silhouette, not from the facade texture.
    right flank, and the blank front wall the shop then dresses */
+/* A FLAT ROOF'S DECK (the roof pass): the plate body() and rearBody() lay, as a roof -- seeded, a pale membrane in
+   sheets with its seams or a gravel ballast with its speckle and a paver walk (an entry's own colour kept), aged; a coping line round its edge
+   and a dark drain in a corner either way. Seeded off its size and height (one shop, one deck, every frame alike). */
+function roofDeck(a0, a1, b0, b1, z, wall, trim, given){
+  const L = ROOF_ART.look, w = a1 - a0, dd = b1 - b0;
+  const seed = natStrSeed(Math.round(w) + 'x' + Math.round(dd) + '@' + Math.round(z) + (wall || '') + (given || ''));
+  const kind = natHash(seed + 1) < 0.5 ? 'membrane' : 'gravel';                                             // one deck sheeted, the next ballasted
+  const base = given || (kind === 'membrane' ? '#cfcfca' : '#aaa69d');                                       // (an entry's own deck colour kept: given)
+  T(a0, a1, b0, b1, z, base);
+  if(kind === 'membrane'){
+    for(let a = a0 + 96; a < a1 - 20; a += 96) T(a - 0.8, a + 0.8, b0 + 6, b1 - 6, z, shade(base, .9));     // the sheets' lapped seams
+    T(a0 + 14, a1 - 14, b0 + dd*0.42, b0 + dd*0.42 + 1.4, z, shade(base, .93));                              // a cross seam
+  } else {
+    const n = Math.min(260, Math.round(w*dd/700));
+    for(let i = 0; i < n; i++){ const h1 = natHash(seed + i*2654435761), h2 = natHash(seed ^ (i*40503 + 17)), h3 = natHash(seed + i*97);
+      const a = a0 + 6 + h1*(w - 12), b = b0 + 6 + h2*(dd - 12), s = 2 + h3*2.5;
+      T(a, a + s, b, b + s*0.8, z, h3 < 0.5 ? shade(base, .82) : shade(base, 1.12)); }
+    const pw = 34, pa = a0 + w*(0.3 + natHash(seed + 5)*0.4);                                                  // a walkway of pavers to the plant
+    for(let b = b0 + 20; b < b1 - 30; b += pw + 6) T(pa, pa + pw, b, b + pw, z, '#c4c0b6');
+  }
+  /* age: patched sheets sealed round, ponding stains with a dried ring, grime along the coping */
+  const E = (ca, cb, ra, rb, col) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2, f = 1 + 0.12*Math.sin(3*t + ca);
+    pts.push(P(Math.max(a0 + 4, Math.min(a1 - 4, ca + ra*f*Math.cos(t))), Math.max(b0 + 4, Math.min(b1 - 4, cb + rb*f*Math.sin(t))), z)); } poly(pts, col); };
+  const np = w*dd > 60000 ? 2 : 1;
+  for(let i = 0; i < np; i++){ const h1 = natHash(seed + 31 + i*7), h2 = natHash(seed + 37 + i*7), h3 = natHash(seed + 41 + i*7);
+    if(h3 > 0.75) continue;
+    const pw = 50 + h1*Math.min(120, w*0.3), pd = 40 + h2*Math.min(90, dd*0.3), pa = a0 + 12 + h2*(w - pw - 24), pb = b0 + 12 + h1*(dd - pd - 24);
+    T(pa, pa + pw, pb, pb + pd, z, shade(base, h3 < 0.4 ? 0.93 : 1.05));
+    const sc = shade(base, .74); T(pa, pa + pw, pb, pb + 1.4, z, sc); T(pa, pa + pw, pb + pd - 1.4, pb + pd, z, sc); T(pa, pa + 1.4, pb, pb + pd, z, sc); T(pa + pw - 1.4, pa + pw, pb, pb + pd, z, sc); }
+  const nst = 1 + Math.round(natHash(seed + 53)*2);
+  for(let i = 0; i < nst; i++){ const ca = a0 + w*(0.15 + 0.7*natHash(seed + 61 + i)), cb = b0 + dd*(0.15 + 0.7*natHash(seed + 67 + i)), r = 30 + natHash(seed + 71 + i)*Math.min(70, w*0.15);
+    E(ca, cb, r*1.08, r*0.78, 'rgba(255,255,255,' + L.stain*0.7 + ')');                                    // the dried ring
+    for(const f of [1, 0.7, 0.4]) E(ca, cb, r*f, r*0.7*f, 'rgba(18,20,18,' + L.stain/2 + ')'); }
+  T(a0 + 6, a1, b1 - 18, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.8 + ')'); T(a0 + 6.5, a0 + 18, b0, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.6 + ')');
+  T(a0 + 6, a1, b0, b0 + 12, z, 'rgba(18,20,18,' + L.stain*0.7 + ')'); T(a1 - 12, a1, b0, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.6 + ')');
+  /* the coping: a lit lip along the edges (light on the near and left sides), a dark joint inside it */
+  T(a0, a1, b1 - 5, b1, z, shade(base, 1.1)); T(a0, a0 + 5, b0, b1, z, shade(base, 1.08));
+  T(a0 + 5, a1, b1 - 6.5, b1 - 5, z, shade(base, .82)); T(a0 + 5, a0 + 6.5, b0, b1 - 5, z, shade(base, .84));
+  const ca = natHash(seed + 11) < 0.5 ? a0 + 26 : a1 - 34;                                                     // a drain
+  T(ca, ca + 8, b0 + 24, b0 + 30, z, shade(base, .55));
+}
 function body(wall, trim, H, wid, dep){
   const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
-  if(!NOPLATE) T(0,w,-d,0,H, shade(trim,1.05));          // roof
+  if(!NOPLATE) roofDeck(0, w, -d, 0, H, wall, trim);     // roof (the roof pass: roofDeck)
   /* WHICH END WALL, decided by the host rather than assumed.
      This drew S(w) unconditionally -- the a = w end -- which is right
      for the canvas lab's single view and wrong on half the block edges
@@ -51133,7 +51174,7 @@ function kerb(p, kind){
    camera sees from behind. */
 function rearBody(wall, trim, H, wid, dep, roof){
   const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
-  if(!NOPLATE) T(0,w,-d,0,H, roof || shade(trim,1.05));      // roof
+  if(!NOPLATE) roofDeck(0, w, -d, 0, H, wall, trim, roof);   // roof (the roof pass: roofDeck)
   if(FLANK_RIGHT) S(w,-d,0,0,H, shade(wall,.78));             // the seen end, as body()
   else            S(0,-d,0,0,H, shade(wall,.72));
   F(0,w,0,H, shade(wall,.93), null,0,-d);                     // rear wall: plainer than the front
@@ -51471,7 +51512,7 @@ FLATS_CHEMIST_LIVERY.coral   = { trim:'#d9735a', inner:'#c9a498', glass:'rgba(21
 function flatsDrawChemist(p, c){
     const wall = '#f0f2f0', trim = c.trim, H = 172;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#b3bcb8');   // Flats roof, over body's trim-coloured plate (both liveries)
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#b3bcb8');   // Flats roof, over body's trim-coloured plate (both liveries)
     slab(0,W, H, H+8, -1, -12, trim);
     slab(W*0.30,W*0.70, H+8, H+30, -2, -12, wall, null, shade(wall,1.1));
     F(W*0.38,W*0.62, H+14, H+26, trim, null,0,-2.5);
@@ -51932,6 +51973,65 @@ function houseSideWins(a0, a1, bf, bb, rows, frame, opts){
   }
 }
 
+/* ==================== THE ROOF PASS (2026-11-24) ====================
+   Sir: "lets do a pass on the shop, landmark and other commercial roof tops and home roof tops". Every pitched slope was one
+   flat colour with a few course lines, both slopes alike; every shop deck a flat plate in its trim colour (shops kit K18).
+   Big moves, at the kit's shared drawers so every roof gets them, all baked into the building cache:
+   - LIGHT (SP13): a pitched slope that faces screen-left is lit, one facing screen-right darker -- asked of the projection
+     (P), so a mirrored or turned house is lit the same way; flat faces unchanged. Only inside the roof drawers
+     (HOUSE_ROOF_LIT, set by roofLit round them), never a wall;
+   - TABS: the courses broken into tabs, the joints staggered row to row (roofTabs, from houseCourses);
+   - THE DECK (roofDeck, from body() and rearBody()): a flat roof as a roof, not a trim-coloured plate.
+   - AGE (Sir: "im looking for some age like we did with the street"): on a slope, dark streaks run down from the ridge, moss
+     gathers along the eave, now and then a replaced tab; on a deck, ponding stains with their dried rings, patched sheets
+     sealed round, grime along the coping. All seeded off the face or the deck. */
+const ROOF_ART = {
+  look: { light: 0.12, tabs: 1, tabVar: 0.24, streaks: 0.07, moss: 0.13, stain: 0.075 } };   // each mark's strength
+let HOUSE_ROOF_LIT = false;
+function roofLit(f){ return function(){ const was = HOUSE_ROOF_LIT; HOUSE_ROOF_LIT = true;
+  try { return f.apply(this, arguments); } finally { HOUSE_ROOF_LIT = was; } }; }
+/* a sloped face's fill, lit by which way it turns on screen: n its outward unit normal, c its centre (a, b, z) */
+function roofLitFill(fill, n, c){
+  if(typeof fill !== 'string' || fill.length !== 7 || fill[0] !== '#') return fill;
+  const L = ROOF_ART.look;
+  const p0 = P(c[0], c[1], c[2]), pn = P(c[0] + n[0]*20, c[1] + n[1]*20, c[2] + n[2]*20), pa = P(c[0] + 20, c[1], c[2]);
+  const ref = Math.hypot(pa.x - p0.x, pa.y - p0.y) || 1, lat = Math.max(-1.3, Math.min(1.3, (pn.x - p0.x)/ref));
+  return shade(fill, 1 - L.light*lat);
+}
+/* the tabs of a slope's courses: rows between the course lines (houseCourses' t), each cut into tabs about 30 wide, the
+   joints staggered half a tab row to row; now and then a tab a shade off its neighbours (tabVar). Seeded off the face. */
+function roofTabs(p0, p1, q0, q1, col, st){
+  const A = ROOF_ART.look;
+  if(!A.tabs && !A.tabVar) return;
+  const lp = (u, v, t) => [u[0] + (v[0] - u[0])*t, u[1] + (v[1] - u[1])*t, u[2] + (v[2] - u[2])*t];
+  const B = (t, u) => { const p = lp(lp(p0, p1, t), lp(q0, q1, t), u); return P(p[0], p[1], p[2]); };
+  const seed = (Math.round(p0[0])*73856093 ^ Math.round(p0[1])*19349663 ^ Math.round(q0[0] + q0[2])*83492791) >>> 0;
+  let r = 0;
+  for(let t0 = 0; t0 < 0.985; t0 += st, r++){
+    const t1 = Math.min(1, t0 + st), a = lp(p0, q0, 0), e0 = lp(p0, p1, t0), e1 = lp(q0, q1, t0);
+    const len = Math.hypot(e1[0] - e0[0], e1[1] - e0[1], e1[2] - e0[2]), n = Math.max(2, Math.round(len/30)), off = (r & 1)*0.5;
+    for(let j = 0; j < n + 1; j++){
+      const u0 = Math.max(0, (j - off)/n), u1 = Math.min(1, (j + 1 - off)/n);
+      if(u1 <= u0) continue;
+      if(A.tabVar){ const h = natHash((seed + r*7919 + j*104729) >>> 0);
+        if(h < A.tabVar) poly([B(t0, u0), B(t0, u1), B(t1, u1), B(t1, u0)], h < A.tabVar*0.5 ? 'rgba(0,0,0,0.075)' : 'rgba(255,255,255,0.08)'); }
+      if(A.tabs && u0 > 0) poly([B(t0, u0), B(t1, u0)], null, col, 1);
+    }
+  }
+  /* age: streaks down from the ridge, moss soft along the eave (t 0 at the eave, 1 at the ridge; u across) */
+  const len = Math.hypot(q0[0] - p0[0], q0[1] - p0[1], q0[2] - p0[2]), ns = Math.max(1, Math.round(len/110));
+  for(let i = 0; i < ns; i++){ const h = natHash((seed ^ (i*2246822519 + 3)) >>> 0), h2 = natHash((seed + i*3266489917 + 5) >>> 0);
+    if(h > 0.7) continue;
+    const uc = (i + 0.2 + h2*0.6)/ns, uw = (0.15 + h*0.25)/ns, tl = 0.25 + h2*0.6;
+    for(const f of [1, 0.55]) poly([B(1, uc - uw*f), B(1, uc + uw*f), B(1 - tl*f, uc + uw*f*0.6), B(1 - tl*f, uc - uw*f*0.6)], 'rgba(20,22,20,' + (A.streaks/2) + ')'); }
+  const nm = Math.max(1, Math.round(len/160));
+  for(let i = 0; i < nm; i++){ const h = natHash((seed + i*668265263 + 9) >>> 0), h2 = natHash((seed ^ (i*374761393 + 11)) >>> 0);
+    if(h > 0.55) continue;
+    const uc = (i + 0.5)/nm + (h2 - 0.5)*0.4/nm, uw = (0.25 + h*0.4)/nm;
+    for(const [f, th] of [[1, 0.26], [0.65, 0.18], [0.35, 0.11]]){ const pts = [];
+      for(let k = 0; k <= 8; k++){ const a = k/8*Math.PI; pts.push(B(Math.max(0, th*Math.sin(a)*(0.8 + 0.4*natHash(seed + i + k))), Math.max(0, Math.min(1, uc + uw*f*Math.cos(a))))); }
+      poly(pts, 'rgba(92,110,58,' + (A.moss/3) + ')'); } }
+}
 /* a pitched roof, ridge parallel to the frontage, gable at the ends.
    Only the slope toward the eye is drawn (dir), plus the seen gable. */
 function houseGableRoof(a0, a1, bf, bb, He, Hr, o, roof, wall, dir){
@@ -52052,9 +52152,14 @@ function houseFace(pts, ctr, fill, stroke){
     cx += p[0]; cy += p[1]; cz += p[2];
   }
   cx /= pts.length; cy /= pts.length; cz /= pts.length;
-  if(nx*(cx-ctr[0]) + ny*(cy-ctr[1]) + nz*(cz-ctr[2]) < 0) pts = pts.slice().reverse();
+  const flip = nx*(cx-ctr[0]) + ny*(cy-ctr[1]) + nz*(cz-ctr[2]) < 0;
+  if(flip) pts = pts.slice().reverse();
   const q = pts.map(p => P(p[0], p[1], p[2]));
   if(Math.sign(houseArea(q)) !== houseSeenSign()) return false;
+  if(HOUSE_ROOF_LIT){                                   // a sloped roof face, lit by which way it turns (THE ROOF PASS)
+    const sg = flip ? -1 : 1, nl = Math.hypot(nx, ny, nz) || 1, hz = Math.hypot(nx, ny)/nl;
+    if(sg*nz > 0 && hz > 0.1) fill = roofLitFill(fill, [sg*nx/nl, sg*ny/nl, sg*nz/nl], [cx, cy, cz]);
+  }
   poly(q, fill, stroke === undefined ? shade(fill,.6) : stroke, 1);
   return true;
 }
@@ -52064,6 +52169,7 @@ function houseCourses(p0, p1, q0, q1, col, step){
     const L = (u, v) => P(u[0]+(v[0]-u[0])*t, u[1]+(v[1]-u[1])*t, u[2]+(v[2]-u[2])*t);
     poly([L(p0,p1), L(q0,q1)], null, col, 1);
   }
+  if(HOUSE_ROOF_LIT) roofTabs(p0, p1, q0, q1, col, step || 0.14);   // (THE ROOF PASS)
 }
 
 /* A FULL HIP, every face culled -- for low pitches. lo/hi:false stops an
@@ -52443,6 +52549,10 @@ function houseProfileRoofB(bf, bb, prof, o, roof, wall, opts){
 }
 
 /* A MANSARD: a steep frustum from the eave rectangle up to an inset top */
+/* the roof drawers light their slopes (THE ROOF PASS: roofLit) */
+houseGableRoof = roofLit(houseGableRoof); houseHip = roofLit(houseHip); houseFrontGable = roofLit(houseFrontGable);
+houseDormer = roofLit(houseDormer); houseProfileRoof = roofLit(houseProfileRoof); houseProfileRoofB = roofLit(houseProfileRoofB);
+houseMansard = roofLit(houseMansard);
 function houseMansard(a0, a1, bf, bb, He, Hm, i, roof, top){
   const ctr = [(a0+a1)/2, (bf+bb)/2, He + (Hm-He)*0.3];
   const E = [[a0,bf,He],[a1,bf,He],[a1,bb,He],[a0,bb,He]];
@@ -69804,7 +69914,7 @@ function houseCanopy(fn){
        the roaster, the bins and the sacks behind it close up with it: GA, the old grid's a (14..128) squeezed into the new opening) */
     const WA0 = 14, WA1 = 118, GS = (WA1 - WA0)/114, GA = a => WA0 + (a - 14)*GS;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#8c9a98');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#8c9a98');                   // roof, over body's pale plate
     slab(0, W, H, H+10, 4, 0, shade(wall,1.35));        // cornice
 
     /* ---- one shopfront band, both openings cut out of it ---- */
@@ -70158,7 +70268,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#f6f7f2', trim = '#4f9e8a', H = 156;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#a9b5ae');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#a9b5ae');   // Flats roof, over body's trim-coloured plate
     /* THREE BANDS OVER THE RETURN, all the same fault: a slab at
        negative b projects RIGHT on screen by its own depth, so the
        margin has to beat the recess. The parapet ran 0..W at b -1..-10
@@ -70277,7 +70387,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#fbf1d2', trim = '#4a9fd1', H = 140;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#e3dccb');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#e3dccb');   // Flats roof, over body's trim-coloured plate
     /* fTodo cleared: at 0..W with a back face of -6 the return landed on
        screen-a 236 against 230. 12 puts it on 224. The parapet above
        stays full width -- that one is a cornice. (The frieze first, the
@@ -70959,7 +71069,7 @@ function houseCanopy(fn){
         };
     if(state.part === 'sign'){ if(state.props) sign(); return; }   // (the hanging sign alone: its own piece in the game, signOverDoor)
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#b7b1a6');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#b7b1a6');   // Flats roof, over body's trim-coloured plate
     /* THE JETTY IS GONE AND SO IS EVERYTHING THAT CARRIED IT, at Sir's
        direction: too many faces for what it bought. What came out was
        the overhanging upper face at b 34, the soffit under it, the
@@ -71232,7 +71342,7 @@ function houseCanopy(fn){
       return q;
     };
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#9aa6ad');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#9aa6ad');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+8, -1, -12, trim);
 
     /* ---- the window: recess, goods, pane (a walk-in's, W11: a hole onto the room, its own frames display seen through; the painted
@@ -71391,7 +71501,7 @@ function houseCanopy(fn){
       poly(ring(a, b+0.8, z, r*0.16), '#3a4046');
     };
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#2c4a3a');                   // roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#2c4a3a');                   // roof, over body's trim-coloured plate
     slab(0, W, H, H+10, -1, -12, trim);
     slab(0, W, 0, 22, -1, -8, shade(wall,.72));
 
@@ -71672,7 +71782,7 @@ function houseCanopy(fn){
     const inner = '#3f5456';
     const sweet = ['#e8a13a','#c2452e','#7ac48a','#4aa8c4','#e2c74a','#e2748c'];
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#8fa8a6');                  // roof, over body's trim-red plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#8fa8a6');                  // roof, over body's trim-red plate
     slab(0, WW, H, H+10, 4, 0, trim);                   // cornice
 
     /* ---- one shopfront band, both openings cut out of it ---- */
@@ -71768,7 +71878,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#1f2f44', trim = '#f2b134', H = 164;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#34404f');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#34404f');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+14, -1, -10, shade(wall,1.5));
     reveal(12, W*0.56, 18, 112, 13, '#101018');
     for(let i=0;i<3;i++)                                           // sleeves on the glass line
@@ -71875,7 +71985,7 @@ function houseCanopy(fn){
     const TOY = [trim, BLU, YEL, GRN, ORG];
     const inner = '#2a2f36';
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#d8c9a8');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#d8c9a8');   // Flats roof, over body's trim-coloured plate
     slab(0,WW, H, H+14, -1, -14, trim);                      // parapet, belongs to the building
     slab(14,WW-14, 0, 30, -1, -8, shade(wall,.82));          // stallriser, margin 14 beats recess 8
 
@@ -72042,7 +72152,7 @@ function houseCanopy(fn){
     const wall = '#ece6da', trim = '#b8664a', H = 200;
     const inner = '#3a241b', clay = ['#c98a4a','#8a6a4a','#b87a52','#a8654a'];
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#6e422f');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#6e422f');                   // roof, over body's pale plate
     slab(0, W, H, H+10, 4, 0, shade(wall,.7));          // cornice
     for(let r=0;r<4;r++) F(0, W, 172+r*7, 175+r*7, shade(wall,.86), null,0, 0.4);   // brick courses
 
@@ -72161,7 +72271,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#e0d3b8', trim = '#3c7fa0', H = 154;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#a9b1ab');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#a9b1ab');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+10, -1, -12, trim);
     F(10,W*0.64, 20, 108, '#2a3a34', shade(wall,.6), 3);   // see the door note below
     for(let r=0;r<3;r++) for(let c=0;c<3;c++){
@@ -72268,7 +72378,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#e4f1f0', trim = '#2f8a8f', H = 158;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#aab4b2');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#aab4b2');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+12, -1, -10, trim);
     /* FLUSH. A laundromat is a glass box -- the shopfront is a curtain
        wall set in the plane of the facade, not a window punched into
@@ -72365,7 +72475,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#24435a', trim = '#e9d7a8', H = 176;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#36465a');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#36465a');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H-8, H+16, -1, -12, shade(wall,1.25));
     slab(0,W, H+16, H+22, -1, -12, trim);
     reveal(10, W*0.52, 18, 116, 13, '#14301f');
@@ -72490,7 +72600,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#e8dcc0', trim = '#3f8f6a', H = 150;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#b3ab98');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#b3ab98');   // Flats roof, over body's trim-coloured plate
     /* A FULL-WIDTH BAND AT A NEGATIVE b ALWAYS CROSSES. This ran
        a = 0..W at b = -1..-10; screen x moves -1 per unit of a and +1
        per b, so the recess slides it 10 units sideways with no margin
@@ -72623,7 +72733,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#2f6f7a', trim = '#f2d98c', H = 160;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#2a4a52');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#2a4a52');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+12, -1, -10, shade(wall,.6));
     slab(0,W, H+12, H+18, -1, -10, trim);
     /* THE COUNTER RAN INTO THE DOORWAY. It ended at W*0.70 = 161 while
@@ -72737,7 +72847,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#d9c9a3', trim = '#2f4a6b', H = 180;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#a39a86');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#a39a86');   // Flats roof, over body's trim-coloured plate
     /* ================= THE SIGN, REBUILT AS ONE ASSEMBLY =================
        The last pass only pulled the two bands off the return. That fixed
        the overrun and left everything else about the sign wrong, because
@@ -73064,7 +73174,7 @@ function houseCanopy(fn){
     const wall = '#1f4a5e', trim = '#e8b23a', cream = '#f2ece0', H = 210;
     const glass = '#5a7f96';
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#1c3440');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#1c3440');   // Flats roof, over body's trim-coloured plate
 
     /* ---- parapet, stepped the way a deco house front is ---- */
     slab(18, W-18, H, H+16, -1, -14, trim, shade(trim,.72), shade(trim,1.2));
@@ -73297,7 +73407,7 @@ function houseCanopy(fn){
     const wall = '#dcd3c1', trim = '#4d7f95', H = 420;
     const G = 120, FH = 100;                 // ground storey, residential storey
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#8a9699');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#8a9699');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+16, -1, -12, shade(wall,.7), shade(wall,.55), shade(wall,.85));
     slab(6,W-6, H-12, H, -1, -9, shade(trim,.86));                 // cornice
     for(let f=0;f<3;f++)
@@ -73512,7 +73622,7 @@ function houseCanopy(fn){
     const wall = '#eef2f3', trim = '#2a7f9e', H = 158;
     const ice = '#e6f2f5', dark = '#16232a';
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#9fb0b5');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#9fb0b5');   // Flats roof, over body's trim-coloured plate
     slab(16, W-16, H, H+12, -1, -12, trim, shade(trim,.72), shade(trim,1.2));
     slab(16, W-16, H-28, H-6, -1, -9, trim);                    // name fascia
     F(26, W-26, H-23, H-11, wall, null, 0, -9.5);
@@ -73681,7 +73791,7 @@ function houseCanopy(fn){
     const WW = T2*4.4;
     const wall = '#e6e1d6', trim = '#3c7fa0', H = 158;
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#9aa3a6');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#9aa3a6');   // Flats roof, over body's trim-coloured plate
     slab(14, WW-14, H, H+12, -1, -12, trim, shade(trim,.72), shade(trim,1.2));
     slab(14, WW-14, H-32, H-8, -1, -8, shade(wall,1.3));
     F(26, WW-26, H-27, H-13, trim, null, 0, -8.5);
@@ -73836,7 +73946,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#2c4a6b', trim = '#d8c48a', H = 172, WW = 170;
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#243850');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#243850');   // Flats roof, over body's trim-coloured plate
     slab(0,WW, H, H+8, -1, -12, shade(wall,.7));
     slab(WW*0.24,WW*0.76, H+8, H+22, -2, -12, shade(wall,.85), null, trim);
     F(WW*0.40,WW*0.60, H+12, H+20, trim, null,0,-2.5);
@@ -73978,7 +74088,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#f0d9b0', trim = '#d9735a', H = 152, pb = 52;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#c9b89a');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#c9b89a');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H-12, H, -1, -6, shade(wall,1.08));                     // (the frieze, then the cornice over it: W37 hung)
     slab(0,W, H, H+12, -1, -12, shade(wall,.62));
     F(14,W*0.54, 24, 100, '#5d4a3a', shade(wall,.6), 3);
@@ -74105,7 +74215,7 @@ function houseCanopy(fn){
     const wall = '#3f7f8a', trim = '#e8c34a', H = 184;
     const dark = '#16241f', paper = '#e8e3d6';
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#2e5a62');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#2e5a62');   // Flats roof, over body's trim-coloured plate
     slab(0, W, H, H+12, -1, -12, shade(wall,.62), shade(wall,.5), shade(wall,.8));
     slab(W*0.32, W*0.68, H+12, H+30, -1, -10, shade(wall,.62), shade(wall,.5), trim);
     F(W*0.37, W*0.63, H+17, H+25, trim, null, 0, -0.5);
@@ -74283,7 +74393,7 @@ function houseCanopy(fn){
     const colB = 8, deep = 66, COLS = [28, 73, WW - 73, WW - 28];
     box(0, WW, -PS_DD, -D, 0, PS_WH, '#b9bcb6', shade(wall, .9), shade(wall, .8));   // the rear wing, behind the hall
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#b9bcb6');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#b9bcb6');   // Flats roof, over body's trim-coloured plate
 
     /* ---- the portico: a recess, with everything inside bounded by it ---- */
     const rA0 = 16, rA1 = WW-16, rZ = 400;
@@ -75102,7 +75212,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#1f2f44', trim = '#37e0d0', H = 168;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#26364a');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#26364a');   // Flats roof, over body's trim-coloured plate
     F(10,W-10, 0, 120, '#0c0c14', null,0, 1);
     /* THE CABINETS WERE STANDING IN THE STREET. Five ran 26..178, then
        four, and all of them sat at b 2..22 -- OUTSIDE the glass line at
@@ -75204,7 +75314,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#f0ece2', trim = '#2f5f7a', H = 150;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#aab2b4');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#aab2b4');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+10, -1, -12, trim);
     for(let i=0;i<12;i++) F(i*(W/12), i*(W/12)+1.6, 0,42, shade(wall,.9), null,0,-1);
     /* SAME RULE, MISSED BY THE CLASSIFIER. This band is below z 60, so
@@ -75315,7 +75425,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#35555a', trim = '#c9a24a', H = 176, WW = 178;
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#2c4448');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#2c4448');   // Flats roof, over body's trim-coloured plate
     /* MARGIN 4 AGAINST A RECESS OF 10. The board ran 4..WW-4 at b -1..
        -10 and landed screen-a 5..184 on a 178 frontage -- six past the
        far return. Rule 1 again: a slab at negative b projects RIGHT by
@@ -75494,7 +75604,7 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#eee9dc', trim = '#1f4a6b', H = 186;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#a6aca9');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#a6aca9');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+10, -1, -12, trim);
     slab(W*0.32,W*0.68, H+10, H+34, -2, -12, shade(wall,1.04), null, trim);
     F(W*0.42,W*0.58, H+16, H+28, trim, null,0,-2.5);
@@ -75698,7 +75808,7 @@ function houseCanopy(fn){
     const wall = '#dfe4e2', trim = '#e2574c', H = 210;
     const inner = '#2f3a3f', gear = '#cfd6db', lit = trim;
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#a9b1af');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#a9b1af');   // Flats roof, over body's trim-coloured plate
     slab(0,WW, H, H+12, -1, -12, shade(wall,1.4));           // cornice, belongs to the building
     slab(14,WW-14, 0, 30, -1, -8, shade(wall,.8));           // stallriser, margin 14 beats recess 8
 
@@ -75856,7 +75966,7 @@ function houseCanopy(fn){
     const wall = '#3f6f86', trim = '#e8d9c0', H = 176, WW = 190;
     const inner = shade(wall,1.02), ROSE = '#c26a7e', TEAL = '#4a7a6a', GOLD = '#c9a24a';
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#2f5566');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#2f5566');   // Flats roof, over body's trim-coloured plate
     slab(0,WW, H, H+10, -1, -12, shade(wall,.7));
 
     /* ---- the window ----
@@ -76362,7 +76472,7 @@ function houseCanopy(fn){
        name panel. */
     const iron = '#4a4f55', leaf = '#3d4741';
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#6f6b62');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#6f6b62');   // Flats roof, over body's trim-coloured plate
     slab(0,WW, H, H+8, -1, -12, shade(wall,.72));          // cornice: the building's, may wrap
 
     /* ---- the window: a real recess, with the bars OUTSIDE the glass ----
@@ -76544,7 +76654,7 @@ function houseCanopy(fn){
     const DK0 = 168, DK1 = 180;                          // the mezzanine deck
     const B1 = [16, 155], B2 = [249.8, 388.8];           // the two bays
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#b4ad9c');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#b4ad9c');   // Flats roof, over body's trim-coloured plate
     slab(0,WW, H, H+12, -1, -12, trim);                  // cornice
 
     /* One bay: recess, deck, goods, pane, frame. Both bays go through
@@ -77037,7 +77147,7 @@ function houseCanopy(fn){
     const wall = '#9fb3b8', trim = '#1f3f55', H = 158;
     const WA0 = 12, WA1 = 140, WZ0 = 22, WZ1 = 108;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#7f9095');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#7f9095');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+10, -1, -12, trim);
 
     /* ---- the shopfront ---- */
@@ -77297,7 +77407,7 @@ function houseCanopy(fn){
        a 230 shop and is 1048 by 620 of near-white here -- the largest
        thing on screen by a factor of three, and the building underneath
        it stopped reading. Overdrawn in a roofing colour at H + 0.4. */
-    T(0, WW, -DD, 0, H+0.4, '#223f52');
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#223f52');
 
     /* ---- the fly tower, behind the auditorium, built as a solid ---- */
     F(CA0+20, CA1-20, H, H+240, shade(wall,.82), shade(wall,.62), 2, -300);
@@ -77533,7 +77643,7 @@ function houseCanopy(fn){
        a 230 shop and is 607 by 420 of near-white here -- the largest
        thing on screen and brighter than the building under it. Same
        overdraw the Playhouse needed at 1048 by 620. */
-    T(0, WW, -DD, 0, H+0.4, '#6a6f72');
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#6a6f72');
 
     /* ---- the apron ----
        Flat paint at z 0.6, not a solid: a forecourt is a surface a
@@ -77699,7 +77809,7 @@ function houseCanopy(fn){
     const brick = '#4a3326';
     const BD = 14, BOWS = [[16,74],[156,214]];        // bays, and how far they bulge
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#243a48');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#243a48');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+12, -1, -14, shade(wall,.66));     // eaves
     slab(0,W, 0, 30, -1, -6, brick);                  // tiled base
 
@@ -77887,7 +77997,7 @@ function houseCanopy(fn){
     const inner = '#1f2a2e', glass = 'rgba(120,116,132,.44)';
     const BAYS = [[16,170],[186,340],[438,592]];
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#3f555c');                 // roof, over body's near-white plate
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#3f555c');                 // roof, over body's near-white plate
     slab(0, WW, 0, 24, -1, -10, shade(wall,.62));       // plinth
 
     /* ---- three deep bays, with the stock inside them ----
@@ -78091,7 +78201,7 @@ function houseCanopy(fn){
       poly(ring(a, b+1.4, z, r*0.07), hand);
     };
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#1f3f4a');                  // roof, over body's near-white plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#1f3f4a');                  // roof, over body's near-white plate
     slab(0, WW, H, H+10, -1, -12, shade(wall,1.4));     // parapet
     slab(0, WW, 0, 24, -1, -8, shade(wall,.74));        // plinth
 
@@ -78240,7 +78350,7 @@ function houseCanopy(fn){
     const inner = '#4a2e2a';
     const cloth = ['#e8a13a','#4aa8c4','#c2452e','#7ac48a','#f0e2d0','#e2748c'];
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#b8847a');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#b8847a');                   // roof, over body's pale plate
     slab(0, W, H, H+10, 4, 0, trim);                    // cornice, on the band's face
     /* NO PLINTH. There was a full-width band at z 0..20 in
        shade(wall,.72), and once the shopfront became one band running
@@ -78463,7 +78573,7 @@ function houseCanopy(fn){
     const wall = '#2f6a6b', trim = '#c9a24a', H = 224;
     const inner = '#132a2b';
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#224a4b');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#224a4b');                   // roof, over body's pale plate
     slab(0, W, H, H+10, 4, 0, trim);                    // cornice
 
     /* ---- one shopfront band, both openings cut out of it ---- */
@@ -78633,7 +78743,7 @@ function houseCanopy(fn){
     const wall = '#24435a', trim = '#c9b48e', H = 200;
     const inner = '#111d24';
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#1f3548');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#1f3548');                   // roof, over body's pale plate
     slab(0, W, H, H+10, 4, 0, trim);                    // cornice
 
     /* ---- one shopfront band, portholes and the door cut out of it ---- */
@@ -79234,7 +79344,7 @@ function houseCanopy(fn){
     const inner = '#1c2227', glass = 'rgba(123,143,156,.40)';
     const BAYS = [[240,420],[450,630],[660,840]];
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#4f656c');                 // roof, over body's pale plate
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#4f656c');                 // roof, over body's pale plate
 
     /* ---- the north-light hall behind the front range ----
        Bays of 64 in b: a long slope rising 72 to the ridge, then a
@@ -79457,7 +79567,7 @@ function houseCanopy(fn){
       poly(q([[16,26],[46,33],[43,40],[14,33]]), sl);
     };
     body(wall, trim, H, WW);
-    T(0, WW, -D, 0, H+0.4, '#2f4a5e');                  // roof, over body's pale plate
+    roofDeck(0, WW, -D, 0, H+0.4, null, null, '#2f4a5e');                  // roof, over body's pale plate
     slab(0, WW, H, H+12, 4, 0, trim);                   // cornice
 
     /* ---- the whole frontage is one glazed front in a dark frame ---- */
@@ -79855,7 +79965,7 @@ function houseCanopy(fn){
     const wall = '#5a6a6e', trim = '#c9a24a', H = 280, WW = T2*6.6, DD = 420;
     const inner = '#160f0b', iron = '#3f464c';
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#3f4b4f');                 // roof, over body's pale plate
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#3f4b4f');                 // roof, over body's pale plate
     slab(0, WW, H, H+12, 4, 0, shade(wall,1.3));        // cornice
     slab(0, WW, 0, 170, 4, 0, shade(wall,1.1), null, trim);
 
@@ -80037,7 +80147,7 @@ function houseCanopy(fn){
     const inner = '#15242b';
     const cols = ['#a83a3a','#2f5f6b','#c9922f','#6b4a7a','#3f6b4a'];
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#2f5566');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#2f5566');                   // roof, over body's pale plate
     slab(0, W, H, H+10, 4, 0, shade(wall,.7));          // cornice
 
     /* ---- one shopfront band, both openings cut out of it ---- */
@@ -80170,7 +80280,7 @@ function houseCanopy(fn){
     const wall = '#b9ae98', trim = '#4d6a86', H = 168;
     const inner = '#2a2318';
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#8f887a');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#8f887a');                   // roof, over body's pale plate
     slab(0, W, H, H+10, 4, 0, trim);                    // cornice
 
     /* ---- one shopfront band, both openings cut out of it ---- */
@@ -80332,7 +80442,7 @@ function houseCanopy(fn){
     const wall = '#bfe0dc', trim = '#2f6f7a', H = 336;
     const inner = '#3a3040', floor = '#b49a7a';
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#93b3b0');                   // roof, over body's pale plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#93b3b0');                   // roof, over body's pale plate
 
     /* ---- the lobby, and the stair inside it ---- */
     slab(0, W, 0, 130, 4, 0, shade(wall,1.06), null, trim);
@@ -80467,7 +80577,7 @@ function houseCanopy(fn){
     const wall = '#1c3440', trim = '#e2574c', H = 200;
     const inner = '#0e0c12', ink = ['#c2452e','#2f5f6b','#c9a24a','#6b4a7a','#3f8f5a'];
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#1a2c36');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#1a2c36');   // Flats roof, over body's trim-coloured plate
     /* THE OVERDRAW HAS TO BE BIGGER THAN THE PLATE. body() lays its
        roof at exactly 0..W by -D..0, and an overdraw at the same
        extents leaves a hairline of the original showing along the far
@@ -80704,7 +80814,7 @@ function houseCanopy(fn){
     const wall = '#e8dcc0', trim = '#2f5f8a', iron = '#8d979f', H = 160;
     const zk = 1/ZSCALE;
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#b3a88f');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#b3a88f');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+10, -1, -12, trim);
 
     /* ---- the window: one recess, real glass, bars in front of it ---- */
@@ -82333,7 +82443,7 @@ function houseCanopy(fn){
     elevation(FR_BACK);
     elevation(FAR);
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#6a7076');          // body()'s roof plate is too bright at this size
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#6a7076');          // body()'s roof plate is too bright at this size
     elevation(NEAR);
     elevation(FR_FRONT);
 
@@ -82611,7 +82721,7 @@ function houseCanopy(fn){
     elevation(FR_BACK);
     elevation(FAR);
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#6a7076');           // body()'s roof plate is too bright at this size
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#6a7076');           // body()'s roof plate is too bright at this size
     elevation(NEAR);
     elevation(FR_FRONT);
 
@@ -82838,7 +82948,7 @@ function houseCanopy(fn){
     elevation(FR_BACK);
     elevation(FAR);
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#5f666c');           // body()'s roof plate is too bright at this size
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#5f666c');           // body()'s roof plate is too bright at this size
     elevation(NEAR);
     elevation(FR_FRONT);
 
@@ -83040,7 +83150,7 @@ function houseCanopy(fn){
     const bay = i => { const w = 44, g = (W - 3*w)/4; return [g + i*(w+g), g + i*(w+g) + w]; };
 
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#8f969a');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#8f969a');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+14, -1, -16, shade(wall,.72));                    // cornice, may wrap
 
     /* ---- the sashes: three ranks, real reveals, stone cills ---- */
@@ -83292,7 +83402,7 @@ function houseCanopy(fn){
     elevation(FR_BACK);
     elevation(FAR);
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, shade(slate,.70));    // body()'s roof plate is too bright at this size
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, shade(slate,.70));    // body()'s roof plate is too bright at this size
     /* THE MANSARD HAD NO DECK. body()'s plate sits at H, and the slopes
        rise to H+92 leaning in 52 -- so the flat roof was 92 units BELOW
        the tops of its own roof and the far slopes stood above nothing. A
@@ -83414,7 +83524,7 @@ function houseCanopy(fn){
     const LOAD = 1, DMID = 179.12;
 
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#6f6a60');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#6f6a60');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+14, -1, -16, shade(wall,.66));                    // cornice, may wrap
     /* the piers are PROUD -- bFront 4, bBack 0 -- so there is no recess
        to overrun, and the outer two sit inside the frontage instead of
@@ -83536,7 +83646,7 @@ function houseCanopy(fn){
     const bay = i => [12 + 206*(i+0.12)/4, 12 + 206*(i+0.88)/4];
 
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#9da6a4');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#9da6a4');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+14, -1, -16, shade(wall,.74));                    // cornice, may wrap
     slab(0,W, H-20, H, 3, 0, shade(wall,1.04), null, shade(wall,1.16));
 
@@ -83726,7 +83836,7 @@ marinaEntry(),
 
     items.push(Object.assign(K(230, -1196), { z: 0, shell: true, draw: M(() => {   // (shell: the nave inside, HALL_IN)
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#9fa9a4');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#9fa9a4');   // Flats roof, over body's trim-coloured plate
     /* ---- the flank. 2392 of blank wall is not a hall either: a nave
        this long is an ARCADE, and the bay rhythm down the side is most
        of what says the building has a length at all.
@@ -83954,7 +84064,7 @@ marinaEntry(),
     body(wall, trim, H, WW, DD);
     /* body() floors the roof in TRIM, which on a dark building is a
        cream lid -- fine on a stone shopfront, wrong here. */
-    T(0, WW, -DD, 0, H+0.4, shade(wall,1.06));
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, shade(wall,1.06));
     slab(0,WW, H, H+12, -1, -14, shade(wall,1.35));
 
     /* ---- two ranks of windows ---- */
@@ -84127,7 +84237,7 @@ marinaEntry(),
     const DMID = 115, S0 = DMID - 37.12, S1 = DMID + 37.12;
 
     body(wall, trim, H);
-    T(0, W, -D, 0, H+0.4, '#8f969a');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, W, -D, 0, H+0.4, null, null, '#8f969a');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+12, -1, -14, shade(wall,.7));
     for(const cv of [180, 310])
       slab(0,W, cv, cv+10, 3, 0, shade(wall,.88), null, shade(wall,1.1));
@@ -84845,7 +84955,7 @@ marinaEntry(),
     const DMID = 205.12, WIN = [14, 150], ST = [250, 560];
 
     body(wall, trim, H, WW, DD);
-    T(0, WW, -DD, 0, H+0.4, '#9aa6a8');   // Flats roof, over body's trim-coloured plate
+    roofDeck(0, WW, -DD, 0, H+0.4, null, null, '#9aa6a8');   // Flats roof, over body's trim-coloured plate
     slab(0,WW, H, H+12, -1, -14, trim);
     slab(0,WW, H-20, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2));
     for(const cv of [160, 290])
@@ -95046,7 +95156,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       head:o.head, tags:o.tags || [], desc:o.desc || o.head, ...(o.lamps ? { lamps: o.lamps } : {}),
       draw(p){
         body(wall, trim, H, WW, DD);
-        T(0, WW, -DD, 0, H+0.4, roof);
+        roofDeck(0, WW, -DD, 0, H+0.4, null, null, roof);
         slab(0, WW, H, H+10, 4, 0, trim);                              // cornice
         slab(0, WW, 0, 122, 4, 0, shade(wall,1.16), null, trim);       // the shopfront band
         for(const [w0, w1] of WINS){
