@@ -63060,7 +63060,7 @@ function houseCanopy(fn){
       const job = (at, look, T1, T2, crouch, waist, kneel) => Object.assign({ at, f: faceTo(at, look), hT: T1 }, hP(at, faceTo(at, look), T1, T2, crouch, waist, kneel));
       const add = (P, da, db, dz) => [P[0] + da, P[1] + db, P[2] + dz];
       switch(p){
-        case 0: { const T = SK(a, b, 0, 0, 16); return job([a, b - 42], T, add(T, -14 + 3*S(300), -7, 0), add(T, 14 - 3*S(300), -7, 0), 0.25, 0.55); }   /* (close in at the jig, where he set the deck down -- Sir, 2026-11-23: "why does he move so far away from the workspace?") */   /* (the deck squared on the jig, pressed home with both hands) */
+        case 0: { const T = SK(a, b, 0, 0, 16); return job([a, b - 42], T, add(T, -9 + 2*S(300), -5, 1), add(T, 9 - 2*S(300), -5, 1), 0.4, 0.6); }   /* (both hands flat on the deck, close in, pressing it home -- Sir, 2026-11-24: "the hands could be closer after setting down the deck") */   /* (close in at the jig, where he set the deck down -- Sir, 2026-11-23: "why does he move so far away from the workspace?") */   /* (the deck squared on the jig, pressed home with both hands) */
         case 1: {   /* STATION 1, THE REAR WHEEL, a job of its own (Sir, 2026-11-23: "improve their ability to do their job as an individual"): down
              on one knee with the wheel from his bin, offered onto the axle and pushed home, the nut run on by hand, then done up with his wrench,
              the wheel given a spin to see it runs true, and up again */
