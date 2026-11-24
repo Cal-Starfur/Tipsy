@@ -14593,6 +14593,61 @@ function parkMowTone(grid, blk){
    concrete with its expansion joints across; each laid on a darker edging band. Only cells with nothing of their own: not the
    Veterans Memorial Park's trail, not a park landmark or a hood landmark, not the monument's green. The lawn's groups and its cart
    keep off them (parkPathOff, parkLawnGroups). */
+/* PATHS LAID BY HAND (Sir, 2026-11-24, of the trail bent round the animal shelter: "i like that the paths aren't perfectly
+   square -- can you look at other parks and see if we can do something like this in them?"). A straight walk keeps its line
+   and its ends, but its middle meanders a little off the line (zero at both ends, so it still meets its joints, gates and
+   the footway square), and each edge wanders on its own a few units in and out, eased to nothing at the ends; a joint's disc
+   and a turnaround's ring wander round their rim. All of it is a pure function of the walk's own corners (seeded off them:
+   the same every frame and every visit), drawn in the ground pass as before. Each kind its own character:
+     M  how far the middle meanders off the line (a walk shorter than `full` meanders less, in proportion)
+     A  how far an edge wanders;  wave  the meander's swing (one bend in a short walk, an S in a long one)
+   The Veterans Memorial Park trail's wood chips wander most; a bare park's gravel walk a little; a concrete walk with its
+   joints (the formal greens) stays ruled. */
+const PATH_HAND = { trail: { M: 34, A: 8, full: 1500, wave: 1300 }, gravel: { M: 14, A: 5, full: 900, wave: 900 } };
+function pathHandSeed(x0, y0, x1, y1){
+  return (Math.imul(Math.round(x0) + 7, 0x9e3779b1) ^ Math.imul(Math.round(y0) + 3, 0x85ebca6b) ^ Math.imul(Math.round(x1) + 11, 0xc2b2ae35) ^ Math.imul(Math.round(y1) + 5, 0x27d4eb2f)) >>> 0;
+}
+/* a walk's shape (s: x0, y0, x1, y1), once per walk and kind: its length, unit along (ux, uy) and to its left (nx, ny), and the
+   seeded phases */
+function pathHandOf(s, P){
+  const c = s._hand; if(c && c.P === P) return c;
+  const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0) || 1, r = mulberry32(pathHandSeed(s.x0, s.y0, s.x1, s.y1));
+  const ux = (s.x1 - s.x0)/L, uy = (s.y1 - s.y0)/L;
+  return (s._hand = { P, L, ux, uy, nx: -uy, ny: ux, M: P ? P.M*Math.min(1, L/P.full)*(r() < 0.5 ? -1 : 1)*(0.6 + r()*0.4) : 0,
+    k: 1 + Math.floor(r()*Math.max(1, P ? L/P.wave : 1)), mix: r()*0.5, ph: r()*Math.PI*2,
+    e: [0, 1].map(() => [260 + r()*160, 130 + r()*70, r()*Math.PI*2, r()*Math.PI*2]) });
+}
+/* how far the middle stands off the line t along (left positive) */
+function pathHandMid(h, t){
+  if(!h.M) return 0;
+  const u = Math.max(0, Math.min(1, t/h.L)), env = Math.sin(Math.PI*u);
+  return h.M*env*((1 - h.mix)*Math.sin(Math.PI*u*h.k) + h.mix*Math.sin(Math.PI*2*u*h.k + h.ph)*0.6);
+}
+/* how far side (0 left, 1 right) wanders out (in, negative) t along */
+function pathHandEdge(h, t, side){
+  if(!h.P) return 0;
+  const E = h.e[side], tp = Math.min(1, t/80, (h.L - t)/80);
+  return tp <= 0 ? 0 : h.P.A*tp*(0.62*Math.sin(t*Math.PI*2/E[0] + E[2]) + 0.38*Math.sin(t*Math.PI*2/E[1] + E[3]));
+}
+/* the walk's band, half-width w, from t0 to t1 along, as a world outline: its left edge out, its right edge back (wk: how much
+   of the edges' wander it takes -- a trodden middle less) */
+function pathHandBand(s, P, w, t0, t1, wk = 1){
+  const h = pathHandOf(s, P), key = w + "|" + t0 + "|" + t1 + "|" + wk, M = h.bands || (h.bands = new Map());   // (once per band: the ground repaints reuse it)
+  if(M.has(key)) return M.get(key);
+  const n = Math.max(1, Math.ceil((t1 - t0)/40)), L = [], R = [];
+  for(let i = 0; i <= n; i++){
+    const t = t0 + (t1 - t0)*i/n, m = pathHandMid(h, t), x = s.x0 + h.ux*t, y = s.y0 + h.uy*t;
+    const a = w + pathHandEdge(h, t, 0)*wk, b = w + pathHandEdge(h, t, 1)*wk;
+    L.push({ x: x + h.nx*(m + a), y: y + h.ny*(m + a) }); R.push({ x: x + h.nx*(m - b), y: y + h.ny*(m - b) });
+  }
+  const out = L.concat(R.reverse()); M.set(key, out); return out;
+}
+/* a disc's or a ring's rim, wandering: radius r at angle a, round (x, y) */
+function pathHandRim(P, x, y, r, a, salt){
+  if(!P) return r;
+  const sd = pathHandSeed(x, y, salt, 0), p1 = (sd & 1023)/1023*Math.PI*2, p2 = ((sd >>> 10) & 1023)/1023*Math.PI*2, k = 3 + (sd >>> 20)%3;
+  return r + P.A*0.7*(0.6*Math.sin(a*k + p1) + 0.4*Math.sin(a*(k*2 + 1) + p2));
+}
 const PARK_PATH = { hw: 58, edge: 9, plaza: [150, 190], ring: 480, ringHw: 46,
   mats: [ { top: 0xd6c7a0, edge: 0xa8946c, fleck: [0xe6d9b6, 0xbba985, 0xc9b892], joint: 0 },
           { top: 0xd2cfc6, edge: 0x9f9b90, fleck: [0xdedbd2, 0xc2beb3], joint: 0xb2aea3 } ] };
@@ -107540,7 +107595,21 @@ function parkTrailClear(G){
   const RN = 2*Hc/PC.slope + H + 2*F, NS = PC.near;
   for(const k of blk){ const i = Math.floor(k/131072 + 0.5), j = k - i*131072, x = (i + 0.5)*F, y = (j + 0.5)*F;
     for(let u = Math.floor((x - RN)/NS); u <= Math.floor((x + RN)/NS); u++) for(let v = Math.floor((y - RN)/NS); v <= Math.floor((y + RN)/NS); v++) near.add(u*131072 + v); }
-  return (G._clear = { blk, near, Hc, F, cells: want.size });
+  return (G._clear = { blk, near, Hc, F, cells: want.size, T: G.T });
+}
+/* where the trail's middle is at a point of its line: the run it is on meanders off it there (PATH_HAND.trail, as fillParkTrail
+   draws it), so the walkers keep to the chips' own middle; null off every run */
+function parkTrailMid(T, x, y){
+  /* (the runs filed by the line they lie on -- all square to the grid -- so a point asks only the runs on its own line) */
+  const ix = T._midIx || (T._midIx = (() => { const m = new Map(), put = (k, s) => { if(!m.has(k)) m.set(k, []); m.get(k).push(s); };
+    for(const s of T.segs){ if(s.y0 === s.y1) put("h" + Math.round(s.y0), s); if(s.x0 === s.x1) put("v" + Math.round(s.x0), s); } return m; })());
+  for(const L of [ix.get("h" + Math.round(y)), ix.get("v" + Math.round(x))]) if(L) for(const s of L){
+    const h = pathHandOf(s, PATH_HAND.trail); if(!h.M) continue;
+    const t = (x - s.x0)*h.ux + (y - s.y0)*h.uy; if(t <= 0 || t >= h.L) continue;
+    if(Math.abs((x - s.x0)*h.nx + (y - s.y0)*h.ny) > 1) continue;
+    const m = pathHandMid(h, t); return { x: h.nx*m, y: h.ny*m };
+  }
+  return null;
 }
 /* a way's point d along (pts and their running length cum) */
 function parkPathPt(P, d){
@@ -107555,7 +107624,10 @@ function parkPathPt(P, d){
 /* where a walker d along way P stands: their lane to the right of the way they go (dir -1: going it backwards), or the nearest
    clear one to it where something stands by the trail, eased to over the way before and after (never past the chips' edge) */
 function parkLanePos(C, P, d, lane, dir, e){
-  const at = dd => { const q = parkPathPt(P, dd), a = parkPathPt(P, Math.max(0, dd - e)), c = parkPathPt(P, Math.min(P.L, dd + e));
+  /* (on the run's meander, parkTrailMid: the way's point moved onto it; its heading the way's own -- the meander turns it a few
+     degrees at most) */
+  const at = dd => { let q = parkPathPt(P, dd); const a = parkPathPt(P, Math.max(0, dd - e)), c = parkPathPt(P, Math.min(P.L, dd + e)), m = C.T && parkTrailMid(C.T, q.x, q.y);
+    if(m) q = { x: q.x + m.x, y: q.y + m.y };
     let th = Math.atan2(c.y - a.y, c.x - a.x); if(dir < 0) th += Math.PI; return { x: q.x, y: q.y, th }; };
   const q = at(d);
   let s = lane;
@@ -122483,16 +122555,17 @@ class WorldScene extends Phaser.Scene {
        island's edging, and the ring is laid as a band of quads, so the
        world's own lawn checker shows through the middle untouched */
     const ISL = 100, isEnd = (x, y) => vt.nodes.some(n => n.end && n.x === x && n.y === y);
-    const band = (s, w) => { const hx = s.y0 === s.y1 ? 0 : w, hy = s.y0 === s.y1 ? w : 0;
-      const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), ux = (s.x1 - s.x0)/L, uy = (s.y1 - s.y0)/L;
+    /* (laid by hand, PATH_HAND.trail: each run meanders off its line and its edges wander; a joint's disc and a turnaround's ring
+       wander round their rims -- the edging, the board, the chips and the tread all the one shape) */
+    const PH = PATH_HAND.trail;
+    const band = (s, w, wk) => { const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0);
       const c0 = isEnd(s.x0, s.y0) ? ISL : 0, c1 = isEnd(s.x1, s.y1) ? ISL : 0;
-      const ax = s.x0 + ux*c0, ay = s.y0 + uy*c0, bx = s.x1 - ux*c1, by = s.y1 - uy*c1;
-      return [this.W(ax - hx, ay - hy, z), this.W(bx - hx, by - hy, z), this.W(bx + hx, by + hy, z), this.W(ax + hx, ay + hy, z)]; };
-    const disc = (x, y, r, zz) => Array.from({ length: 28 }, (_, k) => { const t = k/28*Math.PI*2; return this.W(x + Math.cos(t)*r, y + Math.sin(t)*r, zz); });
-    const ring = (x, y, r0, r1, col) => { const N = 36;
-      for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.02)/N*Math.PI*2;
-        this.quadOn(g, [this.W(x + Math.cos(t0)*r0, y + Math.sin(t0)*r0, z), this.W(x + Math.cos(t1)*r0, y + Math.sin(t1)*r0, z),
-                        this.W(x + Math.cos(t1)*r1, y + Math.sin(t1)*r1, z), this.W(x + Math.cos(t0)*r1, y + Math.sin(t0)*r1, z)], col); } };
+      return pathHandBand(s, PH, w, c0, L - c1, wk).map(p => this.W(p.x, p.y, z)); };
+    const disc = (x, y, r, zz, wk = 1) => Array.from({ length: 28 }, (_, k) => { const t = k/28*Math.PI*2, rr = r + (pathHandRim(PH, x, y, r, t, 1) - r)*wk; return this.W(x + Math.cos(t)*rr, y + Math.sin(t)*rr, zz); });
+    const ring = (x, y, r0, r1, col, wk = 1) => { const N = 36, rim = (r, t, salt) => r + (pathHandRim(PH, x, y, r, t, salt) - r)*wk;
+      for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.02)/N*Math.PI*2, a0 = rim(r0, t0, 2), a1 = rim(r0, t1, 2), b0 = rim(r1, t0, 3), b1 = rim(r1, t1, 3);
+        this.quadOn(g, [this.W(x + Math.cos(t0)*a0, y + Math.sin(t0)*a0, z), this.W(x + Math.cos(t1)*a1, y + Math.sin(t1)*a1, z),
+                        this.W(x + Math.cos(t1)*b1, y + Math.sin(t1)*b1, z), this.W(x + Math.cos(t0)*b0, y + Math.sin(t0)*b0, z)], col); } };
     /* (the parks pass, 2026-11-23: the edging is a timber board -- its weathered side, then the lit top of the board along the
        chips' edge; and the run is trodden down its middle -- a paler, packed tread where the feet go, the loose chips either side) */
     const EDGE = 0x6e5034, BOARD = 0x95724c, CHIP = 0x9c724a, TREAD = 0xb38c62;
@@ -122503,8 +122576,8 @@ class WorldScene extends Phaser.Scene {
     for(const s of segs) this.quadOn(g, band(s, s.h || H), CHIP);
     for(const n of nodes) n.end ? ring(n.x, n.y, ISL + 12, vt.R(n), CHIP) : this.quadOn(g, disc(n.x, n.y, vt.R(n), z), CHIP);
     { const tw = s => (s.h || H)*0.4, rm = (n) => (ISL + 12 + vt.R(n))/2, rw = n => (vt.R(n) - ISL - 12)*0.3;
-      for(const s of segs) this.quadOn(g, band(s, tw(s)), TREAD);
-      for(const n of nodes) n.end ? ring(n.x, n.y, rm(n) - rw(n), rm(n) + rw(n), TREAD) : this.quadOn(g, disc(n.x, n.y, H*0.4, z), TREAD); }
+      for(const s of segs) this.quadOn(g, band(s, tw(s), 0.5), TREAD);
+      for(const n of nodes) n.end ? ring(n.x, n.y, rm(n) - rw(n), rm(n) + rw(n), TREAD, 0.5) : this.quadOn(g, disc(n.x, n.y, H*0.4, z, 0.5), TREAD); }
     /* the chips themselves: light and dark flecks, fixed per run */
     if(!vt._specks){
       const rr = mulberry32(0x5c1a9);
@@ -122512,7 +122585,7 @@ class WorldScene extends Phaser.Scene {
         const out = [], hw = s.h || H, L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), n = Math.round(L*2*hw/2200);
         const dx = (s.x1 - s.x0)/L, dy = (s.y1 - s.y0)/L;
         for(let k = 0; k < n; k++){
-          const t = rr()*L, o = (rr()*2 - 1)*(hw - 8), x = s.x0 + dx*t - dy*o, y = s.y0 + dy*t + dx*o;
+          const t = rr()*L, o = (rr()*2 - 1)*(hw - 8 - PH.A) + pathHandMid(pathHandOf(s, PH), t), x = s.x0 + dx*t - dy*o, y = s.y0 + dy*t + dx*o;   // (on the run's meander)
           if(vt.nodes.some(q => q.end && Math.hypot(q.x - x, q.y - y) < 118)) continue;
           out.push(x, y, rr() < 0.5 ? 0xc49a68 : rr() < 0.6 ? 0x7d5634 : 0xb68656);
         }
@@ -122618,20 +122691,23 @@ class WorldScene extends Phaser.Scene {
       }
       return pts;
     };
-    const band = (s, w) => { const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), nx = -(s.y1 - s.y0)/L*w, ny = (s.x1 - s.x0)/L*w;
-      return clipR([{ x: s.x0 - nx, y: s.y0 - ny }, { x: s.x1 - nx, y: s.y1 - ny }, { x: s.x1 + nx, y: s.y1 + ny }, { x: s.x0 + nx, y: s.y0 + ny }], s.clip); };
+    /* (a gravel walk laid by hand, PATH_HAND.gravel: its middle meanders a little, its edges and the plaza's rim wander; a concrete
+       one, jointed, stays ruled) */
+    let PH = null;
+    const band = (s, w) => clipR(pathHandBand(s, PH, w, 0, Math.hypot(s.x1 - s.x0, s.y1 - s.y0)), s.clip);
     const fillW = (pts, col) => { if(!pts) return; const q = pts.map(p => this.W(p.x, p.y, z)); if(this.ptsOnScreen(q)) this.quadOn(g, q, col); };   // (each piece on its tile only)
-    const disc = (x, y, r) => Array.from({ length: 36 }, (_, k) => { const t = k/36*Math.PI*2; return { x: x + Math.cos(t)*r, y: y + Math.sin(t)*r }; });
+    const disc = (x, y, r) => Array.from({ length: 36 }, (_, k) => { const t = k/36*Math.PI*2, rr = pathHandRim(PH, x, y, r, t, 1); return { x: x + Math.cos(t)*rr, y: y + Math.sin(t)*rr }; });
     const ring = (x, y, r0, r1, col) => { const N = 48;
-      for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.03)/N*Math.PI*2;
-        fillW([{ x: x + Math.cos(t0)*r0, y: y + Math.sin(t0)*r0 }, { x: x + Math.cos(t1)*r0, y: y + Math.sin(t1)*r0 },
-               { x: x + Math.cos(t1)*r1, y: y + Math.sin(t1)*r1 }, { x: x + Math.cos(t0)*r1, y: y + Math.sin(t0)*r1 }], col); } };
+      for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.03)/N*Math.PI*2, a0 = pathHandRim(PH, x, y, r0, t0, 2), a1 = pathHandRim(PH, x, y, r0, t1, 2), b0 = pathHandRim(PH, x, y, r1, t0, 3), b1 = pathHandRim(PH, x, y, r1, t1, 3);
+        fillW([{ x: x + Math.cos(t0)*a0, y: y + Math.sin(t0)*a0 }, { x: x + Math.cos(t1)*a1, y: y + Math.sin(t1)*a1 },
+               { x: x + Math.cos(t1)*b1, y: y + Math.sin(t1)*b1 }, { x: x + Math.cos(t0)*b0, y: y + Math.sin(t0)*b0 }], col); } };
     const E = PARK_PATH.edge;
     for(const blk of blocks){
       if(blk.type !== "park" || blk.i === undefined) continue;
       const c = PP.get(blk.i + "," + blk.j); if(!c) continue;
       if(!this.ptsOnScreen([this.W(blk.x0 - 100, blk.y0 - 100, 0), this.W(blk.x1 + 100, blk.y0 - 100, 0), this.W(blk.x1 + 100, blk.y1 + 100, 0), this.W(blk.x0 - 100, blk.y1 + 100, 0)])) continue;
       const m = c.mat;
+      PH = m.joint ? null : PATH_HAND.gravel;
       for(const sh of c.shapes){
         if(sh.t === "seg") fillW(band(sh, sh.hw + E), m.edge);
         else if(sh.t === "disc") fillW(disc(sh.x, sh.y, sh.r + E), m.edge);
@@ -122652,12 +122728,12 @@ class WorldScene extends Phaser.Scene {
           let d = Infinity;
           for(const sh of c.shapes){
             if(sh.t === "seg"){ if(x < sh.clip.x0 || x > sh.clip.x1 || y < sh.clip.y0 || y > sh.clip.y1) continue;
-              const L2 = (sh.x1 - sh.x0)**2 + (sh.y1 - sh.y0)**2, t = Math.max(0, Math.min(1, ((x - sh.x0)*(sh.x1 - sh.x0) + (y - sh.y0)*(sh.y1 - sh.y0))/L2));
-              d = Math.min(d, Math.hypot(x - sh.x0 - (sh.x1 - sh.x0)*t, y - sh.y0 - (sh.y1 - sh.y0)*t) - sh.hw); }
+              const h = pathHandOf(sh, PH), t = (x - sh.x0)*h.ux + (y - sh.y0)*h.uy, o = (x - sh.x0)*h.nx + (y - sh.y0)*h.ny;   // (off its meander)
+              if(t >= 0 && t <= h.L) d = Math.min(d, Math.abs(o - pathHandMid(h, t)) - sh.hw); }
             else if(sh.t === "disc") d = Math.min(d, Math.hypot(x - sh.x, y - sh.y) - sh.r);
             else { const q = Math.hypot(x - sh.x, y - sh.y); d = Math.min(d, Math.max(sh.r0 - q, q - sh.r1)); }
           }
-          if(d > -6) continue;
+          if(d > -6 - (PH ? PH.A : 0)) continue;
           out.push(x, y, m.fleck[Math.floor(rr()*m.fleck.length)]); k++;
         }
         c._fl = out;
