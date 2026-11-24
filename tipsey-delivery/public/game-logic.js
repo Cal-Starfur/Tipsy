@@ -32435,6 +32435,10 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
         const L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, lt = 0.86 + 0.14*Math.max(0, (q[0] - p[0])/L);
         if(on && !base){ face([[p[0], -hp, p[1]], [q[0], -hq, q[1]], [q[0], 0, q[1]], [p[0], 0, p[1]]], c, lt, 'strip', ck);
           face([[p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], hq, q[1]], [p[0], hp, p[1]]], c, lt, 'strip', ck); }
+        else if(on && base && p[1] === q[1] && p[0] - q[0] > 3){ const S = [], N = 12;   // (the sole's underside: its outline the shoe's own, rounded, in plan -- one quad between its narrow heel and toe left the foot's wide middle uncovered, the upper showing round it from behind: Sir, 2026-11-24)
+          for(let k = 0; k <= N; k++){ const u = p[0] + (q[0] - p[0])*k/N; S.push([u, -half(u, i, fl), p[1]]); }
+          for(let k = N; k >= 0; k--){ const u = p[0] + (q[0] - p[0])*k/N; S.push([u, half(u, i, fl), p[1]]); }
+          face(S, c, lt, 'base', ck); }
         else face([[p[0], -hp, p[1]], [q[0], -hq, q[1]], [q[0], hq, q[1]], [p[0], hp, p[1]]], c, lt, base ? 'base' : 'strip', ck, base && (q[0] - p[0])/L > 0.8 && Math.max(p[1], q[1]) <= upLo + 0.01); }
       /* the side walls, in slices along the shoe */
       const cuts = Array.from(new Set(us.concat(Array.from({ length: 13 }, (_, k) => uLo + (uHi - uLo)*k/12)))).sort((a, b) => a - b);
