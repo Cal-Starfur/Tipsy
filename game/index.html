@@ -34147,11 +34147,14 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
   const upLo = Math.min(...parts.filter(q => q[0] === 'p' && Math.max(...q[1].map(v => v[1])) > 6.5).map(q => Math.min(...q[1].map(v => v[1]))));   // (where the upper stands: its lowest)
   for(const part of parts){ const t = part[0], F = [];
     if(part[5] === 'worn' && !on) continue;   // (the wearer's own foot: on someone only)
+    /* (a panel -- a side's stripe, a swoosh -- with the faces all sorted together (opt.mix, a tipped foot): last, over the wall it lies on, as on
+       a flat foot; sorted slice by slice against the wall's slices, the nearer of those painted over it and broke it up in motion -- Sir,
+       2026-11-24, "the designs on the side get messed up when in motion". Only the seen side's are drawn, so nothing of the shoe is over them) */
     /* (under: a sole's top that the upper stands on, whole (not one the upper's bottom runs into, as a runner's midsole) -- with the shoe's faces all sorted together (opt.mix) it goes first, as the unmixed
        pass lays the base first: sorted by its middle, the whole length of the shoe, it came after the upper's top and painted over it --
        people_depth, the heavy build mid-stride) */
     const face = (P3, c, l, what, ck, under) => { const n = P3.length, m = P3.reduce((a, q) => [a[0] + q[0]/n, a[1] + q[1]/n, a[2] + q[2]/n], [0, 0, 0]);
-      if(!want(what, m[0], m[1], m[2], ck)) return; F.push({ P3, c, l, d: under && on && opt.mix ? -1e9 : depth ? depth(m[0], m[1], m[2]) + (what === 'panel' ? 0.6 : 0) : F.length }); };   // (a panel just after the wall it lies on)
+      if(!want(what, m[0], m[1], m[2], ck)) return; F.push({ P3, c, l, d: under && on && opt.mix ? -1e9 : what === 'panel' && on && opt.mix ? 1e9 + F.length : depth ? depth(m[0], m[1], m[2]) + (what === 'panel' ? 0.6 : 0) : F.length }); };   // (a panel just after the wall it lies on)
     if(t === 'p'){ const pr = cw(part[1]), c = C[part[2]], i = part[3], fl = !!part[4], n = pr.length, ck = part[2];
       base = base && Math.max(...part[1].map(q => q[1])) <= 6.5;
       const us = pr.map(q => q[0]), uLo = Math.min(...us), uHi = Math.max(...us);
