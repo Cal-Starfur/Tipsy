@@ -67537,11 +67537,17 @@ function houseCanopy(fn){
     const PKD = [2088, 1290];   /* (the conveyor robot's dock: south of the packer, who stands east of the last stop -- the box built on it there) */
     /* (phase 6) THE STORAGE BAYS: two rows either side of an aisle (AY), each worked from the aisle -- the north row's facing north, the south
        row's facing south; pallet p goes into bay p % 6 at 4500 into its cycle and is shipped four cycles on (the shipping jack's lift) */
-    const SB = [[1000, 1730], [1180, 1730], [1360, 1730], [1540, 1730], [1720, 1730], [1900, 1730]], AY = 1600;   /* (one row along the south wall -- Sir, 2026-11-20: "we can move our pallets into a row to give some room") */   /* (the south row out to 1730: a jack at a bay of one row clears the pallets of the other) */
+    /* (the row slid west into the south-west corner, out of the crush by the arm, and worked from behind: a lane along the south wall (BY),
+       each bay's jack stop south of it, facing north -- Sir, 2026-11-24: "we need to move these finished pallets away into the other end of the
+       warehouse there is not room here" -- "lets just slide it down" -- "from behind". The bay just south of the arm's (SG) holds each new
+       pallet only till the inside jack takes it on to its bay) */
+    const SB = [[270, 1708], [450, 1708], [630, 1708], [810, 1708], [990, 1708], [1170, 1708]], AY = 1600, BY = 1816, CX = 1350, SG = [1720, 1730];   /* (one row along the south wall -- Sir, 2026-11-20: "we can move our pallets into a row to give some room") */   /* (the south row out to 1730: a jack at a bay of one row clears the pallets of the other) */
     const JKD = 106;   /* (a pallet on a jack's forks: its middle 106 ahead of the jack, its near end against the backrest -- hx 55 - 1, + 50 + 2) */
-    const bayStop = k => [SB[k][0], SB[k][1] < AY ? SB[k][1] + JKD : SB[k][1] - JKD];
+    const bayStop = k => [SB[k][0], SB[k][1] + JKD - 2], SGS = [SG[0], SG[1] - JKD];   /* (a storage bay's stop: from the back lane; SG's: from the aisle) */
+    const TSET = 19300, TSG0 = 4500, TSG1 = 13000;   /* (the inside jack sets the pallet in its bay at TSET; it stands on SG from TSG0 to TSG1) */
+    const sgHas = t => { const jr = (((t - PAL0) % PALT) + PALT) % PALT; return t >= PAL0 && jr >= TSG0 && jr < TSG1; };
     const bayHas = (t, k) => { const c = Math.floor((t - PAL0)/PALT); for(let q = c - 5; q <= c; q++){ if(((q % 6) + 6) % 6 !== k) continue;
-      const tIn = PAL0 + q*PALT + 4500, tOut = PAL0 + (q + 4)*PALT + 50600; if(t >= tIn && t < tOut) return true; } return false; };    /* THE PARTS PALLET (phase 2): its load about its middle (da along a, db along b, dz up from its deck), the order the Receiver takes it
+      const tIn = PAL0 + q*PALT + TSET, tOut = PAL0 + (q + 4)*PALT + 53000; if(t >= tIn && t < tOut) return true; } return false; };    /* THE PARTS PALLET (phase 2): its load about its middle (da along a, db along b, dz up from its deck), the order the Receiver takes it
        off in (top first); the Receiver's window on the jack's clock (RCV_T0..T1) */
     const RCV = [{ k: 'deck', da: 0, db: -10, dz: 20, la: 46, lb: 19, h: 28 }, { k: 'parts', da: 0, db: -17, dz: 0, la: 30, lb: 11, h: 20 },
       { k: 'parts', da: 0, db: 6, dz: 0, la: 30, lb: 11, h: 20 }, { k: 'flat', da: 0, db: 24, dz: 0, la: 30, lb: 7, h: 14 },
@@ -67983,7 +67989,7 @@ function houseCanopy(fn){
        (RBPK). The station's robot goes west along the lane (b 1410) and up to the stop; it comes back by a 620 into its spot; as it leaves,
        the spare rolls in */
     const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBL = 1410, SPOD = [330, 1000], SROB = [500, 1000], RPOD = [430, 850], RBIN = [SROB[0], SROB[1], 31];   /* (RPOD: the empties' rack beside the picker) */
-    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[820, 700, 460, 580][k], 1620];   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
+    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[820, 700, 460, 580][k], 1600];   /* (20 north: clear of the finished pallets' bays slid along the south wall -- Sir, 2026-11-24) */   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
     const rbGeo = k => { const pa = rbPA(k), ST = [pa, 1330], PK = RBPK(k), A = RBA[k];
       const H = (P, f) => [P[0] + 0.01*Math.cos(f*Math.PI/2), P[1] + 0.01*Math.sin(f*Math.PI/2)];   /* (a path starts the way the robot stands, so it spins off its spot rather than snapping: tools pathAt) */
       const EMP = [ST, H(ST, 0), [pa, RBL], [SROB[0], RBL], SROB], RET = [SROB, H(SROB, 3), [620, SROB[1]], [620, RBL], [PK[0], RBL], PK], ENT = [PK, H(PK, 1), [PK[0], RBL], [pa, RBL], ST, [ST[0] + 0.6, ST[1]]];   /* (and the spare turns to face along the line at its station) */
@@ -68213,19 +68219,21 @@ function houseCanopy(fn){
         const E = pts[pts.length - 1]; return { a: E[0], b: E[1], fdir: 1, s: 0 }; };
       const A0 = [1720, 1500 - JKD], STK = [1540, 1500 + JKD], DOOR = [W + 70, 455], hold = (P, f) => ({ a: P[0], b: P[1], fdir: f, s: 0 });
       /* (its forks still in under a pallet, backing out from one or nosing in: hidden, or they paint over it) */
-      const underPal = P => [A0, STK, ...SB.map((q, k) => bayStop(k))].some(S => Math.hypot(P.a - S[0], P.b - S[1]) < 100);
-      const into = (k, from) => { const [pa] = SB[k], sp = bayStop(k); return [from, [pa, AY], sp]; };
-      const outOf = k => { const [pa] = SB[k], sp = bayStop(k); return [sp, [pa, AY, 'r']]; };
+      const underPal = P => [A0, STK, SGS, ...SB.map((q, k) => bayStop(k))].some(S => Math.hypot(P.a - S[0], P.b - S[1]) < 100);
+      /* (into a storage bay from the aisle, the jack coming along it facing west: backed down the cross lane (CX) to the back lane, along it, and in
+         -- every turn with its forks swinging north, clear of the wall and the pallets; out of one, backed out onto the back lane) */
+      const into = (k, from) => { const [pa] = SB[k], sp = bayStop(k); return [from, [CX, AY], [CX, BY, 'r'], [pa, BY], sp]; };
+      const outOf = k => { const [pa] = SB[k], sp = bayStop(k); return [sp, [pa, BY, 'r']]; };
       items.push({ a: 2000, b: 1000, z: 0, solids: [], draw: () => {}, fx: { crew: t => {
         const out = [], c = Math.floor((t - PAL0)/PALT), jr = t - PAL0 - c*PALT, kIn = ((c % 6) + 6) % 6;
         /* the inside jack: the full pallet to its bay, an empty off the stack into the arm's bay */
         { let P, jack = false, fork = 0;
-          const Q1 = [A0, [1720, RBL], [1450, RBL], [1450, AY], ...into(kIn, [1450, AY]).slice(1)];
-          const Q2 = [...outOf(kIn), [STK[0], AY], STK], Q3 = [STK, [STK[0], AY, 'r'], [1450, AY], [1450, RBL], [1720, RBL], A0];
+          const Q1 = [A0, [1720, RBL], [1450, RBL], [1450, AY], [SG[0], AY], SGS];
+          const Q2 = [SGS, [SG[0], AY, 'r'], [STK[0], AY], [STK[0], STK[1], 'r']],   /* (backed onto its stop, facing the stack) */ Q3 = [STK, [STK[0], AY], [1450, AY], [1450, RBL, 'r'], [1720, RBL, 'r'], [A0[0], A0[1], 'r']];   /* (backed up to the lane and along it, its forks and the empty swung only to the open floor south-west -- never over station 8's parts robot -- and backed up to the bay facing it: no half-turn snap) */
           /* (it waits off to the side, not at the arm's bay, and is called in once the pallet is full: the sixth box on at jr 0 -- Sir, 2026-11-24:
              "the lift shouldnt be waiting there for the pallet to get full it should be called in once the pallet is full". JW: the open floor
              north-east of the arm, a second's drive away -- from a full pallet to the arm's next box there are only 9 s for the whole swap) */
-          const JW = [1825, 1360], JW1 = [JW[0] - 6, JW[1]], QIN = [JW, JW1, A0], QOUT = [A0, [JW1[0], JW1[1], 'r'], [JW[0], JW[1], 'r']];   /* (facing west, its forks toward the bay and clear of the conveyor robot's turn; in on a slant to the bay, so its forks never swing over station 8's parts robot west of it: crew_spacing) */
+          const JW = [1825, 1370], JW1 = [JW[0] - 6, JW[1]], QIN = [JW, JW1, A0, [A0[0], A0[1] + 0.5]], QOUT = [[A0[0], A0[1] - 0.5], A0, [JW1[0], JW1[1], 'r'], [JW[0], JW[1], 'r']];   /* (turned square to the bay at its end: no snap) */   /* (facing west, its forks toward the bay and clear of the conveyor robot's turn; in on a slant to the bay, so its forks never swing over station 8's parts robot west of it: crew_spacing) */
           if(jr < 200) P = hold(JW, 2);
           else if(jr < 1400) P = drv(QIN, (jr - 200)/1200);
           else if(jr < 1500) P = hold(A0, 1);
@@ -68237,15 +68245,24 @@ function houseCanopy(fn){
           else if(jr < 7900){ P = drv(Q3, (jr - 6100)/1800); jack = JACKIN([]); fork = 1; }
           else if(jr < 8300){ P = hold(A0, 1); jack = JACKIN([]); fork = 1 - ease((jr - 7900)/400); }
           else if(jr < 9500) P = drv(QOUT, (jr - 8300)/1200);   /* (backed out of the bay once the empty is down, and off to wait) */
+          /* (then, while the arm fills the next, the full one from SG on to its storage bay at the far end, and back to wait) */
+          else if(jr >= 10000 && jr < 28200 && t >= PAL0){   /* (RT ends at JW facing west) */ const kS = kIn, TP1 = [JW, JW1, A0, ...Q1.slice(1)], TP2 = [SGS, [SG[0], AY, 'r'], ...into(kS, [SG[0], AY]).slice(1)];
+            const RT = [...outOf(kS), [2275, BY, 'r'], [2275, 1370], JW];   /* (home round by the east aisle: backed east along the back lane, up the aisle, west to its spot -- clear of rows A and B's parts robots) */
+            if(jr < 13000) P = drv(TP1, (jr - 10000)/3000);
+            else if(jr < 13600){ P = hold(SGS, 1); jack = JACK; fork = ease((jr - 13000)/600); }
+            else if(jr < 18900){ P = drv(TP2, (jr - 13600)/5300); jack = JACK; fork = 1; }
+            else if(jr < 19500){ P = drv(TP2, 1); jack = JACK; fork = 1 - ease((jr - 18900)/600); }
+            else if(jr < 21000) P = drv(TP2, 1);
+            else P = drv(RT, (jr - 21000)/7200); }   /* (timed to cross the conveyor robot's way while it is docked by the packer) */
           else P = hold(JW, 2);
-          CW_FLOW.jack = jr >= 9500 || jr < 200 ? 'waiting for a full pallet' : jr < 1400 ? 'called to the arm bay' : jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
+          CW_FLOW.jack = jr >= 10000 && jr < 28200 ? (jr < 13600 ? 'to SG' : jr < 19500 ? 'to bay ' + (kIn + 1) : 'back to wait') : jr >= 9500 || jr < 200 ? 'waiting for a full pallet' : jr < 1400 ? 'called to the arm bay' : jr < 2100 ? 'arm bay' : jr < 4700 ? 'to SG' : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
           const nL = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;
           out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackIn', jack: nL >= 0 || underPal(P) ? 'under' : false, fork, wheel: (P.s || P.a + P.b)*0.12 })); if(nL >= 0) out.push(onForks(P, fork, nL)); }
         /* the shipping jack, on its own round from outside (u: from 9500 into the pallet clock): the parts pallet in, the empty to the stack,
            the oldest pallet out */
         { const cs = Math.floor((t - PAL0 - 9500)/PALT), u = t - PAL0 - 9500 - cs*PALT, ko = (((cs - 4) % 6) + 6) % 6, jr2 = u + 9500;
-          const IN = [DOOR, [JA, 455], [JA, 400]], ST = [[JA, 400], [JA, 455, 'r'], [2275, 455], [2275, AY], [STK[0], AY], STK];
-          const Q4 = [STK, [STK[0], AY, 'r'], ...into(ko, [STK[0], AY]).slice(1)], Q5 = [...outOf(ko), [2275, AY], [2275, 455], [DOOR[0] + 1, 455]];
+          const IN = [DOOR, [JA, 455], [JA, 400]], ST = [[JA, 400], [JA, 455, 'r'], [2275, 455], [2275, AY], [STK[0], AY], [STK[0], STK[1], 'r']];
+          const Q4 = [STK, [STK[0], AY], ...into(ko, [STK[0], AY]).slice(1)], Q5 = [...outOf(ko), [2275, BY, 'r'], [2275, 455], [DOOR[0] + 1, 455]];   /* (backed east along the back lane, so the pallet on its forks never swings into the east wall) */
           let P, jack = false, fork = 0;
           if(u < 1000) P = null;
           else if(u < 4500){ P = drv(IN, (u - 1000)/3500); jack = JACKIN([0, 1, 2, 3]); fork = 1; }
@@ -68259,10 +68276,10 @@ function houseCanopy(fn){
           else if(jr2 < RCV_T1 + 1000){ P = hold([JA, 400], 3); jack = JACKIN([]); fork = ease((jr2 - RCV_T1)/1000); }
           else if(jr2 < 48400){ P = drv(ST, (jr2 - RCV_T1 - 1000)/(48400 - RCV_T1 - 1000)); jack = JACKIN([]); fork = 1; }
           else if(jr2 < 49400){ P = hold(STK, 3); jack = JACKIN([]); fork = 1 - ease((jr2 - 48400)/1000); }
-          else if(jr2 < 50600) P = drv(Q4, (jr2 - 49400)/1200);
-          else if(jr2 < 51400){ P = drv(Q4, 1); jack = JACK; fork = ease((jr2 - 50600)/800); }
-          else { P = drv(Q5, (jr2 - 51400)/(PALT + 9500 - 51400)); jack = JACK; fork = 1; }
-          CW_FLOW.ship = !P ? 'outside' : u < 4500 ? 'in with parts' : jr2 >= RCV_T0 && jr2 < RCV_T1 ? (jr2 < RCV_T0 + 3000 ? 'away' : 'back for the empty') : jr2 < RCV_T1 + 1000 ? 'receiving' : jr2 < 49400 ? 'empty to the stack' : jr2 < 51400 ? 'to bay ' + (ko + 1) : 'out with bay ' + (ko + 1);
+          else if(jr2 < 53000) P = drv(Q4, (jr2 - 49400)/3600);   /* (the far end's bays: a longer way there and out) */
+          else if(jr2 < 53800){ P = drv(Q4, 1); jack = JACK; fork = ease((jr2 - 53000)/800); }
+          else { P = drv(Q5, (jr2 - 53800)/(PALT + 9500 - 53800)); jack = JACK; fork = 1; }
+          CW_FLOW.ship = !P ? 'outside' : u < 4500 ? 'in with parts' : jr2 >= RCV_T0 && jr2 < RCV_T1 ? (jr2 < RCV_T0 + 3000 ? 'away' : 'back for the empty') : jr2 < RCV_T1 + 1000 ? 'receiving' : jr2 < 49400 ? 'empty to the stack' : jr2 < 53800 ? 'to bay ' + (ko + 1) : 'out with bay ' + (ko + 1);
           if(P){ const fade = clamp01((W + 50 - P.a)/80); if(fade > 0.01){ const own = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;   /* (the parts pallet stays the jack's own: its load the Receiver's) */
             const pOn = jack && jack.on;
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackShip', jack: own >= 0 || pOn || (!jack && underPal(P)) ? 'under' : jack, fork, wheel: (P.s || P.a + P.b)*0.12, fade })); if(own >= 0 && fade > 0.99) out.push(onForks(P, fork, own)); if(pOn && fade > 0.99) out.push(partsOnForks(P, fork, pOn)); } } }
@@ -68466,7 +68483,7 @@ function houseCanopy(fn){
        the conveyor and builds it onto the pallet in its bay (Sir: the arm had been moving a box from one side of itself to the other) -- six to a pallet, then the pallet jack robot takes it (fx.crew, on the line's clock) ---- */
     /* (the arm 48 east and its conveyor stop 66 east, clear of the pallet bay and of each other -- Sir, 2026-11-24: "it seems crammed into that
        space" -- "yes that should give it some room") */
-    { const PA = 1720, PB = 1500, AA = 1860, CA = 1960, CBY = 1380, CP = [[PKD[0], PKD[1]], [PKD[0], CBY], [CA, CBY], [CA, 1500], [CA, 1501]], CL = (CBY - PKD[1]) + (PKD[0] - CA) + (1500 - CBY),   /* (south off the dock first, then west: its turn clear of the line's last robot) */ ARM0 = 3800, ARMT = 3500;
+    { const PA = 1720, PB = 1500, AA = 1860, CA = 1960, CBY = 1380, CE = PKD[0] + 62, CP = [[PKD[0], PKD[1]], [CE, PKD[1]], [CE, CBY], [CA, CBY], [CA, 1500], [CA, 1501]], CL = (CE - PKD[0]) + (CBY - PKD[1]) + (CE - CA) + (1500 - CBY),   /* (docked along the packer, facing east; off east, down and back west under the dock to the arm: its turns clear of the line's last robot and of the packer) */ ARM0 = 3800, ARMT = 3500;
       /* the arm robot faces north between the pallet (west) and the conveyor robot's dock (east): in its frame, a forward (north), b east */
       const HELD = (box, w, z) => { box(w[0] - BXL/2, w[0] + BXL/2, w[1] - BXW/2, w[1] + BXW/2, z - BXH, z, 0xc98a4a); box(w[0] - BXL/2, w[0] + BXL/2, w[1] - 2.5, w[1] + 2.5, z, z + 0.4, 0xe3c08a); };
       items.push({ a: 1990, b: 1440, z: 0, solids: [solid(AA - 38, AA + 38, 1445, 1555, 120, 'palletizing robot')], draw: () => {}, fx: { crew: t => {
@@ -68492,12 +68509,13 @@ function houseCanopy(fn){
     }
 
     /* ---- THE FINISHED GOODS: pallets of boxed scooters and e-bikes in hatched bays (a 1100..1800, b 1420..1760) ---- */
-    for(const [pa, pb] of [[1540, 1500], [1720, 1500], ...SB]){   /* (the empties' and the arm's bays, and the six storage bays in their row) */
+    for(const [pa, pb] of [[1540, 1500], [1720, 1500], SG, ...SB]){   /* (the empties' and the arm's bays, SG, and the six storage bays in their row) */
       T(pa - 70, pa + 70, pb - 70, pb - 64, 0.5, yel); T(pa - 70, pa + 70, pb + 64, pb + 70, 0.5, yel); T(pa - 70, pa - 64, pb - 70, pb + 70, 0.5, yel); T(pa + 64, pa + 70, pb - 70, pb + 70, 0.5, yel);
     }
     /* (phase 6: the six storage bays, each a pallet of six boxed scooters while it holds one -- a still piece, cached by its state) */
     for(let k = 0; k < SB.length; k++){ const [pa, pb] = SB[k];
       items.push({ a: pa + 31, b: pb + 37, z: 0, solids: [], draw: () => {}, fx: { kit: () => { if(bayHas(pgSvcNow()*HALL_TS, k)) palletKit(pa, pb, 6); }, state: () => bayHas(pgSvcNow()*HALL_TS, k) ? 'p' : 'e' } }); }
+    items.push({ a: SG[0] + 31, b: SG[1] + 37, z: 0, solids: [], draw: () => {}, fx: { kit: () => { if(sgHas(pgSvcNow()*HALL_TS)) palletKit(SG[0], SG[1], 6); }, state: () => sgHas(pgSvcNow()*HALL_TS) ? 'p' : 'e' } });   /* (SG: the new pallet, till the inside jack takes it on) */
     /* THE HALL'S PACE (Sir, 2026-11-19: "the pacing is too fast"): every crew here on the hall's own clock, 0.6 of the game's -- a scooter
        off the line every 15 s, the benches' bins every minute, a pallet every 90 s -- all of it in step as before */
     for(const it of items) if(it.fx && it.fx.crew) it.fx.ts = HALL_TS;
