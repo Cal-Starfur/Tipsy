@@ -6391,6 +6391,8 @@ function owBuildWorld(route){
   /* ...and Veterans Memorial Park's trees and shrubs along the trail */
   { const vt = g2 && typeof vetTrailOf === 'function' ? vetTrailOf(g2) : null;
     if(vt) for(const q of vt.posts) PO.push(q); }
+  /* ...and a bare park's picnic tables and drinking fountains (parkPathsOf) */
+  if(g2 && typeof parkPathPosts === 'function') for(const q of parkPathPosts(g2)) PO.push(q);
   const poBucket = new Map();
   for(const s of PO){
     const k = Math.floor(s.x / HZ_CELL) + ',' + Math.floor(s.y / HZ_CELL);
@@ -6426,6 +6428,8 @@ const OW_HZ_R = {
   monument: 125,
   /* Veterans Memorial Park (see vetTrailOf): a trunk, and a shrub's body */
   parktree: 26, shrub: 30,
+  /* a bare park's picnic table (two along it: 131 x 110 over all) and its drinking fountain (see parkPathsOf) */
+  picnic: 52, drinkfountain: 18,
   /* the traffic signal's POLE. Not the head or the mast arm -- those hang
      at armZ ~312, far over the robot. 16 is the drawn base collar's own
      half-width (14) plus a little slack, erring generous so he stops just
@@ -12660,6 +12664,149 @@ const BENCH_ART = {
 /* ground tones — grass for housing/park, warm pavers for commercial,
    distinct from the sidewalk's own concrete tone */
 const GRASS = { a:0x5a9c52, b:0x519246 };   // no edge: one seamless lawn (see fillBlockInterior)
+/* A PARK'S LAWN IS MOWN (the parks pass, 2026-11-23: "look over the parks ... they need a pass"). The board-game checker read as
+   tiles, not grass; a park's lawn is cut in stripes instead -- two lattice tiles wide (~1.8 m, a mower's pass), light and dark
+   in turn, on the same world lattice (so cells, the streets they swallowed and the corners between them run on as one lawn),
+   along x or along y by the park (seeded off its first cell, parkMowAxis), never per frame. The housing yards and the rim keep
+   the checker; a park never touches them (a pavement between). */
+const PARK_MOW = { a: 0x5da255, b: 0x529147 };
+function parkMowTone(grid, blk){
+  if(!grid || !grid.blockByIJ || blk.i === undefined) return GRASS;
+  if(!grid._parkMow){
+    const M = grid.blockByIJ, out = new Map();
+    for(const b of grid.blocks || []){
+      if(b.type !== "park" || b.i === undefined || out.has(b.i + "," + b.j)) continue;
+      const comp = [b], q = [b], seen = new Set([b.i + "," + b.j]);
+      while(q.length){ const c = q.pop();
+        for(const [di, dj] of [[1,0],[-1,0],[0,1],[0,-1]]){ const k = (c.i + di) + "," + (c.j + dj), n = M.get(k);
+          if(n && n.type === "park" && !seen.has(k)){ seen.add(k); comp.push(n); q.push(n); } } }
+      const a = comp.reduce((m, c) => (c.j < m.j || (c.j === m.j && c.i < m.i)) ? c : m);
+      const rr = mulberry32((0x30e1 ^ Math.imul(a.i + 3, 0x9e3779b1) ^ Math.imul(a.j + 11, 0x85ebca6b)) >>> 0);
+      const t = { a: PARK_MOW.a, b: PARK_MOW.b, mow: rr() < 0.5 ? 1 : 2, mat: rr() < 0.5 ? 0 : 1 };   // (mat: its walks' surface, PARK_PATH)
+      for(const c of comp) out.set(c.i + "," + c.j, t);
+    }
+    grid._parkMow = out;
+  }
+  return grid._parkMow.get(blk.i + "," + blk.j) || GRASS;
+}
+/* A BARE PARK'S PATHS (the parks pass, 2026-11-23). Most of the city's parks were one sheet of lawn with nothing to say it was a park;
+   each now has the walks a real neighbourhood green has, laid in the ground pass (fillParkPaths: ground, no collision, cached with
+   the ground). A cell takes one of three plans, seeded off its i, j (never per frame):
+     plus   spokes in from the pavement at its edges' middles to a round plaza in the middle;
+     x      the corner cut-throughs: diagonals in from its corners (always a pair of opposite ones) to the plaza;
+     ring   an oval walk round the middle lawn, its spokes in from the edges stopping at the ring.
+   A side that faces another bare park cell always has its spoke, and the spoke runs on across the street the parks swallowed to
+   meet the neighbour's, so a merged park's walks join up. Two surfaces, by the park: buff self-binding gravel (flecked), or pale
+   concrete with its expansion joints across; each laid on a darker edging band. Only cells with nothing of their own: not the
+   Veterans Memorial Park's trail, not a park landmark or a hood landmark, not the monument's green. The lawn's groups and its cart
+   keep off them (parkPathOff, parkLawnGroups). */
+const PARK_PATH = { hw: 58, edge: 9, plaza: [150, 190], ring: 480, ringHw: 46,
+  mats: [ { top: 0xd6c7a0, edge: 0xa8946c, fleck: [0xe6d9b6, 0xbba985, 0xc9b892], joint: 0 },
+          { top: 0xd2cfc6, edge: 0x9f9b90, fleck: [0xdedbd2, 0xc2beb3], joint: 0xb2aea3 } ] };
+function parkPathCellOk(grid, b){
+  if(!b || b.type !== "park" || b.i === undefined) return false;
+  const k = b.i + "," + b.j, vt = vetTrailOf(grid), fm = ferrisMonumentOf(grid);
+  if(vt && vt.cells.has(k)) return false;
+  if(fm && fm.anchor === b) return false;
+  if(parkLandmarkIndexOf(grid).has(k)) return false;
+  if(typeof hoodLandmarkAtIJ === "function" && hoodLandmarkAtIJ(b.i, b.j)) return false;
+  return true;
+}
+function parkPathsOf(grid){
+  if(!grid || !grid.blockByIJ) return null;
+  if(grid._parkPaths) return grid._parkPaths;
+  const M = grid.blockByIJ, byCell = new Map(), P = PARK_PATH;
+  const mow = c => parkMowTone(grid, c);   // (one surface per park: the mown tone is per park, so is this)
+  for(const b of grid.blocks || []){
+    if(!parkPathCellOk(grid, b)) continue;
+    const r = mulberry32((0x9a7b ^ Math.imul(b.i + 17, 0x9e3779b1) ^ Math.imul(b.j + 5, 0x85ebca6b)) >>> 0);
+    const t = mow(b);
+    const shapes = [], cx = (b.x0 + b.x1)/2, cy = (b.y0 + b.y1)/2, rect = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
+    const u = r(), plan = u < 0.4 ? "plus" : u < 0.72 ? "x" : "ring";
+    const cart = ((b.i*3 + b.j) % 4) === 0;               // (the lawn's cart stands at cx + 260, cy + 140: PARK_LAWN)
+    /* the sides: [dx, dy] out of the cell; a bare park neighbour forces its spoke */
+    const sides = [[1,0],[-1,0],[0,1],[0,-1]].map(([dx, dy]) => ({ dx, dy, nb: parkPathCellOk(grid, M.get((b.i + dx) + "," + (b.j + dy))) }));
+    let on = sides.map(sd => sd.nb || r() < 0.55);
+    if(plan === "x") on = sides.map(sd => sd.nb);
+    else while(on.filter(Boolean).length < 2) on[Math.floor(r()*4)] = true;
+    const pr = P.plaza[0] + r()*(P.plaza[1] - P.plaza[0]);
+    const stop = plan === "ring" ? P.ring + P.ringHw - 4 : pr - 8;
+    sides.forEach((sd, k) => { if(!on[k]) return;
+      const ex = sd.dx > 0 ? b.x1 : sd.dx < 0 ? b.x0 : cx, ey = sd.dy > 0 ? b.y1 : sd.dy < 0 ? b.y0 : cy;
+      shapes.push({ t: "seg", x0: cx + sd.dx*stop, y0: cy + sd.dy*stop, x1: ex, y1: ey, hw: P.hw, clip: rect });
+      /* on across the swallowed street to the neighbour's spoke (drawn by the -x/-y cell of the two, once) */
+      if(sd.nb && sd.dx + sd.dy > 0){ const n = M.get((b.i + sd.dx) + "," + (b.j + sd.dy)), nx = sd.dx > 0 ? n.x0 : cx, ny = sd.dy > 0 ? n.y0 : cy;
+        shapes.push({ t: "seg", x0: ex, y0: ey, x1: nx, y1: ny, hw: P.hw, clip: { x0: Math.min(ex, nx) - (sd.dy ? P.hw + P.edge : 0), x1: Math.max(ex, nx) + (sd.dy ? P.hw + P.edge : 0),
+          y0: Math.min(ey, ny) - (sd.dx ? P.hw + P.edge : 0), y1: Math.max(ey, ny) + (sd.dx ? P.hw + P.edge : 0) } }); }
+    });
+    if(plan === "x"){
+      /* a pair of opposite corners always (the cut-through), the other pair by the roll; never through the cart */
+      const C = [[1,1],[-1,-1],[1,-1],[-1,1]], first = r() < 0.5 ? 0 : 2, both = r() < 0.55;
+      C.forEach(([dx, dy], k) => {
+        const pair = k < 2 ? 0 : 2; if(pair !== first && !both) return;
+        if(cart && dx > 0 && dy > 0) return;
+        const ex = dx > 0 ? b.x1 : b.x0, ey = dy > 0 ? b.y1 : b.y0, L = Math.hypot(ex - cx, ey - cy);
+        shapes.push({ t: "seg", x0: cx + (ex - cx)/L*(pr - 8), y0: cy + (ey - cy)/L*(pr - 8), x1: ex + (ex - cx)/L*40, y1: ey + (ey - cy)/L*40, hw: P.hw, clip: rect });
+      });
+    }
+    if(plan === "ring") shapes.push({ t: "ring", x: cx, y: cy, r0: P.ring - P.ringHw, r1: P.ring + P.ringHw });
+    else shapes.push({ t: "disc", x: cx, y: cy, r: pr });
+    const cell = { b, plan, shapes, mat: P.mats[t.mat || 0], furn: [] };
+    /* ITS FURNITURE: a drinking fountain on the plaza's rim, where no walk comes in; a picnic table or two out on the lawn, beside a
+       walk and square to it. Each a solid (parkPathPosts), each kept clear of the walks, the cart and each other */
+    if(plan !== "ring"){
+      const angs = plan === "plus" ? [0.25, 0.75, 1.25, 1.75] : [0, 0.5, 1, 1.5];
+      const ok = angs.filter(a => !(cart && Math.abs(a - 0.25) < 0.01));
+      const a = ok[Math.floor(r()*ok.length)]*Math.PI;
+      cell.furn.push({ kind: "drinkfountain", x: cx + Math.cos(a)*(pr - 34), y: cy + Math.sin(a)*(pr - 34), r: 22 });
+    }
+    const off0 = (x, y) => { let d = Infinity;
+      for(const s of shapes){
+        if(s.t === "seg"){ const L2 = (s.x1 - s.x0)**2 + (s.y1 - s.y0)**2, tt = Math.max(0, Math.min(1, ((x - s.x0)*(s.x1 - s.x0) + (y - s.y0)*(s.y1 - s.y0))/L2));
+          d = Math.min(d, Math.hypot(x - s.x0 - (s.x1 - s.x0)*tt, y - s.y0 - (s.y1 - s.y0)*tt) - s.hw); }
+        else if(s.t === "disc") d = Math.min(d, Math.hypot(x - s.x, y - s.y) - s.r);
+        else { const q = Math.hypot(x - s.x, y - s.y); d = Math.min(d, Math.max(s.r0 - q, q - s.r1)); }
+      } return d; };
+    const nT = r() < 0.55 ? 2 : 1, segs = shapes.filter(s => s.t === "seg" && s.clip === rect);
+    for(let k = 0, tries = 0; k < nT && tries < 40 && segs.length; tries++){
+      const s = segs[Math.floor(r()*segs.length)], L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), ux = (s.x1 - s.x0)/L, uy = (s.y1 - s.y0)/L;
+      const tt = L*(0.25 + r()*0.5), side = r() < 0.5 ? -1 : 1, o = s.hw + 120 + r()*60;
+      const x = s.x0 + ux*tt - uy*o*side, y = s.y0 + uy*tt + ux*o*side;
+      if(x < b.x0 + 200 || x > b.x1 - 200 || y < b.y0 + 200 || y > b.y1 - 200) continue;
+      if(off0(x, y) < 100) continue;
+      if(cart && Math.hypot(x - (cx + 260), y - (cy + 140)) < 420) continue;
+      if(cell.furn.some(f => Math.hypot(f.x - x, f.y - y) < 340)) continue;
+      /* square to the walk: its long side along it (a diagonal's table takes the nearer of the two axes) */
+      const along = Math.abs(ux) >= Math.abs(uy) ? DIRV[0] : DIRV[1];
+      cell.furn.push({ kind: "picnic", x, y, r: 110, dv: along }); k++;
+    }
+    byCell.set(b.i + "," + b.j, cell);
+  }
+  return (grid._parkPaths = byCell);
+}
+/* how far (x, y) stands from a bare park cell's walks (negative on them); Infinity where there are none */
+function parkPathOff(grid, x, y){
+  const PP = parkPathsOf(grid); if(!PP) return Infinity;
+  const c = PP.get(Math.floor(x/BLOCK) + "," + Math.floor(y/BLOCK)); if(!c) return Infinity;
+  let d = Infinity;
+  for(const s of c.shapes){
+    if(s.t === "seg"){ const L2 = (s.x1 - s.x0)**2 + (s.y1 - s.y0)**2, t = Math.max(0, Math.min(1, ((x - s.x0)*(s.x1 - s.x0) + (y - s.y0)*(s.y1 - s.y0))/L2));
+      d = Math.min(d, Math.hypot(x - s.x0 - (s.x1 - s.x0)*t, y - s.y0 - (s.y1 - s.y0)*t) - s.hw); }
+    else if(s.t === "disc") d = Math.min(d, Math.hypot(x - s.x, y - s.y) - s.r);
+    else { const q = Math.hypot(x - s.x, y - s.y); d = Math.min(d, Math.max(s.r0 - q, q - s.r1)); }
+  }
+  for(const f of c.furn) d = Math.min(d, Math.hypot(x - f.x, y - f.y) - f.r);
+  return d;
+}
+/* what stops him in a bare park: the picnic tables (two posts along each) and the drinking fountains (owBuildWorld's PO) */
+function parkPathPosts(grid){
+  const PP = parkPathsOf(grid), out = [];
+  if(PP) for(const c of PP.values()) for(const f of c.furn){
+    if(f.kind === "picnic") for(const t of [-36, 36]) out.push({ kind: "picnic", x: f.x + f.dv.x*t, y: f.y + f.dv.y*t });
+    else out.push({ kind: "drinkfountain", x: f.x, y: f.y });
+  }
+  return out;
+}
 const PLAZA = { a:0xd9c9a8, b:0xceba95, edge:0xb09b74 };
 
 const EXT_YARD_DEPTH = 220, EXT_PARK_DEPTH = 380; // exterior (world-perimeter) lot depths
@@ -103014,6 +103161,7 @@ function parkLawnGroups(grid){
     for(let tries = 0; tries < 60 && got.length < want; tries++){
       const x = b.x0 + P + r()*(b.x1 - b.x0 - 2*P), y = b.y0 + P + r()*(b.y1 - b.y0 - 2*P);
       if(!clear(x, y) || got.some(g => Math.hypot(g.x - x, g.y - y) < 650)) continue;
+      if(!onTrail && parkPathOff(grid, x, y) < 190) continue;                                    // (off a bare park's walks: PARK_PATH)
       if(onTrail){
         if(T.off(x, y) < 230) continue;
         if(T.plants.some(pl => Math.hypot(pl.x - x, pl.y - y) < (pl.r || 40) + 170)) continue;
@@ -112161,6 +112309,7 @@ class WorldScene extends Phaser.Scene {
     });
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
+    this.fillParkPaths(g, visBlocks);       // a bare park's walks, over its mown lawn (see parkPathsOf)
     this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
     this.fillSkateGround(g);                // DRIFTWOOD SKATE PARK's pad and its bowl (SK_PLAN)
     this.fillSchoolVerge(g);                // TIDE POOL ELEMENTARY's west strip: the sidewalk row against its fence is lawn (TPE_PLAN.VERGE)
@@ -115468,7 +115617,7 @@ class WorldScene extends Phaser.Scene {
       for(let bi = i0; bi <= i1; bi++){
         const tx0 = Math.max(blk.x0, bi*T2), tx1 = Math.min(blk.x1, (bi + 1)*T2);
         if(tx1 - tx0 < 0.5) continue;
-        const parity = (bi + bj) & 1;               // === paveParity of the tile's centre
+        const parity = tone.mow ? (Math.floor((tone.mow === 1 ? bi : bj)/2) & 1) : (bi + bj) & 1;   // === paveParity of the tile's centre (a park's mown lawn: PARK_MOW)
         const pts = [this.W(tx0,ty0,0), this.W(tx1,ty0,0), this.W(tx1,ty1,0), this.W(tx0,ty1,0)];
         /* the single largest command source in the frame: whole
            blocks were painted tile by tile with no screen test at all,
@@ -117707,11 +117856,18 @@ class WorldScene extends Phaser.Scene {
       for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.02)/N*Math.PI*2;
         this.quadOn(g, [this.W(x + Math.cos(t0)*r0, y + Math.sin(t0)*r0, z), this.W(x + Math.cos(t1)*r0, y + Math.sin(t1)*r0, z),
                         this.W(x + Math.cos(t1)*r1, y + Math.sin(t1)*r1, z), this.W(x + Math.cos(t0)*r1, y + Math.sin(t0)*r1, z)], col); } };
-    const EDGE = 0x7a5a3a, CHIP = 0xa27850;
+    /* (the parks pass, 2026-11-23: the edging is a timber board -- its weathered side, then the lit top of the board along the
+       chips' edge; and the run is trodden down its middle -- a paler, packed tread where the feet go, the loose chips either side) */
+    const EDGE = 0x6e5034, BOARD = 0x95724c, CHIP = 0x9c724a, TREAD = 0xb38c62;
     for(const s of segs) this.quadOn(g, band(s, (s.h || H) + 12), EDGE);
     for(const n of nodes) n.end ? ring(n.x, n.y, ISL, vt.R(n) + 12, EDGE) : this.quadOn(g, disc(n.x, n.y, vt.R(n) + 12, z), EDGE);
+    for(const s of segs) this.quadOn(g, band(s, (s.h || H) + 5), BOARD);
+    for(const n of nodes) n.end ? ring(n.x, n.y, ISL + 7, vt.R(n) + 5, BOARD) : this.quadOn(g, disc(n.x, n.y, vt.R(n) + 5, z), BOARD);
     for(const s of segs) this.quadOn(g, band(s, s.h || H), CHIP);
     for(const n of nodes) n.end ? ring(n.x, n.y, ISL + 12, vt.R(n), CHIP) : this.quadOn(g, disc(n.x, n.y, vt.R(n), z), CHIP);
+    { const tw = s => (s.h || H)*0.4, rm = (n) => (ISL + 12 + vt.R(n))/2, rw = n => (vt.R(n) - ISL - 12)*0.3;
+      for(const s of segs) this.quadOn(g, band(s, tw(s)), TREAD);
+      for(const n of nodes) n.end ? ring(n.x, n.y, rm(n) - rw(n), rm(n) + rw(n), TREAD) : this.quadOn(g, disc(n.x, n.y, H*0.4, z), TREAD); }
     /* the chips themselves: light and dark flecks, fixed per run */
     if(!vt._specks){
       const rr = mulberry32(0x5c1a9);
@@ -117739,6 +117895,153 @@ class WorldScene extends Phaser.Scene {
     /* the hub of the crossing is the Veterans Memorial's plaza (VET_MEMORIAL), paved over the chips where the runs come in */
     { const C = vmOf(this.route.grid), R = VET_MEMORIAL.R + 30;
       if(C && near(C.x - R, C.y - R, C.x + R, C.y + R)) this.fillVmPlaza(g, C); }
+  }
+  /* A BARE PARK'S FURNITURE (parkPathsOf): each piece one cached image keyed at its own foot (still: bcDraw, stable keys) */
+  queueParkFurniture(vq, blk){
+    const PP = this.route && blk.i !== undefined && parkPathsOf(this.route.grid), c = PP && PP.get(blk.i + "," + blk.j);
+    if(!c) return;
+    for(const f of c.furn){
+      if(!this.visWorldPt(f.x, f.y, 130, 140)) continue;
+      const x = f.x, y = f.y;
+      vq.push({ depth: x + y, fn: (g0) => this.bcDraw(this.propLayer(g0, x, y), "pkf|" + f.kind + "|" + Math.round(x) + "," + Math.round(y), x, y,
+        g => f.kind === "picnic" ? this.drawPicnicTable(g, x, y, f.dv) : this.drawDrinkFountain(g, x, y)) });
+    }
+  }
+  /* A PICNIC TABLE (the park furniture's, built off the bench: drawBenchProp's timber and steel, BENCH_ART's palette): the classic
+     one-piece table -- a top of five boards, a bench board each side, on two A-frames (legs splayed from under the top out to the
+     ground, a cross rail under the seats). dv runs along it. In world units (PERSON_H 124 a person): the top 131 x 56 at 56 up, the
+     seats 20 wide at 34, 110 over all. Back to front: the far frame, the near frame, the far seat, the top, the near seat; each
+     solid only the faces the eye sees (asked of W), lit on the screen-left face (+y), shaded on the screen-right (+x: SP13). */
+  drawPicnicTable(g, x, y, dv){
+    const rv = { x: -dv.y, y: dv.x }, B = BENCH_ART;
+    const G = (a, b, h) => this.W(x + dv.x*a + rv.x*b, y + dv.y*a + rv.y*b, h);
+    const Q = (p, c) => this.quadOn(g, p, c);
+    const sA = (dv.x + dv.y) > 0 ? 1 : -1, sB = (rv.x + rv.y) > 0 ? 1 : -1;             // which a end, which b side faces the eye
+    const lit = (nx, ny, c1, c2, c3) => ny > 0.5 ? c1 : nx > 0.5 ? c3 : c2;          // +y face lit, +x shaded, else mid
+    const box = (a0, a1, b0, b1, z0, z1, top, lt, dk) => {
+      const av = sA > 0 ? a1 : a0, bv = sB > 0 ? b1 : b0;
+      const na = { x: dv.x*sA, y: dv.y*sA }, nb = { x: rv.x*sB, y: rv.y*sB };
+      Q([G(av, b0, z0), G(av, b1, z0), G(av, b1, z1), G(av, b0, z1)], lit(na.x, na.y, lt, top, dk));
+      Q([G(a0, bv, z0), G(a1, bv, z0), G(a1, bv, z1), G(a0, bv, z1)], lit(nb.x, nb.y, lt, top, dk));
+      Q([G(a0, b0, z1), G(a1, b0, z1), G(a1, b1, z1), G(a0, b1, z1)], top);
+    };
+    const L = 66, TW = 28, TZ = 56, TT = 4, SZ = 34, SB0 = 36, SB1 = 56, FA = 44;    // half length, half top, heights, seat band, frame at +-FA
+    /* an A-frame at a: two splayed legs (each a slab, its near face lit or shaded by which way it leans) and the rail under the seats */
+    const frame = (a) => {
+      const t = 3.2, leg = (sg) => {                                                // sg: the b side its foot is on
+        const top0 = sg*6, foot = sg*(SB1 - 4);
+        const P = (bb, zz, aa) => G(aa, bb, zz);
+        const nearA = sA > 0 ? a + t : a - t;
+        /* its face toward the eye along a (the leg is a flat bar: its edges are too thin to read) */
+        Q([P(top0, TZ - TT, nearA), P(top0 + sg*7, TZ - TT, nearA), P(foot + sg*7, 0, nearA), P(foot, 0, nearA)], lit(dv.x*sA, dv.y*sA, B.legLt, B.leg, 0x2c2f34));
+      };
+      leg(-sB); leg(sB);
+      box(a - t, a + t, -SB1, SB1, SZ - 9, SZ - 5, B.legLt, B.legLt, B.leg);         // the rail under the seats
+    };
+    frame(-sA*FA); frame(sA*FA);
+    const boards = (b0, b1, z0, z1, n, gap) => { const w = (b1 - b0 - (n - 1)*gap)/n;
+      for(let k = 0; k < n; k++){ const k2 = sB > 0 ? k : n - 1 - k, q0 = b0 + k2*(w + gap); box(-L, L, q0, q0 + w, z0, z1, B.wood, B.woodLt, B.woodDk); } };
+    boards(sB > 0 ? -SB1 : SB0, sB > 0 ? -SB0 : SB1, SZ - 5, SZ, 2, 2);             // the far seat
+    boards(-TW, TW, TZ - TT, TZ, 5, 1.6);                                           // the top, far board first
+    boards(sB > 0 ? SB0 : -SB1, sB > 0 ? SB1 : -SB0, SZ - 5, SZ, 2, 2);             // the near seat
+  }
+  /* A DRINKING FOUNTAIN on a park's plaza: a square green pedestal on a concrete step, its steel bowl on top with a bubbler, and a
+     dog's bowl at its foot (the park furniture's; the light SP13's: +y face lit, +x shaded) */
+  drawDrinkFountain(g, x, y){
+    const G = (a, b, h) => this.W(x + a, y + b, h), Q = (p, c) => this.quadOn(g, p, c), K = this.K;
+    const box = (r0, r1, z0, z1, top, lt, dk) => {
+      Q([G(r1, -r1, z0), G(r1, r1, z0), G(r1, r1, z1), G(r1, -r1, z1)], dk);       // +x face, shaded
+      Q([G(-r1, r1, z0), G(r1, r1, z0), G(r1, r1, z1), G(-r1, r1, z1)], lt);       // +y face, lit
+      Q([G(-r1, -r1, z1), G(r1, -r1, z1), G(r1, r1, z1), G(-r1, r1, z1)], top);
+    };
+    box(0, 19, 0, 7, 0xc9c5ba, 0xd8d4c9, 0xa9a59a);                                 // the step
+    box(0, 7, 7, 52, 0x3f6b52, 0x4f7f62, 0x2f5440);                                 // the pedestal
+    box(0, 10, 52, 56, 0x3f6b52, 0x4f7f62, 0x2f5440);                               // its collar under the bowl
+    box(0, 16, 56, 62, 0xb9c0c4, 0xd2d8db, 0x8e979b);                               // the steel bowl's rim
+    Q([G(-12, -12, 62.2), G(12, -12, 62.2), G(12, 12, 62.2), G(-12, 12, 62.2)], 0x6f7a80);   // the basin, sunk in the rim
+    box(0, 2.5, 62, 70, 0xb9c0c4, 0xd2d8db, 0x8e979b);                              // the bubbler
+    { const d = this.W(x + 28, y + 10, 0.6); g.fillStyle(0x8e979b, 1); g.fillEllipse(d.x, d.y, 20*K, 10*K); g.fillStyle(0x6fb4d6, 1); g.fillEllipse(d.x, d.y - 0.6*K, 14*K, 6.4*K); }   // the dog's bowl
+  }
+  /* A BARE PARK'S WALKS (parkPathsOf), over its mown lawn: the edging band of every piece first, then their tops, so a spoke runs
+     into its plaza or its ring with no seam; then the surface -- gravel's flecks, or concrete's joints across the walk. Ground: laid
+     in the ground pass and kept in the ground cache. */
+  fillParkPaths(g, blocks){
+    const PP = this.route && parkPathsOf(this.route.grid);
+    if(!PP) return;
+    const z = 0.5, K = this.K;
+    const clipR = (pts, R) => {
+      for(const [ax, sgn, v] of [["x", 1, R.x0], ["x", -1, R.x1], ["y", 1, R.y0], ["y", -1, R.y1]]){
+        const out = [];
+        for(let i = 0; i < pts.length; i++){
+          const p = pts[i], q = pts[(i + 1) % pts.length], dp = (p[ax] - v)*sgn, dq = (q[ax] - v)*sgn;
+          if(dp >= 0) out.push(p);
+          if((dp >= 0) !== (dq >= 0)){ const t = dp/(dp - dq); out.push({ x: p.x + (q.x - p.x)*t, y: p.y + (q.y - p.y)*t }); }
+        }
+        pts = out; if(pts.length < 3) return null;
+      }
+      return pts;
+    };
+    const band = (s, w) => { const L = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), nx = -(s.y1 - s.y0)/L*w, ny = (s.x1 - s.x0)/L*w;
+      return clipR([{ x: s.x0 - nx, y: s.y0 - ny }, { x: s.x1 - nx, y: s.y1 - ny }, { x: s.x1 + nx, y: s.y1 + ny }, { x: s.x0 + nx, y: s.y0 + ny }], s.clip); };
+    const fillW = (pts, col) => { if(!pts) return; const q = pts.map(p => this.W(p.x, p.y, z)); if(this.ptsOnScreen(q)) this.quadOn(g, q, col); };   // (each piece on its tile only)
+    const disc = (x, y, r) => Array.from({ length: 36 }, (_, k) => { const t = k/36*Math.PI*2; return { x: x + Math.cos(t)*r, y: y + Math.sin(t)*r }; });
+    const ring = (x, y, r0, r1, col) => { const N = 48;
+      for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.03)/N*Math.PI*2;
+        fillW([{ x: x + Math.cos(t0)*r0, y: y + Math.sin(t0)*r0 }, { x: x + Math.cos(t1)*r0, y: y + Math.sin(t1)*r0 },
+               { x: x + Math.cos(t1)*r1, y: y + Math.sin(t1)*r1 }, { x: x + Math.cos(t0)*r1, y: y + Math.sin(t0)*r1 }], col); } };
+    const E = PARK_PATH.edge;
+    for(const blk of blocks){
+      if(blk.type !== "park" || blk.i === undefined) continue;
+      const c = PP.get(blk.i + "," + blk.j); if(!c) continue;
+      if(!this.ptsOnScreen([this.W(blk.x0 - 100, blk.y0 - 100, 0), this.W(blk.x1 + 100, blk.y0 - 100, 0), this.W(blk.x1 + 100, blk.y1 + 100, 0), this.W(blk.x0 - 100, blk.y1 + 100, 0)])) continue;
+      const m = c.mat;
+      for(const sh of c.shapes){
+        if(sh.t === "seg") fillW(band(sh, sh.hw + E), m.edge);
+        else if(sh.t === "disc") fillW(disc(sh.x, sh.y, sh.r + E), m.edge);
+        else ring(sh.x, sh.y, sh.r0 - E, sh.r1 + E, m.edge);
+      }
+      for(const sh of c.shapes){
+        if(sh.t === "seg") fillW(band(sh, sh.hw), m.top);
+        else if(sh.t === "disc") fillW(disc(sh.x, sh.y, sh.r), m.top);
+        else ring(sh.x, sh.y, sh.r0, sh.r1, m.top);
+      }
+      /* the surface: flecks (fixed per cell), or the concrete's joints */
+      if(!c._fl){
+        const rr = mulberry32((0x7f1c ^ Math.imul(blk.i + 1, 0x9e3779b1) ^ Math.imul(blk.j + 1, 0x85ebca6b)) >>> 0), out = [];
+        const n = m.joint ? 90 : 380;
+        for(let k = 0, tries = 0; k < n && tries < n*14; tries++){
+          const x = blk.x0 - 400 + rr()*(blk.x1 - blk.x0 + 800), y = blk.y0 - 400 + rr()*(blk.y1 - blk.y0 + 800);
+          if(!c.shapes.some(sh => sh.t !== "seg" || (x >= sh.clip.x0 && x <= sh.clip.x1 && y >= sh.clip.y0 && y <= sh.clip.y1))) continue;
+          let d = Infinity;
+          for(const sh of c.shapes){
+            if(sh.t === "seg"){ if(x < sh.clip.x0 || x > sh.clip.x1 || y < sh.clip.y0 || y > sh.clip.y1) continue;
+              const L2 = (sh.x1 - sh.x0)**2 + (sh.y1 - sh.y0)**2, t = Math.max(0, Math.min(1, ((x - sh.x0)*(sh.x1 - sh.x0) + (y - sh.y0)*(sh.y1 - sh.y0))/L2));
+              d = Math.min(d, Math.hypot(x - sh.x0 - (sh.x1 - sh.x0)*t, y - sh.y0 - (sh.y1 - sh.y0)*t) - sh.hw); }
+            else if(sh.t === "disc") d = Math.min(d, Math.hypot(x - sh.x, y - sh.y) - sh.r);
+            else { const q = Math.hypot(x - sh.x, y - sh.y); d = Math.min(d, Math.max(sh.r0 - q, q - sh.r1)); }
+          }
+          if(d > -6) continue;
+          out.push(x, y, m.fleck[Math.floor(rr()*m.fleck.length)]); k++;
+        }
+        c._fl = out;
+      }
+      const sp = c._fl;
+      const gw = this.vpW(), gh = this.vpH();
+      for(let k = 0; k < sp.length; k += 3){ const p = this.W(sp[k], sp[k + 1], z); if(p.x < -8 || p.y < -8 || p.x > gw + 8 || p.y > gh + 8) continue;
+        g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 1.8*K, p.y - 0.8*K, 3.6*K, 1.6*K); }
+      if(m.joint) for(const sh of c.shapes){
+        if(sh.t === "seg"){
+          const L = Math.hypot(sh.x1 - sh.x0, sh.y1 - sh.y0), ux = (sh.x1 - sh.x0)/L, uy = (sh.y1 - sh.y0)/L;
+          for(let t = 140; t < L - 20; t += 140){ const x = sh.x0 + ux*t, y = sh.y0 + uy*t;
+            fillW(band({ x0: x, y0: y, x1: x + ux*2.4, y1: y + uy*2.4, clip: sh.clip }, sh.hw), m.joint); }
+        } else if(sh.t === "ring"){
+          for(let k = 0; k < 20; k++){ const a = k/20*Math.PI*2, ca = Math.cos(a), sa = Math.sin(a);
+            fillW([{ x: sh.x + ca*sh.r0, y: sh.y + sa*sh.r0 }, { x: sh.x + ca*sh.r1, y: sh.y + sa*sh.r1 }, { x: sh.x + ca*sh.r1 - sa*2.4, y: sh.y + sa*sh.r1 + ca*2.4 }, { x: sh.x + ca*sh.r0 - sa*2.4, y: sh.y + sa*sh.r0 + ca*2.4 }], m.joint); }
+        } else {
+          ring(sh.x, sh.y, sh.r*0.55, sh.r*0.55 + 2.4, m.joint);
+        }
+      }
+    }
   }
   /* ...and its planting: every plant whose nearest cell centre is this
      cell, each keyed at its own foot. Shrubs and shade trees are drawn
@@ -118457,6 +118760,8 @@ class WorldScene extends Phaser.Scene {
        vetTrailOf) -- permanent, so above the scatter guard too */
     { const vt = this.route && vetTrailOf(this.route.grid);
       if(vt && blk.i !== undefined && vt.cells.has(blk.i + "," + blk.j)) this.queueParkTrail(vq, vt, blk); }
+    /* a bare park's picnic tables and drinking fountain (parkPathsOf) -- permanent */
+    this.queueParkFurniture(vq, blk);
     if(!WORLD_SCATTER) return;                 // see WORLD SCATTER: SWEPT
     const rng = mulberry32(((Math.round((blk.x0+blk.x1)/2)*7919) ^ (Math.round((blk.y0+blk.y1)/2)*104729) ^ 0x50a2) >>> 0);
     /* clusters, not isolated single trees — real palms/dwarf palms
@@ -118498,7 +118803,8 @@ class WorldScene extends Phaser.Scene {
 
   fillBlockGround(g, blk){
     if(blk.type === "park"){
-      this.fillBlockInterior(g, blk, GRASS);
+      const LAWN = parkMowTone(this.route && this.route.grid, blk);   // (mown: PARK_MOW)
+      this.fillBlockInterior(g, blk, LAWN);
       if(WORLDGEN_COAST && !this.route.grid.classic && blk.i !== undefined){
         /* merged parks: the grass owns the street it swallowed. Each
            park block extends only toward its +x/+y park neighbours —
@@ -118512,8 +118818,8 @@ class WorldScene extends Phaser.Scene {
         const pk = b => b && b.type === "park";
         const nx = M && M.get((blk.i+1) + "," + blk.j);
         const ny = M && M.get(blk.i + "," + (blk.j+1));
-        if(pk(nx)) this.fillBlockInterior(g, { ...blk, x0:blk.x1, x1:nx.x0 }, GRASS);
-        if(pk(ny)) this.fillBlockInterior(g, { ...blk, y0:blk.y1, y1:ny.y0 }, GRASS);
+        if(pk(nx)) this.fillBlockInterior(g, { ...blk, x0:blk.x1, x1:nx.x0 }, LAWN);
+        if(pk(ny)) this.fillBlockInterior(g, { ...blk, y0:blk.y1, y1:ny.y0 }, LAWN);
         /* CORNERS -- root-caused (2026-08-11, "the sea layer is showing
            through the sidewalk's corner... make sure it can't happen
            anywhere"). The old test inferred "this corner is clear" from
@@ -118554,7 +118860,7 @@ class WorldScene extends Phaser.Scene {
           if(!clear(cni, cnj)) continue;
           const x0 = di > 0 ? blk.x1 : nbrX.x1, x1 = di > 0 ? nbrX.x0 : blk.x0;
           const y0 = dj > 0 ? blk.y1 : nbrY.y1, y1 = dj > 0 ? nbrY.y0 : blk.y0;
-          this.fillBlockInterior(g, { ...blk, x0, x1, y0, y1 }, GRASS);
+          this.fillBlockInterior(g, { ...blk, x0, x1, y0, y1 }, LAWN);
         }
       }
       return;
