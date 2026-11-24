@@ -41788,6 +41788,8 @@ const HOSP_EDOOR = { reachR: 210, mainR: 190, walkR: 130, rateMs: 340, h: 80 };
 const HOSP_IDOORS = HOSP_LOWER.rooms.filter(o => /^ER doors /.test(o.n)).map(o => ({ a0: o.r[0] - HOSP.podium.x0, a1: o.r[1] - HOSP.podium.x0, b0: o.r[2] - HOSP.podium.y0, b1: o.r[3] - HOSP.podium.y0, k: 0 }));
 /* THE MAIN ENTRANCE'S DOORS (Sir, 2026-10-27: "we want this same effect main entrance too"): its sliding
    doors (HOSP.mainSets) the same way, in the south face's plane (b = D, the frame's), u0 .. u1 along it */
+/* where each of a glass pair's leaves is keyed (doors kit D12): the middle of its own half of the doorway u0 .. u1, fixed as it slides */
+function hospLeafMids(u0, u1){ const q = (u1 - u0)/4; return [u0 + q, u1 - q]; }
 /* the depth key of the podium's tile (hospEntry: n by m of them, keyed at their north-east corners) over frame point
    (a, b): what is seen through its holes goes just under it (queueHospThrough, the main doors' leaves) */
 function hospTileD(a, b){
@@ -69728,6 +69730,7 @@ function houseCanopy(fn){
         const ROUND = { plant: 18, iv: 10, extinguisher: 9, sanitiser: 10 }, ONWALL = /^(tv|board|pipes|directory)$/.test(u.k);
         const SK = sortKey(r, FH[u.k] || 110, am + (ONWALL ? r[2] + 1 : bm)), dk = SK.dk, frontOf = SK.frontOf, backOf = SK.backOf;
         if(!ONWALL) FDK.push({ r, dk, h: FH[u.k] || 110 });
+        const fseg = ONWALL ? undefined : { r, h: FH[u.k] || 110, fl: n };   // (the walkers held against it: hospHold)
         const sol = ONWALL ? null : ROUND[u.k] ? { name: u.k, c: [am, bm], r: ROUND[u.k], h: 120, fl: n }
                   : u.k === 'table' ? { name: u.k, poly: R(r[0] - 6, r[1] + 44, r[2] - 6, r[3] + 34), h: 60, fl: n }
                   : { name: u.k, poly: R(r[0], r[1], r[2], r[3]), h: u.k === 'chair' ? 56 : u.k === 'bed' ? 70 : u.k === 'gurney' ? 60 : 100, fl: n };
@@ -69741,7 +69744,7 @@ function houseCanopy(fn){
           const hd = u.head || 'n', seed = (Math.round(am*11 + bm*7) & 0xffff) ^ 0x6b3d, LK = partyLook(seed, 'patient');
           const ft = hd === 'n' ? [am, r[3] - BED_SOLE] : hd === 's' ? [am, r[2] + BED_SOLE] : hd === 'w' ? [r[1] - BED_SOLE, bm] : [r[0] + BED_SOLE, bm];
           const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd], look = { build: LK.build };
-          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
+          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, fseg, solids: sol ? [sol] : undefined,
             cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 50, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.34, -0.34], fl: n }],   // (tilt: propped to look down the bed -- less with their head at our end, or we see only the back of it)
             draw: () => bed(r, hd, true, false, 'base'),
             layers: [{ cast: 'body' }, { draw: () => bed(r, hd, true, false, 'coverFar', look) }, { cast: 'armFar' },
@@ -69753,7 +69756,7 @@ function houseCanopy(fn){
           const hd = u.head || 'n', seed = (Math.round(am*11 + bm*7) & 0xffff) ^ 0x7d13;
           const ft = hd === 'n' ? [am, r[3] - 30] : hd === 's' ? [am, r[2] + 30] : hd === 'w' ? [r[1] - 30, bm] : [r[0] + 30, bm];
           const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd];
-          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
+          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, fseg, solids: sol ? [sol] : undefined,
             cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 46, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2], bare: true, fl: n }],
             draw: () => table(r, 'base'), layers: [{ cast: 'body' }, { cast: 'armFar' }, { cast: 'armNear' }, { cast: 'head' }, { draw: () => table(r, 'lamp') }] });
           continue;
@@ -69764,7 +69767,7 @@ function houseCanopy(fn){
           const hd = u.head || 'n', seed = (Math.round(am*11 + bm*7) & 0xffff) ^ 0x3c71;
           const ft = hd === 'n' ? [am, r[3] - BED_SOLE] : hd === 's' ? [am, r[2] + BED_SOLE] : hd === 'w' ? [r[1] - BED_SOLE, bm] : [r[0] + BED_SOLE, bm];
           const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd];
-          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
+          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, fseg, solids: sol ? [sol] : undefined,
             cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 50, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2], bare: true, fl: n }],
             draw: () => bed(r, hd, false, true), layers: [{ cast: 'body' }, { cast: 'armFar' }, { cast: 'armNear' }, { cast: 'head' }] });   // (a lying cast is drawn only by its piece's layers)
           continue;
@@ -69775,12 +69778,12 @@ function houseCanopy(fn){
         if(u.k === 'chair' && (u.sit || u.waitSeat != null)){
           const back = u.back || 'n', th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[back], away = back === 's' || back === 'e';
           const seed = u.sit === 'security' ? (Math.round(am*7 + bm*13) & 0xffff) ^ 0x405b : (Math.round(am*7 + bm*13) & 0xffff) ^ 0x2c1d, kind = u.sit === 'patient' ? 'visitor' : /^(visitor|security)$/.test(u.sit) ? u.sit : (seed & 2) ? 'doctor' : 'nurse';   // (sat waiting, visiting, in for an appointment: in their own clothes, not a gown -- Sir, 2026-10-29, "regular people in the chairs not people in hospital gear")   // (the officer's seed as hospJailRoom's: the same man up and walking)
-          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
+          items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, fseg, solids: sol ? [sol] : undefined,
             cast: [{ a: am, b: bm, z: hospInZf(n), th, sit: 38, seed, kind, role: u.sit === 'security' ? 'security' : undefined, lift: [0.3, 0.3], bend: 0.7, fl: n, waitSeat: u.waitSeat, staffSeat: n === 1 ? u.staffSeat : undefined }],   // (waitSeat: whoever sits there now, HOSP_WAIT; staffSeat: at their work, HOSP_STAFF_POSES)
             draw: away ? () => chairLegs(r) : () => chair(r, back), seat: away ? () => chairSeat(r) : undefined, after: away ? () => chairBack(r, back) : undefined });
           continue;
         }
-        items.push({ a: am, b: ONWALL ? r[2] + 1 : bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined, draw: () => {
+        items.push({ a: am, b: ONWALL ? r[2] + 1 : bm, z: 0, dk, frontOf, backOf, when, fseg, solids: sol ? [sol] : undefined, draw: () => {
           switch(u.k){
             case 'bed': bed(r, u.head, !!u.sleeper, !!u.couch); break;
             case 'desk': desk(r, u.face || 's'); break;
@@ -69884,7 +69887,7 @@ function houseCanopy(fn){
         let k = SK.dk; if(k <= lo) k = lo + 0.01; if(k >= hi) k = Math.max(lo + 0.005, hi - 0.01); return k; };
       for(const q of P2.people){ const SK = sortKey([q.a - 16, q.a + 16, q.b - 16, q.b + 16], 100, q.a + q.b);
         const qi = P2.people.indexOf(q), here = () => when() && !hospRiderAway(n, qi) && !(q.role === 'okafor' && okaforAway());   // (off riding the lift: HOSP_RIDERS; Dr. Okafor out on the heart run)
-        items.push({ a: q.a, b: q.b, z: 0, dk: personKey(q, SK), frontOf: SK.frontOf, backOf: SK.backOf, when: here, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
+        items.push({ a: q.a, b: q.b, z: 0, dk: personKey(q, SK), frontOf: SK.frontOf, backOf: SK.backOf, when: here, fseg: { r: [q.a - 16, q.a + 16, q.b - 16, q.b + 16], h: 150, fl: n }, solids: [{ name: q.kind, c: [q.a, q.b], r: 16, h: 150, fl: n }],
                      cast: [{ a: q.a, b: q.b, z: hospInZf(n), th: q.th, seed: q.seed, kind: q.kind, grp: q.role ? undefined : 'hosp', role: q.role, fl: n, lookFn: q.role === 'okafor' ? okaforLook : undefined }], draw: () => {} }); }   // (role: the pharmacist, PHARM -- behind the counter, not knocked)
     }
     depthSort(items);
@@ -112154,16 +112157,28 @@ class WorldScene extends Phaser.Scene {
     const items = this._lmItems && this._lmItems.get(this._hospLk);   // (the interior's pieces as queued this frame: "pk|", or "pkv|" seen from the street's lines)
     if(!items) return d;
     const M = items._wseg || (items._wseg = new Map());
-    let L = M.get(f); if(!L){ L = items.filter(it => it.wseg && it.wseg.fl === f); M.set(f, L); }
-    const r0 = a - 12, r1 = a + 12, r2 = b - 12, r3 = b + 12, X0 = r0 - r3, X1 = r1 - r2, Y0 = (r0 + r2)/2 - 225, Y1 = (r1 + r3)/2;
+    /* (and its FURNITURE, it.fseg -- a piece held after a long wall behind it (sortKey) goes late: the bedside cabinet in recovery C, held
+       after the west wall's run keyed at its middle (5327), was painted over the walker east of it (5314) who never met that wall on screen.
+       As the people stood in its rooms are (PEOPLE AGAINST THE FURNITURE), a walker goes after what is behind them and before what is in
+       front -- room_people, 2026-11-24. The people standing in the rooms too: one held late after what stands behind them (personKey) was painted
+       over a walker passing in front) */
+    let L = M.get(f); if(!L){ L = items.filter(it => (it.wseg || it.fseg) && (it.wseg || it.fseg).fl === f); M.set(f, L); }
+    /* (where they stand, ±12, says which side of a wall they are on; where they are DRAWN, ±22 -- shoulders, a swinging arm, what is in
+       hand -- says whether they meet it on screen: judged by the ±12 footing, a walker in the theatre (a 544, b 951) just south of the
+       west end of its north wall (a 517..750, keyed at its middle, 1519 against their 1495) was "side by side" with it, so not held after
+       it, and its dado painted over their arm and side -- room_people, 2026-11-24) */
+    const r0 = a - 12, r1 = a + 12, r2 = b - 12, r3 = b + 12, X0 = a - b - 44, X1 = a - b + 44, Y0 = (a + b)/2 - 22 - 225, Y1 = (a + b)/2 + 22;
     let lo = -Infinity, hi = Infinity;
     for(const it of L){
-      const q = it.wseg.r;
+      const sg = it.wseg || it.fseg, q = sg.r, now = it._qf === this._qfp && it._qe;
+      if(it.fseg && !now) continue;                                                 // (a piece not queued this frame -- culled, another floor's -- is not drawn)
       if(q[0] - q[3] >= X1 || q[1] - q[2] <= X0) continue;                          // never side by side on screen
-      if((q[0] + q[2])/2 - 1.5*it.wseg.h >= Y1 || (q[1] + q[3])/2 <= Y0) continue;  // never one over the other
-      const wd = it._qf === this._qfp && it._qe ? it._qe.depth : ox + oy + (q[0] + q[1])/2 + (q[2] + q[3])/2;
-      if(q[2] >= r3 - 2 || q[0] >= r1 - 2) hi = Math.min(hi, wd);                   // in front of them
-      else if(q[3] <= r2 + 2 || q[1] <= r0 + 2) lo = Math.max(lo, wd);              // behind them
+      if((q[0] + q[2])/2 - 1.5*sg.h >= Y1 || (q[1] + q[3])/2 <= Y0) continue;       // never one over the other
+      const wd = now ? it._qe.depth : ox + oy + (q[0] + q[1])/2 + (q[2] + q[3])/2;
+      const fr = q[2] >= r3 - 2 || q[0] >= r1 - 2, bk = q[3] <= r2 + 2 || q[1] <= r0 + 2;
+      if(fr && bk) continue;                                                        // (in front on one axis, behind on the other: apart on screen at their footing -- met only through the wider ±22, so neither)
+      if(fr) hi = Math.min(hi, wd);                                                 // in front of them
+      else if(bk) lo = Math.max(lo, wd);                                            // behind them
     }
     if(d >= hi) return hi - 1e-6 + Math.min(d - hi, 500)*1e-9;
     if(d <= lo && lo < hi) return Math.min(lo + 1e-6, (lo + hi)/2);
@@ -118215,9 +118230,13 @@ class WorldScene extends Phaser.Scene {
             c.moving ? walkAt(x, y) : 0, !!c.moving, 0, c.lift, null, U) }); } }
       /* THE EMERGENCY ENTRANCES' GLASS (HOSP_EDOORS): two leaves in each, parted by k into the wall either side, at the
          wall's outer face -- in front of everything inside it */
+      /* EACH LEAF AT ITS OWN SIDE (doors kit D12): the pair, one piece keyed at the doorway's middle, was painted over a walker
+         outside past the near leaf (the main doors: room_people, 2026-11-24) -- each leaf is keyed at the middle of its own half of
+         the doorway (hospLeafMids), the header over them its own piece at the middle */
       if(f === 1) for(const E of HOSP_EDOORS){
         const x = ox + E.a1 - 3, y = oy, bm = (E.b0 + E.b1)/2;
-        hazVQ.push({ depth: x + y + bm, fn: () => this.drawEdoorLeaves(layerFor(x, y + bm), x, y, Z, E, HOSP_EDOOR.h, true) });
+        hospLeafMids(E.b0, E.b1).forEach((c, i) => hazVQ.push({ depth: x + y + c, fn: () => this.drawEdoorLeaves(layerFor(x, y + c), x, y, Z, E, HOSP_EDOOR.h, null, i) }));
+        hazVQ.push({ depth: x + y + bm, fn: () => this.drawEdoorLeaves(layerFor(x, y + bm), x, y, Z, E, HOSP_EDOOR.h, true, -1) });
       }
       if(f === 1) for(const E of HOSP_IDOORS){   // (the ER's from the hall: in the middle of its wall)
         const x = ox + (E.a0 + E.a1)/2, y = oy, bm = (E.b0 + E.b1)/2;
@@ -118225,12 +118244,12 @@ class WorldScene extends Phaser.Scene {
            (its middle's depth alone laid its header across him there) */
         const ba = this.ow.px - pk.x0, bb = this.ow.py - pk.y0, bd = this.botX + this.botY;
         const inWay = Math.abs(ba - (E.a0 + E.a1)/2) < 140 && bb > E.b0 - 60 && bb < E.b1 + 60;
-        const dep = !inWay ? x + y + bm : ba + OW_D.botR < (E.a0 + E.a1)/2 ? Math.max(x + y + bm, bd + 0.5) : Math.min(x + y + bm, bd - 0.5);   // (his nose through the glass: past it)
-        hazVQ.push({ depth: dep, fn: () => this.drawEdoorLeaves(layerFor(x, y + bm), x, y, Z, E, HOSP_EDOOR.h, false) });   // (no red header across it: Sir, 2026-10-28, "get rid of this red line in the door way")
+        const dep = c => !inWay ? x + y + c : ba + OW_D.botR < (E.a0 + E.a1)/2 ? Math.max(x + y + c, bd + 0.5) : Math.min(x + y + c, bd - 0.5);   // (his nose through the glass: past it)
+        hospLeafMids(E.b0, E.b1).forEach((c, i) => hazVQ.push({ depth: dep(c), fn: () => this.drawEdoorLeaves(layerFor(x, y + c), x, y, Z, E, HOSP_EDOOR.h, false, i) }));   // (no red header across it: Sir, 2026-10-28, "get rid of this red line in the door way")
       }
       if(f === 1) for(const M of HOSP_MDOORS){   // (the main entrance's, the same at the south face)
-        const y = oy + HOSP_IN.D - 3, xm = ox + (M.u0 + M.u1)/2;
-        hazVQ.push({ depth: xm + y, fn: () => this.drawMdoorLeaves(layerFor(xm, y), ox, y, Z, M, HOSP_EDOOR.h, null) });   // (no bar across its head: Sir, 2026-10-28, "remove this blue bar like we removed the red one")
+        const y = oy + HOSP_IN.D - 3;
+        hospLeafMids(M.u0, M.u1).forEach((c, i) => hazVQ.push({ depth: ox + c + y, fn: () => this.drawMdoorLeaves(layerFor(ox + c, y), ox, y, Z, M, HOSP_EDOOR.h, null, i) }));   // (no bar across its head: Sir, 2026-10-28, "remove this blue bar like we removed the red one")
       }
       /* THE ERRAND'S GUIDE (HOSP_GUIDE): its way as dashes on the floor, marching toward its end, each laid just
          over the floor cell under it (a room's floor is pieces of 300, keyed at their north-west corners: hospInPlan's
@@ -128406,13 +128425,15 @@ class WorldScene extends Phaser.Scene {
   }
   /* AN EMERGENCY ENTRANCE'S GLASS (HOSP_EDOORS): its two leaves parted by E.k, on the plane x (world), across y0 + b0 ..
      y0 + b1, from z0 up h; inside, the red header over them (outside it is the building's own, in its picture) */
-  drawEdoorLeaves(lg, x, y0, z0, E, h, header){ this.drawGlassLeaves(lg, (bb, zz) => this.W(x, y0 + bb, z0 + zz), E.b0, E.b1, E.k, h, header ? 0xd8352a : null); }
+  drawEdoorLeaves(lg, x, y0, z0, E, h, header, only){ this.drawGlassLeaves(lg, (bb, zz) => this.W(x, y0 + bb, z0 + zz), E.b0, E.b1, E.k, h, header ? 0xd8352a : null, only); }
   /* ...the main entrance's (HOSP_MDOORS): the same, on the south face's plane y, along x from x0 */
-  drawMdoorLeaves(lg, x0, y, z0, M, h, header){ this.drawGlassLeaves(lg, (uu, zz) => this.W(x0 + uu, y, z0 + zz), M.u0, M.u1, M.k, h, header); }
-  /* two glass leaves across u0 .. u1 (P(u, z) on screen), parted by k each into the wall its side; header: a band over them */
-  drawGlassLeaves(lg, P, u0, u1, k, h, header){
+  drawMdoorLeaves(lg, x0, y, z0, M, h, header, only){ this.drawGlassLeaves(lg, (uu, zz) => this.W(x0 + uu, y, z0 + zz), M.u0, M.u1, M.k, h, header, only); }
+  /* two glass leaves across u0 .. u1 (P(u, z) on screen), parted by k each into the wall its side; header: a band over them.
+     only: just that leaf (0 the u0 one, 1 the u1 one; -1 none, the header alone) -- each queued at its own side (D12, hospLeafMids) */
+  drawGlassLeaves(lg, P, u0, u1, k, h, header, only){
     const hw = (u1 - u0)/2, sl = hw*k*0.92, um = (u0 + u1)/2, fr = 0x3a4650;
-    for(const [l0, l1] of [[u0 - sl, u0 + hw - sl], [um + sl, u1 + sl]]){
+    for(const [i, [l0, l1]] of [[u0 - sl, u0 + hw - sl], [um + sl, u1 + sl]].entries()){
+      if(only != null && only !== i) continue;
       const q0 = Math.max(u0, l0), q1 = Math.min(u1, l1); if(q1 - q0 < 1) continue;
       this.quadOn(lg, [P(q0, 2), P(q1, 2), P(q1, h), P(q0, h)], 0xaaccdc, 0.55);
       this.quadOn(lg, [P(q0, 2), P(q0 + 2.5, 2), P(q0 + 2.5, h), P(q0, h)], fr, 1); this.quadOn(lg, [P(q1 - 2.5, 2), P(q1, 2), P(q1, h), P(q1 - 2.5, h)], fr, 1);
