@@ -62500,14 +62500,17 @@ function houseCanopy(fn){
       }, { pad: 3, keyStart: true, run: 50 });
     }
 
-    /* ---- THE BENCH under the window: an ash frame on a set-in toe kick, a coral seat at 40, a navy bolster against the wall laid on the seat;
-       keyed at its back's west end (its sitters, before it, sort after it: SS_SEATS). Base before what stands on it (W37) ---- */
-    items.push({ a: 344, b: 7, z: 0, solids: [solid(344, 606, 6, 56, 62, 'bench')], draw: () => {
+    /* ---- THE BENCH under the window: an ash frame on a set-in toe kick, a coral seat at 40, a navy bolster against the wall laid on the seat.
+       In runs of 26 along it, each keyed at its own stretch's start at the back (Sir, 2026-11-24: "something is going on with this bench": one
+       piece keyed at its west end, the north wall's run from a 385 sorted after it and painted the window over the bolster's east two thirds) --
+       so every stretch sorts after the wall behind it and before its sitters, in front of it (SS_SEATS). Base before what stands on it (W37) ---- */
+    runPiece(items, 344, 606, 6, 56, 60, (s0, s1) => [solid(s0, s1, 6, 56, 60, 'bench')], () => {
       box(350, 600, 10, 52, 0, 8, ashS, ashS, shade(ashS, 0.85));
       box(344, 606, 6, 56, 8, 30, ash, ashF, ashS);
       box(346, 604, 8, 54, 30, 40, shade(coral, 1.06), coral, coralD);
       for(const a of [436.5, 513.5]) T(a - 0.5, a + 0.5, 8, 54, 40.05, coralD);
-      box(348, 602, 8, 18, 40, 60, navyL, navy, navyD); } });
+      box(348, 602, 8, 18, 40, 60, navyL, navy, navyD);
+    }, { pad: 3, keyStart: true, run: 26, extra: { b: 7 } });
 
     /* ---- THE MIRROR by the door: a tall ash frame leaning on the north wall, the glass, a gleam on it; keyed at its far corner ---- */
     items.push({ a: 624, b: 2, z: 0, solids: [solid(624, 662, 2, 12, 170, 'mirror')], draw: () => {
