@@ -61655,6 +61655,19 @@ function houseCanopy(fn){
         /* STATION 0, THE LOADER (Sir, 2026-11-23: "let's do that one next"): between robots he turns to the deck feeder behind him, steps to its
            open carton, bends in with both arms and lifts out a deck -- the scooter's own -- holds it across his chest by its two ends, turns back
            and, as the next robot stops, lays it on the jig (it shows there from 1500) and presses it home */
+        /* (after a cardboard trip -- his empty deck carton, or the packer's -- he goes straight to the feeder for the next deck, not back to the
+           deck he had set down: Sir, 2026-11-24, "after the cardboard job he should get a new deck ready") */
+        if(p === 0 && here){ let se = Infinity; for(const e of [DW0 + P5W, LW0 + P5C + 500]) se = Math.min(se, (((jr5 - e) % PALT) + PALT) % PALT);
+          const Ls = (((u - w0) % CYC) + CYC) % CYC;
+          if(se < Ls && se < CYC){ const q = se, at0 = J0.at, L0p = [POS[0][0], RA - 78], S = [at0[0], FEED[1] + 40], inC = [FEED[0], FEED[1] + 4, 40], E = (a0, a1) => ease(clamp01((q - a0)/(a1 - a0)));
+            let pos = S, f = 3, pose = {}, pp = null;
+            if(q < 600){ const k = E(0, 600); pos = [L0p[0] + (S[0] - L0p[0])*k, L0p[1] + (S[1] - L0p[1])*k]; pose = { walk: k < 1 ? 1 : 0, gait: k*Math.hypot(S[0] - L0p[0], S[1] - L0p[1])/7 }; }
+            else if(q < 1400){ const k = E(600, 1100), T = [inC[0], S[1] - 20 + (inC[1] - S[1] + 20)*k, 70 + (inC[2] - 70)*k]; pose = hP(S, 3, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*k); if(q >= 1100) pp = T; }
+            else if(q < 1900){ const k = E(1400, 1900), T = [inC[0], inC[1] + (S[1] - 20 - inC[1])*k, inC[2] + (68 - inC[2])*k]; pose = hP(S, 3, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*(1 - k)); pp = T; }
+            else { const kt = E(1900, 2400), kw = E(2400, 3000); f = 3 - 2*kt; pos = [at0[0], S[1] + (at0[1] - S[1])*kw]; const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)]; pp = [pos[0] + fv[0]*20, pos[1] + fv[1]*20, 68];
+              pose = Object.assign({ walk: kw > 0 && kw < 1 ? 1 : 0, gait: kw*Math.abs(S[1] - at0[1])/7 }, hP(pos, f, [pp[0] - 18, pp[1], pp[2]], [pp[0] + 18, pp[1], pp[2]], 0, 0.05)); }   /* (turned back to the line with it, waiting at his place for the next robot) */
+            if(pp){ const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)]; out.push(SCO(pp[0], pp[1], pp[2] - 12 - 1.5, 0, fv[0] + fv[1] > 0 ? Math.max(4, pos[0] + pos[1] + 10 - pp[0] - pp[1]) : Math.min(-2, pos[0] + pos[1] - 6 - pp[0] - pp[1]))); }
+            out.push(man(pos[0], pos[1], f, pose)); continue; } }
         if(p === 0 && here && !on && !(u >= w0 && u < 1500)){ const o = u > w1 ? u - w1 : u + CYC - w1, OFF = CYC - w1 + w0, at0 = J0.at, E = (u0, u1) => ease(clamp01((o - u0)/(u1 - u0)));
           const S = [at0[0], FEED[1] + 40], fB = 3, fW = 1, inC = [FEED[0], FEED[1] + 4, 40];
           let pos = at0, f = fW, pose = {}, held = false, pp = null;
