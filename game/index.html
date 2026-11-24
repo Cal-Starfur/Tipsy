@@ -50684,6 +50684,193 @@ function tube(a0,b0,z0, a1,b1,z1, r, col){
   ctx.beginPath(); ctx.moveTo(p0.x - r*0.4*K, p0.y - r*0.5*K);
   ctx.lineTo(p1.x - r*0.4*K, p1.y - r*0.5*K); ctx.stroke();
 }
+/* ================= THE SHARED PLANTER (BUILDING PLANTERS) =================
+   (the planters pass, 2026-11-24 -- Sir, on the mall garage's forecourt: its planter "never got the street-props upgrade". The buildings,
+   shops, landmarks and houses each drew their own: a box(), a soil plate and a row of screen balls.) ONE planter for all of them, built
+   off the street planter (drawProp "planter": its rim -- a lip standing proud of the walls, its top a frame round the opening, the far
+   walls' inner faces and the soil sunk below it -- and its planting: one shaded mass under every puff, then each puff's lit side, far to
+   near) and the park shrubs (drawParkShrub: the clipped boxwood ball, the upright, the grasses, the flowering mound), in the kit's own
+   frame (P, ctx, K), so a building draws it inside its cached piece as before. Faces asked of P (SP13: lit on the screen-left, dark on the
+   screen-right, only the faces the eye sees, at every facing the game turns the entry to).
+     kitPlanter(a0, a1, b0, b1, z0, h, o)   its footprint a0..a1 x b0..b1 (the lip's outer edge: the solid it had), standing at z0, h tall
+       o.kind   'box' (a long trough, the default), 'tub' (a square one), 'pot' (round, the footprint's circle, tapered), 'bed' (a raised bed:
+                timber or brick sides, massed planting)
+       o.mat    'concrete' (default), 'stone', 'brick', 'timber', 'terracotta', 'steel' -- o.col its colour (each has one)
+       o.plant  'auto' (default: picked off the seed), 'mound', 'ball' (clipped boxwood), 'grass', 'flower' (bedding), 'succulent', 'none'
+       o.group  a row's name: its planters share one planting (style and palette) off it, each laid out off its own position
+       o.plantH how high the planting stands over the rim (default off its opening's size)
+   Seeded off its own position (and o.group / o.seed), never time: the same spot is always the same planter. */
+function kitPlanter(a0, a1, b0, b1, z0, h, o){
+  o = o || {};
+  if(CUT !== null && z0 > CUT) return;
+  if(a1 < a0){ const t = a0; a0 = a1; a1 = t; }
+  if(b1 < b0){ const t = b0; b0 = b1; b1 = t; }
+  const kind = o.kind || 'box', mat = o.mat || (kind === 'bed' ? 'timber' : kind === 'pot' ? 'terracotta' : 'concrete');
+  const col = o.col || KP_MAT[mat] || KP_MAT.concrete;
+  const ca = (a0 + a1)/2, cb = (b0 + b1)/2, zt = z0 + h;
+  const hs = s => { let x = 2166136261; s = String(s); for(let i = 0; i < s.length; i++){ x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };
+  const rng = mulberry32((hs(Math.round(ca*2) + ',' + Math.round(cb*2) + ',' + Math.round(z0)) ^ hs(o.seed || 'kp')) >>> 0);
+  const grng = o.group != null ? mulberry32(hs('grp' + o.group)) : rng;
+  /* screen-right: the face (or puff) on the dark side, asked of P */
+  const o0 = P(ca, cb, z0), dark = (na, nb) => (P(ca + na, cb + nb, z0).x - o0.x) > 0.02;
+  const seen = (na, nb) => (P(ca + na, cb + nb, z0).y - o0.y) > 0.0001;
+  const lit = col, dk = shade(col, 0.76), lipC = shade(col, 1.1), lipL = shade(col, 1.03), lipD = shade(col, 0.82), inner = shade(col, 0.48);
+  const soilC = o.soil || '#4a3b2e', soilD = Math.min(4, h*0.14);
+  let open;                                     // the opening: { round, a0..b1 } or { round, r }
+  if(kind === 'pot'){
+    const r = Math.min(a1 - a0, b1 - b0)/2, lipO = Math.min(2, r*0.14), lipT = Math.min(4, h*0.16), rb = r*0.78, wall = Math.min(2.6, r*0.18);
+    const N = 28, ring = (rr, z) => { const q = []; for(let i = 0; i < N; i++){ const t = i/N*Math.PI*2; q.push(P(ca + rr*Math.cos(t), cb + rr*Math.sin(t), z)); } return q; };
+    /* the side the eye sees: the samples whose normal faces it; their right-hand run dark */
+    const band = (r0, zA, r1, zB, cL, cD) => {
+      const vis = [], drk = [];
+      for(let i = 0; i < N; i++){ const t = i/N*Math.PI*2, c = Math.cos(t), s = Math.sin(t); vis.push(seen(c, s)); drk.push(dark(c, s)); }
+      let s0 = -1; for(let i = 0; i < N; i++) if(vis[i] && !vis[(i + N - 1) % N]){ s0 = i; break; }
+      if(s0 < 0) return;
+      const run = []; for(let k = 0, i = (s0 + N - 1) % N; k <= N; k++, i = (i + 1) % N){ run.push(i); if(k > 0 && !vis[i]) break; }
+      const pt = (i, rr, z) => P(ca + rr*Math.cos(i/N*Math.PI*2), cb + rr*Math.sin(i/N*Math.PI*2), z);
+      const strip = idx => { const q = idx.map(i => pt(i, r1, zB)); for(let k = idx.length - 1; k >= 0; k--) q.push(pt(idx[k], r0, zA)); return q; };
+      poly(strip(run), cL);
+      /* its dark run: the samples on the screen-right, carried to the silhouette */
+      let d0 = -1, d1 = -1; run.forEach((i, k) => { if(drk[i]){ if(d0 < 0) d0 = k; d1 = k; } });
+      if(d0 >= 0 && d1 > d0) poly(strip(run.slice(Math.max(0, d0 - 1), Math.min(run.length, d1 + 1))), cD);
+    };
+    band(rb, z0, r*0.97, zt - lipT, lit, dk);
+    band(r + lipO, zt - lipT, r + lipO, zt, lipL, lipD);
+    poly(ring(r + lipO, zt), lipC);
+    poly(ring(r - wall, zt), inner);
+    const sl = clipConvex(ring(r - wall, zt - soilD).map(q => ({ x: q.x, y: q.y })), ring(r - wall, zt).map(q => ({ x: q.x, y: q.y })));
+    if(sl) poly(sl, soilC);
+    open = { round: true, r: r - wall };
+  } else {
+    const lipO = o.lipO != null ? o.lipO : (mat === 'timber' ? 1.6 : mat === 'steel' ? 0.6 : Math.min(3, (b1 - b0)*0.06 + 1));
+    const lipT = o.lipT != null ? o.lipT : (mat === 'steel' ? 1.2 : Math.min(5, h*0.18)), wall = Math.min(mat === 'steel' ? 1.2 : 4, (Math.min(a1 - a0, b1 - b0))*0.12);
+    const wa0 = a0 + lipO, wa1 = a1 - lipO, wb0 = b0 + lipO, wb1 = b1 - lipO, zl = zt - lipT;
+    const ia0 = a0 + lipO + wall, ia1 = a1 - lipO - wall, ib0 = b0 + lipO + wall, ib1 = b1 - lipO - wall;
+    /* a face of the ring: on the a = A plane (n = +-1, 0) or b = B (0, +-1), from z A0 to A1, between s0..s1 along it */
+    const faceA = (A, s0, s1, zA, zB) => [P(A, s0, zB), P(A, s1, zB), P(A, s1, zA), P(A, s0, zA)];
+    const faceB = (B, s0, s1, zA, zB) => [P(s0, B, zB), P(s1, B, zB), P(s1, B, zA), P(s0, B, zA)];
+    const sides = [];
+    for(const s of [1, -1]){
+      if(seen(s, 0)) sides.push({ ax: 'a', s, dk: dark(s, 0) });
+      if(seen(0, s)) sides.push({ ax: 'b', s, dk: dark(0, s) });
+    }
+    /* the walls, their foot in shade and the material on them, then the lip's outer faces round the top */
+    for(const f of sides){
+      const A = f.ax === 'a', W0 = A ? (f.s > 0 ? wa1 : wa0) : (f.s > 0 ? wb1 : wb0), L0 = A ? wb0 : wa0, L1 = A ? wb1 : wa1;
+      const Q = (zA, zB, off, l0 = L0, l1 = L1) => A ? faceA(W0 + f.s*off, l0, l1, zA, zB) : faceB(W0 + f.s*off, l0, l1, zA, zB);
+      const c = f.dk ? dk : lit;
+      poly(Q(z0, zl, 0), c);
+      poly(Q(z0, z0 + Math.min(3, h*0.1), 0.15), shade(c, 0.8));
+      if(mat === 'brick'){ for(let z = z0 + 6; z < zl - 1; z += 6) poly(Q(z, z + 0.7, 0.2), shade(c, 0.84));
+        for(let z = z0, r = 0; z < zl - 1; z += 6, r++) for(let l = L0 + (r % 2 ? 7 : 0) + 7; l < L1 - 2; l += 14) poly(Q(z, Math.min(z + 6, zl), 0.2, l - 0.35, l + 0.35), shade(c, 0.84)); }
+      else if(mat === 'timber'){ for(let z = z0 + (zl - z0)/3; z < zl - 1; z += (zl - z0)/3) poly(Q(z - 0.5, z + 0.5, 0.2), shade(c, 0.74)); }
+      else if(mat === 'concrete' || mat === 'stone'){ const n = Math.round((L1 - L0)/90); for(let k = 1; k < n; k++){ const l = L0 + (L1 - L0)*k/n; poly(Q(z0, zl, 0.2, l - 0.4, l + 0.4), shade(c, 0.88)); } }
+    }
+    for(const f of sides){
+      const A = f.ax === 'a', W0 = A ? (f.s > 0 ? a1 : a0) : (f.s > 0 ? b1 : b0);
+      poly(A ? faceA(W0, b0, b1, zl, zt) : faceB(W0, a0, a1, zl, zt), f.dk ? lipD : lipL);
+    }
+    /* the rim's top, a frame round the opening; through it the far walls' inner faces, then the soil sunk below the rim */
+    poly([P(a0, b0, zt), P(a1, b0, zt), P(ia1, ib0, zt), P(ia0, ib0, zt)], lipC);
+    poly([P(a1, b0, zt), P(a1, b1, zt), P(ia1, ib1, zt), P(ia1, ib0, zt)], lipC);
+    poly([P(a1, b1, zt), P(a0, b1, zt), P(ia0, ib1, zt), P(ia1, ib1, zt)], lipC);
+    poly([P(a0, b1, zt), P(a0, b0, zt), P(ia0, ib0, zt), P(ia0, ib1, zt)], lipC);
+    const hole = [P(ia0, ib0, zt), P(ia1, ib0, zt), P(ia1, ib1, zt), P(ia0, ib1, zt)].map(q => ({ x: q.x, y: q.y })), zs = zt - soilD;
+    poly(hole, inner);
+    const sl = clipConvex([P(ia0, ib0, zs), P(ia1, ib0, zs), P(ia1, ib1, zs), P(ia0, ib1, zs)].map(q => ({ x: q.x, y: q.y })), hole);
+    if(sl) poly(sl, soilC);
+    open = { round: false, a0: ia0, a1: ia1, b0: ib0, b1: ib1 };
+  }
+  if(o.plant === 'none' || (CUT !== null && zt > CUT)) return;
+  kitPlanting(open, ca, cb, zt - soilD, kind, o, rng, grng, dark);
+}
+const KP_MAT = { concrete: '#b7ad9a', stone: '#d8cdb6', brick: '#a8553e', timber: '#9a7452', terracotta: '#b86a4a', steel: '#5d646b' };
+/* the planting's palettes: the street planter's (PLANTER_VARIANTS) as the kit's colours, and the bloom colours a bed draws from */
+const KP_PAL = PLANTER_VARIANTS.map(v => ({ n: v.n, a: '#' + v.leafA.toString(16).padStart(6, '0'), b: '#' + v.leafB.toString(16).padStart(6, '0'),
+  c: '#' + v.leafC.toString(16).padStart(6, '0'), f: '#' + v.flower.toString(16).padStart(6, '0'), spiky: v.style === 'spiky' }));
+const KP_BOX = { n: 'box', a: '#4f8048', b: '#365e33', c: '#6a9a58', f: '#f4f0e2', spiky: false };
+const KP_BLOOMS = ['#e86b8a', '#f2c14e', '#f4f0e6', '#b07ad8', '#e8743b', '#d94f3d', '#7f9fe2'];
+/* what grows in it: the puffs (or blades) far to near, the mass in shade first, each lit side after (SP13) */
+function kitPlanting(open, ca, cb, zs, kind, o, rng, grng, dark){
+  const pick = (arr) => arr[Math.floor(grng() * arr.length) % arr.length];
+  let style = o.plant && o.plant !== 'auto' ? o.plant : pick(kind === 'bed' ? ['flower', 'mound', 'flower'] : kind === 'pot' ? ['mound', 'ball', 'grass', 'flower', 'succulent'] : ['mound', 'ball', 'grass', 'flower', 'mound']);
+  /* (a building's planting is kept: the street planter's autumn palette reads as dying in a forecourt, so it is left to the street) */
+  const pal = o.pal ? (KP_PAL.find(p => p.n === o.pal) || KP_BOX) : style === 'ball' ? KP_BOX : (style === 'grass' || style === 'succulent') ? pick(KP_PAL.filter(p => p.spiky)) : pick(KP_PAL.filter(p => !p.spiky && p.n !== 'autumn'));
+  const blooms = [pick(KP_BLOOMS), pick(KP_BLOOMS), pal.f];
+  const flowering = style === 'flower' || (style === 'mound' && grng() < 0.4);
+  const A = open.round ? open.r*2 : open.a1 - open.a0, B = open.round ? open.r*2 : open.b1 - open.b0, mn = Math.min(A, B), mx = Math.max(A, B);
+  const ph = o.plantH != null ? o.plantH : Math.max(style === 'flower' ? 16 : 9, Math.min(34, mn*(kind === 'pot' ? 0.85 : 0.55)));
+  const zOf = q => P(q.a, q.b, 0).y;
+  const circ = (x, y, r, c) => { ctx.beginPath(); ctx.arc(x, y, Math.max(0.6, r), 0, Math.PI*2); ctx.fillStyle = c; ctx.fill(); };
+  const sx0 = P(ca, cb, zs).x;
+  const onDark = x => x > sx0 + mn*K*0.15;
+  /* the clumps along its length: each a crown, an inner ring and an outer ring at the rim (the street planter's mound) */
+  const along = A >= B, n = open.round ? 1 : Math.max(1, Math.round(mx/(mn*0.95))), ra = (along ? A/n : A)/2, rb = (along ? B : B/n)/2;
+  const centres = []; for(let k = 0; k < n; k++){ const f = (k + 0.5)/n; centres.push(open.round ? [ca, cb] : along ? [open.a0 + A*f, cb] : [ca, open.b0 + B*f]); }
+  if(style === 'grass' || style === 'succulent'){
+    /* in tufts (a long trough is a row of them, each fanning out of the soil), the far blades first */
+    const succ = style === 'succulent', bl = [], sp = Math.max(10, mn*1.1), nt = open.round ? 1 : Math.max(1, Math.round(mx/sp));
+    const ta = (along ? A/nt : A)/2, tb = (along ? B : B/nt)/2;
+    for(let t = 0; t < nt; t++){ const f = (t + 0.5)/nt, cx = open.round ? ca : along ? open.a0 + A*f : ca, cy = open.round ? cb : along ? cb : open.b0 + B*f;
+    for(let i = 0, nb = succ ? 9 : 16; i < nb; i++){
+      const ang = rng()*Math.PI*2, rad = Math.sqrt(rng())*0.7, c = Math.cos(ang), s = Math.sin(ang);
+      const ba = cx + c*rad*ta, bb = cy + s*rad*tb, lean = (succ ? 0.3 : 0.45)*ph*(0.4 + rng()*0.6);
+      bl.push({ a: ba, b: bb, ta: ba + c*lean, tb: bb + s*lean, th: zs + ph*(succ ? 0.4 + 0.3*rng() : 0.7 + 0.5*rng()), w: succ ? 2.6 : 1.9, c, s, sh: rng() });
+    } }
+    bl.sort((p, q) => zOf({ a: (p.a + p.ta)/2, b: (p.b + p.tb)/2 }) - zOf({ a: (q.a + q.ta)/2, b: (q.b + q.tb)/2 }));
+    P(ca, cb, bl.reduce((m, q) => Math.max(m, q.th), zs));   // (its real top, for a runPiece's zTop and the cull: kitPlanter's top)
+    for(const q of bl){
+      const b1 = P(q.a - q.s*q.w, q.b + q.c*q.w, zs), b2 = P(q.a + q.s*q.w, q.b - q.c*q.w, zs), tp = P(q.ta, q.tb, q.th), d = dark(q.c, q.s);
+      const cc = q.sh < 0.33 ? pal.a : q.sh < 0.66 ? pal.b : pal.c;
+      poly([tp, b1, b2], d ? shade(cc, 0.8) : cc);
+    }
+    if(rng() < 0.4) for(let i = 0; i < 3; i++){ const q = bl[bl.length - 1 - i*3]; if(!q) break; const p = P(q.a + (q.ta - q.a)*0.7, q.b + (q.tb - q.b)*0.7, zs + (q.th - zs)*0.7); circ(p.x, p.y, 1.3*K, pal.f); }
+    return;
+  }
+  const puffs = [];
+  for(const [cx, cy] of centres){
+    if(style === 'ball'){
+      /* a clipped boxwood ball (drawParkShrub's), one per clump: its skirt, the dark body, the mid, the lit side, the clipped grain */
+      const R = Math.min(ra, rb)*0.95, z = zs + Math.max(R*0.75, ph*0.55);
+      puffs.push({ a: cx, b: cy, z, r: R, ball: true });
+      continue;
+    }
+    /* (sized off the clump, so the mass covers the soil but for a rim: the outer ring's puffs overlap round it) */
+    const s = Math.min(ra, rb), low = style === 'flower' ? 0.6 : 1;
+    puffs.push({ a: cx + (rng() - 0.5)*ra*0.1, b: cy, z: zs + ph*0.72*low, r: s*0.56 });
+    const nIn = 4 + Math.floor(rng()*2), nOut = 7 + Math.floor(rng()*3);
+    for(let i = 0; i < nIn; i++){ const t = i/nIn*Math.PI*2 + rng()*0.6; puffs.push({ a: cx + Math.cos(t)*ra*0.42, b: cy + Math.sin(t)*rb*0.45, z: zs + ph*(0.48 + rng()*0.1)*low, r: s*(0.46 + rng()*0.06) }); }
+    for(let i = 0; i < nOut; i++){ const t = i/nOut*Math.PI*2 + rng()*0.4; puffs.push({ a: cx + Math.cos(t)*ra*0.8, b: cy + Math.sin(t)*rb*0.8, z: zs + ph*(0.2 + rng()*0.14)*low, r: s*(0.4 + rng()*0.06) }); }
+  }
+  for(const f of puffs){ const c = P(f.a, f.b, f.z); f.x = c.x; f.y = c.y; f.k = zOf(f); }
+  puffs.sort((p, q) => p.k - q.k);
+  P(ca, cb, puffs.reduce((m, f) => Math.max(m, f.z + f.r), zs));   // (its real top, for a runPiece's zTop: the crown's height plus its radius)
+  if(style === 'ball'){
+    for(const f of puffs){
+      const R = f.r*K, sk = P(f.a, f.b, zs + 0.3);
+      ctx.beginPath(); ctx.ellipse(sk.x + R*0.08, sk.y - R*0.04, R*0.95, R*0.3, 0, 0, Math.PI*2); ctx.fillStyle = shade(pal.b, 0.75); ctx.fill();
+      circ(f.x, f.y + R*0.04, R, pal.b);
+      circ(f.x - R*0.12, f.y - R*0.1, R*0.86, pal.a);
+      circ(f.x - R*0.3, f.y - R*0.32, R*0.56, pal.c);
+      for(let k = 0; k < 7; k++){ const t = rng()*Math.PI*2, d = (0.3 + rng()*0.45)*R, fx = f.x + Math.cos(t)*d, fy = f.y + Math.sin(t)*d*0.9;
+        circ(fx, fy, R*0.08, fx > f.x ? shade(pal.b, 0.9) : shade(pal.c, 1.06)); }
+      circ(f.x - R*0.42, f.y - R*0.48, R*0.2, shade(pal.c, 1.18));
+    }
+    return;
+  }
+  const zMid = puffs.reduce((m, f) => m + f.z, 0)/puffs.length;
+  for(const f of puffs) circ(f.x, f.y, f.r*K, pal.b);
+  for(const f of puffs){
+    const R = f.r*K, up = f.z >= zMid, dk = onDark(f.x);
+    circ(f.x - R*0.2, f.y - R*0.24, R*0.76, up ? (dk ? shade(pal.a, 0.92) : pal.a) : shade(pal.a, 0.86));
+    if(up && !dk) circ(f.x - R*0.32, f.y - R*0.42, R*0.36, pal.c);
+    if(flowering && rng() < (style === 'flower' ? 0.95 : 0.55)){
+      const nfl = style === 'flower' ? 3 : 2;
+      for(let k = 0; k < nfl; k++){ const bc = blooms[Math.floor(rng()*(style === 'flower' ? 2 : 3))], fx = f.x + (rng() - 0.55)*R*1.1, fy = f.y - R*(0.1 + rng()*0.55), fr = Math.max(1.1, 1.5*K);
+        circ(fx, fy, fr, onDark(fx) ? shade(bc, 0.78) : bc); if(!onDark(fx)) circ(fx - fr*0.35, fy - fr*0.35, fr*0.45, shade(bc, 1.15)); }
+    }
+  }
+}
 /* ================= SHOPFRONT DEPTH =================
    THE LAYERING FAULT, and it was in every unit. A shopfront was being
    built as: opaque glass pane, then the goods painted ON TOP of it at a
@@ -51794,9 +51981,7 @@ function kerb(p, kind){
     F(W*0.46,W*0.50,0,20,'#6d747c',null,0,34);
   } else if(kind==='planters'){
     for(const aa of [W*0.06, W*0.88]){
-      box(aa-14,aa+14,16,44,0,24,'#b9beb4','#a3a89a','#8f9487');
-      const c=P(aa,30,34); ctx.beginPath(); ctx.arc(c.x,c.y,13*K,0,7);
-      ctx.fillStyle='#4f7a4a'; ctx.fill();
+      kitPlanter(aa-14, aa+14, 16, 44, 0, 24, { kind: 'tub', mat: 'concrete', col: '#a3a89a', group: 'kerb planters' });   // (the shared planter: kitPlanter)
     }
   } else if(kind==='stoop'){
     box(W*0.56,W*0.90,10,34,0,12,'#b9beb4','#a3a89a','#8f9487');
@@ -52257,10 +52442,7 @@ function flatsDrawChemist(p, c){
     }
     if(state.props){
       for(const aa of [W*0.06, W*0.90]){
-        cyl(aa, 32, 0, 26, 15, '#b9beb4');
-        plateCircle(aa, 32, 25, 12, '#5a4a38');
-        ball(aa, 32, 36, 12, '#4f7a4a');
-        ball(aa-7, 30, 30, 8, '#5c8a56');
+        kitPlanter(aa - 15, aa + 15, 17, 47, 0, 26, { kind: 'pot', mat: 'concrete', col: '#b9beb4', group: 'shop pots' });   // (the shared planter: kitPlanter)
       }
     }
     kerb(p,'none');
@@ -53836,9 +54018,7 @@ function houseCanopy(fn){
           if(!mine(px, py)) continue;
           items.push({ a: A(px), b: B(py), z: 0, draw: () => {
             if(!inView(A(px - 70), A(px + 70), B(py + 40), B(py - 40), H, H + 200)) return;
-            box(A(px - 70), A(px + 70), B(py + 40), B(py - 40), H, H + 26, stoneL, stone, stoneD);
-            T(A(px - 64), A(px + 64), B(py + 34), B(py - 34), H + 26.5, '#6b5a44');
-            for(let q = 0; q < 3; q++) ball(A(px - 40 + q*40), B(py), H + 42, 16, q % 2 ? '#4f7a4a' : '#5f8f58');
+            kitPlanter(A(px - 70), A(px + 70), B(py + 40), B(py - 40), H, 26, { kind: 'box', mat: 'stone', col: stone, group: 'cove podium' });   // (the shared planter: kitPlanter)
           }});
         }
         /* ---- THE SCULPTURE (see COVE.sculptures) ----
@@ -54670,9 +54850,7 @@ function houseCanopy(fn){
           if(!mine(px, py)) continue;
           items.push({ a: A(px), b: B(py), z: 0, draw: () => {
             if(!inView(A(px - 90), A(px + 90), B(py + 40), B(py - 40), 0, 80)) return;
-            box(A(px - 90), A(px + 90), B(py + 40), B(py - 40), 0, 26, '#e6d8bf', '#d6c8ad', '#c8b9a0');
-            T(A(px - 84), A(px + 84), B(py + 34), B(py - 34), 26.5, '#6b5a44');
-            for(let q = 0; q < 4; q++) ball(A(px - 60 + q*40), B(py), 42, 16, q % 2 ? '#4f7a4a' : '#5f8f58');
+            kitPlanter(A(px - 90), A(px + 90), B(py + 40), B(py - 40), 0, 26, { kind: 'box', mat: 'stone', col: '#d6c8ad', group: 'marina forecourt' });   // (the shared planter: kitPlanter)
           }});
         }
         depthSort(items);
@@ -70195,8 +70373,8 @@ function houseCanopy(fn){
     downpipe(8, H, '#8a9296');
     /* buckets and pots waiting to go out front */
     depthSort([
-      { a: 60, b: -D-30, z: 0, draw: () => { cyl(60, -D-30, 0, 26, 15, '#b9beb4'); ball(60, -D-30, 36, 12, '#4f7a4a'); } },
-      { a: 96, b: -D-34, z: 0, draw: () => { cyl(96, -D-34, 0, 22, 12, '#b86a4a'); ball(96, -D-34, 30, 10, '#5c8a56'); } },
+      { a: 60, b: -D-30, z: 0, draw: () => kitPlanter(45, 75, -D-45, -D-15, 0, 26, { kind: 'pot', mat: 'concrete', col: '#b9beb4', plant: 'flower' }) },   // (the shared planter: kitPlanter)
+      { a: 96, b: -D-34, z: 0, draw: () => kitPlanter(84, 108, -D-46, -D-22, 0, 22, { kind: 'pot', mat: 'terracotta', col: '#b86a4a' }) },
       { a: 128, b: -D-30, z: 0, draw: () => crateStack(128, '#a8875a', 1, D, 20) }
     ]);
     if(state.roof) box(W*0.30,W*0.58,-140,-96,H,H+18,'#9aa0a6','#7d838a','#6a7076');
@@ -74552,8 +74730,7 @@ function houseCanopy(fn){
     /* (THE PATIO IS LAWN, Sir 2026-11-23: "the ground should be something other than the tan squares, it should probably be grass" -- the
        city's own lawn, laid by the ground pass under the lot (the entry's `lawn`, hoodShopLawnsOf), never painted here: no secondary grass) */
     const { LA0, LA1, LB } = k;
-    box(LA0 + 8, LA1 - 8, LB + 4, LB + 30, 0, 24, '#c98b5a', '#b0774a', '#94623b');
-    for(let a = LA0 + 22; a < LA1 - 16; a += 26) ball(a, LB + 17, 32, 11, a % 52 < 26 ? '#5f9a4a' : '#6fae52');
+    kitPlanter(LA0 + 8, LA1 - 8, LB + 4, LB + 30, 0, 24, { kind: 'box', mat: 'terracotta', col: '#b0774a', plant: 'flower', group: 'juice patio' });   // (the shared planter: kitPlanter)
   },
   /* one bistro set: two chairs, the table, the umbrella. Everything
      stands on the ground, so the sort key is a + b (see the fuel lot). */
@@ -76761,9 +76938,7 @@ function houseCanopy(fn){
     /* ---- the stock the block added, all behind the hut: the back rows
        of shrubs, the tree fields down each side of the glasshouses ---- */
     const shrub = (sa, sb, c) => items.push({ a: sa, b: sb, draw: () => {
-      cyl(sa, sb, 0, 18, 12, '#9a8a68');
-      plateCircle(sa, sb, 18, 10, '#5a4a30');
-      ball(sa, sb, 32, 17, ['#4e8058','#3f6b4a','#568a5e','#c26a7e','#e8c34a'][c%5]);
+      kitPlanter(sa - 12, sa + 12, sb - 12, sb + 12, 0, 18, { kind: 'pot', col: '#9a8a68', mat: 'concrete', plantH: 18, group: 'nursery' + (c % 5) });   // (the shared planter: kitPlanter)
     } });
     if(state.props){
       for(let r=0;r<3;r++) for(let c=0;c<20;c++){
@@ -76875,9 +77050,7 @@ function houseCanopy(fn){
         for(const la of [734+o, 870+o, 1006+o]) cyl(la, bb, 0, 42, 6, shade(tim,.8));
         for(let i=0;i<7;i++){
           const sa = 740 + o + i*45;
-          cyl(sa, bb, 50, 68, 11, '#9a8a68');
-          plateCircle(sa, bb, 68, 9, '#5a4a30');
-          ball(sa, bb, 78, 13, ['#4e8058','#c26a7e','#e8c34a','#3f6b4a','#b4674a'][(i+r)%5]);
+          kitPlanter(sa - 11, sa + 11, bb - 11, bb + 11, 50, 18, { kind: 'pot', col: '#9a8a68', mat: 'concrete', plantH: 14, group: 'nursery' + ((i + r) % 5) });   // (the shared planter: kitPlanter)
         }
         } });
       }
@@ -78897,9 +79070,8 @@ function houseCanopy(fn){
       for(let r=0;r<4;r++) for(const ta of [110, 240]) items.push({ a: ta, b: -120 - r*130, draw: () => table(ta, -120 - r*130) });
       /* (a planter 230 long: runPiece, each run keyed at its own stretch -- keyed at its middle, the table behind its east end
          sorted after it and painted its legs over it) */
-      for(const pb of [-70, -640]) runPiece(items, 60, 290, pb-18, pb+18, 36, null, () => {
-        box(60, 290, pb-18, pb+18, 0, 30, shade(wall,.9), shade(wall,.72), shade(wall,.6));
-        for(let x = 80; x < 280; x += 40) ball(x, pb, 36, 16, ['#4e8058','#3f6b4a','#568a5e'][(x/40)%3|0]);
+      for(const pb of [-70, -640]) runPiece(items, 60, 290, pb-18, pb+18, 40, null, () => {
+        kitPlanter(60, 290, pb-18, pb+18, 0, 30, { kind: 'box', mat: 'brick', col: shade(wall,.72), group: 'beer garden' });   // (the shared planter: kitPlanter)
       }, { pad: 0 });   // (its clip its own stretch: padded, a run's clip reached over the next stretch's front, behind the tables' benches)
     }
 
@@ -86153,9 +86325,7 @@ marinaEntry(),
           for(let q = -54; q <= 54; q += 12) tube(ga, gb + q, 76, ga + sd*22, gb + q, 8, 0.4, 'rgba(240,240,236,.7)');
           for(let h = 14; h < 76; h += 14) tube(ga + sd*(22 - 22*h/76), gb - 60, h, ga + sd*(22 - 22*h/76), gb + 60, h, 0.4, 'rgba(240,240,236,.6)'); }); }
       for(const [ba, bb] of PL.beds) add([ba - 58, ba + 58, bb - 26, bb + 26], () => {
-        box(ba - 56, ba + 56, bb - 24, bb + 24, 0, 26, '#9a7452', '#8a6a46', '#6f5334'); T(ba - 50, ba + 50, bb - 18, bb + 18, 26, '#4a3a2a');
-        for(let k = 0; k < 7; k++) ball(ba - 42 + k*14, bb - 6 + (k % 2)*10, 36 + (k % 3)*4, 8, ['#3f6b4a', '#4e8058', '#568a5e'][k % 3]);
-        for(const fa of [-30, 0, 30]) ball(ba + fa, bb + 4, 56, 4, [coral, yel, '#d57ca6'][(fa + 30)/30]); });
+        kitPlanter(ba - 56, ba + 56, bb - 24, bb + 24, 0, 26, { kind: 'bed', mat: 'timber', plant: 'flower', group: 'school beds' }); });   // (the shared planter: kitPlanter)
       for(const [q0, q1, r0, r1] of PL.portables) add([q0 - 6, q1 + 6, r0 - 6, r1 + 60], () => {
         box(q0, q1, r0, r1, 0, 110, '#ece3cc', wall, shade(wall, .78)); F(q0, q1, 0, 14, '#8a8d86', null, 0, r1 + 0.4); slab(q0 - 6, q1 + 6, 110, 120, r1 + 6, r0 - 6, '#8a8d86', null, '#a3a69f');
         for(let k = 0; k < 4; k++){ const w0 = q0 + 40 + k*(q1 - q0 - 140)/3 + k*0, w1 = w0 + 70; if(w1 > q1 - 90) break; F(w0, w1, 40, 90, glassT, null, 0, r1 + 0.8); F(w0 - 3, w1 + 3, 36, 94, stoneD, null, 0, r1 + 0.5); }
@@ -86168,9 +86338,7 @@ marinaEntry(),
       for(const [ra, rb] of PL.racks) add([ra - 10, ra + 66, rb - 18, rb + 18], () => {
         for(let k = 0; k < 4; k++){ const a = ra + k*18; tube(a, rb - 13, 0, a, rb - 13, 28, 1.6, stl); tube(a, rb - 13, 28, a, rb + 13, 28, 1.6, stl); tube(a, rb + 13, 28, a, rb + 13, 0, 1.6, stl); } });
       for(const [pa, pb] of PL.planters) add([pa - 38, pa + 38, pb - 18, pb + 18], () => {
-        box(pa - 34, pa + 34, pb - 14, pb + 14, 0, 26, '#cdbfa0', brick, shade(brick, .78)); T(pa - 30, pa + 30, pb - 10, pb + 10, 26, '#4a3a2a');
-        for(let k = 0; k < 5; k++) ball(pa - 24 + k*12, pb - 2 + (k % 2)*4, 38, 11, ['#3f6b4a', '#4e8058', '#568a5e'][k % 3]);
-        for(const [fa, fb] of [[-14, 6], [6, -4], [22, 6]]) ball(pa + fa, pb + fb, 48, 4, ['#e0674e', yel, '#d57ca6'][(fa + 20) % 3 | 0]); });
+        kitPlanter(pa - 34, pa + 34, pb - 14, pb + 14, 0, 26, { kind: 'box', mat: 'brick', col: brick, plant: 'flower', group: 'school porch' }); });   // (the shared planter: kitPlanter)
     }
 
     /* the east end, nearer than everything at its own b */
@@ -87128,9 +87296,7 @@ marinaEntry(),
     /* (ordered against him by its planter, fpLab, not its fronds: measured off what it paints, the crown's reach
        had it over him standing out before the planter -- Sir, 2026-10-22, "this planter drawing over tipsy") */
     const palm = (a, b) => items.push({ a, b, fpLab: { a0: a - 46, a1: a + 46, b0: b - 46, b1: b + 46, z1: 300 }, draw: () => {
-      box(a - 46, a + 46, b - 46, b + 46, 0, 34, '#b7ad9a', '#a1978a', '#8d8478');
-      T(a - 38, a + 38, b - 38, b + 38, 34.5, '#6b5a44');
-      for(const [da, db] of [[-26,-20],[24,-24],[-22,22],[26,20]]) ball(a + da, b + db, 44, 14, '#4f7a4a');
+      kitPlanter(a - 46, a + 46, b - 46, b + 46, 0, 34, { kind: 'tub', mat: 'concrete', plant: 'mound', pal: 'garden', plantH: 14, group: 'mall palms' });   // (the shared planter, low underplanting round the palm: kitPlanter)
       /* ONE TRUNK, NOT THREE DRUMS (Sir, 2026-10-07: "the trees are
          segmented poorly"). It was three cylinders stepped sideways for the
          lean, each with its own lid, so it read as a stack of offset cans.
@@ -87600,9 +87766,7 @@ marinaEntry(),
 
     /* planters along the pavement, clear of the lanes */
     if(state.props) for(const a of [260, 700, 2200, 2960]){   // 2960: clear of the stair tower's door
-      box(a - 90, a + 90, -150, -80, 0, 30, '#b7ad9a', '#a1978a', '#8d8478');
-      T(a - 82, a + 82, -142, -88, 30.5, '#6b5a44');
-      for(let s = 0; s < 4; s++) ball(a - 60 + s*40, -115, 42, 18, s % 2 ? '#4f7a4a' : '#5f8f58');
+      kitPlanter(a - 90, a + 90, -150, -80, 0, 30, { kind: 'box', mat: 'concrete', plant: 'mound', pal: 'garden', group: 'mall garage' });   // (the shared planter: kitPlanter)
     }
     if(deckDraw) depthSort(deckItems);
     kerb(p,'none');
@@ -87689,8 +87853,7 @@ marinaEntry(),
       /* the roof's planting, in boxes either side of the tower */
       for(const a of [190, LEN - 190]){
         if(a < r0 || a > r1) continue;
-        box(a - 70, a + 70, -240, -150, PH, PH + 22, stoneL, stone, stoneD);
-        for(let s = 0; s < 3; s++) ball(a - 40 + s*40, -195, PH + 34, 16, s % 2 ? '#4f7a4a' : '#5f8f58');
+        kitPlanter(a - 70, a + 70, -240, -150, PH, 22, { kind: 'box', mat: 'stone', col: stone, group: 'palmline roof' });   // (the shared planter: kitPlanter)
       }
     }
     } }, o)));
@@ -87816,8 +87979,7 @@ marinaEntry(),
        of it) and before the podium's face, whose coping hides their foot */
     for(const a of [420, LOB0 - 60, LOB1 + 60, LEN - 400]){
       if(a < r0 || a > r1 || !inView(a - 70, a + 70, PF - 70, PF - 10, PH, PH + 60)) continue;
-      box(a - 60, a + 60, PF - 66, PF - 14, PH, PH + 22, stoneL, stone, stoneD);
-      for(let s = 0; s < 3; s++) ball(a - 36 + s*36, PF - 40, PH + 34, 15, s % 2 ? '#4f7a4a' : '#5f8f58');
+      kitPlanter(a - 60, a + 60, PF - 66, PF - 14, PH, 22, { kind: 'box', mat: 'stone', col: stone, group: 'palmline roof edge' });   // (the shared planter: kitPlanter)
     }
     if(inView(r0, r1, PF, PF, 0, PH)){
       F(r0, r1, 0, PH, stone, null, 0, PF);
@@ -90630,7 +90792,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       box(a0-1, a1+1, -11, -1, 26, 30, shade(c.roof,1.05), c.roof, shade(c.roof,.8));
     }
     for(const [nm, aa] of [['pot L', 320], ['pot R', 760]])     // terracotta pots in the lawn
-      houseProp(nm, () => { cyl(aa, -32, 0, 20, 10, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -32, 26, 11, '#4f7a4a'); });
+      houseProp(nm, () => { kitPlanter(aa - 10, aa + 10, -32 - 10, -32 + 10, 0, 20, { kind: 'pot', col: '#b86a4a', group: 'house pots' }); });
   },
   arch(aMid, bf, h, col, d){                                   // arched surround over the doorway
     const r = 44, pts = [];
@@ -90843,7 +91005,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     box(286, 394, -140, -84, 110, 120, c.trim, shade(c.trim,.94), shade(c.trim,.8));
     this.brackets(286, 394, -83.6, 110, c);
     for(const [nm, aa] of [['urn L', 240], ['urn R', 440]])
-      houseProp(nm, () => { cyl(aa, -50, 0, 10, 7, '#9c968a'); cyl(aa, -50, 10, 28, 13, '#b3ada2', '#c9c3b8'); ball(aa, -50, 32, 11, '#4f7a4a'); });
+      houseProp(nm, () => { cyl(aa, -50, 0, 10, 7, '#9c968a'); kitPlanter(aa - 13, aa + 13, -50 - 13, -50 + 13, 10, 18, { kind: 'pot', col: '#b3ada2', group: 'house urns', mat: 'stone', plant: 'ball' }); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -90922,7 +91084,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
     for(const [nm, aa] of [['lemon L', 300], ['lemon R', 510]])
-      houseProp(nm, () => { cyl(aa, -70, 0, 24, 14, c.tile1, shade(c.tile1,1.2)); cyl(aa, -70, 24, 50, 2.5, '#6b5038'); ball(aa, -70, 70, 22, '#4f7a3e'); for(let k = 0; k < 5; k++) ball(aa - 14 + k*7, -64, 64 + (k%2)*12, 3, '#f2d36a'); });
+      houseProp(nm, () => { kitPlanter(aa - 14, aa + 14, -70 - 14, -70 + 14, 0, 24, { kind: 'pot', col: c.tile1, group: 'house pots', plant: 'none' }); cyl(aa, -70, 22, 50, 2.5, '#6b5038'); ball(aa, -70, 70, 22, '#4f7a3e'); for(let k = 0; k < 5; k++) ball(aa - 14 + k*7, -64, 64 + (k%2)*12, 3, '#f2d36a'); });
     houseProp('lantern', () => { box(144, 156, -46, -34, 0, 28, '#b8903a', 'rgba(250,210,120,.85)', 'rgba(225,185,100,.85)'); houseCone(150, -40, 9, 6, 28, 40, '#b8903a'); });
   },
   draw(p){
@@ -90998,7 +91160,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     for(const [nm, aa] of [['cypress L', 30], ['cypress R', 790]]) houseProp(nm, () => houseCypress(aa, -60, 260, '#2f4a2e'));
     for(const [nm, aa] of [['pot L', 250], ['pot R', 370]])
-      houseProp(nm, () => { cyl(aa, -80, 0, 28, 12, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -80, 36, 12, '#6b8a4a'); });
+      houseProp(nm, () => { kitPlanter(aa - 12, aa + 12, -80 - 12, -80 + 12, 0, 28, { kind: 'pot', col: '#b86a4a', group: 'house pots' }); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -91083,7 +91245,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       box(a0, a1, -70, -60, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
     }
     for(const [nm, aa] of [['urn L', 340], ['urn R', 470]])
-      houseProp(nm, () => { cyl(aa, -30, 0, 10, 7, '#c9c3b8'); cyl(aa, -30, 10, 28, 12, '#d8d2c6', '#e6e0d4'); ball(aa, -30, 32, 10, '#4f7a4a'); });
+      houseProp(nm, () => { cyl(aa, -30, 0, 10, 7, '#c9c3b8'); kitPlanter(aa - 12, aa + 12, -30 - 12, -30 + 12, 10, 18, { kind: 'pot', col: '#d8d2c6', group: 'house urns', mat: 'stone', plant: 'ball' }); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -91372,8 +91534,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   beds(c){
     for(const aa of [300, 344, 388]){                          // bed along the facade
-      box(aa-9, aa+9, -79, -66, 0, 7, '#6b5038', '#5a4230', '#4d3828');
-      ball(aa, -72, 12, 7, '#4f7a4a'); ball(aa+4, -70, 15, 4, '#e2748c');
+      kitPlanter(aa-9, aa+9, -79, -66, 0, 7, { kind: 'bed', mat: 'timber', col: '#5a4230', plant: 'flower', plantH: 10, group: 'bungalow beds' });   // (the shared planter: kitPlanter)
     }
   },
   porch(c){
@@ -91462,7 +91623,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     F(68, 392, 92, 100, c.trim, shade(c.trim,.7), 1, -28);
     houseFrontGable(68, 392, -28, -70, 100, 142, 8, c.roof, c.trim, 1, { back0:true, gable:c.shing, shingle:true, barge:c.trim });
     for(const [nm, aa] of [['pot L', 110], ['pot R', 350]])
-      houseProp(nm, () => { cyl(aa, -12, 0, 18, 9, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -12, 24, 10, '#5c8a56'); });
+      houseProp(nm, () => { kitPlanter(aa - 9, aa + 9, -12 - 9, -12 + 9, 0, 18, { kind: 'pot', col: '#b86a4a', group: 'house pots' }); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -91687,7 +91848,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     for(const aa of [50, 266]) box(aa-5, aa+5, -35, -25, 0, 116, '#3a3a3e', '#2c2c30', '#222226');
     this.roofSlab(c);
-    houseProp('pot', () => { cyl(528, -20, 0, 26, 10, '#2f2f33', '#4a4a50'); ball(528, -20, 34, 11, '#4f7a4a'); });
+    houseProp('pot', () => { kitPlanter(528 - 10, 528 + 10, -20 - 10, -20 + 10, 0, 26, { kind: 'pot', col: '#2f2f33', group: 'house pots', mat: 'steel', plant: 'grass' }); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -91701,9 +91862,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     F(492, 768, 4, 106, '#2c3a42', '#1f262b', 1, -75.6);
     F(496, 764, 60, 104, 'rgba(170,205,220,.3)', null, 0, -75.4);
     for(let a = 544; a < 764; a += 26) F(a-1.2, a+1.2, 4, 106, '#1f262b', null, 0, -75.2);
-    box(508, 760, -58, -46, 0, 16, '#d8d2c4', '#c7c0b0', '#b3ab9a');
-    for(let a = 532; a < 752; a += 22) for(const [dx, dz] of [[-6,10],[0,16],[6,10]])
-      poly([P(a, -52, 16), P(a+dx, -52, 16+dz), P(a+dx+2, -52, 16+dz-3)], '#6b9a7a', '#4f7a5e', 0.8);
+    kitPlanter(508, 760, -58, -46, 0, 16, { kind: 'box', mat: 'concrete', col: '#c7c0b0', plant: 'grass', plantH: 16, group: 'palm springs' });   // (the shared planter: kitPlanter)
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -92328,7 +92487,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     /* (the rocker and the planter stand behind the porch piers and rail: they first -- W37) */
     houseProp('rocker', () => houseRocker(110, -130, '#8a5a3a'));
-    houseProp('planter', () => { cyl(350, -130, 3, 24, 12, '#6b6660', '#7a756e'); ball(350, -130, 32, 12, '#4f8a4a'); });
+    houseProp('planter', () => { kitPlanter(350 - 12, 350 + 12, -130 - 12, -130 + 12, 3, 21, { kind: 'pot', col: '#6b6660', group: 'house pots', mat: 'concrete' }); });
     for(const aa of [70, 170, 290, 390]){
       box(aa-9, aa+9, -106, -92, 3, 38, shade(c.brick,1.06), c.brick, shade(c.brick,.8));
       box(aa-6, aa+6, -104, -94, 38, 106, c.trim, shade(c.trim,.92), shade(c.trim,.78));
@@ -92672,7 +92831,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       box(a1-12, a1, -12, 0, 0, 44, shade(c.brick,1.08), c.brick, shade(c.brick,.8));
     }
     for(const [nm, aa] of [['topiary L', 318], ['topiary R', 492]])
-      houseProp(nm, () => { cyl(aa, -100, 0, 18, 11, '#3a3a3e', '#4a4a50'); ball(aa, -100, 32, 13, '#3f6b3e'); ball(aa, -100, 50, 7, '#4a7a48'); });
+      houseProp(nm, () => { kitPlanter(aa - 11, aa + 11, -100 - 11, -100 + 11, 0, 18, { kind: 'pot', col: '#3a3a3e', group: 'house pots', mat: 'steel', plant: 'none' }); ball(aa, -100, 32, 13, '#3f6b3e'); ball(aa, -100, 50, 7, '#4a7a48'); });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
@@ -92937,7 +93096,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   urns(c){
     for(const [nm, aa] of [['urn L', 300], ['urn R', 510]])
-      houseProp(nm, () => { cyl(aa, -44, 0, 10, 7, shade(c.urn,.85)); cyl(aa, -44, 10, 30, 14, c.urn, shade(c.urn,1.1)); ball(aa, -44, 34, 12, '#5c8a56'); });
+      houseProp(nm, () => { cyl(aa, -44, 0, 10, 7, shade(c.urn,.85)); kitPlanter(aa - 14, aa + 14, -44 - 14, -44 + 14, 10, 20, { kind: 'pot', col: c.urn, group: 'house urns', mat: 'stone', plant: 'ball' }); });
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -93094,7 +93253,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(let a = a0 + 3; a < a1; a += 7) poly([P(a,-5,0), P(a+1.6,-5,0), P(a+1.6,-5,30), P(a+0.8,-5,34), P(a,-5,30)], '#2a2a2e');
     }
     for(const [nm, aa] of [['pot L', 70], ['pot R', 300]])
-      houseProp(nm, () => { cyl(aa, -110, 3, 22, 11, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -110, 30, 12, '#4f8a4a'); });
+      houseProp(nm, () => { kitPlanter(aa - 11, aa + 11, -110 - 11, -110 + 11, 3, 19, { kind: 'pot', col: '#b86a4a', group: 'house pots' }); });
     houseProp('lamp', () => { cyl(420, -30, 0, 84, 2.5, '#2a2a2e'); box(414, 426, -36, -24, 84, 98, '#3a3a3e', 'rgba(250,210,120,.85)', 'rgba(225,185,100,.85)'); });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
@@ -93171,7 +93330,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     }
     houseHip(140, 320, -60, -120, 108, 124, 6, c.roof, { lo:true, hi:true });
     houseProp('banana', () => { cyl(400, -80, 0, 70, 5, '#8a9a5a'); for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; poly([P(400,-80,70), P(400 + Math.cos(t)*34, -80 + Math.sin(t)*34, 96), P(400 + Math.cos(t)*40, -80 + Math.sin(t)*40, 84)], k % 2 ? '#5f9a4a' : '#4f8a3e'); } });
-    houseProp('planter', () => { cyl(290, -90, 3, 22, 10, '#6b6660'); ball(290, -90, 28, 11, '#d9573c'); });
+    houseProp('planter', () => { kitPlanter(290 - 10, 290 + 10, -90 - 10, -90 + 10, 3, 19, { kind: 'pot', col: '#6b6660', group: 'house pots', mat: 'concrete', plant: 'flower' }); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -93421,7 +93580,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(let a = a0 + 3; a < a1; a += 7) poly([P(a,-5,0), P(a+1.6,-5,0), P(a+1.6,-5,30), P(a+0.8,-5,34), P(a,-5,30)], c.iron);
     }
     for(const [nm, aa] of [['urn L', 300], ['urn R', 510]])
-      houseProp(nm, () => { cyl(aa, -50, 0, 10, 7, '#9c968a'); cyl(aa, -50, 10, 28, 13, '#b3ada2', '#c9c3b8'); ball(aa, -50, 32, 11, '#4f7a4a'); });
+      houseProp(nm, () => { cyl(aa, -50, 0, 10, 7, '#9c968a'); kitPlanter(aa - 13, aa + 13, -50 - 13, -50 + 13, 10, 18, { kind: 'pot', col: '#b3ada2', group: 'house urns', mat: 'stone', plant: 'ball' }); });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
@@ -94067,7 +94226,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(const aa of [20, 440]) cyl(aa, -40, 0, 140, 3, '#8a6848');
     this.flags();
     for(const [nm, aa] of [['cactus L', 90], ['cactus R', 370]])
-      houseProp(nm, () => { cyl(aa, -90, 0, 18, 12, '#b86a4a', shade('#b86a4a',1.15)); houseCactus(aa, -90, 44, '#5f8a4f'); });
+      houseProp(nm, () => { kitPlanter(aa - 12, aa + 12, -90 - 12, -90 + 12, 0, 18, { kind: 'pot', col: '#b86a4a', group: 'house pots', plant: 'none' }); houseCactus(aa, -90, 44, '#5f8a4f'); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -94132,7 +94291,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     this.stair(c);
     for(const [nm, aa] of [['pot L', 70], ['pot R', 240]])
-      houseProp(nm, () => { cyl(aa, -100, 0, 20, 11, '#b86a4a', shade('#b86a4a',1.15)); ball(aa, -100, 26, 10, '#4f8a4a'); ball(aa+3, -98, 31, 4, '#d9352a'); });
+      houseProp(nm, () => { kitPlanter(aa - 11, aa + 11, -100 - 11, -100 + 11, 0, 20, { kind: 'pot', col: '#b86a4a', group: 'house pots', plant: 'flower' }); });
     houseProp('bench', () => box(330, 400, -80, -62, 0, 22, c.blue, shade(c.blue,.9), shade(c.blue,.75)));
   },
   draw(p){
@@ -94587,7 +94746,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(let a = 135; a < 300; a += 55) F(a-1, a+1, 140, 230, '#1f262b', null, 0, -109);
     }
     /* (the bench and the planter, the far one first: the bench west of the planter and behind its face -- W37; a mirrored on some edges) */
-    const planter = () => houseProp('planter', () => { box(282, 318, -78, -42, 0, 36, '#e8e8e4', '#d8d8d4', '#c0c0bc'); for(let a = 286; a < 318; a += 8) F(a, a+1, 0, 36, '#8a8a86', null, 0, -41.6); ball(300, -60, 44, 14, '#5c8a56'); });
+    const planter = () => houseProp('planter', () => { kitPlanter(282, 318, -78, -42, 0, 36, { kind: 'tub', mat: 'concrete', col: '#d8d8d4', plant: 'grass', group: 'container house' }); });
     const bench = () => houseProp('bench', () => {
       for(const z of [0, 7]) box(230, 276, -80, -62, z, z+5, '#c9a878', '#b8966a', '#a0845a');
       box(230, 276, -80, -62, 14, 20, '#c9a878', '#b8966a', '#a0845a');
@@ -94609,7 +94768,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   back(p){
     const c = this.liv[state.pal % this.liv.length];
     this.yard(c);
-    houseProp('planter', () => box(282, 318, -78, -42, 0, 36, '#e8e8e4', '#d8d8d4', '#c0c0bc'));
+    houseProp('planter', () => kitPlanter(282, 318, -78, -42, 0, 36, { kind: 'tub', mat: 'concrete', col: '#d8d8d4', plant: 'grass', group: 'container house' }));
     houseProp('bench', () => box(230, 276, -80, -62, 0, 20, '#c9a878', '#b8966a', '#a0845a'));
     this.stair(c);
     this.container(60, 400, -260, -150, 0, c.a, c);
@@ -94669,8 +94828,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
     for(const [a0, a1] of [[30, 150], [310, 430]]){
-      box(a0, a1, -80, -40, 0, 22, '#8a6848', '#7a5a3c', '#6a4e34');
-      for(let a = a0 + 10; a < a1; a += 16) ball(a, -60, 28, 7, a % 32 ? '#5c8a56' : '#6fa05a');
+      kitPlanter(a0, a1, -80, -40, 0, 22, { kind: 'bed', mat: 'timber', col: '#7a5a3c', group: 'earthship beds' });   // (the shared planter: kitPlanter)
     }
     houseProp('barrel', () => { cyl(412, -140, 0, 40, 12, '#3f5a3a', '#4f6a48'); tube(412, -140, 40, 418, -126, 150, 1.6, '#6a6a70'); });
     houseProp('turbine', () => {
