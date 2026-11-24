@@ -65560,6 +65560,26 @@ function houseCanopy(fn){
     const LC_R = lcPlan(BALS, { stand: FS, f: 3, via: BVIA }, null, 2);   /* (back round to the feeder) */
     const DW0 = 49370, FW0 = 8670, LW0 = 13370,   /* (his spells start as the deck is laid, u 1500) */ P5C = 1400, P5W = LC_A.T + LC_B.T, PM = x => ((x % PALT) + PALT) % PALT, deckWin = jr => PM(jr - DW0) < P5W, flatWin = jr => false, dumpWin = jr => PM(jr - LW0) < LC_D.T + LC_R.T;   /* (on the pallet clock round its turn: the deck spell runs over into the next pallet cycle) */
     const cwLoaderSE = jr => Math.min(...[DW0 + P5W, LW0 + LC_D.T + LC_R.T].map(e => (((jr - e) % PALT) + PALT) % PALT));   /* (how long since his last cardboard spell ended) */
+    /* THE BALE'S ROUND (Sir, 2026-11-24: "it should become full then drive somewhere and deposit its bail then come back" -- "it needs to be
+       dropped on a pallet and a pallet bot comes to get it and bring it out of the factory"): the sixth carton in fills the baler (always the
+       deck carton, the third pallet cycle: Cb); it backs off its spot, drives up to the bale bay north of the line, backs up to the pallet
+       there, pushes the bale out of its back onto it and comes home. The next pallet cycle a pallet jack comes in at the door, lifts it and
+       takes it out (its way along b 500 clear then: tools occupancy); the one after, it brings an empty pallet back to the bay */
+    const BAY = [1600, 394], BPK = [1678, 394], BV = [1790, 600], BUP = [1790, 394], DA6 = DW0 + LC_A.tDrop;
+    const BRUN = [['w', 1200], ['m', 400, BALER, BV, 0], ['s', 500, 0, -1], ['m', 1400, BV, BUP, -1], ['s', 500, -1, 0], ['m', 900, BUP, BPK, 0], ['e', 1800],
+      ['m', 900, BPK, BUP, 0], ['s', 500, 0, 1], ['m', 1400, BUP, BV, 1], ['s', 500, 1, 0], ['m', 400, BV, BALER, 0]];
+    const BRUN_T = BRUN.reduce((x, r) => x + r[1], 0), BEJ1 = BRUN.slice(0, BRUN.findIndex(r => r[0] === 'e') + 1).reduce((x, r) => x + r[1], 0), BEJ0 = BEJ1 - 1800;
+    const baleRun = q => { let s0 = 0, P = { a: BALER[0], b: BALER[1], fdir: 0 }, ej = 0;   /* (where the baler is q into its round) */
+      for(const r of BRUN){ const k = clamp01((q - s0)/r[1]);
+        if(r[0] === 'm'){ const e = ease(k); P = { a: r[2][0] + (r[3][0] - r[2][0])*e, b: r[2][1] + (r[3][1] - r[2][1])*e, fdir: r[4] }; }
+        else if(r[0] === 's') P = Object.assign({}, P, { fdir: r[2] + (r[3] - r[2])*ease(k) });
+        else if(r[0] === 'e') ej = k;
+        if(q < s0 + r[1]) break; s0 += r[1]; }
+      return { P, ej }; };
+    /* -> the pallet cycle Cb of the last sixth carton, and its moment T6 */
+    const baleCb = t => { const C = Math.floor((t - PAL0)/PALT), jr = t - PAL0 - C*PALT, m = ((C % 3) + 3) % 3, Cb = m === 2 ? (jr >= DA6 ? C : C - 3) : C - (m + 1); return { Cb, T6: PAL0 + Cb*PALT + DA6 }; };
+    /* what is on the bay: 'empty' its empty pallet, 'bale' the bale on it, 'none' the jack has it */
+    const bayState = t => { const { Cb, T6 } = baleCb(t); if(t < T6 + BEJ1) return 'empty'; if(t < PAL0 + (Cb + 1)*PALT + 25900) return 'bale'; if(t < PAL0 + (Cb + 2)*PALT + 26700) return 'none'; return 'empty'; };
     const DECK_SET = DW0 + LC_A.T + LC_B.tDrop, FLAT_SET = FW0 + P5C*CARRY_GO;
     /* where he is in a carry: walks along their paths, facing his way; the carton (bin) from its tote to his chest to where it goes */
     const lcAt = (pl, q, f0, src, dst, P0) => { const t = pl.t, E = (a, b) => ease(clamp01((q - a)/(b - a))), fv = f => [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)], fA = (A, B, k) => angTo(A*Math.PI/2, B*Math.PI/2, k)/(Math.PI/2);
@@ -65897,6 +65917,30 @@ function houseCanopy(fn){
           if(P){ const fade = clamp01((W + 50 - P.a)/80); if(fade > 0.01){ const own = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;   /* (the parts pallet stays the jack's own: its load the Receiver's) */
             const pOn = jack && jack.on;
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackShip', jack: own >= 0 || pOn || (!jack && underPal(P)) ? 'under' : jack, fork, wheel: (P.s || P.a + P.b)*0.12, fade })); if(own >= 0 && fade > 0.99) out.push(onForks(P, fork, own)); if(pOn && fade > 0.99) out.push(partsOnForks(P, fork, pOn)); } } }
+        /* THE BALE JACK (Sir, 2026-11-24: "a pallet bot comes to get it and bring it out of the factory"): in at the door the pallet cycle
+           after the bale, along b 500 to under the bale bay's pallet, lifts it and, once the way is clear again, takes it out of the door; the
+           next pallet cycle it backs in with an empty pallet, swings it into the bay, sets it down and goes */
+        { const { Cb } = baleCb(t), C = Math.floor((t - PAL0)/PALT), jr = t - PAL0 - C*PALT, rel = C - Cb, IN = [W + 70, 500], AT = [1600, 500];
+          const mv = (A, B, k, f) => { const e = ease(clamp01(k)); return { a: A[0] + (B[0] - A[0])*e, b: A[1] + (B[1] - A[1])*e, fdir: f }; };
+          const sp = (f0, f1, k) => ({ a: AT[0], b: AT[1], fdir: f0 + (f1 - f0)*ease(clamp01(k)) });
+          let P = null, fork = 0, load = null;   /* (load: what is on its forks -- 'bale' the bale on its pallet, 'empty' a pallet) */
+          if(rel === 1 && jr >= 21500 && jr < 37400){   /* (the pick-up) */
+            if(jr < 25300) P = mv(IN, AT, (jr - 21500)/3800, 2);
+            else if(jr < 25900) P = sp(2, 3, (jr - 25300)/600);
+            else if(jr < 33000){ P = sp(3, 3, 0); fork = clamp01((jr - 25900)/800); load = 'bale'; }
+            else if(jr < 33600){ P = sp(3, 4, (jr - 33000)/600); fork = 1; load = 'bale'; }
+            else { P = mv(AT, IN, (jr - 33600)/3800, 0); fork = 1; load = 'bale'; } }
+          else if(rel === 2 && jr >= 21500 && jr < 36800){   /* (the empty pallet back) */
+            if(jr < 25300){ P = mv(IN, AT, (jr - 21500)/3800, 0); fork = 1; load = 'empty'; }
+            else if(jr < 25900){ P = sp(0, -1, (jr - 25300)/600); fork = 1; load = 'empty'; }
+            else if(jr < 26700){ P = sp(-1, -1, 0); fork = 1 - clamp01((jr - 25900)/800); load = 'empty'; }
+            else if(jr < 27300) P = sp(-1, 0, (jr - 26700)/600);
+            else if(jr < 33000) P = sp(0, 0, 0);
+            else P = mv(AT, IN, (jr - 33000)/3800, 0); }
+          CW_FLOW.baleJack = P ? (load === 'bale' ? 'out with the bale' : load ? 'the empty pallet in' : 'at the bale bay') : 'outside';
+          if(P){ const fade = clamp01((W + 50 - P.a)/80), under = load || Math.hypot(P.a - AT[0], P.b - AT[1]) < 2;
+            if(fade > 0.01) out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackBale', jack: under ? 'under' : false, fork, wheel: P.a*0.12, fade }));
+            if(load && fade > 0.99){ const F = onForks(P, fork, 0); out.push(F); if(load === 'bale') out.push({ kind: 'bale', a: F.a, b: F.b, z: 10.5 + 8*fork, dd: 1 }); } } }
         CW_FLOW.stored = SB.map((q, k) => bayHas(t, k) ? 'P' : '.').join('');
         return out; } } });
     }
@@ -66025,13 +66069,12 @@ function houseCanopy(fn){
         /* the baler, the loader's: what has gone into it since its last bale */
         /* (phase 7 -- its recycling run: at its sixth carton, full, it drives the bale out of the door to Dispatch along its own lane (b 530,
            clear of the jacks' 455 and the tugger's 590), puts it out there and comes back empty -- before the next carton) */
-        { const n = nDrop(t), k = ((n % 6) + 6) % 6, tt = (jr - 52500 + PALT) % PALT, run = k === 0 && n > 0 && tt < 8000;
-          const BRUN = [BALER, [BALER[0] + 1, BALER[1]], [W + 70, BALER[1]], [W + 71, BALER[1]]], BBACK = [[W + 70, BALER[1]], [BALER[0], BALER[1]], [BALER[0] - 1, BALER[1]]];
-          let P = { a: BALER[0], b: BALER[1], fdir: 0 }, s0 = 0;
-          if(run){ if(tt < 3000){ P = along(BRUN, tt/3000); s0 = tt; } else if(tt < 5000) P = null; else if(tt < 8000){ P = along(BBACK, (tt - 5000)/3000); s0 = tt; if(tt > 7800) P.fdir = 0; } }
-          const full = k === 0 && n > 0 && !(tt >= 5000 && tt < 20000);   /* (full from its sixth carton till it is out of the door; empty after, till the next goes in) */
-          if(P && P.a < W + 30) out.push({ kind: 'bot', botKind: 'cargobot', bSkin: 'cgcard:cratewell', build: 'cgcard', a: P.a, b: P.b, fdir: P.fdir, wheel: s0*0.05, data: { fill: full ? 1 : 0.1 + k*0.15, eject: 0 } });
-          CW_FLOW.baler = run ? (tt < 3000 ? 'out with a bale' : tt < 5000 ? 'at Dispatch' : 'back') : (k === 0 && n > 0 && tt >= 8000 ? 0 : k) + '/6'; }
+        { const n = nDrop(t), k = ((n % 6) + 6) % 6, { T6 } = baleCb(t), q = t - T6, run = q >= 0 && q < BRUN_T, R = run ? baleRun(q) : null;
+          const P = R ? R.P : { a: BALER[0], b: BALER[1], fdir: 0 }, ej = R ? R.ej : 0, fill = run && q < BEJ1 ? 1 - 0.9*ej : 0.1 + k*0.15;   /* (full from its sixth carton till the bale is out; then it fills again, a pallet at a time) */
+          out.push({ kind: 'bot', botKind: 'cargobot', bSkin: 'cgcard:cratewell', build: 'cgcard', a: P.a, b: P.b, fdir: P.fdir, wheel: (P.a + P.b)*0.05, data: { fill, eject: ej > 0 && ej < 1 ? ej : 0, ejectZ: 10.5 } });
+          CW_FLOW.baler = run ? (q < 1200 ? 'full' : q < BEJ0 ? 'to the bale bay' : q < BEJ1 ? 'baling' : 'home') : k + '/6'; }
+        /* the bale bay: its pallet, the bale on it from the moment it is out of the baler till the jack lifts it */
+        { const st = bayState(t); if(st !== 'none'){ out.push({ kind: 'cargo', a: BAY[0], b: BAY[1], cargo: () => palletKit(BAY[0], BAY[1], 0, false, 0) }); if(st === 'bale') out.push({ kind: 'bale', a: BAY[0], b: BAY[1], z: 10.5, dd: 1 }); } }
         /* the loader's spell: the feeder's empty carton folded into the baler; the shuttle's full deck carton onto the feeder -- then the next deck */
         const LAY = hP(AT0, 1, [POS[0][0] - 14, RA - 7, 50.5], [POS[0][0] + 14, RA - 7, 50.5], 0.2, 0.25);   /* (as he left the deck on the jig) */
         if(deckWin(jr)){ const q = PM(jr - DW0), one = q < LC_A.T, SB = { stand: [D1[0] - 60, D1[1] - 22], f: 0, at: [D1[0], D1[1] - 22, 31], via: BVIA };
@@ -66050,7 +66093,7 @@ function houseCanopy(fn){
        from inside, walking just outside the hall's south wall and up its east wall short of the roller door, and back (outside, the street's
        own: cwDogQueue) ---- */
     const DOGO = CW_DOGO;   /* (far enough out that the wall's top never crosses him -- Sir, 2026-11-24: "the dog outside the building is being cut by the building, he's too close") */
-    { const DP = [[-40, D + DOGO], [W + DOGO, D + DOGO], [W + DOGO, door.at + door.half + 90]], DL = DP.slice(1).map((q, i) => Math.hypot(q[0] - DP[i][0], q[1] - DP[i][1])), DT = DL.reduce((x, y) => x + y, 0);
+    { const DP = [[-40, D + DOGO], [W + DOGO, D + DOGO], [W + DOGO, door.at + door.half + 160]],   /* (short of the patrol bot by the door, now that he walks further out) */ DL = DP.slice(1).map((q, i) => Math.hypot(q[0] - DP[i][0], q[1] - DP[i][1])), DT = DL.reduce((x, y) => x + y, 0);
       items.push({ a: W/2, b: D + DOGO, z: 0, solids: [], draw: () => {}, fx: { crew: t => { const ph = ((t*0.075) % (2*DT) + 2*DT) % (2*DT), fwd = ph < DT; let r = fwd ? ph : 2*DT - ph, P = null;
         for(let i = 1; i < DP.length; i++){ if(r <= DL[i - 1] || i === DP.length - 1){ const k = Math.min(1, r/DL[i - 1]), A = DP[i - 1], B = DP[i]; P = { a: A[0] + (B[0] - A[0])*k, b: A[1] + (B[1] - A[1])*k, f: Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2) + (fwd ? 0 : 2) }; break; } r -= DL[i - 1]; }
         return [{ kind: 'bot', botKind: 'patrolbot', bSkin: 'pdog:cratewell', build: 'pdog', a: P.a, b: P.b, fdir: P.f, wheel: ph*0.12 }]; } } }); }
@@ -102314,7 +102357,7 @@ function cwDogQueue(scene, t, queuePerson){
   if(typeof FAC === 'undefined' || !FAC.hall || scene._inside) return;   /* (inside, the hall's room draws its own, outside its walls) */
   /* (the walls toward the eye: the larger x and the larger y -- the lab's b runs against the world's y) */
   const H = FAC.hall, xA = Math.min(H.x0, H.x1), xB = Math.max(H.x0, H.x1), yB = Math.max(H.y0, H.y1), d = H.edoor || [yB, yB];
-  const yS = yB + CW_DOGO, xE = xB + CW_DOGO, dNear = Math.abs(d[0] - yB) < Math.abs(d[1] - yB) ? d[0] : d[1], yN = dNear + Math.sign(yB - dNear)*110;
+  const yS = yB + CW_DOGO, xE = xB + CW_DOGO, dNear = Math.abs(d[0] - yB) < Math.abs(d[1] - yB) ? d[0] : d[1], yN = dNear + Math.sign(yB - dNear)*180;
   const pts = [[xA - 40, yS], [xE, yS], [xE, yN]], L = [];
   let T = 0; for(let i = 1; i < pts.length; i++){ const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(l); T += l; }
   const v = 0.045, ph = ((scene.time.now*v) % (2*T) + 2*T) % (2*T), fwd = ph < T, s = fwd ? ph : 2*T - ph;
@@ -128415,6 +128458,7 @@ class WorldScene extends Phaser.Scene {
       if(sv){ for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k]; Object.assign(SKIN, SKIN_BASE, { bSkin: m.bSkin, build: m.build || null }); }
       try { this.drawBot(g, m.botKind, x, y, z, t, m.fdir, m.wheel || 0, 0, Object.assign({}, m.data || {}, sv ? { paint: true } : {})); }
       finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Kickstand's door) */
+    if(m.kind === 'bale'){ this.baleCube(this.vehKit(g, x, y, z + (m.z || 0), m.fdir || 0), 0, 0, 0, m.mat || 'card', 19, 19, 34, false); return; }   /* (a bale on its own, as the baler pushes it out: Kickstand's, on its pallet -- Sir, 2026-11-24) */
     if(m.kind === 'scooter'){ this.drawScooterRider(g, x, y, z + (m.z || 0), m.th, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, m.brand, t, 0, null, true, null, m.stage); return; }   /* (the game's own scooter, part-built: Kickstand's line) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
       try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, noLegs: m.noLegs, armOut: m.armOut, crew: true });   /* (m.noLegs: his top half only, a second pass after what he works over -- the line's row A) */ } finally { this._roomPerson = rp0; } }
@@ -142216,7 +142260,7 @@ class WorldScene extends Phaser.Scene {
     const backNear = sees(-1, 0, 0), frontNear = sees(1, 0, 0);
     /* the bale going out of its back: from its floor, out of the door, down onto the floor behind it (before it all while its back is away) */
     const zf = ZB + WT + fill*(ZT - ZB - WT - 6);
-    const bale = () => { if(eject <= 0) return; const k = eject, ba = k < 0.6 ? HA0 + 20 - (k/0.6)*44 : HA0 - 24 - (k - 0.6)/0.4*8, bz = k < 0.6 ? ZB + WT : Math.max(0, (ZB + WT)*(1 - (k - 0.6)/0.25));
+    const bale = () => { if(eject <= 0) return; const k = eject, ba = k < 0.6 ? HA0 + 20 - (k/0.6)*44 : HA0 - 24 - (k - 0.6)/0.4*8, bz = k < 0.6 ? ZB + WT : Math.max(d.ejectZ || 0, (ZB + WT)*(1 - (k - 0.6)/0.25));   /* (ejectZ: down onto what is behind it -- Kickstand's pallet) */
       this.baleCube(V, ba, 0, bz, mat, 19, 19, 34, false); };
     if(!backNear) bale();
     /* far wheels, the tray, the lower body, its stripe, his face */
