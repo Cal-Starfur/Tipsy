@@ -29344,6 +29344,7 @@ const WALKIN_SHOP_BAN = (() => {
       story: () => { try { return typeof ANNIV !== 'undefined' && ANNIV.stage === 'flowers'; } catch(e){ return false; } } },
     'Low Tide Juice Bar Interior':  { by: ['counter', 'juicer', 'helper'], who: 'Leilani', say: "You've knocked a customer down. Out you go, and don't come back in." },
     'Surfside Fitness Interior':    { by: ['desk', 'trainer', 'floor'], who: 'Marisol', say: "You've knocked a member flat. Out you go, and don't come back in." },
+    'Driftwood Home Interior':      { by: ['desk', 'sales', 'stock'], who: 'June', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -31519,6 +31520,176 @@ walkinLife(SF_IN.name, { keep: [[0, 2000, 314, 394]], looks: [
   { id: 'dumbbells', spots: [[90, 466, Math.PI], [90, 576, Math.PI]] },
   { id: 'mat', spots: [[570, 500, Math.PI/2], [690, 500, Math.PI/2], [570, 604, Math.PI/2], [690, 604, Math.PI/2]] },
 ], browseNext: sfBrowseNext, pose: sfPose, drawState: sfDrawState });
+/* ==================== DRIFTWOOD HOME, WALK-IN (wi-driftwood-home; the room: the LIB entry 'Driftwood Home Interior') ====================
+   The Flats' furniture showroom on block 3,1's NORTH edge, at its north-west corner (its front faces north, away from the camera: the street
+   sees its back). Built by the shop recipe (docs/kits/walkin-shop-recipe.md, W33), Palmline Garage's way (the same edge): the exterior unchanged
+   but for its door -- its volume with the doorway open through its front wall (vol.opens), the door kit's single leaf 80 across ('lite') between
+   the two glazed bays; he is taken in in the doorway (glass < 0).
+   A DOOR IN THE FAR WALL: the room's door is in its NORTH wall, which stands full height (walkinRoom's gapsN, the night's 'n'); from inside the
+   door is the away door's (walkinAwayDoor), whole. Its two big bays face away too, so the street never looks into the room: their glass is seen
+   from inside only, painted on the north wall at their own places.
+   BIGGER INSIDE THAN OUT (W31): the room runs back south from the showroom's front into the block, and east past its own end over the gap and
+   Sandpiper Shoes' west end -- 820 x 700, what it covers drawn under it while he is inside. Its west wall stands on the block's west pavement line.
+   Lab frame (the shop's, a north-edge shop's: a along the frontage east, b north, 0 the wall, negative into the block south). Its lab z is x1.95 in
+   the world. Room frame a east, b south, world units: the north (front) wall b 0; the door a 181..285 in it; the bays a 8..168 and 295..475 */
+const DF_IN = { name: 'Driftwood Home Interior', x0: 960000, y0: 400000, WALL: 30/1.3, A0: 30/1.3, A1: 850/1.3, BACK: -730/1.3, H: 300, LH: 66,
+  DOOR: [162.4, 242.4], DZ: 107.9, DOORZ: 107.9*1.95, WINS: [[16, 155], [249.8, 388.8]], WZ: [20, 280] };   // (the showroom's door and its two bays, lab a; the bays' sill and head, lab z -- x1.95)
+DF_IN.ra = la => (la - DF_IN.A0)*1.3;                                      // a lab a (along the frontage) as the room's a
+const DF_PLAN = walkinDefine({ name: DF_IN.name, from: 'Driftwood Home', x0: DF_IN.x0, y0: DF_IN.y0,
+  lab: [DF_IN.A0, DF_IN.A1, DF_IN.BACK, -DF_IN.WALL], body: [[0, T2*4.4, -T2*3, 0]],
+  door: { a: (DF_IN.DOOR[0] + DF_IN.DOOR[1])/2, b: 0, half: (DF_IN.DOOR[1] - DF_IN.DOOR[0])/2*1.3, side: 'n', top: DF_IN.DOORZ },
+  H: DF_IN.H, LH: DF_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out of the door onto the north pavement, along it either way) */
+  street: { to: [0, -184], routes: [[[-1500, -184], [-3600, -184]], [[1500, -184], [3600, -184]]] },
+  /* (the open doorway: W11 -- seen through from the far side only, the street's own side faces away) */
+  openings: [{ lab: [[DF_IN.DOOR[0], 0], [DF_IN.DOOR[1], 0]], z: [0, DF_IN.DZ] }] });
+/* (W31: what it covers -- the gap east of it and Sandpiper Shoes' west end -- and what stands over it on screen) */
+POCKETS[POCKETS.length - 1].ghosts = ['Sandpiper Shoes'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE FAIRWEATHERS, WHO KEEP IT: their own looks, set by hand (lookFn) -- a showroom's dress, the shop's slate-blue shirts over sand linen
+   trousers. June at the sales desk, the keyholder (a silver bob, reading glasses); her son Owen on the floor, showing the pieces (a crop, a
+   short beard); her daughter Tess restocking the homewares with an armful of cushions (her hair in a bun, a sand apron). The customers are the
+   street's own (look: 'visitor') */
+const DF_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), shirt = C(0x4d6a86), pants = C(0xcbbd9e);
+  return {
+    june: { build: PEOPLE_BUILD[1], skin: { c: 0xe2b896, dk: 0xc09676 }, hair: H(0xcfcac2, 'bob'), shirt, pants, shoe: { c: 0x6a4a32, dk: 0x4e3624 },
+            uniform: { glasses: 0x3a3634, shoeKind: 'sneaker' } },
+    owen: { build: PEOPLE_BUILD[0], skin: { c: 0xd6a47e, dk: 0xb2825e }, hair: H(0x6a4a30, 'crop'), shirt, pants, shoe: { c: 0x6a4a32, dk: 0x4e3624 },
+            uniform: { beard: 0x6a4a30, shoeKind: 'boot' } },
+    tess: { build: PEOPLE_BUILD[1], skin: { c: 0xdcac86, dk: 0xb88a64 }, hair: H(0x8a5a36, 'bun'), shirt: C(0xf3ede2), pants: C(0x4d6a86), shoe: { c: 0xe8e4dc, dk: 0xc4beb2 },
+            uniform: { vest: C(0xd8ccb0), shoeKind: 'sneaker' } },
+  };
+})();
+/* A CUSTOMER'S VISIT (as the juice bar's: reach ONCE, then do something with it): they try a piece -- sit on a sofa, on the edge of the bed, at
+   the dining table -- and look the homewares, the sideboard, the rugs or the wardrobe over; at the shelves some take one thing down (a
+   cushion, a vase, a basket) and pay for it at the desk, and some who sat order the piece they tried at the desk. What they paid for goes out of
+   the door with them (pose.hold / drawState: WALKIN_STREET); an order goes out as nothing. Tess carries cushions to the shelves */
+const DF_SHELVES = ['shelf', 'sideboard', 'rugs', 'wardrobe'];
+/* the pieces they sit on (as the juice bar's chairs): where they stand to sit, where they sit (a hair forward of its middle), which way, the
+   seat's height (the sofas' and the chairs' 38 -- sat at 35; the bed's mattress 50 -- sat at 47). Every one has nothing behind it anyone walks
+   through -- the sofas back onto the north wall, the bed's sitters on its open side, the chairs round the table -- so the piece keyed behind its
+   sitters sorts before them and before no one else (a sofa out in the room had people walk behind it, and one key cannot be both) */
+const DF_DINE = { a0: 380, a1: 520, b0: 330, b1: 410 };
+const DF_SEATS = [
+  { id: 'sofa1w', kind: 'sofa', stand: [72, 98, Math.PI/2], at: [72, 36], th: Math.PI/2, z: 35 },
+  { id: 'sofa1e', kind: 'sofa', stand: [120, 98, Math.PI/2], at: [120, 36], th: Math.PI/2, z: 35 },
+  { id: 'sofa2w', kind: 'sofa', stand: [696, 98, Math.PI/2], at: [696, 36], th: Math.PI/2, z: 35 },
+  { id: 'sofa2e', kind: 'sofa', stand: [754, 98, Math.PI/2], at: [754, 36], th: Math.PI/2, z: 35 },
+  { id: 'bedw', kind: 'bed', stand: [88, 456, Math.PI/2], at: [88, 404], th: Math.PI/2, z: 47 },
+  { id: 'bede', kind: 'bed', stand: [132, 456, Math.PI/2], at: [132, 404], th: Math.PI/2, z: 47 },
+  { id: 'dineNw', kind: 'chair', stand: [415, 262, Math.PI/2], at: [415, 309], th: Math.PI/2, z: 35 },
+  { id: 'dineNe', kind: 'chair', stand: [485, 262, Math.PI/2], at: [485, 309], th: Math.PI/2, z: 35 },
+  { id: 'dineSw', kind: 'chair', stand: [415, 482, -Math.PI/2], at: [415, 431], th: -Math.PI/2, z: 35 },
+  { id: 'dineSe', kind: 'chair', stand: [485, 482, -Math.PI/2], at: [485, 431], th: -Math.PI/2, z: 35 },
+  { id: 'dineW', kind: 'chair', stand: [318, 370, 0], at: [357, 370], th: 0, z: 35 },
+  { id: 'dineE', kind: 'chair', stand: [584, 370, Math.PI], at: [543, 370], th: Math.PI, z: 35 },
+];
+const DF_CUSH = [0x4d6a86, 0xd8ccb0, 0x7fa39a, 0xc98a5a, 0xf3ede2];
+/* what they take off the shelves (one in three visits that reach the shelves take something down, by the visit's own roll) */
+function dfItem(s){ const r = (((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0); return r % 3 === 0 ? null : ['cushion', 'vase', 'basket'][(r >>> 3) % 3]; }
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a square cushion held before
+   them in both hands; a glazed vase in the hand at their side, by its neck; a seagrass basket by its handle at their side; Tess's three cushions
+   stacked before her in both hands */
+function dfHold(s){
+  if(s._dfH && s._dfH.v === s.visit) return s._dfH;
+  const hull = (g, at, pts, c, al) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, al == null ? 1 : al); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  const ring = (x, f, z, r) => { const o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2; o.push([x + Math.cos(t)*r, f + Math.sin(t)*r, z]); } return o; };
+  const seed = ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, cc = DF_CUSH[(seed >>> 6) % DF_CUSH.length], vc = [0x7fa39a, 0x4d6a86, 0xe8e2d4][(seed >>> 9) % 3];
+  /* a cushion before them: its body, its piped edge round the near face, its middle button */
+  const cushion = (g, at, f, h, c) => { hull(g, at, box(-9, 9, f - 3.2, f + 3.2, h, h + 17), c); hull(g, at, box(-9.4, 9.4, f + 2.9, f + 3.5, h - 0.2, h + 17.2), _pdk(c, 0.82));
+    hull(g, at, box(-1.2, 1.2, f + 3.4, f + 3.9, h + 7.3, h + 9.7), _pdk(c, 0.7)); };
+  return (s._dfH = { v: s.visit,
+    cushion: (g, p, K, at) => { if(!at) return; cushion(g, at, at.hand[0] + 4, at.hand[1] - 6, cc); },
+    /* the vase by its neck: the body under the hand, the shoulder, the neck in the fist, the lip over it */
+    vase: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, ring(x, f, h - 22, 3.4).concat(ring(x, f, h - 12, 5.4)), vc); hull(g, at, ring(x, f, h - 12, 5.4).concat(ring(x, f, h - 4, 2.2)), _pdk(vc, 0.92));
+      hull(g, at, ring(x, f, h - 4, 1.9).concat(ring(x, f, h + 1, 1.9)), vc); hull(g, at, ring(x, f, h + 1, 2.6).concat(ring(x, f, h + 2.2, 2.6)), _pdk(vc, 1.08)); },
+    /* the basket hanging from the hand: its body, the rim, the handle's two posts up into the fist (an arch across it) */
+    basket: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, ring(x, f, h - 22, 5.6).concat(ring(x, f, h - 10, 7.2)), 0xc9a877); hull(g, at, ring(x, f, h - 10.6, 7.4).concat(ring(x, f, h - 9.4, 7.4)), 0xa8875a);
+      hull(g, at, box(x - 0.6, x + 0.6, f - 6.4, f - 5.4, h - 10, h), 0x8a6a42); hull(g, at, box(x - 0.6, x + 0.6, f + 5.4, f + 6.4, h - 10, h), 0x8a6a42);
+      hull(g, at, box(x - 0.8, x + 0.8, f - 6.4, f + 6.4, h - 0.6, h + 1), 0x8a6a42); },
+    /* Tess's three cushions, stacked, before her in both hands */
+    stack: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 5, h = at.hand[1] - 4;
+      for(let k = 0; k < 3; k++){ const c = DF_CUSH[k + 1]; hull(g, at, box(-9, 9, f - 8, f + 8, h + k*5, h + k*5 + 4.6), c); hull(g, at, box(-9.3, 9.3, f + 7.8, f + 8.3, h + k*5, h + k*5 + 4.6), _pdk(c, 0.84)); } } });
+}
+function dfBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  const sit = kind => { const fr = DF_SEATS.filter(q => (!kind || q.kind === kind) && !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id))), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = 14000 + rnd()*20000; return true; }
+    return false; };
+  const desk = () => { if(look('desk')){ m.atDesk = true; m.dwell = 5000 + rnd()*3000; return true; } return false; };
+  if(m.seat){ m.unseat = { seat: m.seat, t: now }; m.seat = null; m.sat = (m.sat || 0) + 1; if(rnd() < 0.35) m.order = true; }   // (tried it: up -- and now and then it is the one)
+  if(m.atDesk){ m.atDesk = false; m.paid = true; return leave(); }                                                    // (paid for what they took, or the piece ordered)
+  if(m.look === 'shelf' && !m.path && !m.item && !m.shelved){ m.shelved = true; m.item = dfItem(s); }                 // (one thing down off the shelf -- or only looked)
+  m.n = (m.n || 0) + 1;
+  if(m.n === 1 || (m.n === 2 && !m.sat && rnd() < 0.6)){ const k = ['sofa', 'sofa', 'bed', 'chair', 'chair', 'chair'][Math.floor(rnd()*6)]; if(sit(k) || sit()) return true; }
+  if((m.item || m.order) && m.n > 2) return desk() || leave();
+  if(m.n === 2 || m.n === 3){ if(!m.shelved && rnd() < 0.6 && look('shelf')){ m.dwell = 6000 + rnd()*5000; return true; } return false; }   // (or the rugs, the wardrobe: the kit's pick)
+  if(m.item || m.order) return desk() || leave();
+  return leave();
+}
+function dfPose(s, m, now, P){
+  const H = dfHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                         // (June at the desk: both hands on it)
+    if(s.id === 'sales'){ const w = Math.sin(now*0.004 + 0.7);                                                   // (Owen: arms easy at his sides, now and then one out, showing the piece)
+      if(((now/5600) | 0) % 3 === 0){ P.lift = [0.08, 0.42 + 0.06*w]; P.bend = [0.25, 0.4]; P.headTurn = 0; } else { P.lift = [0.08, 0.1]; P.bend = [0.25, 0.3]; } return; }
+    /* Tess: the cushions on her arms; at each post one set out on the shelf, once */
+    if(m.work && since > 1500 && since < 4200){ const k = Math.sin(Math.PI*(since - 1500)/2700); P.lift = [0.26 + 0.2*k, 0.26 + 0.2*k]; P.bend = [1.15 - 0.5*k, 1.2 - 0.5*k]; P.headTilt = 0.15; P.hold = H.stack; return; }
+    P.lift = [0.26, 0.26]; P.bend = [1.15, 1.2]; P.hold = H.stack; return;
+  }
+  const sk = lcSeatK(m, now);
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.12, 0.14]; P.bend = [0.5, 0.55]; P.headTurn = 0; P.headTilt = 0.05; return; }   // (sat back, hands in the lap)
+  if(m.look === 'shelf' && !m.path && m.item){                                                                    // (one thing down off the shelf, once)
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.6*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = 0.1; return; }
+    m.item && dfHoldPose(H, m.item, P); return; }
+  if((m.look === 'shelf' || m.look === 'rugs' || m.look === 'wardrobe') && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = 0.25; P.headTurn = 0; return; }
+  if(m.look === 'desk' && !m.path){ P.headTilt = 0.15; P.headTurn = 0; if(m.item){ dfHoldPose(H, m.item, P); return; } P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; return; }
+  if(m.item){ dfHoldPose(H, m.item, P); return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];
+}
+/* how a thing is carried: a cushion before them in both arms (the forearms curled up under it), a vase or a basket at their side */
+function dfHoldPose(H, item, P){
+  if(item === 'cushion'){ P.lift = [0.26, 0.26]; P.bend = [1.15, 1.2]; P.hold = H.cushion; return; }
+  P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H[item];
+}
+function dfDrawState(s, m, now, q){
+  const sk = lcSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
+  if(m.moving){ const H = dfHold(s);
+    /* (out of the door with what they paid for; what they took down and did not pay for goes back on the shelf) */
+    if(s.look === 'visitor'){ if(m.item && (m.paid || s._day !== 'leaving')){ const P = {}; dfHoldPose(H, m.item, P); q.pose = P; } }
+    else if(s.id === 'stock') q.pose = { lift: [0.26, 0.26], bend: [1.15, 1.2], hold: H.stack }; }
+}
+walkinStaff(DF_IN.name, [
+  { id: 'desk', role: 'sales desk', seed: 0x0df01, lookFn: () => DF_FAMILY.june, fixed: true, keys: true, posts: [[372, 102, Math.PI/2, 9000, true], [428, 102, Math.PI/2, 4000, true]] },
+  { id: 'sales', role: 'furniture salesman', seed: 0x0df02, lookFn: () => DF_FAMILY.owen,
+    posts: [[590, 256, Math.PI, 8000], [316, 470, 0, 7000], [160, 492, -Math.PI/2, 6000]] },
+  { id: 'stock', role: 'shop assistant', seed: 0x0df03, lookFn: () => DF_FAMILY.tess, posts: [[566, 76, -Math.PI/2, 7000, true], [740, 360, -Math.PI/2, 6000, true], [150, 100, -Math.PI/2, 5000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x0df11, look: 'visitor', life: 'browse', only: DF_SHELVES },
+  { id: 'customer-2', role: 'customer', seed: 0x0df12, look: 'visitor', life: 'browse', only: DF_SHELVES },
+  { id: 'customer-3', role: 'customer', seed: 0x0df13, look: 'visitor', life: 'browse', only: DF_SHELVES },
+  { id: 'customer-4', role: 'customer', seed: 0x0df14, look: 'visitor', life: 'browse', only: DF_SHELVES },
+]);
+walkinLife(DF_IN.name, { keep: [[193, 273, 0, 2000]], looks: [
+  { id: 'desk', spots: [[372, 226, -Math.PI/2], [428, 226, -Math.PI/2]] },
+  { id: 'shelf', spots: [[516, 76, -Math.PI/2], [616, 76, -Math.PI/2]] },
+  { id: 'sideboard', spots: [[660, 360, -Math.PI/2]] },
+  { id: 'rugs', spots: [[430, 526, Math.PI/2], [544, 605, Math.PI]] },
+  { id: 'wardrobe', spots: [[100, 530, Math.PI], [100, 590, Math.PI]] },
+], browseNext: dfBrowseNext, pose: dfPose, drawState: dfDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -61177,6 +61348,261 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE DRIFTWOOD HOME (DF_IN; the walk-in kit's walls, walkinRoom, its door in the NORTH wall -- the showroom's front faces north, away from
+     the camera, so the door is in a far wall, full height round it, as Palmline Garage's; the room runs back south into the block and east past
+     its own end, and what it covers is taken off while he is inside -- pk.displace). Frame a east, b south, z up, world units. Built by the shop
+     recipe (W33), in zones for its size:
+       the north wall   THE DOOR (a 181..285) between THE TWO BAYS seen from inside at their own places; THE WINDOW SOFA under the west one, its
+                        coffee table and a side table with a lamp; THE SALES DESK (a 330..470, b 140..190) before the east one, June behind it:
+                        the till, a swatch book and a jug of dried grasses each their own piece on top; THE HOMEWARES SHELVES (a 490..640) and
+                        THE SECOND SOFA (a 650..800) under the name, its coffee table, a floor lamp in the corner
+       a 193..273       the door's lane, door to south wall, clear
+       the west wall    THE BED (a 10..156, b 270..420) under a print, a bedside table and lamp either side; THE WARDROBE (b 500..610)
+       the middle       THE DINING SET on a rug: a table at 66 for six, the chairs at 38
+       the east         THE SIDEBOARD (a 620..780, b 280..320), a lamp and a bowl on it; THE RUG STACK; THE BENCH, cushions on it; a palm
+     Every long fixture a run of pieces (runPiece, W28); what stands on them its own piece. Heights (docs/kits/library.md): the desk 75, the table
+     66, the chairs and sofas' seats 38, the bench 40, the bed's mattress 50. */
+  name:'Driftwood Home Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 820, dd: 700,
+  head:'Inside Driftwood Home: two sofas, a made bed, a dining set for six, a wardrobe, homewares shelves under the name, the sales desk, a sideboard, a stack of rugs',
+  tags:['interior','pocket','furniture showroom','sofa','bed','dining table','wardrobe','homewares','rugs'],
+  desc:'The Flats\' furniture showroom: warm white walls over a slate-blue skirting, pale oak boards and rugs under each set; a slate sofa under the west bay with its coffee table, a made bed under a seascape print with a lamp either side, a walnut dining table for six, a tall wardrobe, shelves of vases, throws, baskets and cushions and a sand sofa under the name, the walnut sales desk, a sideboard, a stack of rugs, a driftwood bench and a palm.',
+  draw(p){
+    const pl = (typeof DF_PLAN !== 'undefined' && DF_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 820, D = (pl && pl.D) || 700, H = DF_IN.H, LH = DF_IN.LH, DZ = DF_IN.DOORZ, ra = DF_IN.ra;
+    const door = (pl && pl.door) || { side: 'n', at: 233.1, half: 52 };
+    const plas = '#f3eee4', slate = '#4d6a86', slateD = '#3d5670', slateL = '#6f8aa3', sand = '#d8ccb0', sandD = '#c4b694', sandL = '#e6dcc6';
+    const oak = '#dcc8a4', oakL = '#ccb68e', drift = '#b9a68a', driftT = '#cbb99c', driftS = '#9c8a70';
+    const wal = '#8a6446', walT = '#9c7656', walS = '#6b4a32', linen = '#ece6d8', linenD = '#d9d1c0', cream = '#fbf7ee', blk = '#2a2826';
+    const sage = '#7fa39a', clay = '#c98a5a', terra = '#b8653f', terraT = '#c97a52', leaf = '#4f8f58', leafL = '#6aa86c', brass = '#c9a24a';
+    const extW = '#e4dccb', extT = '#4d6a86';                                                          // (the showroom's own walls, outside: W4)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+
+    /* ---- THE FLOOR: pale oak boards (their seams, staggered joints), a rug under each set, the door's mat; the threshold in the doorway (all with
+       the floor, under everything: a piece keyed at the door sorted after the leaves and painted over their feet -- the bank's, 2026-11-20) ---- */
+    T(0, W, 0, D, 0, oak);
+    for(let a = 18; a < W; a += 18) T(a - 0.3, a + 0.3, 0, D, 0.1, oakL);
+    for(let a = 0, j = 0; a < W; a += 18, j++) for(let b = (j % 4)*55 + 40; b < D; b += 220) T(a, Math.min(W, a + 18), b - 0.3, b + 0.3, 0.12, oakL);
+    /* the rugs: the window sofa's (sand, a slate border), the dining set's (slate, a sand border), the second sofa's (sage) */
+    [[22, 172, 80, 196, sand, slate], [330, 570, 268, 472, slateL, sand], [650, 802, 80, 196, sage, linen]].forEach(([a0, a1, b0, b1, c, e]) => {
+      T(a0, a1, b0, b1, 0.3, e); T(a0 + 6, a1 - 6, b0 + 6, b1 - 6, 0.35, c); T(a0 + 12, a1 - 12, b0 + 12, b1 - 12, 0.4, shade(c, 1.06)); });
+    T(door.at - 44, door.at + 44, 4, 66, 0.35, slateD); T(door.at - 38, door.at + 38, 10, 60, 0.4, sandD);
+    T(door.at - door.half - 6, door.at + door.half + 6, -40, 8, 0.55, '#d4cec2');
+    T(door.at - door.half, door.at + door.half, -4, 0, 0.6, '#b9bec2');
+
+    /* ---- THE WALLS (the kit's): the north wall stands full height with the door in it (gapsN, the door's own) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 10, slateD, null, 0, 0.15); F(-30, W + 30, H - 14, H, slate, null, 0, 0.3);
+        /* THE TWO BAYS from inside, at their own places (the showroom's: lab a 16..155 and 249.8..388.8, z 20..280 x1.95 -- their heads past the
+           room's wall top, so the glass runs up to the band): the frame, the glass, the street's light, the mullions where the street's are (a
+           35 pitch). Their frames clear of the door's surround */
+        for(const [la0, la1] of DF_IN.WINS){ const w0 = Math.max(10, ra(la0)), w1 = ra(la1), z0 = DF_IN.WZ[0]*1.95, z1 = H - 18, n = Math.round((la1 - la0)/35);
+          F(w0 - 2, w1 + 2, z0 - 3, z1 + 2, slateD, null, 0, 0.4); F(w0, w1, z0, z1, '#b4d6dc', null, 0, 0.5); F(w0 + 12, w0 + 46, z0 + 40, z1 - 40, '#cbe4e8', null, 0, 0.55);
+          for(let k = 1; k < n; k++){ const m = ra(la0 + (la1 - la0)*k/n); if(m > w0 + 4) F(m - 2.5, m + 2.5, z0, z1, '#e8ecec', null, 0, 0.6); } }
+        /* the door's surround */
+        F(door.at - door.half - 6, door.at - door.half, 0, DZ + 6, slateD, null, 0, 0.35); F(door.at + door.half, door.at + door.half + 6, 0, DZ + 6, slateD, null, 0, 0.35);
+        F(door.at - door.half - 6, door.at + door.half + 6, DZ, DZ + 6, slateD, null, 0, 0.35);
+        /* the name over the shelves */
+        F(520, 780, 212, 248, slate, null, 0, 0.4); blockWordIn('DRIFTWOOD HOME', 534, 766, 220, 240, 0.6, cream, null, 4);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.15, -30, D + 30, 0, 10, shade(slateD, 0.9)); S(0.3, -30, D + 30, H - 14, H, shade(slate, 0.9));
+        /* over the bed: a seascape in a driftwood frame -- the sky, the sea, the sand */
+        S(0.4, 292, 398, 142, 218, driftS); S(0.5, 298, 392, 148, 212, '#dcebee');
+        S(0.55, 298, 392, 148, 176, '#7fa8b4'); S(0.6, 298, 392, 148, 160, '#e6d8b8'); S(0.62, 298, 392, 174, 176, '#a8c8d0');
+        /* a round mirror by the wardrobe, a clock over the window sofa's side table */
+        const sc = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(a, b + Math.cos(t)*r, z + Math.sin(t)*r)); } poly(pts, c); };
+        sc(0.4, 660, 150, 30, driftS); sc(0.5, 660, 150, 26, '#d8e4e6');
+        sc(0.4, 40, 200, 13, slateD); sc(0.5, 40, 200, 11, cream); S(0.6, 39.4, 40.6, 200, 209, blk); S(0.6, 40, 47, 199.4, 200.6, blk);
+      },
+      low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#e8e1d2' });
+
+    /* a sofa (the library's: Palmline Tower's sofaOf) facing south, its back against the north side: feet; a base the whole footprint; the back on
+       the base's north side; the arms from the back forward, on the base; the seat's two cushions between them at 38; pillows against the back.
+       Far to near (W37): the back, the west arm, the cushions, the pillows, the east arm */
+    const sofa = (a0, a1, b0, b1, S0, pc) => {
+      const BK = [shade(S0[0], 0.92), shade(S0[1], 0.86), shade(S0[2], 0.88)], CU = [shade(S0[0], 1.08), S0[0], S0[1]], sb0 = b0 + 14;
+      for(const [a, b] of [[a0 + 6, b0 + 6], [a1 - 6, b0 + 6], [a0 + 6, b1 - 6], [a1 - 6, b1 - 6]]) cyl(a, b, 0, 4, 3, walS);
+      box(a0, a1, b0, b1, 4, 26, shade(S0[0], 0.9), shade(S0[1], 0.9), shade(S0[2], 0.9));
+      box(a0, a1, b0, sb0, 26, 74, BK[0], BK[1], BK[2]);
+      box(a0, a0 + 16, sb0, b1, 26, 52, S0[0], S0[1], S0[2]);
+      const w = (a1 - a0 - 32)/2; for(let k = 0; k < 2; k++) box(a0 + 16 + k*w + 1, a0 + 16 + (k + 1)*w - 1, sb0 + 2, b1 - 2, 26, 38, CU[0], CU[1], CU[2]);
+      for(const a of [a0 + 20, a1 - 46]) box(a, a + 26, sb0 + 2, sb0 + 10, 38, 60, pc[0], pc[1], pc[2]);
+      box(a1 - 16, a1, sb0, b1, 26, 52, S0[0], S0[1], S0[2]);
+    };
+    /* a low table on four legs: the north legs, the south legs, the top */
+    const lowTable = (a0, a1, b0, b1, zT, top) => {
+      for(const b of [b0 + 4, b1 - 4]) for(const a of [a0 + 4, a1 - 4]) box(a - 2, a + 2, b - 2, b + 2, 0, zT - 4, walT, wal, walS);
+      box(a0, a1, b0, b1, zT - 4, zT, top[0], top[1], top[2]); };
+
+    /* ---- THE WINDOW SOFA under the west bay: slate, sand pillows; keyed at its back's west end (its sitters, before it, sort after it: DF_SEATS) ---- */
+    items.push({ a: 30, b: 9, z: 0, solids: [solid(30, 160, 8, 70, 74, 'sofa')], draw: () => sofa(30, 160, 8, 70, [slateL, slate, slateD], [sandL, sand, sandD]) });
+    /* its coffee table, a bowl and two books on it */
+    items.push({ a: 95, b: 135, z: 0, solids: [solid(50, 140, 118, 152, 40, 'coffee table')], draw: () => {
+      lowTable(50, 140, 118, 152, 40, [driftT, drift, driftS]);
+      box(62, 88, 126, 144, 40, 43, slate, slateD, shade(slateD, 0.85)); box(64, 86, 127, 143, 43, 46, cream, linenD, linenD);
+      cyl(118, 135, 40, 47, 10, cream, '#ffffff'); cyl(118, 135, 46.6, 47, 8, sage, sage); } });
+    /* a side table in the north-west corner, a lamp on it: the base, the stem, the shade */
+    items.push({ a: 4, b: 14, z: 0, solids: [solid(4, 28, 14, 38, 96, 'side table')], draw: () => {   // (keyed at its far corner: it stands behind the sofa's west arm)
+      lowTable(4, 28, 14, 38, 50, [walT, wal, walS]);
+      cyl(16, 26, 50, 62, 6, sage, shade(sage, 1.1)); tube(16, 26, 62, 16, 26, 74, 0.8, brass); cyl(16, 26, 74, 94, 10, linen, cream); } });
+
+    /* ---- THE SALES DESK before the east bay: walnut to the floor, a slatted front, an oak top; 100 clear behind it for June; in runs of 35 on 50,
+       keyed down its middle line. What stands on it its own piece ---- */
+    { const A0 = 330, A1 = 470, B0 = 140, B1 = 190, zT = 75;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'desk')], () => {
+        box(A0, A1, B0, B1, 0, zT - 4, wal, wal, walS);
+        F(A0, A1, 0, 6, walS, null, 0, B1 + 0.2);
+        for(let a = A0 + 10; a < A1; a += 10) F(a - 0.6, a + 0.6, 6, zT - 4, walS, null, 0, B1 + 0.2);
+        S(A1, B0, B1, 6, zT - 4, shade(wal, 0.86));
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, oak, oakL, shade(oakL, 0.9));
+      }, { pad: 5, run: 35, extra: { b: (B0 + B1)/2 } });
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 35, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* the till (its screen on the far face, June's: not painted -- W37) */
+      on(400, [388, 412, 146, 166, 104], () => { box(392, 408, 150, 162, zT, zT + 3, blk, blk, '#1c1a18'); tube(400, 156, zT + 3, 400, 154, zT + 14, 1.4, '#6a6662');
+        box(388, 412, 146, 150, zT + 12, zT + 29, '#3a3634', blk, '#1c1a18'); });
+      /* the swatch book, open: its cover, the fanned fabric swatches on it */
+      on(350, [338, 364, 166, 186, 82], () => { box(338, 364, 168, 186, zT, zT + 2, slateD, slateD, shade(slateD, 0.8));
+        [sand, sage, clay, slateL, linen].forEach((c, k) => box(340 + k*4, 352 + k*4, 170 + k*1.4, 180 + k*1.4, zT + 2 + k*0.8, zT + 2.8 + k*0.8, c, shade(c, 0.86), shade(c, 0.76))); });
+      /* a stoneware jug of dried grasses */
+      on(450, [442, 458, 156, 172, 130], () => { cyl(450, 164, zT, zT + 18, 6, '#d8d0c0', '#e6dfd2'); cyl(450, 164, zT + 18, zT + 22, 3.6, '#d8d0c0', '#cfc6b4');
+        for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2; tube(450, 164, zT + 20, 450 + Math.cos(t)*8, 164 + Math.sin(t)*6, zT + 48 + (k % 3)*5, 0.6, '#c9b27e'); }
+        for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2; ball(450 + Math.cos(t)*8, 164 + Math.sin(t)*6, zT + 50 + (k % 3)*5, 2.4, '#d8c48e', '#e6d6a6'); } });
+    }
+
+    /* ---- THE HOMEWARES SHELVES on the north wall under the name: an open driftwood case of four shelves, its goods on each -- glazed vases,
+       folded throws, seagrass baskets, cushions, candles; in runs of 50 keyed at each stretch's start (against the wall). Inside it, back to front:
+       the back, each shelf with its goods, the uprights standing between them, the top ---- */
+    { const A0 = 490, A1 = 640, B0 = 0, B1 = 40, zTop = 180, SH = [6, 48, 90, 132], COL = 3, cw = (A1 - A0)/COL;
+      const goods = (a0, a1, z, k) => { const m = (a0 + a1)/2, bm = (B0 + B1)/2 + 2;
+        switch(k % 5){
+          case 0: [[a0 + 12, 7, 26, sage], [a0 + 28, 5, 18, cream], [a1 - 11, 6, 30, slateL]].forEach(([va, r, h, c]) => { cyl(va, bm, z, z + h*0.7, r, c, shade(c, 1.1)); cyl(va, bm, z + h*0.7, z + h, r*0.45, shade(c, 0.94), shade(c, 1.12)); }); break;   // (vases)
+          case 1: for(let i = 0; i < 4; i++){ const c = [linen, slateL, sand, sage][i]; box(a0 + 6, a1 - 6, B0 + 8, B1 - 4, z + i*7, z + i*7 + 6.4, shade(c, 1.06), c, shade(c, 0.86)); } break;   // (folded throws)
+          case 2: for(const ba of [a0 + 13, a1 - 13]){ cyl(ba, bm, z, z + 20, 10, '#c9a877', '#a8875a'); cyl(ba, bm, z + 19.4, z + 20, 9.4, '#8a6a42', '#8a6a42'); } break;   // (seagrass baskets)
+          case 3: for(const [ca, c] of [[a0 + 13, slate], [a1 - 13, clay]]){ box(ca - 11, ca + 11, B0 + 12, B1 - 6, z, z + 22, shade(c, 1.1), c, shade(c, 0.84)); F(ca - 1, ca + 1, z + 10, z + 12, shade(c, 0.7), null, 0, B1 - 5.9); } break;   // (cushions, stood up)
+          default: [[a0 + 10, 4, 14], [a0 + 21, 4, 20], [a1 - 14, 6, 10]].forEach(([ca, r, h]) => { cyl(ca, bm, z, z + h, r, cream, '#ffffff'); tube(ca, bm, z + h, ca, bm, z + h + 2, 0.4, blk); });   // (candles)
+        } };
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'shelves')], () => {
+        F(A0, A1, 0, zTop, driftS, null, 0, B0 + 0.6);
+        box(A0, A1, B0, B1, 0, 6, driftT, drift, driftS);                                              // (the plinth: the bottom shelf)
+        /* (bay by bay, west to east: the upright on its west side, then its shelves -- between the uprights -- each with its goods, bottom up) */
+        const up = a => box(Math.max(A0, a - 1.5), Math.min(A1, a + 1.5), B0, B1, 6, zTop - 4, driftT, drift, driftS);
+        for(let c = 0; c < COL; c++){ const c0 = A0 + cw*c, c1 = c0 + cw; up(c0);
+          SH.forEach((z, r) => { if(r) box(c0 + (c ? 1.5 : 0), c1 - (c < COL - 1 ? 1.5 : 0), B0, B1, z - 4, z, driftT, drift, driftS); goods(c0 + 3, c1 - 3, z, c + r*2); }); }
+        up(A1);
+        box(A0 - 2, A1 + 2, B0, B1 + 2, zTop - 4, zTop, driftT, drift, driftS);                       // the top
+      }, { pad: 3, keyStart: true, run: 50 });
+    }
+
+    /* ---- THE BED against the west wall: a driftwood headboard, the frame, the mattress at 50 under a linen duvet, two pillows, a slate throw over
+       the foot; keyed at its middle (the sitters on its south edge, a hair in from it, sort after it: DF_SEATS). Back to front: the headboard, the
+       frame, the mattress, the pillows, the duvet, the throw ---- */
+    items.push({ a: 83, b: 345, z: 0, solids: [solid(2, 156, 270, 420, 50, 'bed')], draw: () => {
+      box(2, 10, 266, 424, 0, 112, driftT, drift, driftS);
+      box(10, 156, 270, 420, 0, 30, driftT, drift, driftS);
+      box(12, 154, 274, 416, 30, 44, cream, linenD, linenD);
+      for(const b of [282, 348]) box(16, 46, b, b + 62, 44, 56, '#ffffff', linen, linenD);
+      box(52, 156, 272, 418, 44, 50, linen, linenD, shade(linenD, 0.92));
+      box(52, 156, 417.6, 418.4, 34, 44, linenD, linenD, linenD);                                       // (the duvet's hem, down the south side)
+      box(118, 144, 271, 419, 50, 51.5, slate, slateD, shade(slateD, 0.85)); box(118, 144, 418.6, 419.4, 36, 50, slateD, slateD, slateD); } });
+    /* the bedside tables either side, a lamp on each */
+    for(const [b0, b1] of [[228, 262], [428, 462]]) items.push({ a: 20, b: (b0 + b1)/2, z: 0, solids: [solid(2, 38, b0, b1, 94, 'bedside table')], draw: () => {
+      box(2, 38, b0, b1, 0, 52, walT, wal, walS); S(38.1, b0 + 4, b1 - 4, 30, 46, walS); S(38.2, (b0 + b1)/2 - 3, (b0 + b1)/2 + 3, 37, 39, brass);
+      cyl(20, (b0 + b1)/2, 52, 66, 6, cream, '#ffffff'); tube(20, (b0 + b1)/2, 66, 20, (b0 + b1)/2, 74, 0.8, brass); cyl(20, (b0 + b1)/2, 74, 92, 10, sand, sandL); } });
+
+    /* ---- THE WARDROBE against the west wall: walnut, two doors on its east face, a plinth and a cornice ---- */
+    items.push({ a: 28, b: 555, z: 0, solids: [solid(0, 56, 500, 610, 206, 'wardrobe')], draw: () => {
+      box(0, 56, 500, 610, 0, 8, walS, walS, shade(walS, 0.85));
+      box(2, 54, 502, 608, 8, 198, walT, wal, walS);
+      for(const [d0, d1] of [[506, 553], [557, 604]]){ S(54.1, d0, d1, 14, 192, shade(walS, 1.05)); S(54.2, d0 + 6, d1 - 6, 22, 184, shade(wal, 0.92)); }
+      for(const b of [550, 560]) S(54.3, b - 1, b + 1, 96, 116, brass);
+      box(0, 56, 498, 612, 198, 206, walT, wal, walS); } });
+
+    /* ---- THE DINING SET on its rug: a walnut table at 66 for six (in runs of 47, keyed at its middle line), its chairs at 38 -- two either side,
+       one at each end; a runner and a jug of eucalyptus on the table, their own piece ---- */
+    { const { a0, a1, b0, b1 } = DF_DINE, zT = 66;
+      runPiece(items, a0, a1, b0, b1, zT, (s0, s1) => [solid(s0, s1, b0, b1, zT, 'table')], () => {
+        for(const b of [b0 + 6, b1 - 6]) for(const a of [a0 + 6, a1 - 6]) box(a - 3, a + 3, b - 3, b + 3, 0, zT - 4, walT, wal, walS);
+        box(a0 + 9, a1 - 9, b0 + 9, b1 - 9, zT - 10, zT - 4, walT, wal, walS);                         // (the apron, between the legs' inner faces)
+        box(a0, a1, b0, b1, zT - 4, zT, walT, wal, walS);
+      }, { pad: 4, run: 47, extra: { b: (b0 + b1)/2 } });
+      items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: lcOnZ(a0, a1, 47, 410, 490, (a0 + a1)/2), fpLab: { a0: 410, a1: 490, b0: 356, b1: 384, z1: 110 }, solids: [], draw: () => {
+        T(412, 488, 358, 382, zT + 0.4, linen); T(412, 488, 361, 379, zT + 0.5, shade(linen, 0.95));
+        cyl(450, 370, zT, zT + 16, 6, cream, '#ffffff'); cyl(450, 370, zT + 16, zT + 19, 3.6, cream, '#ffffff');
+        for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(450, 370, zT + 18, 450 + Math.cos(t)*12, 370 + Math.sin(t)*9, zT + 38 + (k % 3)*4, 0.6, '#6f8a74'); }
+        for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; ball(450 + Math.cos(t)*12, 370 + Math.sin(t)*9, zT + 38 + (k % 3)*4, 3, '#8fae96', '#a8c4ac'); } } });
+      /* a chair keyed at its middle (a customer sat in one is drawn a hair forward of it: DF_SEATS): face, the way its sitter faces; its back on the
+         other side -- first when that side is far (north, west), last when it is near */
+      const chair = (ca, cb, face) => items.push({ a: ca, b: cb, z: 0, solids: [{ name: 'chair', c: [ca, cb], r: 18, h: 80 }], draw: () => {
+        for(const [la, lb] of [[-11, -11], [11, -11], [-11, 11], [11, 11]]) box(ca + la - 1.4, ca + la + 1.4, cb + lb - 1.4, cb + lb + 1.4, 0, 32, walT, wal, walS);
+        /* (the seat's frame on the legs first; then the back standing on its far or near edge and the cushion before it, back to front) */
+        box(ca - 14, ca + 14, cb - 14, cb + 14, 32, 35, walT, wal, walS);
+        const seat = () => box(ca - 12, ca + 12, cb - 12, cb + 12, 35, 38, sandL, sand, sandD);
+        const back = { s: [-14, 14, -14, -10], n: [-14, 14, 10, 14], e: [-14, -10, -14, 14], w: [10, 14, -14, 14] }[face];
+        const bk = () => box(ca + back[0], ca + back[1], cb + back[2], cb + back[3], 35, 80, walT, wal, walS);
+        if(face === 's' || face === 'e'){ bk(); seat(); } else { seat(); bk(); } } });
+      chair(415, 304, 's'); chair(485, 304, 's'); chair(357 - 3, 370, 'e'); chair(543 + 3, 370, 'w'); chair(415, 436, 'n'); chair(485, 436, 'n');
+    }
+
+    /* ---- THE SECOND SOFA under the name, east of the shelves: sand, slate pillows; keyed at its back's west end. Its coffee table before it;
+       a floor lamp in the north-east corner ---- */
+    items.push({ a: 650, b: 9, z: 0, solids: [solid(650, 800, 8, 70, 74, 'sofa')], draw: () => sofa(650, 800, 8, 70, [sandL, sand, sandD], [slateL, slate, slateD]) });
+    items.push({ a: 725, b: 135, z: 0, solids: [solid(680, 770, 118, 152, 40, 'coffee table')], draw: () => {
+      lowTable(680, 770, 118, 152, 40, [walT, wal, walS]);
+      for(const [ca, c] of [[696, sage], [710, slateL]]) cyl(ca, 135, 40, 40 + (c === sage ? 14 : 10), 4, c, shade(c, 1.1));
+      box(730, 758, 126, 144, 40, 44, clay, shade(clay, 0.86), shade(clay, 0.76)); } });
+    items.push({ a: 808, b: 96, z: 0, solids: [{ name: 'floor lamp', c: [808, 96], r: 12, h: 170 }], draw: () => {
+      cyl(808, 96, 0, 3, 10, blk, '#3a3634'); tube(808, 96, 3, 808, 96, 140, 1.1, brass); cyl(808, 96, 140, 168, 11, linen, cream); } });
+
+    /* ---- THE SIDEBOARD in the east: walnut on short legs, three doors to the room, an oak top; in runs of 40, keyed down its middle line. A table
+       lamp and a bowl of lemons on it, their own pieces ---- */
+    { const A0 = 620, A1 = 780, B0 = 280, B1 = 320, zT = 70;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'sideboard')], () => {
+        for(const b of [B0 + 4, B1 - 4]) for(const a of [A0 + 6, A1 - 6]) box(a - 2, a + 2, b - 2, b + 2, 0, 10, walS, walS, shade(walS, 0.85));
+        box(A0, A1, B0, B1, 10, zT - 3, wal, wal, walS);
+        for(let k = 0; k < 3; k++){ const d0 = A0 + 4 + k*(A1 - A0 - 8)/3, d1 = d0 + (A1 - A0 - 8)/3 - 3; F(d0, d1, 14, zT - 7, walT, null, 0, B1 + 0.2); F(d1 - 8, d1 - 6, 34, 46, brass, null, 0, B1 + 0.4); }
+        box(A0 - 2, A1 + 2, B0 - 2, B1 + 2, zT - 3, zT, oak, oakL, shade(oakL, 0.9));
+      }, { pad: 5, run: 40, extra: { b: (B0 + B1)/2 } });
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 40, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      on(650, [640, 660, 290, 310, 112], () => { cyl(650, 300, zT, zT + 14, 7, clay, shade(clay, 1.1)); tube(650, 300, zT + 14, 650, 300, zT + 22, 0.8, brass); cyl(650, 300, zT + 22, zT + 40, 11, linen, cream); });
+      on(730, [716, 744, 288, 312, 84], () => { cyl(730, 300, zT, zT + 6, 13, cream, '#ffffff'); for(const [da, db] of [[-5, -4], [5, -4], [-5, 5], [5, 5]]) ball(730 + da, 300 + db, zT + 7, 4, '#f2d84a', '#f8e878'); ball(730, 300, zT + 11, 4, '#f2d84a', '#f8e878'); });
+    }
+
+    /* ---- THE RUG STACK: a low driftwood platform, five folded rugs on it, the top one patterned; keyed at its middle ---- */
+    items.push({ a: 430, b: 605, z: 0, solids: [solid(360, 500, 560, 650, 36, 'rugs')], draw: () => {
+      box(360, 500, 560, 650, 0, 8, driftT, drift, driftS);
+      [slate, sand, terra, sage, linen].forEach((c, k) => box(366 + k*2, 494 - k*2, 566 + k, 644 - k, 8 + k*5, 12.6 + k*5, shade(c, 1.05), c, shade(c, 0.85)));
+      for(let k = 0; k < 5; k++) T(380 + k*24, 386 + k*24, 574, 636, 32.8, slate);
+      T(374, 486, 574, 578, 32.8, terra); T(374, 486, 632, 636, 32.8, terra); } });
+
+    /* ---- THE BENCH in the south-east: a driftwood bench at 40 on two trestles, two seat pads, cushions and a folded throw on it (for show:
+       nobody sits on it -- people walk behind it); keyed at its middle ---- */
+    items.push({ a: 700, b: 588, z: 0, solids: [solid(620, 780, 570, 606, 66, 'bench')], draw: () => {
+      for(const a of [632, 768]){ box(a - 4, a + 4, 572, 604, 0, 34, driftT, drift, driftS); }
+      box(620, 780, 570, 606, 34, 38, driftT, drift, driftS);
+      for(const [p0, p1] of [[626, 698], [702, 774]]) box(p0, p1, 572, 604, 38, 40, sage, shade(sage, 0.88), shade(sage, 0.78));
+      for(const [ca, c] of [[646, slate], [672, clay]]) box(ca - 11, ca + 11, 576, 584, 40, 62, shade(c, 1.1), c, shade(c, 0.84));
+      for(let k = 0; k < 3; k++){ const c = [linen, slateL, sand][k]; box(720, 764, 578, 600, 40 + k*5, 44.6 + k*5, shade(c, 1.06), c, shade(c, 0.86)); } } });
+
+    /* ---- A PALM in a terracotta pot in the south-east corner (the juice bar's) ---- */
+    items.push({ a: 790, b: 660, z: 0, solids: [{ name: 'plant', c: [790, 660], r: 22, h: 190 }], draw: () => {
+      cyl(790, 660, 0, 34, 18, terra, terraT); cyl(790, 660, 30, 34, 20, shade(terra, 0.85), terraT); cyl(790, 660, 33.6, 34, 17, '#5a3e2a', '#5a3e2a');
+      tube(790, 660, 34, 788, 660, 150, 3, '#8a6a4a');
+      const fr = []; for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2; fr.push([788 + Math.cos(t)*44, 660 + Math.sin(t)*34, 150 + (k % 3)*8 - 18]); }
+      fr.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
+      for(const [fa, fb, fz] of fr){ tube(788, 660, 152, (788 + fa)/2, (660 + fb)/2, 160, 2.4, leaf); tube((788 + fa)/2, (660 + fb)/2, 160, fa, fb, fz, 2, leafL); } } });
+
+    /* (its door is the showroom's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
+    walkinStaffSolids(items, DF_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -73037,6 +73463,13 @@ function houseCanopy(fn){
 {
   name:'Driftwood Home', xh: 336, base:'Furniture showroom', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*4.4,
   wTodo:'two packing slots',
+  see: true,   // (a walk-in: its doorway shows the showroom's room, DF_IN -- W11; its front faces away, north, so only from inside)
+  /* THE DOORWAY OPEN through the front wall: he drives into it, and is taken into the room only once he is in it (DF_IN's glass < 0, W32) */
+  vol: {
+    foot:   [[0,0],[T2*4.4,0],[T2*4.4,-T2*3],[0,-T2*3]],
+    h:      336,
+    opens:  [{ name: 'doorway', poly: volRect(162.4, 242.4, -90, 2), walk: true }]
+  },
   head:'Double-width, two storeys of glass, mezzanine across both bays',
   tags:['double-width unit','double-height glazing','mezzanine deck behind the glass','sofa in the round','clipped interior'],
   desc:'A double-width two-storey elevation: two big glazed bays either side of a central entrance, with one mezzanine deck running behind both. The sofa, dining set, wardrobe, chest and lamp stand BEHIND the pane instead of out on the footway, and the interior is clipped to each opening so a piece can be set as deep into the shop as it likes without projecting past a jamb.',
@@ -73175,7 +73608,11 @@ function houseCanopy(fn){
         F(348,374, DK1+14+k*18, DK1+18+k*18, '#e2c79c', null,0, -19.5);
     });
 
-    shopDoor(WW/2, wall, trim, null, WW);                // a 169.28..235.52
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the showroom's slate blue, 80 across (a 162.4..242.4, in the 94.8 between the
+       bays), its face 'lite' -- one big light over a panel under the fanlight (its neighbour Sandpiper Shoes keeps the street's old door); a
+       walk-in's (see), its opening a hole onto the showroom's room, its leaf live, swinging in. Its front faces north, away from the camera: the
+       street never sees it, the room does (walkinAwayDoor) */
+    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.72)', look: 'lite' });
     /* the upper floor's own window, over the door, where the panel that
        was painted across the doorway used to be */
     reveal(172, 232, 190, 268, 12, inner);
