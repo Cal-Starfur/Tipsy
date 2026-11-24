@@ -66483,7 +66483,13 @@ function houseCanopy(fn){
         { let P, jack = false, fork = 0;
           const Q1 = [A0, [1720, RBL], [1450, RBL], [1450, AY], ...into(kIn, [1450, AY]).slice(1)];
           const Q2 = [...outOf(kIn), [STK[0], AY], STK], Q3 = [STK, [STK[0], AY, 'r'], [1450, AY], [1450, RBL], [1720, RBL], A0];
-          if(jr < 1500) P = hold(A0, 1);
+          /* (it waits off to the side, not at the arm's bay, and is called in once the pallet is full: the sixth box on at jr 0 -- Sir, 2026-11-24:
+             "the lift shouldnt be waiting there for the pallet to get full it should be called in once the pallet is full". JW: the open floor
+             north-east of the arm, a second's drive away -- from a full pallet to the arm's next box there are only 9 s for the whole swap) */
+          const JW = [1825, 1360], JW1 = [JW[0] - 6, JW[1]], QIN = [JW, JW1, A0], QOUT = [A0, [JW1[0], JW1[1], 'r'], [JW[0], JW[1], 'r']];   /* (facing west, its forks toward the bay and clear of the conveyor robot's turn; in on a slant to the bay, so its forks never swing over station 8's parts robot west of it: crew_spacing) */
+          if(jr < 200) P = hold(JW, 2);
+          else if(jr < 1400) P = drv(QIN, (jr - 200)/1200);
+          else if(jr < 1500) P = hold(A0, 1);
           else if(jr < 2100){ P = hold(A0, 1); jack = JACK; fork = ease((jr - 1500)/600); }
           else if(jr < 4300){ P = drv(Q1, (jr - 2100)/2200); jack = JACK; fork = 1; }
           else if(jr < 4700){ P = drv(Q1, 1); jack = JACK; fork = 1 - ease((jr - 4300)/400); }
@@ -66491,12 +66497,9 @@ function houseCanopy(fn){
           else if(jr < 6100){ P = hold(STK, 3); jack = JACKIN([]); fork = ease((jr - 5700)/400); }
           else if(jr < 7900){ P = drv(Q3, (jr - 6100)/1800); jack = JACKIN([]); fork = 1; }
           else if(jr < 8300){ P = hold(A0, 1); jack = JACKIN([]); fork = 1 - ease((jr - 7900)/400); }
-          else if(jr >= 8500 && jr < 23500){ const CHG = [A0, [1720, RBL], [1450, RBL], [1450, AY], [2070, AY], [2070, 1735]], CHB = [[2070, 1735], [2070, AY, 'r'], [1450, AY], [1450, RBL], [1720, RBL], A0];
-            /* (phase 7: on charge in its long wait -- out to a pad by the reserve pods while the runner waits at goods to person, the way clear) */
-            if(jr < 13500) P = drv(CHG, (jr - 8500)/5000); else if(jr < 15500){ P = hold([2070, 1735], 2); const on = Math.floor(t/600) % 2;
-              out.push({ kind: 'cargo', a: 1980, b: 1735, cargo: () => box(1975.5, 1977, 1725, 1745, 24, 60, on ? '#bffcf8' : '#5fe8e0') }); } else if(jr < 20500) P = drv(CHB, (jr - 15500)/5000); else P = hold(A0, 1); }   /* (back off row B's lane before station 8's robot is on it) */
-          else P = hold(A0, 1);
-          CW_FLOW.jack = jr >= 8500 && jr < 23500 ? (jr >= 13500 && jr < 15500 ? 'charging' : 'to the charger') : jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
+          else if(jr < 9500) P = drv(QOUT, (jr - 8300)/1200);   /* (backed out of the bay once the empty is down, and off to wait) */
+          else P = hold(JW, 2);
+          CW_FLOW.jack = jr >= 9500 || jr < 200 ? 'waiting for a full pallet' : jr < 1400 ? 'called to the arm bay' : jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
           const nL = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;
           out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackIn', jack: nL >= 0 || underPal(P) ? 'under' : false, fork, wheel: (P.s || P.a + P.b)*0.12 })); if(nL >= 0) out.push(onForks(P, fork, nL)); }
         /* the shipping jack, on its own round from outside (u: from 9500 into the pallet clock): the parts pallet in, the empty to the stack,
