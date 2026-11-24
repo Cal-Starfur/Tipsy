@@ -32980,9 +32980,12 @@ function sfBikeMiddle(g, G, stage, ph){
   const rod = (b0, z0, b1, z1, r, c) => fill([W(-r, b0, z0 - r), W(r, b0, z0 - r), W(-r, b0, z0 + r), W(r, b0, z0 + r), W(-r, b1, z1 - r), W(r, b1, z1 - r), W(-r, b1, z1 + r), W(r, b1, z1 + r)], c);
   /* the cranks and pedals, turning with the feet (pose.pedal's phase: the leg on side s at ph, + PI on the other; s east is the near side):
      the far one under the far foot ('under'), the near one last, under the near foot */
+  /* (the pedal under the shoe's sole -- across the foot (hipW*0.3 out, 2.5..9), its top at the sole's bottom: the ankle's circle, pose.pedal, is
+     this one moved by the shoe -- the crank arm outside it) */
   const crank = s => { const t = ph + (s > 0 ? 0 : Math.PI), a = s*E, fw = 14 + Math.cos(t)*8, up = 16 + Math.sin(t)*8;
-    fill([G(a*6, 14, 15), G(a*6, 14, 17), G(a*7.5, 14, 15), G(a*7.5, 14, 17), G(a*6, fw, up - 1), G(a*6, fw, up + 1), G(a*7.5, fw, up - 1), G(a*7.5, fw, up + 1)], 0x868c90);
-    const pb = []; for(const x of [7.5, 13]) for(const f of [-2.5, 2.5]) for(const z of [-1, 1]) pb.push(G(a*x, fw + f, up + z)); fill(pb, 0x1e2124); };
+    const pb = []; for(const x of [2.5, 9]) for(const f of [-3, 3]) for(const z of [-1, 1]) pb.push(G(a*x, fw + f, up + z));
+    const arm = () => fill([G(a*9, 14, 15), G(a*9, 14, 17), G(a*10.5, 14, 15), G(a*10.5, 14, 17), G(a*9, fw, up - 1), G(a*9, fw, up + 1), G(a*10.5, fw, up - 1), G(a*10.5, fw, up + 1)], 0x868c90);
+    if(s === nearS){ fill(pb, 0x1e2124); arm(); } else { arm(); fill(pb, 0x1e2124); } };   // (the arm outside the pedal: after it on the near side, before it on the far)
   const nearS = E;   // (the near leg is the east one: +across is east when E is 1)
   if(stage === 'under'){ crank(-nearS); return; }
   rod(208, 6, 274, 6, 2.6, 0x2f3a3f); rod(250, 14, 228, 36, 2.4, 0x2f3a3f); rod(226, 8, 230, 66, 2.6, 0x2f3a3f);   // (the post up to under its head)
@@ -33003,7 +33006,7 @@ function sfPose(s, m, now, P){
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ const st = sk.seat;
     if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
-      const ph = -now*0.009 + (s.seed & 63); P.pedal = { ph, c: [14, 16], r: 8 }; P.between = (g, G, st) => sfBikeMiddle(g, G, st, ph); return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
+      const ph = -now*0.009 + (s.seed & 63); P.pedal = { ph, c: [11.5, 23.8], r: 8 }; /* (the ANKLE's circle: the crank's (14 before, 16 up) less the shoe -- its sole's middle 2.5 before the ankle, its bottom 6.8 under it -- and the pedal's half-thickness: the sole on the pedal all the way round) */ P.between = (g, G, st) => sfBikeMiddle(g, G, st, ph); return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
     if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
