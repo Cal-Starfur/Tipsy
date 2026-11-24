@@ -61318,8 +61318,12 @@ function houseCanopy(fn){
       low: ['#d9c6a0', '#c9b58b', '#a99068'], cap: ['#3f8a6a', '#347358', '#2c6049'], ftop: '#4a9876', frame: '#2f6c52' });
 
     /* ---- THE COUNTER (a 44..220, b 52..88, 82 high): a plank front on a green base, an oak top; on it a till with its keys turned to the clerk
-       (its back to us), a scale, a box of seed packets and a pot of herbs ---- */
-    items.push({ a: 132, b: 70, z: 0, solids: [solid(44, 220, 52, 88, 84, 'counter')], draw: () => {
+       (its back to us), a scale, a box of seed packets and a pot of herbs. A long fixture: runPiece'd in three runs of ~59 (seams at a 102.7
+       and 161.3, clear of what stands on it), each keyed at its own stretch -- as one piece keyed at its middle (a 132, b 70) it sorted after
+       the potter at the bench (a 74, b 110..148) and painted its front over him (Sir, 2026-11-24, "this guy is being painted over by the
+       desk"). Its clip reaches only a few past front and back (pad 4) so a run's does not reach over its neighbour's top; zTop the herbs'
+       top ---- */
+    runPiece(items, 44, 220, 52, 88, 111, (s0, s1) => [solid(s0, s1, 52, 88, 84, 'counter')], () => {
       box(44, 220, 52, 88, 0, 80, trim, trimD, shade(trim, 0.7));
       box(42, 222, 50, 90, 80, 84, oakL, oak, oakF);
       box(166, 196, 66, 80, 84, 96, '#c3cacf', '#a9b1b7', '#8f979e');                                             // the till
@@ -61329,7 +61333,7 @@ function houseCanopy(fn){
       box(110, 140, 62, 76, 84, 96, '#f4f1e8', '#e2ddcf', '#cfc9b9');                                             // a box of seed packets
       for(let k = 0; k < 5; k++) box(112 + k*5.5, 116 + k*5.5, 64, 74, 96, 100 + (k % 2)*3, ['#e8c34a', '#c26a7e', '#f2efe6', '#4e8058', '#e8c34a'][k], '#cfcabb', '#b0cdd2');
       pot(54, 70, 84, 8, 14, '#568a5e');
-    }});
+    }, { run: 60, pad: 4 });
 
     /* ---- THE POTTING BENCH on the west wall (a 12..52, b 96..160, 76 high): a plank top on trestles, pots, a seed tray, a trowel, a bag of
        compost ---- */
