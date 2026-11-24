@@ -29639,6 +29639,7 @@ const WALKIN_SHOP_BAN = (() => {
     'Low Tide Juice Bar Interior':  { by: ['counter', 'juicer', 'helper'], who: 'Leilani', say: "You've knocked a customer down. Out you go, and don't come back in." },
     'Surfside Fitness Interior':    { by: ['desk', 'trainer', 'floor'], who: 'Marisol', say: "You've knocked a member flat. Out you go, and don't come back in." },
     'Driftwood Home Interior':      { by: ['desk', 'sales', 'stock'], who: 'June', say: "You've knocked a customer flat. Out you go, and don't come back in." },
+    'Sandpiper Shoes Interior':     { by: ['counter', 'fitter', 'stock'], who: 'Dana', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -31984,6 +31985,173 @@ walkinLife(DF_IN.name, { keep: [[193, 273, 0, 2000]], looks: [
   { id: 'rugs', spots: [[430, 526, Math.PI/2], [544, 605, Math.PI]] },
   { id: 'wardrobe', spots: [[100, 530, Math.PI], [100, 590, Math.PI]] },
 ], browseNext: dfBrowseNext, pose: dfPose, drawState: dfDrawState });
+/* ==================== SANDPIPER SHOES, WALK-IN (wi-sandpiper-shoes; the room: the LIB entry 'Sandpiper Shoes Interior') ====================
+   The Flats' sneaker store on block 3,1's NORTH edge, east of Driftwood Home (its front faces north, away from the camera: the street sees its
+   back). Built by the shop recipe (docs/kits/walkin-shop-recipe.md, W33), Driftwood Home's way (the same edge): the exterior unchanged but for
+   its door -- its volume with the doorway open through its front wall (vol.opens), the door kit's single leaf 80 across ('french') in the
+   middle of the entrance's portal, glazed sidelights either side of it and a transom over; he is taken in in the doorway (glass < 0).
+   A DOOR IN THE FAR WALL: the room's door is in its NORTH wall, which stands full height (walkinRoom's gapsN, the night's 'n'); from inside the
+   door is the away door's (walkinAwayDoor), whole. Its window faces away too: seen from inside only, painted on the north wall at its own place.
+   BIGGER INSIDE THAN OUT (W31): the room runs back south from the shop's front into the block, and west past its own end over the gap and
+   Driftwood Home's east end -- 800 x 700, what it covers drawn under it while he is inside. Its east wall stands on its own east end (Sandcastle
+   Toys beyond it). Lab frame (the shop's, a north-edge shop's: a along the frontage east, b north, 0 the wall, negative into the block south).
+   Its lab z is x1.95 in the world. Room frame a east, b south, world units: the north (front) wall b 0; the door a 676..780 in it; the window
+   a 325..626; the portal's sidelights a 655..668 and 787..800 */
+const SS_IN = { name: 'Sandpiper Shoes Interior', x0: 980000, y0: 400000, WALL: 30/1.3, A1: T2*4.4 - 30/1.3, BACK: -730/1.3, H: 300, LH: 66,
+  DOOR: [286, 366], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [16, 248], WZ: [26, 156], PORTAL: [270, 382], SIDE: [[270, 280], [372, 382]] };   // (the door, the window and the portal's sidelights, lab a; the window's sill and head, lab z -- x1.95)
+SS_IN.A0 = SS_IN.A1 - 800/1.3;
+SS_IN.ra = la => (la - SS_IN.A0)*1.3;                                      // a lab a (along the frontage) as the room's a
+const SS_PLAN = walkinDefine({ name: SS_IN.name, from: 'Sandpiper Shoes', x0: SS_IN.x0, y0: SS_IN.y0,
+  lab: [SS_IN.A0, SS_IN.A1, SS_IN.BACK, -SS_IN.WALL], body: [[0, T2*4.4, -T2*3, 0]],
+  door: { a: (SS_IN.DOOR[0] + SS_IN.DOOR[1])/2, b: 0, half: (SS_IN.DOOR[1] - SS_IN.DOOR[0])/2*1.3, side: 'n', top: SS_IN.DOORZ },
+  H: SS_IN.H, LH: SS_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out of the door onto the north pavement, along it either way) */
+  street: { to: [0, -184], routes: [[[-1500, -184], [-3600, -184]], [[1500, -184], [3600, -184]]] },
+  /* (the open doorway: W11 -- seen through from the far side only, the street's own side faces away) */
+  openings: [{ lab: [[SS_IN.DOOR[0], 0], [SS_IN.DOOR[1], 0]], z: [0, SS_IN.DZ] }] });
+/* (W31: what it covers -- the gap west of it and Driftwood Home's east end -- and its east neighbours, whose west walls stand at its east wall
+   and over its south-east corner on screen) */
+POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Home', 'Sandcastle Toys', 'Cove Pottery'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE OKAFORS, WHO KEEP IT: their own looks, set by hand (lookFn) -- the shop's navy polos over charcoal trousers and its own white sneakers.
+   Dana at the till, the keyholder (her hair up, reading glasses); her son Malik fitting -- he brings the boxes from the stock wall to whoever
+   is sat trying a pair on (a crop, a short beard); Kai on the shoe wall, setting the display shoes out (a ponytail, the shop's coral vest).
+   The customers are the street's own (look: 'visitor') */
+const SS_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), shirt = C(0x24435a), pants = C(0x3e4248), shoe = { c: 0xf2f0ec, dk: 0xc8c4bc };
+  return {
+    dana:  { build: PEOPLE_BUILD[1], skin: { c: 0x8e5e40, dk: 0x6e4630 }, hair: H(0x2a2220, 'bun'), shirt, pants, shoe, uniform: { glasses: 0x2a2826, shoeKind: 'sneaker' } },
+    malik: { build: PEOPLE_BUILD[0], skin: { c: 0x7e5036, dk: 0x603a26 }, hair: H(0x1e1a18, 'crop'), shirt, pants, shoe, uniform: { beard: 0x1e1a18, shoeKind: 'sneaker' } },
+    kai:   { build: PEOPLE_BUILD[1], skin: { c: 0xd8a882, dk: 0xb48662 }, hair: H(0x4a3022, 'pony'), shirt, pants, shoe, uniform: { vest: C(0xe2574c), shoeKind: 'sneaker' } },
+  };
+})();
+/* A CUSTOMER'S VISIT (as Driftwood Home's: reach ONCE, then do something with it): they look the shoe wall over and most take a shoe down,
+   carry it to the bench under the window and sit to try the pair on (Malik brings the box), stand at the mirror in them, and most pay for
+   them at the till -- out of the door with the shop's carrier bag; the rest look the tables and the socks over and go. What they took down and
+   did not pay for stays in the shop (they put it back) */
+const SS_SHOW = ['wall', 'table1', 'table2', 'socks'];
+/* the bench under the window, its three places (as Driftwood Home's sofas: where they stand to sit, where they sit -- a hair forward of the
+   bench's middle -- which way, the seat's height: 40, sat at 37). It backs onto the north wall: nobody walks behind it, so the bench keyed
+   behind its sitters sorts before them and before no one else */
+const SS_SEATS = [
+  { id: 'bench1', kind: 'bench', stand: [398, 98, Math.PI/2], at: [398, 34], th: Math.PI/2, z: 37 },
+  { id: 'bench2', kind: 'bench', stand: [475, 98, Math.PI/2], at: [475, 34], th: Math.PI/2, z: 37 },
+  { id: 'bench3', kind: 'bench', stand: [552, 98, Math.PI/2], at: [552, 34], th: Math.PI/2, z: 37 },
+];
+/* the shop's colours: the shoes on the wall, the boxes, the bag */
+const SS_SHOE = [0xd0342c, 0x2f6fb8, 0xe8b13a, 0x3f8f5a, 0x1e1e20, 0xe0e0dc, 0xe2574c, 0x24435a];
+const SS_BOX = [0xe2874a, 0x24435a, 0xf2f0ec, 0x3f8f9a, 0xe2574c];
+/* what they take off the wall (two visits in three take a shoe down, by the visit's own roll) */
+function ssItem(s){ const r = (((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0); return r % 3 === 0 ? null : 'shoe'; }
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a sneaker held before them in
+   both hands, its side to whoever they face; the shop's navy carrier bag by its handles at their side, the shoebox's lid in its mouth; Malik's
+   two shoeboxes stacked before him in both hands */
+function ssHold(s){
+  if(s._ssH && s._ssH.v === s.visit) return s._ssH;
+  const hull = (g, at, pts, c, al) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, al == null ? 1 : al); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  const seed = ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, uc = SS_SHOE[(seed >>> 5) % SS_SHOE.length], sole = uc === 0xe0e0dc ? 0x9a9a9e : 0xf2f0ec;
+  /* a sneaker across them (its toe to their left): the sole, the heel's upper, the toe's lower upper, the collar's dark mouth, a stripe down its side */
+  const shoe = (g, at, f, h, c, sl) => { hull(g, at, box(-9.5, 9.5, f - 3.6, f + 3.6, h - 3, h), sl); hull(g, at, box(-1, 9, f - 3.2, f + 3.2, h, h + 9), c);
+    hull(g, at, box(-9.4, -0.5, f - 3.2, f + 3.2, h, h + 5.4), c); hull(g, at, box(2, 7.5, f - 2.2, f + 2.2, h + 8.6, h + 9.4), 0x2a2a2e);
+    hull(g, at, box(-5, 4, f + 3.2, f + 3.7, h + 2.4, h + 4.4), sl); };
+  return (s._ssH = { v: s.visit,
+    shoe: (g, p, K, at) => { if(!at) return; shoe(g, at, at.hand[0] + 3, at.hand[1] - 1, uc, sole); },
+    /* the bag hanging from the hand: its body, the coral band, the box's lid in its mouth, the handles' two loops up into the fist */
+    bag: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, box(x - 3.2, x + 3.2, f - 9, f + 9, h - 30, h - 8), 0x24435a); hull(g, at, box(x - 3.4, x + 3.4, f - 9.2, f + 9.2, h - 18, h - 14.5), 0xe2574c);
+      hull(g, at, box(x - 2.6, x + 2.6, f - 7.6, f + 7.6, h - 8.4, h - 6.8), 0xe2874a);
+      hull(g, at, box(x - 0.5, x + 0.5, f - 5, f - 4, h - 8, h), 0x1a2e40); hull(g, at, box(x - 0.5, x + 0.5, f + 4, f + 5, h - 8, h), 0x1a2e40);
+      hull(g, at, box(x - 0.7, x + 0.7, f - 5, f + 5, h - 0.6, h + 0.9), 0x1a2e40); },
+    /* Malik's two shoeboxes, stacked, before him in both hands: each its body, the lid's band round its top, the end label */
+    boxes: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 4, h = at.hand[1] - 3;
+      [[0xe2874a, 0], [0x24435a, 9]].forEach(([c, dz]) => { hull(g, at, box(-11, 11, f - 6.5, f + 6.5, h + dz, h + dz + 8.6), c); hull(g, at, box(-11.3, 11.3, f - 6.8, f + 6.8, h + dz + 6, h + dz + 8.8), _pdk(c, 0.86));
+        hull(g, at, box(-4, 4, f + 6.6, f + 7, h + dz + 1.5, h + dz + 5), 0xf2f0ec); }); },
+    /* Kai's display shoe: the same sneaker, in the shop's coral */
+    show: (g, p, K, at) => { if(!at) return; shoe(g, at, at.hand[0] + 3, at.hand[1] - 1, 0xe2574c, 0xf2f0ec); } });
+}
+function ssBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  const sit = () => { const fr = SS_SEATS.filter(q => !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id))), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = 12000 + rnd()*14000; return true; }
+    return false; };
+  const desk = () => { if(look('till')){ m.atDesk = true; m.dwell = 5000 + rnd()*3000; return true; } return false; };
+  if(m.seat){ m.unseat = { seat: m.seat, t: now }; m.seat = null; m.sat = (m.sat || 0) + 1; if(m.got) m.tried = true; }   // (tried them on: up)
+  if(m.atDesk){ m.atDesk = false; m.paid = true; return leave(); }                                                    // (paid: the bag)
+  if(m.look === 'wall' && m.item && !m.got) m.got = true;                                                             // (the shoe off the wall, in their hands)
+  m.n = (m.n || 0) + 1;
+  if(m.n === 1){ if(rnd() < 0.75 && look('wall')){ m.item = ssItem(s); m.dwell = 6000 + rnd()*5000; return true; } return false; }   // (or a table, the socks: the kit's pick)
+  if(m.got && !m.tried && sit()) return true;                                                                          // (to the bench, to try the pair on)
+  if(m.tried && !m.mirrored){ m.mirrored = true; if(look('mirror')){ m.dwell = 4500 + rnd()*2500; return true; } }     // (in them, at the mirror)
+  if(m.tried) return (rnd() < 0.75 && desk()) || leave();                                                              // (they're the ones -- or not)
+  if(m.n <= 3) return false;
+  return leave();
+}
+function ssPose(s, m, now, P){
+  const H = ssHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                         // (Dana at the till: both hands on the counter)
+    if(s.id === 'fitter'){
+      /* (Malik at the bench with the boxes: holds them, then bends and sets them down at the sitter's feet; then a hand out, talking the fit
+         through. At the stock wall: a hand up to the boxes now and then) */
+      if(m.task != null && !m.path){
+        if(since < 1300){ P.lift = [0.26, 0.26]; P.bend = [1.15, 1.2]; P.hold = H.boxes; P.headTilt = 0.15; return; }
+        if(since < 2600){ const k = Math.sin(Math.PI/2*(since - 1300)/1300); P.lift = [0.26 + 0.3*k, 0.26 + 0.3*k]; P.bend = [1.15 - 0.75*k, 1.2 - 0.75*k]; P.headTilt = 0.15 + 0.3*k; P.hold = H.boxes; return; }
+        const w = Math.sin(now*0.004); P.lift = [0.08, 0.36 + 0.05*w]; P.bend = [0.25, 0.5]; P.headTilt = 0.22; P.headTurn = 0; return; }
+      if(m.work && !m.path){ const T = 5200, u = ((now + (s.seed & 1023)) % T)/T; if(u < 0.3){ const k = Math.sin(Math.PI*u/0.3); P.lift = [0.08, 0.3 + 0.9*k]; P.bend = [0.25, 0.4]; P.headTilt = -0.2*k; return; } }
+      P.lift = [0.08, 0.1]; P.bend = [0.25, 0.3]; return; }
+    /* Kai: a display shoe in her hands; at each post one set out on the wall, once */
+    if(m.work && since > 1500 && since < 4200){ const k = Math.sin(Math.PI*(since - 1500)/2700); P.lift = [0.22 + 0.3*k, 0.22 + 0.3*k]; P.bend = [1.1 - 0.6*k, 1.15 - 0.6*k]; P.headTilt = -0.1*k; P.hold = H.show; return; }
+    P.lift = [0.22, 0.22]; P.bend = [1.1, 1.15]; P.hold = H.show; return;
+  }
+  const sk = lcSeatK(m, now);
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.12, 0.14]; P.bend = [0.5, 0.55]; P.headTurn = 0; P.headTilt = m.got ? 0.35 : 0.05; return; }   // (sat, hands in the lap -- looking down at the pair on)
+  if(m.look === 'wall' && !m.path && m.item){                                                                     // (the shoe down off the wall, once)
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.6 + 0.4*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = -0.05; return; }
+    P.lift = [0.22, 0.22]; P.bend = [1.1, 1.15]; P.hold = H.shoe; P.headTilt = 0.2; return; }
+  if(m.look === 'mirror' && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = 0.35; P.headTurn = 0; return; }   // (looking down at them)
+  if((m.look === 'wall' || m.look === 'table1' || m.look === 'table2' || m.look === 'socks') && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = 0.25; P.headTurn = 0; return; }
+  if(m.look === 'till' && !m.path){ P.headTilt = 0.15; P.headTurn = 0; P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];
+}
+function ssDrawState(s, m, now, q){
+  const sk = lcSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
+  /* (in them at the mirror, and turned round a moment to see them from the side) */
+  if(m.look === 'mirror' && !m.path && m.arrive != null && now - m.arrive > 1700) q.th = m.th + Math.min(1, (now - m.arrive - 1700)/600)*(Math.PI/2 + 0.25 - m.th);
+  if(m.moving){ const H = ssHold(s);
+    /* (out of the door with the bag they paid for; a shoe off the wall carried to the bench, never out of the shop) */
+    if(s.look === 'visitor'){ if(m.paid) q.pose = { lift: [0.1, 0.12], bend: [0.2, 0.3], hold: H.bag };
+      else if(m.got && !m.tried && s._day !== 'leaving') q.pose = { lift: [0.22, 0.22], bend: [1.1, 1.15], hold: H.shoe }; }
+    else if(s.id === 'fitter' && m.task != null) q.pose = { lift: [0.26, 0.26], bend: [1.15, 1.2], hold: H.boxes };
+    else if(s.id === 'stock') q.pose = { lift: [0.22, 0.22], bend: [1.1, 1.15], hold: H.show }; }
+}
+walkinStaff(SS_IN.name, [
+  { id: 'counter', role: 'cashier', seed: 0x05501, lookFn: () => SS_FAMILY.dana, fixed: true, keys: true, posts: [[480, 202, Math.PI/2, 9000, true], [560, 202, Math.PI/2, 4000, true]] },
+  { id: 'fitter', role: 'shoe fitter', seed: 0x05502, lookFn: () => SS_FAMILY.malik, posts: [[172, 86, -Math.PI/2, 9000, true], [436, 142, -Math.PI/2, 7000], [514, 142, -Math.PI/2, 7000]] },
+  { id: 'stock', role: 'sales assistant', seed: 0x05503, lookFn: () => SS_FAMILY.kai, posts: [[80, 202, Math.PI, 7000, true], [80, 342, Math.PI, 6000, true], [80, 482, Math.PI, 6000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x05511, look: 'visitor', life: 'browse', only: SS_SHOW },
+  { id: 'customer-2', role: 'customer', seed: 0x05512, look: 'visitor', life: 'browse', only: SS_SHOW },
+  { id: 'customer-3', role: 'customer', seed: 0x05513, look: 'visitor', life: 'browse', only: SS_SHOW },
+  { id: 'customer-4', role: 'customer', seed: 0x05514, look: 'visitor', life: 'browse', only: SS_SHOW },
+]);
+walkinLife(SS_IN.name, { keep: [[688, 768, 0, 2000]], looks: [
+  { id: 'wall', spots: [[80, 132, Math.PI], [80, 272, Math.PI], [80, 412, Math.PI], [80, 552, Math.PI]] },
+  { id: 'table1', spots: [[210, 162, Math.PI/2], [302, 230, Math.PI]] },
+  { id: 'table2', spots: [[210, 382, Math.PI/2], [302, 450, Math.PI], [210, 520, -Math.PI/2]] },
+  { id: 'socks', spots: [[520, 424, Math.PI/2], [520, 532, -Math.PI/2]] },
+  { id: 'mirror', spots: [[643, 50, -Math.PI/2]] },
+  { id: 'till', spots: [[480, 328, -Math.PI/2], [560, 328, -Math.PI/2]] },
+], browseNext: ssBrowseNext, pose: ssPose, drawState: ssDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -61897,6 +62065,207 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE SANDPIPER SHOES (SS_IN; the walk-in kit's walls, walkinRoom, its door in the NORTH wall -- the shop's front faces north, away from the
+     camera, so the door is in a far wall, full height round it, as Driftwood Home's next door; the room runs back south into the block and west
+     past its own end, and what it covers is taken off while he is inside -- pk.displace). Frame a east, b south, z up, world units. Built by the
+     shop recipe (W33), in zones for its size:
+       the north wall   THE STOCK WALL of shoeboxes (a 48..298) under the name; THE WINDOW from inside at its own place, THE BENCH under it
+                        (a 344..606, seat 40) where they try a pair on, a rug before it; THE MIRROR (a 624..662) by the door; THE DOOR (a 676..780)
+                        in the portal, its sidelights and transom
+       a 688..768       the door's lane, door to south wall, clear
+       the west wall    THE SHOE WALL (b 76..636): ten bays of five shelves, two shoes a shelf, a navy header; the fascia's bands over it
+       the middle       TWO DISPLAY RISERS of shoes (a 150..270); THE TILL COUNTER (a 430..610, b 240..290, 75), Dana behind it: the till, a stack
+                        of the shop's bags and a tray of shoe-care cans each their own piece on top; THE SOCK GONDOLA (a 440..600) south of it
+       corners          a snake plant north-west, a palm south-west and south-east
+     Every long fixture a run of pieces (runPiece, W28); what stands on them its own piece. Heights (docs/kits/library.md): the counter 75, the
+     bench's seat 40, the risers 26 and 52. */
+  name:'Sandpiper Shoes Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 800, dd: 700,
+  head:'Inside Sandpiper Shoes: a shoe wall of ten bays, a stock wall of shoeboxes, a try-on bench under the window, a mirror, two display risers, the till counter, a sock gondola',
+  tags:['interior','pocket','shoe shop','sneakers','shoe wall','shoeboxes','try-on bench','mirror'],
+  desc:'The Flats\' sneaker store: warm white walls over a navy skirting, a pale concrete floor; the west wall one long shoe wall -- ten bays of white shelves, two sneakers a shelf in the shop\'s colours, a navy header and the fascia\'s coral bands over it; the stock wall of shoeboxes under the name; a coral try-on bench under the window on a navy rug, a tall ash mirror by the door; two stepped display risers of shoes, the till counter in navy and coral, a sock gondola, plants in the corners.',
+  draw(p){
+    const pl = (typeof SS_PLAN !== 'undefined' && SS_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 800, D = (pl && pl.D) || 700, H = SS_IN.H, LH = SS_IN.LH, DZ = SS_IN.DOORZ, ra = SS_IN.ra;
+    const door = (pl && pl.door) || { side: 'n', at: 727.6, half: 52 };
+    const plas = '#f4f3f0', navy = '#24435a', navyD = '#1a3246', navyL = '#3a5c76', coral = '#e2574c', coralD = '#c4463c';
+    const white = '#f2f0ec', whiteF = '#e2e0da', whiteS = '#cfccc4', ash = '#dcc8a4', ashF = '#ccb68e', ashS = '#b89f78';
+    const conc = '#d9d6d0', concL = '#cbc8c2', blk = '#2a2826', glass = '#b4d6dc', terra = '#b8653f', terraT = '#c97a52', leaf = '#4f8f58', leafL = '#6aa86c';
+    const SHOE = ['#d0342c', '#2f6fb8', '#e8b13a', '#3f8f5a', '#1e1e20', '#e0e0dc', '#e2574c', '#24435a'], BOXC = ['#e2874a', '#24435a', '#f2f0ec', '#3f8f9a', '#e2574c'];
+    const solesOf = c => c === '#e0e0dc' ? '#9a9a9e' : white;
+    const extW = '#e8e6e2', extT = '#24435a';                                                          // (the shop's own walls, outside: W4)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+
+    /* ---- THE FLOOR: pale polished concrete in big squares, a navy rug before the bench, the door's mat; the threshold in the doorway (all with
+       the floor, under everything) ---- */
+    T(0, W, 0, D, 0, conc);
+    for(let a = 80; a < W; a += 80) T(a - 0.3, a + 0.3, 0, D, 0.1, concL);
+    for(let b = 80; b < D; b += 80) T(0, W, b - 0.3, b + 0.3, 0.1, concL);
+    T(330, 620, 62, 150, 0.3, navy); T(336, 614, 68, 144, 0.35, coral); T(340, 610, 72, 140, 0.4, navyL);
+    T(door.at - 44, door.at + 44, 4, 66, 0.35, navyD); T(door.at - 38, door.at + 38, 10, 60, 0.4, '#3a3e44');
+    T(door.at - door.half - 6, door.at + door.half + 6, -40, 8, 0.55, '#d4cec2');
+    T(door.at - door.half, door.at + door.half, -4, 0, 0.6, '#b9bec2');
+
+    /* ---- THE WALLS (the kit's): the north wall stands full height with the door in it (gapsN, the door's own) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 10, navyD, null, 0, 0.15); F(-30, W + 30, H - 14, H, navy, null, 0, 0.3);
+        /* THE WINDOW from inside, at its own place (the shop's: lab a 16..248, z 26..156 x1.95 -- its head past the room's wall top, so the glass
+           runs up to the band): the frame, the glass, the street's light */
+        { const w0 = ra(SS_IN.WIN[0]), w1 = ra(SS_IN.WIN[1]), z0 = SS_IN.WZ[0]*1.95, z1 = H - 18;
+          F(w0 - 3, w1 + 3, z0 - 4, z1 + 3, navy, null, 0, 0.4); F(w0, w1, z0, z1, glass, null, 0, 0.5); F(w0 + 14, w0 + 62, z0 + 40, z1 - 40, '#cbe4e8', null, 0, 0.55);
+          F((w0 + w1)/2 - 2.5, (w0 + w1)/2 + 2.5, z0, z1, '#e8ecec', null, 0, 0.6); }
+        /* THE PORTAL round the door (the shop's: lab a 266..386): its navy frame, the glazed sidelights either side of the door, the transom over */
+        F(ra(SS_IN.PORTAL[0] - 4), W + 30, 0, H - 14, navy, null, 0, 0.35);
+        for(const [g0, g1] of SS_IN.SIDE) F(ra(g0), Math.min(W - 1, ra(g1)), 12, 6*1.95 + 206, glass, null, 0, 0.45);
+        F(ra(SS_IN.PORTAL[0]), Math.min(W - 1, ra(SS_IN.PORTAL[1])), 120*1.95, H - 22, glass, null, 0, 0.45);
+        /* the door's surround */
+        F(door.at - door.half - 6, door.at - door.half, 0, DZ + 6, '#d0cecb', null, 0, 0.5); F(door.at + door.half, door.at + door.half + 6, 0, DZ + 6, '#d0cecb', null, 0, 0.5);
+        F(door.at - door.half - 6, door.at + door.half + 6, DZ, DZ + 6, '#d0cecb', null, 0, 0.5);
+        /* the name over the stock wall */
+        F(56, 296, 212, 250, navy, null, 0, 0.4); F(56, 296, 212, 216, coral, null, 0, 0.45); blockWordIn('SANDPIPER SHOES', 66, 286, 222, 244, 0.6, white, null, 4);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.15, -30, D + 30, 0, 10, shade(navyD, 0.9)); S(0.3, -30, D + 30, H - 14, H, shade(navy, 0.9));
+        /* the shoe wall's back panel (pale ash), and the fascia's bands over it: navy framed, coral and white by turns, as the street's */
+        S(0.4, 76, 636, 10, 204, '#e8dcc4');
+        S(0.45, 76, 636, 216, 278, navy);
+        for(let b = 82, k = 0; b + 14 <= 630; b += 14, k++) S(0.5, b, b + 14, 222, 272, k % 2 ? coral : shade(extW, 1.02));
+      },
+      low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#ece9e4' });
+
+    /* a sneaker lying along b, its toe south (the west wall's: its side to the room): the sole, the heel's upper (far), its collar's mouth, the
+       toe (near), the stripe down its east side */
+    const shoeB = (a0, a1, bc, z, up, sl) => {
+      box(a0, a1, bc - 11, bc + 11, z, z + 3, sl, shade(sl, 0.88), shade(sl, 0.8));
+      box(a0 + 0.6, a1 - 0.6, bc - 10.5, bc + 1, z + 3, z + 12, up, shade(up, 0.86), shade(up, 0.78));
+      T(a0 + 2, a1 - 2, bc - 8.5, bc - 2.5, z + 12.05, '#2a2a2e');
+      box(a0 + 0.6, a1 - 0.6, bc + 1, bc + 10.5, z + 3, z + 7.5, up, shade(up, 0.86), shade(up, 0.78));
+      S(a1 - 0.5, bc - 6, bc + 5, z + 5, z + 7.4, sl); };
+    /* the same sneaker along a, its toe east (a riser's: its side to the camera): the sole, the heel (west, far), its collar, the toe, the stripe */
+    const shoeA = (ac, b0, b1, z, up, sl) => {
+      box(ac - 11, ac + 11, b0, b1, z, z + 3, sl, shade(sl, 0.88), shade(sl, 0.8));
+      box(ac - 10.5, ac - 1, b0 + 0.6, b1 - 0.6, z + 3, z + 12, up, shade(up, 0.86), shade(up, 0.78));
+      T(ac - 8.5, ac - 2.5, b0 + 2, b1 - 2, z + 12.05, '#2a2a2e');
+      box(ac - 1, ac + 10.5, b0 + 0.6, b1 - 0.6, z + 3, z + 7.5, up, shade(up, 0.86), shade(up, 0.78));
+      F(ac - 6, ac + 5, z + 5, z + 7.4, sl, null, 0, b1 - 0.5); };
+
+    /* ---- A SNAKE PLANT in a white pot in the north-west corner: the pot, the soil, its blades (far first) ---- */
+    items.push({ a: 24, b: 36, z: 0, solids: [{ name: 'plant', c: [24, 36], r: 18, h: 130 }], draw: () => {
+      cyl(24, 36, 0, 30, 14, white, whiteF); cyl(24, 36, 29.6, 30, 12, '#5a3e2a', '#5a3e2a');
+      const bl = []; for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2 + 0.3; bl.push([24 + Math.cos(t)*7, 36 + Math.sin(t)*6, 96 + (k*37 % 5)*8]); }
+      bl.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
+      for(const [ba, bb, bz] of bl){ tube(24 + (ba - 24)*0.3, 36 + (bb - 36)*0.3, 30, ba, bb, bz, 2.6, (bz | 0) % 16 ? leaf : leafL); tube(ba, bb, bz - 30, ba, bb, bz, 1.4, '#c9c46a'); } } });
+
+    /* ---- THE STOCK WALL on the north wall under the name: white cubbies of five rows, two stacks of three shoeboxes a cubby -- each box its lid's
+       band and its end label to the room; in runs of 50 keyed at each stretch's start (against the wall). Bay by bay, west to east: the upright on
+       its west side, then its shelves -- between the uprights -- each with its boxes, bottom up; the last upright; the top ---- */
+    { const A0 = 48, A1 = 298, B0 = 0, B1 = 40, zTop = 196, SH = [6, 44, 82, 120, 158], COL = 5, cw = (A1 - A0)/COL;
+      const stack = (sa, z, k) => { for(let i = 0; i < 3; i++){ const c = BOXC[(k + i*2) % BOXC.length], z0 = z + i*10;
+        box(sa, sa + 20, B0 + 6, B1 - 2, z0, z0 + 9.6, shade(c, 1.06), c, shade(c, 0.84));
+        F(sa, sa + 20, z0 + 7, z0 + 9.6, shade(c, 0.82), null, 0, B1 - 1.9);
+        F(sa + 7, sa + 13, z0 + 2, z0 + 5.5, c === '#f2f0ec' ? navy : white, null, 0, B1 - 1.8); } };
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'stock wall')], () => {
+        F(A0, A1, 0, zTop, whiteS, null, 0, B0 + 0.6);
+        box(A0, A1, B0, B1, 0, 6, white, whiteF, whiteS);                                              // (the plinth: the bottom shelf)
+        const up = a => box(Math.max(A0, a - 1.5), Math.min(A1, a + 1.5), B0, B1, 6, zTop - 4, white, whiteF, whiteS);
+        for(let c = 0; c < COL; c++){ const c0 = A0 + cw*c, c1 = c0 + cw; up(c0);
+          SH.forEach((z, r) => { if(r) box(c0 + (c ? 1.5 : 0), c1 - (c < COL - 1 ? 1.5 : 0), B0, B1, z - 4, z, white, whiteF, whiteS);
+            stack(c0 + 3, z, c*3 + r); stack(c1 - 23, z, c*3 + r + 1); }); }
+        up(A1);
+        box(A0 - 2, A1 + 2, B0, B1 + 2, zTop - 4, zTop, white, whiteF, whiteS);                         // the top
+      }, { pad: 3, keyStart: true, run: 50 });
+    }
+
+    /* ---- THE BENCH under the window: an ash frame on a set-in toe kick, a coral seat at 40, a navy bolster against the wall laid on the seat;
+       keyed at its back's west end (its sitters, before it, sort after it: SS_SEATS). Base before what stands on it (W37) ---- */
+    items.push({ a: 344, b: 7, z: 0, solids: [solid(344, 606, 6, 56, 62, 'bench')], draw: () => {
+      box(350, 600, 10, 52, 0, 8, ashS, ashS, shade(ashS, 0.85));
+      box(344, 606, 6, 56, 8, 30, ash, ashF, ashS);
+      box(346, 604, 8, 54, 30, 40, shade(coral, 1.06), coral, coralD);
+      for(const a of [436.5, 513.5]) T(a - 0.5, a + 0.5, 8, 54, 40.05, coralD);
+      box(348, 602, 8, 18, 40, 60, navyL, navy, navyD); } });
+
+    /* ---- THE MIRROR by the door: a tall ash frame leaning on the north wall, the glass, a gleam on it; keyed at its far corner ---- */
+    items.push({ a: 624, b: 2, z: 0, solids: [solid(624, 662, 2, 12, 170, 'mirror')], draw: () => {
+      box(624, 662, 2, 10, 0, 172, ash, ashF, ashS);
+      F(628, 658, 6, 166, '#d8e6ea', null, 0, 10.1); F(632, 642, 40, 150, '#eef4f6', null, 0, 10.2); } });
+
+    /* ---- THE SHOE WALL down the west wall: white uprights and shelves on a plinth, five shelves of two sneakers each, a navy header with a coral
+       line; a piece per bay along b, keyed at its start (keyStart: against the wall), clipped at its own top (W37). North to south -- its far
+       upright, the shelves and their shoes, then its near upright over them ---- */
+    { const A0 = 0, A1 = 36, B0 = 76, B1 = 636, ZS = [18, 54, 90, 126, 162], zTop = 204, n = 10;
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
+        runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'shoe wall')], () => {
+          box(A0, A1, s0, s1, 0, 14, navyD, navyD, shade(navyD, 0.85));                                   // its plinth
+          box(A0, A1, s0, s0 + 3, 14, zTop - 6, white, whiteF, whiteS);                                   // its far upright
+          ZS.forEach((z, r) => { box(A0, A1 - 2, s0 + 3, s1 - 3, z - 3, z, white, whiteF, whiteS);      // a shelf (between its uprights)
+            for(let i = 0; i < 2; i++){ const c = SHOE[(k*3 + r*5 + i) % SHOE.length]; shoeB(12, 23, s0 + 3 + (s1 - s0 - 6)*(i + 0.5)/2, z, c, solesOf(c)); } });
+          box(A0, A1, s1 - 3, s1, 14, zTop - 6, white, whiteF, whiteS);                                   // its near upright
+          box(A0, A1 + 2, s0, s1, zTop - 6, zTop, navy, navyD, navyD); S(A1 + 2.1, s0, s1, zTop - 4, zTop - 2.5, coral);   // the header
+        }, { alongB: true, pad: 3, keyStart: true });
+      } }
+
+    /* ---- TWO DISPLAY RISERS: a white low step, an ash-topped upper step on its north half; three sneakers on the upper, four along the low
+       step's front; keyed at the middle. Back to front: the low step, the upper step, its shoes, the front row ---- */
+    const riser = (a0, a1, b0, b1, seed) => items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 64, 'display riser')], draw: () => {
+      box(a0, a1, b0, b1, 0, 26, white, whiteF, whiteS);
+      box(a0 + 20, a1 - 20, b0 + 6, b0 + 48, 26, 50, white, whiteF, whiteS); box(a0 + 19, a1 - 19, b0 + 5, b0 + 49, 50, 52, ash, ashF, ashS);
+      for(let i = 0; i < 3; i++){ const c = SHOE[(seed + i*3) % SHOE.length]; shoeA(a0 + 34 + i*26, b0 + 22, b0 + 32, 52, c, solesOf(c)); }
+      for(let i = 0; i < 4; i++){ const c = SHOE[(seed + 1 + i*5) % SHOE.length]; shoeA(a0 + 15 + i*30, b1 - 21, b1 - 11, 26, c, solesOf(c)); } } });
+    riser(150, 270, 190, 270, 0); riser(150, 270, 410, 490, 4);
+
+    /* ---- THE TILL COUNTER: white to the floor, a navy front with a coral line, an ash top; 40 clear behind it for Dana; in runs of 36, keyed down
+       its middle line. What stands on it its own piece ---- */
+    { const A0 = 430, A1 = 610, B0 = 240, B1 = 290, zT = 75;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'counter')], () => {
+        box(A0, A1, B0, B1, 0, zT - 4, white, white, whiteS);
+        F(A0, A1, 0, 6, navyD, null, 0, B1 + 0.2);
+        F(A0 + 6, A1 - 6, 12, zT - 12, navy, null, 0, B1 + 0.2); F(A0 + 6, A1 - 6, 34, 40, coral, null, 0, B1 + 0.3);
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, ash, ashF, ashS);
+      }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 36, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* the till (its screen on the far face, Dana's: not painted -- W37) */
+      on(520, [508, 532, 246, 266, 104], () => { box(512, 528, 250, 262, zT, zT + 3, blk, blk, '#1c1a18'); tube(520, 256, zT + 3, 520, 254, zT + 14, 1.4, '#6a6662');
+        box(508, 532, 246, 250, zT + 12, zT + 29, '#3a3634', blk, '#1c1a18'); });
+      /* the shop's carrier bags, folded flat in a stack */
+      on(456, [442, 470, 262, 284, 84], () => { for(let k = 0; k < 5; k++) box(442, 470, 262 + k*0.3, 284 - k*0.3, zT + k*1.6, zT + k*1.6 + 1.4, k % 2 ? navyL : navy, navyD, shade(navyD, 0.85));
+        F(450, 462, zT + 6.6, zT + 8, coral, null, 0, 283); });
+      /* a tray of shoe-care cans by the till: its tray, three cans */
+      on(588, [574, 602, 258, 282, 98], () => { box(574, 602, 258, 282, zT, zT + 3, navyD, navyD, shade(navyD, 0.85));
+        for(const [ca, cb, c] of [[581, 265, coral], [595, 265, white], [581, 276, '#3f8f9a'], [595, 276, coral]]){ cyl(ca, cb, zT + 3, zT + 19, 4.4, c, shade(c, 1.1)); cyl(ca, cb, zT + 19, zT + 22, 2.2, blk, '#4a4644'); } });
+    }
+
+    /* ---- THE SOCK GONDOLA: a navy base, a white spine, sock packs on pegs down its south face (its north face is the far one: not painted --
+       W37), an ash tray of rolled laces on top; keyed at its middle ---- */
+    items.push({ a: 520, b: 475, z: 0, solids: [solid(440, 600, 450, 500, 122, 'gondola')], draw: () => {
+      box(440, 600, 450, 500, 0, 10, navy, navyD, shade(navyD, 0.85));
+      box(444, 596, 472, 478, 10, 112, white, whiteF, whiteS);
+      for(const [r, z] of [[0, 78], [1, 46], [2, 16]]) for(let i = 0; i < 6; i++){ const pa = 450 + i*24, c = SHOE[(i*3 + r*2) % SHOE.length];
+        box(pa, pa + 12, 480, 484, z, z + 22, shade(c, 1.06), c, shade(c, 0.84)); F(pa, pa + 12, z + 16, z + 22, white, null, 0, 484.1);
+        box(pa + 4.5, pa + 5.5, 478, 484, z + 24, z + 25, '#9a9a9e', '#9a9a9e', '#8a8a8e'); }                // its peg, over it
+      box(440, 600, 450, 500, 112, 116, ash, ashF, ashS);
+      for(let i = 0; i < 8; i++){ const la = 452 + i*19, c = SHOE[(i*5 + 1) % SHOE.length]; cyl(la, 466, 116, 121, 5, c, shade(c, 1.12)); cyl(la, 484, 116, 121, 5, SHOE[(i*5 + 4) % SHOE.length], shade(SHOE[(i*5 + 4) % SHOE.length], 1.12)); } } });
+
+    /* ---- PALMS in terracotta pots in the south-west and south-east corners (the juice bar's) ---- */
+    const palm = (pa, pb) => items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'plant', c: [pa, pb], r: 22, h: 190 }], draw: () => {
+      cyl(pa, pb, 0, 34, 18, terra, terraT); cyl(pa, pb, 30, 34, 20, shade(terra, 0.85), terraT); cyl(pa, pb, 33.6, 34, 17, '#5a3e2a', '#5a3e2a');
+      tube(pa, pb, 34, pa - 2, pb, 150, 3, '#8a6a4a');
+      const fr = []; for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2; fr.push([pa - 2 + Math.cos(t)*40, pb + Math.sin(t)*30, 150 + (k % 3)*8 - 18]); }
+      fr.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
+      for(const [fa, fb, fz] of fr){ tube(pa - 2, pb, 152, (pa - 2 + fa)/2, (pb + fb)/2, 160, 2.4, leaf); tube((pa - 2 + fa)/2, (pb + fb)/2, 160, fa, fb, fz, 2, leafL); } } });
+    palm(40, 664); palm(640, 664);
+
+    /* (its door is the shop's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
+    walkinStaffSolids(items, SS_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -76668,6 +77037,13 @@ function houseCanopy(fn){
 {
   name:'Sandpiper Shoes', xh: 244, base:'Shoe shop', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
   wTodo:'two packing slots',
+  see: true,   // (a walk-in: its doorway shows the shop's room, SS_IN -- W11; its front faces away, north, so only from inside)
+  /* THE DOORWAY OPEN through the front wall: he drives into it, and is taken into the room only once he is in it (SS_IN's glass < 0, W32) */
+  vol: {
+    foot:   [[0,0],[T2*4.4,0],[T2*4.4,-T2*3],[0,-T2*3]],
+    h:      244,
+    opens:  [{ name: 'doorway', poly: volRect(286, 366, -90, 2), walk: true }]
+  },
   head:'Modern sneaker store: full-width glazing, tiered shoe walls',
   tags:['two packing slots','full-width glazing','tiered shoe walls','bold banded fascia','glass entrance','bare footway'],
   desc:'A present-day athletic shoe store: the whole frontage is glass in a dark frame, with the entrance a pair of glass leaves set into it, tiered shoe walls and a bench behind the pane, and a bold banded fascia over the top.',
@@ -76799,11 +77175,15 @@ function houseCanopy(fn){
     /* ---- the entrance: a recessed portal with two glass leaves ----
        Hand-rolled, because shopDoor draws a panelled timber door in a
        masonry surround and this frontage has neither. */
-    reveal(262, 390, 0, 156, 18, shade(trim,1.45));
-    /* THE ENTRANCE IS THE KIT'S NOW (d4): a glazed pair, set back to the portal's depth by BOFF, so it records itself and swings
-       (LIB.drawDoorOpen) for the shoppers and the pickup worker -- it was hand-rolled and nobody could open it */
-    { const b0 = BOFF; BOFF = b0 - 17;
-      try { shopDoor(326, wall, trim, 'rgba(150,168,180,.5)', WW, 0, { w: 116, h: 148, pair: true, glazed: true }); } finally { BOFF = b0; } }
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the shop's navy, 80 across (a 286..366), in the middle of the entrance's portal --
+       its face 'french', two tall lights over a low panel (its neighbour Driftwood Home's is 'lite'); a walk-in's (see), its opening a hole onto
+       the shop's room, its leaf live, swinging in. The portal round it a navy frame, a glazed sidelight either side and a transom over (the
+       recessed glass pair it replaces was 116 across). Its front faces north, away from the camera: the street never sees it, the room does
+       (walkinAwayDoor) */
+    F(266, 386, 0, 156, trim, null, 0, 0.2);
+    for(const [g0, g1] of [[270, 280], [372, 382]]) F(g0, g1, 6, 112, 'rgba(150,168,180,.55)', null, 0, 0.3);
+    F(270, 382, 120, 150, 'rgba(150,168,180,.55)', null, 0, 0.3);
+    shopDoor(326, wall, trim, 'rgba(150,168,180,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.72)', look: 'french' });
     F(258, 394, 152, 168, shade(trim,1.3), null, 0, 4.6);              // the portal head
 
     /* ---- the fascia, and the winged shoe that is the sign ----
