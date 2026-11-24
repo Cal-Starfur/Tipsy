@@ -67738,13 +67738,21 @@ function houseCanopy(fn){
              the conveyor robot, turns to the line robot (west) and lifts the finished scooter off, folds it as he turns back, lowers it into
              the box and closes it; the robot takes it to the arm (7000). age: from the last stage done */
           const age = (((t - UNL) % CYC) + CYC) % CYC, PK = [PKD[0], RB + 5], E = (a0, a1) => ease(clamp01((age - a0)/(a1 - a0)));
-          const f = age < 900 ? 2 - 2*E(0, 900) : age < 1500 ? 0 : age < 2000 ? E(1500, 2000) : age < 2600 ? 1 : age < 2850 ? 1 + E(2600, 2850) : age < 3100 ? 2 : age < 4200 ? 2 - E(3200, 4200) : age < 8000 ? 1 : 1 + E(8000, 8900);
+          /* (he walks to each job, not turning on one spot -- Sir, 2026-11-24: "he should be moving to do these things. also when he places the
+             scooter in the box": over to his box supply for a box, back to the conveyor robot to set it on, along to the line robot to lift the
+             scooter off, back to the box with it; his reach out to where each goes) */
+          const S_SUP = [2110, 1190], S_CON = [PKD[0], PKD[1] - 54], S_LINE = [2068, 1202], LP = (A, B, k) => [A[0] + (B[0] - A[0])*k, A[1] + (B[1] - A[1])*k];
+          let PKk = 0, PKA = S_CON, PKB = S_CON; if(age < 900){ PKk = E(0, 900); PKA = S_CON; PKB = S_SUP; } else if(age < 1500){ PKA = PKB = S_SUP; } else if(age < 2000){ PKk = E(1500, 2000); PKA = S_SUP; PKB = S_CON; }
+            else if(age < 2600){ PKA = PKB = S_CON; } else if(age < 3000){ PKk = E(2600, 2950); PKA = S_CON; PKB = S_LINE; } else if(age < 3200){ PKA = PKB = S_LINE; } else if(age < 4200){ PKk = E(3200, 4200); PKA = S_LINE; PKB = S_CON; }
+          const PKS = LP(PKA, PKB, PKk), PKW = PKA !== PKB && PKk > 0 && PKk < 1, PKG = PKk*Math.hypot(PKB[0] - PKA[0], PKB[1] - PKA[1])/7;
+          const f = age < 900 ? 1 - 1.4*E(0, 350) + 0.4*E(600, 900) : age < 1500 ? 0 : age < 2000 ? 1.28*E(1500, 1700) - 0.28*E(1850, 2000) : age < 2600 ? 1 : age < 2850 ? 1 + E(2600, 2850) : age < 3200 ? 2 : age < 4200 ? 2 - E(3200, 4200) : 1;
+          const PKR = age >= 2000 && age < 2600 ? 30 + 24*E(2000, 2500) : age >= 2600 && age < 3700 ? 45 - 15*E(2950, 3500) : age >= 3700 && age < 4300 ? 30 + 24*E(3900, 4300) : 30;   /* (his reach: out to the robot's deck as he sets the box and the scooter down, in to the line robot's as he lifts it off) */
           const PKP = g => g < 900 ? { lift: [0, 0], bend: [0, 0] } : g < 1500 ? REACH(t + p*500) : g < 2600 ? { lift: [0.55 + 0.25*(g > 2000 ? 1 - E(2000, 2500) : 0), 0.55 + 0.25*(g > 2000 ? 1 - E(2000, 2500) : 0)], bend: [0.7, 0.7] }
             : g < 3100 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : g < 4300 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : g < 5000 ? { lift: [0.6, 0.6], bend: [0.4, 0.4], waist: 0.35 } : g < 5900 ? Object.assign(WORK(t + p*700), { waist: 0.35 }) : { lift: [0, 0], bend: [0, 0] };
           /* (each step's arms eased in from the last, not snapped -- Sir, 2026-11-24: "lets do them all") */
           let pose = PKP(age); for(const B of [0, 900, 1500, 2600, 4300, 5000, 5900]) if(age >= B && age < B + 300){ pose = POSEMIX(PKP(B ? B - 1 : CYC - 1), pose, ease((age - B)/300)); break; }
-          out.push(man(PK[0], PK[1], f, pose));
-          const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), ha = PK[0] + fa*30, hb = PK[1] + fb*30;
+          out.push(man(PKS[0], PKS[1], f, Object.assign(pose, { walk: PKW ? 1 : 0, gait: PKG })));
+          const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), ha = PKS[0] + fa*PKR, hb = PKS[1] + fb*PKR;
           if(age >= 1200 && age < 2500){ const zz = age < 2000 ? 40 : 40 - 9*E(2000, 2500); out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => openCarton(ha, hb, zz, false) }); }   /* (the box off his supply, opened, onto the robot) */
           else if(age >= 2950 && age < 3700) out.push(SCO(ha, hb, 30, 8, 2));   /* (the finished scooter off the line robot) */
           else if(age >= 3700 && age < 4300) out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => folded(ha, hb, 30) });   /* (folded in his hands) */
@@ -68382,7 +68390,7 @@ function houseCanopy(fn){
         for(let q = 0; q < 2; q++){ const lt = (((t - PAL0 - q*PALT) % (2*PALT)) + 2*PALT) % (2*PALT), j2 = lt % PALT, late = lt >= PALT;
           let P, fd = null, deck = false, full = false, folded = false, flats = -1;
           if(!late){
-            if(j2 < 2300){ P = { a: SP[0], b: SP[1] }; fd = 1; flats = partsLeft(t, PAL0 + 6000, UNL + 2600); folded = true; }
+            if(j2 < 2300){ P = { a: SP[0], b: SP[1] }; fd = 1; flats = partsLeft(t, PAL0 + 6000, UNL + 1200); folded = true; }
             else if(j2 < 4300){ P = dr(QOUT, (j2 - 2300)/2000); folded = true; }
             else if(j2 < 16000){ P = { a: D1[0], b: D1[1] }; fd = 3; folded = j2 < LW0 + LC_D.tPick; }
             else if(j2 < 19600) P = along(P4, (j2 - 16000)/3600);
@@ -68394,7 +68402,7 @@ function houseCanopy(fn){
             else if(j2 < 2300){ P = along(QW, (j2 - 300)/2000); full = true; }
             else if(j2 < 4300){ P = { a: WT[0], b: WT[1] }; fd = 2; full = true; }
             else if(j2 < 6000){ P = along(QIN, (j2 - 4300)/1700); full = true; }
-            else { P = { a: SP[0], b: SP[1] }; fd = 1; flats = partsLeft(t, PAL0 + 6000, UNL + 2600); folded = true; CW_FLOW.flats = flats; } }
+            else { P = { a: SP[0], b: SP[1] }; fd = 1; flats = partsLeft(t, PAL0 + 6000, UNL + 1200); folded = true; CW_FLOW.flats = flats; } }
           if(q === 0) CW_FLOW.shuttle = (deck ? 'decks ' : '') + (full ? 'flats' : flats >= 0 ? 'supply ' + flats : folded ? 'flat-empty' : '');
           const atSP = flats >= 0;
           out.push(bot(P.a, P.b, fd != null ? fd : P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { const a = P.a, b = P.b;
