@@ -106783,14 +106783,109 @@ CITY_PEOPLE.add({ name: 'almshouse court and Ferris Field', where: 'Ferris Taylo
    middle. They step round each other, the bench sitters' feet, the furniture and him with the street's crowd (updateCrowd:
    _avX/_avY, _dly). ==================== */
 const PARK_WALK = { n: 44, joggers: 7, lane: 34, hours: [6, 21] };
+/* THE TRAIL KEEPS THEM CLEAR OF WHAT STANDS BY IT (Sir, 2026-11-24, the room checks at the Costa Palma Animal Shelter: the
+   trail's run past the shelter lies along its back wall, its chips under the wall's foot, and the walkers keeping right
+   walked inside the wall; the joggers turned round through the room). What the trail runs past is measured, once, from the
+   world itself: the collision world's solids (a building's walls, a landmark's pieces, the memorial's flame) and every
+   walk-in room's outline where it shows on the street, its walls round it (WALKIN_WALL) -- sampled over the corridor the
+   walkers and joggers use, at a walker's own body (CROWD.bodyR): a cell is blocked where a body standing in it would touch
+   one. The people in those places (their *_LIFE.bodies) come and go, and are not footprints: the crowd steps round them.
+   Each walker then keeps to the nearest clear lane to their own (parkLanePos), easing over to it along the way (slope,
+   across per along), never wider than the chips; and a turnaround's ring is as wide as the clear ground round it lets it. */
+const PARK_CLEAR = { cell: 16, coarse: 64, near: 256, slope: 0.5, step: 16 };
+function parkClearKey(x, y, sz){ return Math.floor(x/sz)*131072 + Math.floor(y/sz); }
+function parkClearFree(C, x, y){ return !C.blk.has(parkClearKey(x, y, C.F)); }
+/* a point the trail turns round at: one of its drawn turnarounds (vetTrailOf's end nodes, VET_TRAIL.loopR) */
+function parkTrailTurn(G, n){ return G.T.nodes.some(m => m.end && Math.abs(m.x - n.x) < 10 && Math.abs(m.y - n.y) < 10); }
+/* where a walker may go: a node the trail runs on through, or one of its drawn turnarounds (not the far end of a side path
+   or an exit, which opens onto the sidewalk) */
+function parkTrailWalkable(G, n){ return n.nb.length > 1 || parkTrailTurn(G, n); }
+function parkTrailClear(G){
+  if(G._clear) return G._clear;
+  const sc = typeof scn === "function" ? scn() : null, Wd = sc && sc.ow && sc.ow.world;
+  if(!Wd || Wd.grid !== G.grid) return null;                                  // (built with the world: until then nobody walks)
+  const PC = PARK_CLEAR, F = PC.cell, CC = PC.coarse, rB = CROWD.bodyR, H = G.T.halfW, Hc = H - rB, WL = WALKIN_WALL;
+  const rooms = [];
+  for(const p of POCKETS){ let v = null; try { v = p.view ? p.view() : null; } catch(e){ v = null; }
+    if(v && isFinite(v.dx) && isFinite(v.dy)) rooms.push({ x0: p.x0 + (p.ax0 || 0) + v.dx - WL, x1: p.x0 + (p.ax1 != null ? p.ax1 : p.w) + v.dx + WL, y0: p.y0 + v.dy - WL, y1: p.y0 + p.d + v.dy + WL }); }
+  const solid = (x, y, r) => !!Wd.solidAt(x, y, r) || rooms.some(R => x > R.x0 - r && x < R.x1 + r && y > R.y0 - r && y < R.y1 + r);
+  /* the corridor: every walkable run's chips, and round each end the turnaround's reach */
+  const want = new Map(), add = (x0, y0, x1, y1) => { for(let i = Math.floor(x0/CC); i <= Math.floor(x1/CC); i++) for(let j = Math.floor(y0/CC); j <= Math.floor(y1/CC); j++) want.set(i*131072 + j, [i, j]); };
+  const walk = n => parkTrailWalkable(G, n);
+  for(const n of G.nodes){
+    if(!walk(n)) continue;
+    const nbW = n.nb.filter(walk), R = nbW.length <= 1 ? VET_TRAIL.loopR + rB : H;
+    add(n.x - R, n.y - R, n.x + R, n.y + R);
+    for(const m of nbW) if(m.k < n.k) add(Math.min(n.x, m.x) - H, Math.min(n.y, m.y) - H, Math.max(n.x, m.x) + H, Math.max(n.y, m.y) + H);
+  }
+  const LIVES = [PP_LIFE, FY_LIFE, SK_LIFE, FM_LIFE, SP_LIFE], held = LIVES.map(L => L.bodies), blk = new Set(), near = new Set();
+  LIVES.forEach(L => { L.bodies = []; });
+  try {
+    for(const [i, j] of want.values()){
+      if(!solid((i + 0.5)*CC, (j + 0.5)*CC, rB + CC*0.71)) continue;            // (the whole coarse cell clear)
+      for(let a = 0; a < CC/F; a++) for(let b = 0; b < CC/F; b++){
+        const x = i*CC + (a + 0.5)*F, y = j*CC + (b + 0.5)*F;
+        if(solid(x, y, rB + F*0.71)) blk.add(parkClearKey(x, y, F));
+      }
+    }
+  } finally { LIVES.forEach((L, k) => { L.bodies = held[k]; }); }
+  /* where a walker is near enough one to look: its easing window and the chips' width round every blocked cell */
+  const RN = 2*Hc/PC.slope + H + 2*F, NS = PC.near;
+  for(const k of blk){ const i = Math.floor(k/131072 + 0.5), j = k - i*131072, x = (i + 0.5)*F, y = (j + 0.5)*F;
+    for(let u = Math.floor((x - RN)/NS); u <= Math.floor((x + RN)/NS); u++) for(let v = Math.floor((y - RN)/NS); v <= Math.floor((y + RN)/NS); v++) near.add(u*131072 + v); }
+  return (G._clear = { blk, near, Hc, F, cells: want.size });
+}
+/* a way's point d along (pts and their running length cum) */
+function parkPathPt(P, d){
+  const c = P.cum, n = c.length;
+  if(d <= 0 || n < 2) return P.pts[0];
+  if(d >= c[n - 1]) return P.pts[n - 1];
+  let lo = 0, hi = n - 1;
+  while(hi - lo > 1){ const m = (lo + hi) >> 1; if(c[m] <= d) lo = m; else hi = m; }
+  const a = P.pts[lo], b = P.pts[hi], k = (d - c[lo])/((c[hi] - c[lo]) || 1);
+  return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k };
+}
+/* where a walker d along way P stands: their lane to the right of the way they go (dir -1: going it backwards), or the nearest
+   clear one to it where something stands by the trail, eased to over the way before and after (never past the chips' edge) */
+function parkLanePos(C, P, d, lane, dir, e){
+  const at = dd => { const q = parkPathPt(P, dd), a = parkPathPt(P, Math.max(0, dd - e)), c = parkPathPt(P, Math.min(P.L, dd + e));
+    let th = Math.atan2(c.y - a.y, c.x - a.x); if(dir < 0) th += Math.PI; return { x: q.x, y: q.y, th }; };
+  const q = at(d);
+  let s = lane;
+  if(C.near.has(parkClearKey(q.x, q.y, PARK_CLEAR.near))){
+    const fit = p => { const nx = -Math.sin(p.th), ny = Math.cos(p.th);
+      for(let k = 0; k <= 2*C.Hc; k += 4) for(const o of k ? [lane + k, lane - k] : [lane]){
+        if(Math.abs(o) <= C.Hc && parkClearFree(C, p.x + nx*o, p.y + ny*o)) return o; }
+      return lane; };
+    const st = PARK_CLEAR.step, N = Math.ceil(2*C.Hc/PARK_CLEAR.slope/st);
+    let best = 0, sg = 0;
+    for(let j = -N; j <= N; j++){
+      const D = fit(j ? at(d + j*st) : q) - lane, a = Math.abs(D) - PARK_CLEAR.slope*Math.abs(j*st);
+      if(a > best){ best = a; sg = Math.sign(D); }
+    }
+    s = lane + sg*best;
+  }
+  return { x: q.x - Math.sin(q.th)*s, y: q.y + Math.cos(q.th)*s, th: q.th };
+}
+/* THE NETWORK: the trail's runs, cut wherever another run's end lands on one mid-way (a side path off the trail; the dog
+   park's ring, where the runs from the north and from the shelter meet it), so it joins where the chips do -- a run that
+   met another mid-way had read as a dead end (the shelter's run turned the joggers round behind it) */
 function parkTrailGraph(grid){
   const T = vetTrailOf(grid);
   if(!T) return null;
   if(T._graph) return T._graph;
   const key = (x, y) => Math.round(x/10) + "," + Math.round(y/10), nodes = new Map(), node = (x, y) => { const k = key(x, y); if(!nodes.has(k)) nodes.set(k, { k, x, y, nb: [], exit: false }); return nodes.get(k); };
-  for(const sg of T.segs){ const a = node(sg.x0, sg.y0), b = node(sg.x1, sg.y1); if(a === b) continue; a.nb.push(b); b.nb.push(a); if(sg.exit){ (a.nb.length === 1 ? a : b).exit = true; } }
+  const ends = []; for(const sg of T.segs) ends.push([sg.x0, sg.y0], [sg.x1, sg.y1]);
+  for(const sg of T.segs){
+    const L = Math.hypot(sg.x1 - sg.x0, sg.y1 - sg.y0); if(!L) continue;
+    const ux = (sg.x1 - sg.x0)/L, uy = (sg.y1 - sg.y0)/L, on = [[0, sg.x0, sg.y0], [L, sg.x1, sg.y1]];
+    for(const [x, y] of ends){ const t = (x - sg.x0)*ux + (y - sg.y0)*uy; if(t > 5 && t < L - 5 && Math.abs((x - sg.x0)*uy - (y - sg.y0)*ux) < 5) on.push([t, x, y]); }
+    on.sort((p, q) => p[0] - q[0]);
+    for(let k = 1; k < on.length; k++){ const a = node(on[k-1][1], on[k-1][2]), b = node(on[k][1], on[k][2]); if(a === b || a.nb.includes(b)) continue; a.nb.push(b); b.nb.push(a); }
+    if(sg.exit) node(sg.x1, sg.y1).exit = true;                               // (its far end, at the sidewalk)
+  }
   const L = [...nodes.values()], exits = L.filter(n => n.exit || n.nb.length === 1);
-  return (T._graph = { nodes: L, exits });
+  return (T._graph = { nodes: L, exits, grid, T });
 }
 function parkTrailRoute(G, a, b){
   const prev = new Map([[a, null]]), q = [a];
@@ -106812,9 +106907,11 @@ function parkWalkersOf(grid){
    other way round. Found once (two breadth-first sweeps over the junctions). */
 function parkRunLoop(G){
   if(G._loop !== undefined) return G._loop;
-  const inner = G.nodes.filter(n => n.nb.length > 1), deg = n => n.nb.filter(m => m.nb.length > 1).length;
+  const C = parkTrailClear(G);
+  if(!C) return null;
+  const walk = n => parkTrailWalkable(G, n), inner = G.nodes.filter(walk), deg = n => n.nb.filter(walk).length;
   const far = (a) => { const dist = new Map([[a, 0]]), prev = new Map([[a, null]]), q = [a]; let best = a;
-    for(let h = 0; h < q.length; h++){ const c = q[h]; for(const n of c.nb){ if(n.nb.length < 2 || dist.has(n)) continue;
+    for(let h = 0; h < q.length; h++){ const c = q[h]; for(const n of c.nb){ if(!walk(n) || dist.has(n)) continue;
       dist.set(n, dist.get(c) + Math.hypot(n.x - c.x, n.y - c.y)); prev.set(n, c); q.push(n); if(dist.get(n) > dist.get(best)) best = n; } }
     return { best, prev }; };
   const ends = inner.filter(n => deg(n) <= 1);
@@ -106827,31 +106924,40 @@ function parkRunLoop(G){
     for(let k = 1; k < 16; k++){ const a = a0 + Math.PI*2*k/16; out.push({ x: n.x + Math.cos(a)*R, y: n.y + Math.sin(a)*R }); }
     return out;
   };
-  const R = (VET_TRAIL.loopR || 250)*0.62, pts = [];
+  /* the ring: round a drawn turnaround on its chips, at a bare dead end inside the run's own width; either way no wider than
+     the clear ground round it lets a jogger keep their lane (PARK_CLEAR) */
+  const lm = PARK_WALK.lane*1.3, ringR = n => {
+    let R = parkTrailTurn(G, n) ? (VET_TRAIL.loopR || 250)*0.62 : Math.max(0, G.T.halfW - lm - CROWD.bodyR);
+    const fits = R => { for(let k = 0; k < 32; k++){ const a = k/32*Math.PI*2; for(const r of [R - lm, R, R + lm]) if(r > 0 && !parkClearFree(C, n.x + Math.cos(a)*r, n.y + Math.sin(a)*r)) return false; } return true; };
+    while(R > 0 && !fits(R)) R -= 8;
+    return Math.max(0, R); };
+  const pts = [];
   path.forEach(n => pts.push({ x: n.x, y: n.y }));
-  pts.push(...ring(B, path[path.length - 2], R));
+  pts.push(...ring(B, path[path.length - 2], ringR(B)));
   for(let k = path.length - 1; k >= 0; k--) pts.push({ x: path[k].x, y: path[k].y });
-  pts.push(...ring(A, path[1], R));
+  pts.push(...ring(A, path[1], ringR(A)));
   pts.push({ x: A.x, y: A.y });
-  let L = 0; for(let k = 1; k < pts.length; k++) L += Math.hypot(pts[k].x - pts[k-1].x, pts[k].y - pts[k-1].y);
-  return (G._loop = { pts, L });
+  const cum = [0]; for(let k = 1; k < pts.length; k++) cum.push(cum[k-1] + Math.hypot(pts[k].x - pts[k-1].x, pts[k].y - pts[k-1].y));
+  return (G._loop = { pts, cum, L: cum[cum.length - 1] });
 }
 /* walker w's way: a long seeded wander over the whole network (300 hops, never straight back unless at a dead end), walked
    round and round at their own pace -- so they spread over every part of the trail and never bunch */
 function parkWalkWay(w){
   if(w.way) return w.way;
   const G = w.G, r = mulberry32(w.seed >>> 0), pick = A => A[Math.floor(r()*A.length)];
-  const inner = G.nodes.filter(n => n.nb.length > 1), seq = [pick(inner.length ? inner : G.nodes)];
-  for(let h = 0; h < 300; h++){ const c = seq[seq.length - 1], back = seq[seq.length - 2], nb = c.nb.filter(n => n !== back && n.nb.length > 1); seq.push(nb.length ? pick(nb) : back || c.nb[0]); }
+  const walk = n => parkTrailWalkable(G, n), inner = G.nodes.filter(walk), seq = [pick(inner.length ? inner : G.nodes)];
+  for(let h = 0; h < 300; h++){ const c = seq[seq.length - 1], back = seq[seq.length - 2], nb = c.nb.filter(n => n !== back && walk(n)); seq.push(nb.length ? pick(nb) : back || c.nb[0]); }
   const pts = [], cum = [0];
   for(const nd of seq){ const q = pts[pts.length - 1]; if(!q || q.x !== nd.x || q.y !== nd.y){ if(q) cum.push(cum[cum.length - 1] + Math.hypot(nd.x - q.x, nd.y - q.y)); pts.push({ x: nd.x, y: nd.y }); } }
   const L = cum[cum.length - 1];
-  return (w.way = { pts, L, v: w.jog ? 0.15 : PEOPLE_WALK_V*(0.85 + r()*0.3), lane: PARK_WALK.lane*(0.7 + r()*0.6), off: r()*L,
+  return (w.way = { pts, cum, L, v: w.jog ? 0.15 : PEOPLE_WALK_V*(0.85 + r()*0.3), lane: PARK_WALK.lane*(0.7 + r()*0.6), off: r()*L,
     look: streetLook((w.seed*31) >>> 0, { adult: w.jog || r() < 0.85, aid: w.jog ? 'none' : undefined }) });
 }
 function parkWalkRaw(w, t){
   const h = typeof walkinClockHour === "function" ? walkinClockHour() : 12;
   if(h < PARK_WALK.hours[0] || h >= PARK_WALK.hours[1]) return null;
+  const C = parkTrailClear(w.G);
+  if(!C) return null;                                                          // (until the world is built: PARK_CLEAR)
   /* a jogger runs the loop: their own pace and start, a third of them the other way round */
   const RL = w.jog ? parkRunLoop(w.G) : null;
   if(RL){
@@ -106860,15 +106966,13 @@ function parkWalkRaw(w, t){
     const r = w._run || (w._run = (() => { const q = mulberry32((w.seed ^ 0x51ab) >>> 0), v = JK[2]*(0.85 + q()*0.3); return { v, stride: JK[3]*(v/JK[2]), off: q()*RL.L, rev: q() < 0.35,
       lane: PARK_WALK.lane*(0.6 + q()*0.7), look: streetLook((w.seed*131) >>> 0, { type: 'jogger' }) }; })());
     let d = (((t - (w._dly || 0))*r.v + r.off) % RL.L + RL.L) % RL.L; if(r.rev) d = RL.L - d;
-    const q = walkPathPoint(RL.pts, d), e = 30, a = walkPathPoint(RL.pts, Math.max(0, d - e)), c = walkPathPoint(RL.pts, Math.min(RL.L, d + e));
-    let th = Math.atan2(c.y - a.y, c.x - a.x); if(r.rev) th += Math.PI;
-    return { x: q.x - Math.sin(th)*r.lane, y: q.y + Math.cos(th)*r.lane, th, moving: true, look: r.look, jog: true, stride: r.stride, ph: w.seed % 97 };
+    const q = parkLanePos(C, RL, d, r.lane, r.rev ? -1 : 1, 30);
+    return { x: q.x, y: q.y, th: q.th, moving: true, look: r.look, jog: true, stride: r.stride, ph: w.seed % 97 };
   }
   const Wy = parkWalkWay(w);
   if(!(Wy.L > 0)) return null;
-  const d = (((t - (w._dly || 0))*Wy.v + Wy.off) % Wy.L + Wy.L) % Wy.L, q = walkPathPoint(Wy.pts, d);
-  const a = walkPathPoint(Wy.pts, Math.max(0, d - 34)), c = walkPathPoint(Wy.pts, Math.min(Wy.L, d + 34)), th = Math.atan2(c.y - a.y, c.x - a.x), s = Wy.lane;
-  return { x: q.x - Math.sin(th)*s, y: q.y + Math.cos(th)*s, th, moving: true, look: Wy.look, jog: w.jog };   // (keep right: their right of the way they go)
+  const d = (((t - (w._dly || 0))*Wy.v + Wy.off) % Wy.L + Wy.L) % Wy.L, q = parkLanePos(C, Wy, d, Wy.lane, 1, 34);
+  return { x: q.x, y: q.y, th: q.th, moving: true, look: Wy.look, jog: w.jog };   // (keep right: their right of the way they go, clear of what stands by it)
 }
 function parkWalkAt(w, t){
   const p = parkWalkRaw(w, t);
