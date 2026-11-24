@@ -14,3 +14,17 @@ Headless helpers for the factory hall (`?go=cratewell`). Run from the repo root.
 - `node tools/review/kickstand/trails.js && python3 tools/review/kickstand/trails_map.py` -- steps a full cycle, records every robot
   (CREW_TAP) to trails.json and draws robots_map.png (each robot's path). Also check overlaps: pairs of amr/bot within 75.
 - `node tools/review/crew_spacing.js --secs 270 --step 500` -- robots' footprints overlapping.
+
+Session 2026-11-24 (stations 2-7, the loader, the bale round) added:
+- `node tools/review/kickstand/at.js T1,T2,... a0,a1,b0,b1 "regex"` -- calls the hall's crew functions directly (LIB.collect, no stepping)
+  at hall times T and prints every item in the box whose `kind:stage|build` matches. Fast: the way to see where anything is at a moment.
+- `node tools/review/kickstand/jumps.js [T0 T1 step]` -- every humanoid's pose and every scooter piece's middle frame to frame; prints
+  jumps (place > 4 a 20 ms step, facing > 0.12, arm angles > 0.2/0.3, waist, drop). Run after any crew timing or pose change.
+- `node tools/review/kickstand/track_loader.js T0 T1` -- the same, following station 0's loader wherever he goes (his cardboard spells).
+- `node tools/review/kickstand/swaps.js` -- when each station's parts robot leaves / is back at its bench, line time (mod 9000): the
+  worker's pick (PKU) must fall while it is parked.
+- `node tools/review/kickstand/occupancy.js '{"name":[a0,a1,b0,b1]}'` -- quiet windows (no robot or person) in boxes over three pallet
+  cycles: time a new robot's trip through the busy door lane by it.
+- `FS=1000 node tools/review/kickstand/clip_step.js OUT PER PH NF CA CB ZM` -- clip.js with FS ms of scene time a frame (long events).
+  Note clip.js parks Tipsey at (CA, CB): pick an empty spot (e.g. 1150,1000 mid-loop, 1450,290 the north floor) or he stands in the shot.
+  Scene time = hall time / 0.6 (HALL_TS). Early game time (t < PAL0) is an edge case: film a later cycle (PER 540000, PH + 270000).
