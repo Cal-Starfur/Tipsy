@@ -124090,6 +124090,10 @@ class WorldScene extends Phaser.Scene {
       const ramp = rampOf(hairPair);
       const hr = mulberry32(((hairHash + 1)*2654435761) >>> 0), partSide = hr() < 0.5 ? 1 : -1, curlPh = hr()*6;
       const cut = hat ? (uniform.hat && !uniform.cap ? z0 + Hh*0.5 + r*0.5 + 1 : z0 + Hh*(uniform.bucket ? 0.78 : 0.5)) : null, earZ = z0 + Hh*0.38;
+      /* UNDER A HAT, A TAIL'S GATHER OR A BUN SITS UNDER ITS BAND (Sir, 2026-11-24, a propeller cap over a red ponytail: "im missing a piece in this
+         womans hair"): cut at the band they were an open ring -- the shell's side with no top, the floor seen through it (a flat lid there was the
+         dark circle on the back of every hat, 2026-10-28). Moved down by what rose over the band, they come out from under it, whole */
+      const hatDrop = top => cut == null ? 0 : Math.max(0, top - (cut - 0.6));
       const loft = (o) => {
         const n = LOD ? 8 : 12, K = LOD ? Math.min(o.K || 5, LOD === 1 ? 4 : 3) : o.K || 5, rampC = o.col ? rampOf(o.col) : ramp, P = [];   // (8 a ring, 4 rings, 3 far: PERSON_DRAW's LOD)
         for(let k = 0; k < K; k++){ const u = k/(K - 1), row = [], off = o.off ? o.off(u) : [0, 0];
@@ -124150,14 +124154,16 @@ class WorldScene extends Phaser.Scene {
         /* the women's */
         case 'long':   shell(lineOf(0.8, 0.3, -0.95), domeOf(1.0, 1.12, 0.3), r*0.5); break;                     // down over the ears, down the back to the shoulder blades
         case 'bob':    shell(lineOf(0.78, 0.04, -0.02), domeOf(1.16, 1.12, 0.3), r*0.5); break;                   // to the jaw all round, flared
-        case 'pony':   shell(lineOf(0.78, 0.5, 0.44), domeOf(1.04, 1.1, 0.3), r*0.46);                            // tight; the tail behind, in a band, to a point
+        case 'pony':   { const dz = hatDrop(z1 + r*0.1);
+                       shell(lineOf(0.78, 0.5, 0.44), domeOf(1.04, 1.1, 0.3), r*0.46);                            // tight; the tail behind, in a band, to a point
                        /* the tail out from the crown's back (not rooted inside the shell, where only its end showed -- Sir, 2026-10-24), full at
                           the gather, swinging a touch out and down to a point; the tie a darker band round the gather */
-                       loft({ ca: 0, cb: -r*1.05, K: 5, behind: true, rad: (th, u) => r*(0.36*(1 - u*0.86) + 0.04), z: (th, u) => z1 - r*0.5 - u*r*2.5, off: u => [0, -r*0.2*Math.sin(u*Math.PI)], top: false });   // the tail, first: its root under the ball
-                       loft({ ca: 0, cb: -r*1.05, K: 6, behind: true, rad: (th, u) => r*(0.48*Math.sqrt(Math.max(0, 1 - (2*u - 1)*(2*u - 1))) + 0.04), z: (th, u) => z1 - r*0.88 + u*r*0.98 });   // the gather: a ball at the crown's back (Sir, 2026-10-24: "a ball here is what's missing")
-                       loft({ ca: 0, cb: -r*1.05, K: 2, behind: true, rad: () => r*0.4, z: (th, u) => z1 - r*0.52 - u*r*0.2, top: false, col: { c: hairPair.dk, dk: _pdk(hairPair.dk, 0.8) } }); break;   // the tie, under it
+                       loft({ ca: 0, cb: -r*1.05, K: 5, behind: true, rad: (th, u) => r*(0.36*(1 - u*0.86) + 0.04), z: (th, u) => z1 - dz - r*0.5 - u*r*2.5, off: u => [0, -r*0.2*Math.sin(u*Math.PI)], top: false });   // the tail, first: its root under the ball
+                       loft({ ca: 0, cb: -r*1.05, K: 6, behind: true, rad: (th, u) => r*(0.48*Math.sqrt(Math.max(0, 1 - (2*u - 1)*(2*u - 1))) + 0.04), z: (th, u) => z1 - dz - r*0.88 + u*r*0.98 });   // the gather: a ball at the crown's back (Sir, 2026-10-24: "a ball here is what's missing")
+                       loft({ ca: 0, cb: -r*1.05, K: 2, behind: true, rad: () => r*0.4, z: (th, u) => z1 - dz - r*0.52 - u*r*0.2, top: false, col: { c: hairPair.dk, dk: _pdk(hairPair.dk, 0.8) } }); break; }   // the tie, under it
         case 'bun':    shell(lineOf(0.8, 0.5, 0.44), domeOf(1.03, 1.07, 0.3), r*0.42);                            // tight; a ball on the crown's back
-                       loft({ ca: 0, cb: -r*0.55, K: 5, behind: true, rad: (th, u) => r*(0.5*Math.sqrt(Math.max(0, 1 - (2*u - 1)*(2*u - 1))) + 0.03), z: (th, u) => z1 + r*0.1 + u*r*0.95 }); break;
+                       { const dz = hatDrop(z1 + r*1.05), cb = dz ? -r*0.95 : -r*0.55;                          // (under a hat: down at the nape, out behind the head)
+                         loft({ ca: 0, cb, K: 5, behind: true, rad: (th, u) => r*(0.5*Math.sqrt(Math.max(0, 1 - (2*u - 1)*(2*u - 1))) + 0.03), z: (th, u) => z1 - dz + r*0.1 + u*r*0.95 }); } break;
         case 'curlsBig': shell(lineOf(0.76, 0.12, -0.12), domeOf(1.3, 1.32, 0.45), r*0.78, { scallop: 0.08, o: { K: 7 } }); break;   // big, scalloped, to the jaw
         case 'mohawk':   shell(lineOf(0.86, 0.95, 0.55), domeOf(1.12, 1.15, 0.5), r*1.9, { ell: [0.2, 1.15], o: { K: 5 } }); break;    // a crest, tall, the sides shaved
         default:       shell(lineOf(0.78, 0.55, 0.42), domeOf(1.05, 1.1, 0.3), r*0.5);
