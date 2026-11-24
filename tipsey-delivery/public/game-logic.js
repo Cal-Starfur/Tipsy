@@ -66772,7 +66772,8 @@ function houseCanopy(fn){
 
     /* ---- THE FINISHED GOODS: pallets of boxed scooters and e-bikes in hatched bays (a 1100..1800, b 1420..1760) ---- */
     for(const [pa, pb] of [[1540, 1500], [1720, 1500], SG, ...SB]){   /* (the empties' and the arm's bays, SG, and the six storage bays in their row) */
-      T(pa - 70, pa + 70, pb - 70, pb - 64, 0.5, yel); T(pa - 70, pa + 70, pb + 64, pb + 70, 0.5, yel); T(pa - 70, pa - 64, pb - 70, pb + 70, 0.5, yel); T(pa + 64, pa + 70, pb - 70, pb + 70, 0.5, yel);
+      const n = SB.some(q => q[1] === pb) ? 50 : 70;   /* (the storage bays' north line in to 50: clear of row B's parked spares just north of them) */
+      T(pa - 70, pa + 70, pb - n, pb - n + 6, 0.5, yel); T(pa - 70, pa + 70, pb + 64, pb + 70, 0.5, yel); T(pa - 70, pa - 64, pb - n, pb + 70, 0.5, yel); T(pa + 64, pa + 70, pb - n, pb + 70, 0.5, yel);
     }
     /* (phase 6: the six storage bays, each a pallet of six boxed scooters while it holds one -- a still piece, cached by its state) */
     for(let k = 0; k < SB.length; k++){ const [pa, pb] = SB[k];
