@@ -6296,7 +6296,9 @@ function owBuildWorld(route){
     return b ? b.type : null;
   };
 
-  const surfaceAt = (x, y) => {
+  /* kerb: true asks it as the KERB'S WALL does (kerbSurfaceAt below) -- the city street's 'road' then ends at the drawn
+     stone's road face, and the stone itself answers 'kerb'. Everything else answers exactly as surfaceAt does. */
+  const surfaceK = (x, y, kerb) => {
     if(pocketAt(x, y)) return 'sidewalk';                        // an interior's floor (see POCKETS)
     { const sr = sierraRoundSurface(x, y); if(sr) return sr; }   // the estate's gate round, which straddles the wall
     { const hr = harborRoundSurface(x, y); if(hr) return hr; }   // PELICAN HARBOR's turning circle, at the road's end
@@ -6355,13 +6357,41 @@ function owBuildWorld(route){
        beyond the arc is kerb, not road */
     if(bx && by && cn && !nX.svGate && !nearX && !nearY && farX && farY){
       const k = ROAD_HALF - L_OUT_R;
-      if(dx > k && dy > k && dx <= ROAD_HALF && dy <= ROAD_HALF && Math.hypot(dx - k, dy - k) > L_OUT_R) return 'curb';
+      if(dx > k && dy > k && dx <= ROAD_HALF && dy <= ROAD_HALF && Math.hypot(dx - k, dy - k) > L_OUT_R) return kerb ? 'sidewalk' : 'curb';
     }
-    if(bx && by) return (dx < dy ? bx : by);   // intersection: nearer axis wins
+    /* THE KERB'S WALL IS THE STONE'S ROAD FACE (Sir, 2026-11-24: "Lining up the kerb's collision with the drawn stone").
+       The stone stands in the asphalt, KERB_STONE.w in from ROAD_HALF (drawWorld's kerb pass, kerbPath), but 'road' ran on to
+       ROAD_HALF, so the wall he met was the stone's BACK edge: his front stopped 22 into the stone on every straight
+       (measured: 96/96 runs), and at a four-way corner the band met square where the stone sweeps an arc. Asked as the wall
+       (kerb), the street's road is what the drawing leaves of it: out to the face KF along each street (the junction stub
+       past a node only as far as the face too), the corner square back out to the arc's road face (KERB_ARC_R + the stone,
+       about a centre ROAD_HALF + KERB_ARC_R in on both axes: kerbCorner), and outside an L in to the fillet's road face
+       (L_OUT_R - the stone). It is only ever less road than surfaceAt's (the face is inside the asphalt everywhere), so a
+       point it takes away from 'road' is the stone: 'kerb'. The ramps and drive mouths are cut by owAtRampMouth, as before.
+       And the 'curb' band past ROAD_HALF is the paving's outer row (the kerb pass lays the walk from ROAD_HALF out), so asked
+       as the wall it is 'sidewalk': it was the one-way vestibule a wall at ROAD_HALF needed, and with the wall on the stone's
+       face it only held a robot that came up a ramp to the paving's edge (measured: up a ramp at 45 degrees, pinned on the
+       outer row just past the flare's end). */
+    const kerbK = sf => {
+      if(kerb && sf === 'curb') return 'sidewalk';
+      if(!kerb || sf !== 'road') return sf;
+      const KF = ROAD_HALF - KERB_STONE.w, KC = ROAD_HALF + KERB_ARC_R;
+      const lY = !!(nearY || (farY && dy <= KF)), lX = !!(nearX || (farX && dx <= KF));
+      if((lY && dx <= KF) || (lX && dy <= KF)){
+        if(cn && !nX.svGate && !nearX && !nearY && farX && farY){   // outside an L: the fillet's road face
+          const k = ROAD_HALF - L_OUT_R;
+          if(dx > k && dy > k && Math.hypot(dx - k, dy - k) > L_OUT_R - KERB_STONE.w) return 'kerb';
+        }
+        return 'road';
+      }
+      if(nearX && nearY && dx < KC && dy < KC && Math.hypot(KC - dx, KC - dy) > KERB_ARC_R + KERB_STONE.w) return 'road';   // the corner's arc
+      return 'kerb';
+    };
+    if(bx && by) return kerbK(dx < dy ? bx : by);   // intersection: nearer axis wins
     /* the street before the boardwalk: Harbor Road crosses the top of the
        west boardwalk (see PELICAN HARBOR), the one place they overlap, and
        read as boardwalk there the kerb rule stopped him leaving the road */
-    if(bx || by) return bx || by;
+    if(bx || by) return kerbK(bx || by);
     { const fs = fmSurface(x, y); if(fs) return fs; }       // THE PELICAN FISH MARKET's paving, its yard on the toe strip
     const wf = waterfrontAt(x, y);
     if(wf) return wf;
@@ -6372,6 +6402,8 @@ function owBuildWorld(route){
     const bt = blockTypeAt(x, y);
     return bt === 'park' ? 'park' : bt ? 'building' : (nX ? 'lot' : 'void');
   };
+  const surfaceAt = (x, y) => surfaceK(x, y, false);
+  const kerbSurfaceAt = (x, y) => surfaceK(x, y, true);
 
   /* ---------- hazard index ----------
      Same bucketing as the blocks. SOLID vs FLAT is the option-A split:
@@ -6452,7 +6484,7 @@ function owBuildWorld(route){
      world is the thing that already knows which grid it was built from.
      Same object as route.grid, not a copy, so a rebuilt world cannot
      answer with a stale city. */
-  return { surfaceAt, solidAt, hzNear, sgNear, poNear, HZ, SG, PO, waterfrontAt, grid: g2 };
+  return { surfaceAt, kerbSurfaceAt, solidAt, hzNear, sgNear, poNear, HZ, SG, PO, waterfrontAt, grid: g2 };
 }
 
 const OW_HZ_R = {
@@ -9028,7 +9060,13 @@ function owAtRampMouth(grid, x, y, cx, cy){
      flare on the slant, it read the full kerb past the flare's end while all of him was on the flare (measured: 92 of 300
      climbs still pinned, centre at |v| 105..130, probe past 138). The along test stays on the probe -- that is where the
      wheels meet the step -- and the across test is his centre, so the opening is the opening his body is in. */
-  const m = owRampHash(grid), RX = WORLD_RAMP.baseCross;
+  /* ALONG IT, FROM THE STONE'S ROAD FACE (kerb collision, 2026-11-24): the wall is the stone's road face now, KERB_STONE.w
+     out past the paving edge (kerbSurfaceAt), so the opening runs from there -- u up to T2 + the stone -- to the back of the
+     pad. AND NOT ROUND THE CORNER: a ramp beside a four-way corner has its corner-side flare cut short at the arc's tangent
+     (the kerb pass runs the stone from TANG = ROAD_HALF + KERB_ARC_R, and the flare from there to the pad), but +/-baseCross
+     about its point reached 70 on past the tangent, over the arc's full-height stone. On that side the opening ends at the
+     tangent: his centre's across reading against it, as against the flare's far end on the other side (kerbRampLim). */
+  const m = owRampHash(grid), RX = WORLD_RAMP.baseCross, UR = T2 + KERB_STONE.w;
   const ci = Math.floor(x/T2), cj = Math.floor(y/T2);
   for(let i = ci-2; i <= ci+2; i++) for(let j = cj-2; j <= cj+2; j++){
     const a = m.get(i + "," + j);
@@ -9038,15 +9076,50 @@ function owAtRampMouth(grid, x, y, cx, cy){
       const u = dx*dv.x + dy*dv.y;
       const vx = (cx === undefined ? x : cx) - r.x, vy = (cy === undefined ? y : cy) - r.y;
       const v = vx*dv.y - vy*dv.x;                            // (across the ramp, either sign)
-      if(Math.abs(u) <= T2 && Math.abs(v) <= RX) return true;
+      if(u >= -T2 && u <= UR && Math.abs(v) <= RX){
+        const L = kerbRampLim(grid, r);
+        if(!L || v*L.s <= L.lim) return true;
+      }
     }
   }
-  /* a driveway's mouth is a dropped kerb the width of the drive */
-  for(const d of hoodDrivewaysOf(grid)){
-    const q = driveFrame(d, x, y);
-    if(q.al >= d.al0 && q.al <= d.al1 && Math.abs(q.lat - SIDEWALK_W) <= T2) return true;
+  /* a driveway's mouth is a dropped kerb the width of the drive -- and its flares, where it has them (the kerb pass draws
+     a T2 flare past each end unless wings === false, as at a crossing: a slope down to the mouth, not a wall). al0 and al1
+     are either way round. */
+  for(const M of owDriveMouths(grid)){
+    if(x < M.x0 || x > M.x1 || y < M.y0 || y > M.y1) continue;
+    const d = M.d, q = driveFrame(d, x, y);
+    if(q.al >= M.a0 && q.al <= M.a1 && Math.abs(q.lat - SIDEWALK_W) <= T2) return true;
   }
   return false;
+}
+/* each drive's mouth (owAtRampMouth): its along range, flares and all, and the world box round it, built once per grid --
+   the kerb's wall asks it of up to 27 points a step, and a box test skips the 130-odd drives that are nowhere near */
+function owDriveMouths(grid){
+  if(grid._driveMouths) return grid._driveMouths;
+  const out = [];
+  for(const d of hoodDrivewaysOf(grid)){
+    const FLd = d.wings === false ? 0 : T2, a0 = Math.min(d.al0, d.al1) - FLd, a1 = Math.max(d.al0, d.al1) + FLd, e = d.e;
+    const P = [[a0, SIDEWALK_W - T2], [a1, SIDEWALK_W - T2], [a0, SIDEWALK_W + T2], [a1, SIDEWALK_W + T2]].map(([al, lat]) => [e.ox + e.dv.x*al + e.rv.x*lat, e.oy + e.dv.y*al + e.rv.y*lat]);
+    out.push({ d, a0, a1, x0: Math.min(...P.map(p => p[0])) - 1, x1: Math.max(...P.map(p => p[0])) + 1, y0: Math.min(...P.map(p => p[1])) - 1, y1: Math.max(...P.map(p => p[1])) + 1 });
+  }
+  return (grid._driveMouths = out);
+}
+/* a crossing ramp's opening toward its corner, where the corner has an arc (a street on both sides of the quadrant the ramp
+   stands in): s, the sign of owAtRampMouth's across reading toward the node, and lim, how far that way the opening runs --
+   to the arc's tangent, ROAD_HALF + KERB_ARC_R from the node. null where the kerb runs on through (no arc there). Cached on
+   the grid, as the ramp hash is. */
+function kerbRampLim(grid, r){
+  const M = grid._rampLim || (grid._rampLim = new Map());
+  let L = M.get(r);
+  if(L !== undefined) return L;
+  L = null;
+  const n = grid.nodeAt && grid.nodeAt(Math.round(r.x / BLOCK), Math.round(r.y / BLOCK)), dv = DIRV[r.f];
+  if(n && n.conn && !n.svGate && n.conn[r.x >= n.x ? 0 : 2] && n.conn[r.y >= n.y ? 1 : 3]){
+    const vN = (n.x - r.x)*dv.y - (n.y - r.y)*dv.x;
+    L = { s: Math.sign(vN) || 1, lim: Math.abs(vN) - (ROAD_HALF + KERB_ARC_R) };
+  }
+  M.set(r, L);
+  return L;
 }
 /* Blocks ONLY the climb, and only from a committed road position, so
    skimming the lip from the pavement side and dropping down are both
@@ -9069,8 +9142,11 @@ function owCurbBlocks(ow, W, x, y, cx, cy){
      the case it was right about (committed to the road while momentarily
      over something the classifier does not name). Descending is
      unaffected either way, because a target of 'road' returns below. */
-  const here = W.surfaceAt(ow.px, ow.py);
-  if(here !== 'road' && here !== 'curb' && ow.sfcCommit !== 'road') return false;
+  /* ASKED AS THE WALL (kerbSurfaceAt, kerb collision 2026-11-24): 'road' ends at the drawn stone's road face, and the stone
+     itself is 'kerb'. Where there is no city kerb (the estate, the harbor's round) it answers as surfaceAt does. */
+  const KS = W.kerbSurfaceAt || W.surfaceAt;
+  const here = KS(ow.px, ow.py);
+  if(here !== 'road' && here !== 'curb' && here !== 'kerb' && ow.sfcCommit !== 'road') return false;
   /* WHICH SIDE HE CAME FROM DECIDES IT (Sir, on-device: "tipsy is getting
      hung up on the curb when he is seemingly on the sidewalk").
      laneOffset(0) is ROAD_HALF + 0.5*T2 = 414, the far edge of the curb
@@ -9083,6 +9159,9 @@ function owCurbBlocks(ow, W, x, y, cx, cy){
      untouched: from 'road', and from the band while committed to the
      road, every not-road target below is still blocked. */
   if(here === 'curb' && ow.sfcCommit !== 'road') return false;
+  /* ON THE STONE HE IS UP (kerb collision): its top is the kerb, so with his middle on it the wall is behind him. (From the
+     road his middle cannot get there: his body meets the face a botR before it.) */
+  if(here === 'kerb') return false;
   /* NOT-ROAD IS THE TEST. Two earlier versions of this line named the
      surfaces they expected -- first 'sidewalk', then 'curb' or
      'sidewalk' -- and both leaked, because naming what you expect only
@@ -9104,7 +9183,38 @@ function owCurbBlocks(ow, W, x, y, cx, cy){
      is not road is on the far side of the step, including the ones
      nobody has thought of yet: park, lot, void, the boardwalk. The road
      is a closed set of one and the exceptions are the ramps. */
-  const to = W.surfaceAt(x, y);
+  /* HIS BODY MEETS THE FACE, NOT A POINT OF IT (kerb collision, 2026-11-24). The probe the caller passes is his centre led
+     by botR along each axis he is stepping on (sign*botR): at a straight kerb that is exactly where his body meets the face,
+     on the slant too, since the face runs along an axis. Round a corner's arc it is the corner of his bounding box, 12 out
+     past his body on the diagonal, and he stopped short of the drawn stone. So from the road the question is asked of his
+     rim: the half of it facing the step, at nine points, round his centre after the step and before it, and the step is
+     refused only if it puts MORE of them past the face (and not in a dropped kerb) than were already -- so a body that is
+     already over the stone (backing out of a ramp's mouth, stood up there) can always work itself out and slide along, never
+     drive further in (the warehouse robot's rule, _axHits). The along test of a ramp's mouth reads the rim point, the across
+     test his centre, as before -- his centre after the step, for the count before it too: passing a ramp close in, his body
+     overhangs its flare (open while his centre is across from the opening); as his centre passes the flare's end the
+     overhang would turn to wall all at once and pin him there (measured, rolling the gutter at a 3 degree lean: stopped dead
+     at the flare's end). Read from one centre, that overhang is the same before and after, so he rolls on and only a step
+     further in is refused. But only a graze rolls out of the opening so: a body well over the stone (more than two of the
+     nine points: climbing a flare on the slant, his middle at the face) is held in the opening as it was, or it slid out
+     past the flare's end half up on the full stone and stuck there (measured: 48 of 160 slant climbs at the flare's end). The latch fallback (here not road) keeps the single probe, and so does a point along a
+     vehicle's body (fleetBody: not his centre, so "before the step" is not ow.px there). */
+  if(here === 'road' && cx !== undefined && Math.abs(cx - ow.px) + Math.abs(cy - ow.py) < 24){
+    const ox = x - cx, oy = y - cy, ax = Math.abs(ox), ay = Math.abs(oy);
+    const R = (!ax || !ay || Math.abs(ax - ay) < 1e-6) ? Math.max(ax, ay) : Math.hypot(ox, oy);
+    if(R > 1e-6){
+      const a0 = Math.atan2(oy, ox), mx = ow.px, my = ow.py;
+      const past = (px, py, qx, qy) => KS(px, py) !== 'road' && !owAtRampMouth(W.grid, px, py, qx, qy);
+      const RC = [], RS = [];
+      for(let k = -4; k <= 4; k++){ RC.push(Math.cos(a0 + k*Math.PI/8)*R); RS.push(Math.sin(a0 + k*Math.PI/8)*R); }
+      const count = (px, py, qx, qy) => { let c = 0; for(let k = 0; k < 9; k++) if(past(px + RC[k], py + RS[k], qx, qy)) c++; return c; };
+      const nNew = count(cx, cy, cx, cy);
+      if(!nNew) return false;                                              // (clear of the stone: the open road costs nine questions)
+      if(nNew > count(mx, my, cx, cy)) return true;                        // (the mouth's across test from the SAME centre, his after the step: see below)
+      return nNew > 2 && nNew > count(mx, my, mx, my);                     // (... and, well over the stone, from his centre before it)
+    }
+  }
+  const to = KS(x, y);
   if(to === 'road') return false;
   /* THE CURB BAND IS A DEAD END IF YOU DEMAND 'road' FROM INSIDE IT.
      The arm condition above deliberately includes 'curb' -- being
@@ -10019,7 +10129,10 @@ function owStep(scene, dt){
      actually reach the other side. Sign comes from the boundary (see
      owCurbSign), not from the thumb. */
   const sfc = W.surfaceAt(ow.px, ow.py);
-  if(!FP.fly && (sfc === 'road' || sfc === 'sidewalk')){   // (flying: no kerb to strike)
+  /* the step down is at the STONE'S ROAD FACE (kerb collision, 2026-11-24): asked as the wall asks it, his middle over the
+     stone reads 'kerb', which commits nothing, so the drop comes as he leaves the stone, not 22 early as he reaches its back */
+  const sfcK = W.kerbSurfaceAt ? W.kerbSurfaceAt(ow.px, ow.py) : sfc;
+  if(!FP.fly && (sfcK === 'road' || sfcK === 'sidewalk')){   // (flying: no kerb to strike)
     /* NO KERB KICK WHERE THERE IS NO KERB (Sir, at the estate's mouth: "I'm
        still not able to make it in on the road"). Sierra Vista's road is
        drawn ground, so the classifier reads its surface as pavement: the
@@ -10027,18 +10140,18 @@ function owStep(scene, dt){
        transition still charged a lean and tipped him at the mouth every
        time. Inside the estate and up its road there is no kerb to strike. */
     /* ...until it had kerbs like the city's (2026-09-22): now it leans the same */
-    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03 && !FP.step){   // (a walker steps up and down it: no kick, no drop)
+    if(ow.sfcCommit && ow.sfcCommit !== sfcK && Math.abs(ow.vel) > 0.03 && !FP.step){   // (a walker steps up and down it: no kick, no drop)
       /* off the kerb into the road: a fall, unless it was a crossing's
          dropped kerb, which is flush */
-      const lo = ow._lastOff, down = ow.sfcCommit === 'sidewalk' && sfc === 'road';
+      const lo = ow._lastOff, down = ow.sfcCommit === 'sidewalk' && sfcK === 'road';
       const atRamp = down ? (lo ? owAtRampMouth(W.grid, lo.x, lo.y) : false) : owAtRampMouth(W.grid, ow.px, ow.py);
       if(atRamp){ /* a crossing's kerb is dropped flush: nothing to strike */ }
       else if(down) owCurbDrop(scene, ow, W);
-      else owLeanKick(scene, ow, owCurbSign(ow, sfc) * 0.10 * (Math.abs(ow.vel) / D.vMax));
+      else owLeanKick(scene, ow, owCurbSign(ow, sfcK) * 0.10 * (Math.abs(ow.vel) / D.vMax));
     }
-    ow.sfcCommit = sfc;
+    ow.sfcCommit = sfcK;
   }
-  if(sfc === 'sidewalk' || sfc === 'curb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement he stood on
+  if(sfcK === 'sidewalk' || sfcK === 'curb' || sfcK === 'kerb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement (or stone) he stood on
   if(!FP.fly){ owDropTick(scene, ow, dt); owRampFeel(scene, ow, W, dt); owJumpTick(scene, ow, dt); }
   /* the jolt rides on the screen centre layout() set */
   if(scene._cyBase === undefined) scene._cyBase = scene.cy;
@@ -106557,12 +106670,16 @@ class WorldScene extends Phaser.Scene {
     const hidC = this._xrayStoneCache || (this._xrayStoneCache = new Map());
     if(cls.size > 200000){ cls.clear(); hidC.clear(); }   // a long drive; refills around him
     const key = (ix, iy) => (ix + 60000)*200000 + (iy + 60000);
-    const clsAt = (ix, iy) => {          // 1 road, 2 curb band, 0 anything else
+    /* asked as the wall asks it (kerbSurfaceAt, 2026-11-24): in the city the stone is its own answer, 'kerb' (3), and a
+       cell on it is the kerb -- round the corners' arcs too; where there is no 'kerb' (the estate) the road cell beside the
+       curb band, as before */
+    const KS = wd.kerbSurfaceAt || wd.surfaceAt;
+    const clsAt = (ix, iy) => {          // 1 road, 2 curb band, 3 the stone, 0 anything else
       const k = key(ix, iy);
       let v = cls.get(k);
       if(v === undefined){
-        const sf = wd.surfaceAt((ix + 0.5)*S, (iy + 0.5)*S);
-        v = sf === 'road' ? 1 : sf === 'curb' ? 2 : 0;
+        const sf = KS((ix + 0.5)*S, (iy + 0.5)*S);
+        v = sf === 'road' ? 1 : sf === 'curb' ? 2 : sf === 'kerb' ? 3 : 0;
         cls.set(k, v);
       }
       return v;
@@ -106576,8 +106693,9 @@ class WorldScene extends Phaser.Scene {
       for(let ix = ix0; ix <= ix1; ix++){
         const cx = (ix + 0.5)*S;
         if((cx - bx)*(cx - bx) + (cy - by)*(cy - by) > R2) continue;
-        if(clsAt(ix, iy) !== 1) continue;
-        if(clsAt(ix+1, iy) !== 2 && clsAt(ix-1, iy) !== 2 && clsAt(ix, iy+1) !== 2 && clsAt(ix, iy-1) !== 2) continue;
+        const c0 = clsAt(ix, iy);
+        if(c0 !== 1 && c0 !== 3) continue;
+        if(c0 === 1 && clsAt(ix+1, iy) !== 2 && clsAt(ix-1, iy) !== 2 && clsAt(ix, iy+1) !== 2 && clsAt(ix, iy-1) !== 2) continue;
         const k = key(ix, iy);
         let h = hidC.get(k);
         if(h === undefined){
