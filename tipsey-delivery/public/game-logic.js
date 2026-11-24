@@ -17176,7 +17176,108 @@ function vmLatch(scene){
    world collides the trees and shrubs (owBuildWorld's posts) and the map
    draws the line. Every plant is placed here, seeded, so the draw and the
    collision are the same list. null if the park is not there. */
-const VET_TRAIL = { cell: "3,4", halfW: 120, loopR: 250, spurHalfW: 85 };
+const VET_TRAIL = { cell: "3,4", halfW: 120, loopR: 250, spurHalfW: 85, edging: 12, verge: 48 };
+/* WHAT STANDS BY THE TRAIL, from the things themselves (world rects): every hood landmark's declared solids (its building,
+   its pens' fences; not its props), every park landmark's, and every walk-in room's outline where it shows on the street,
+   its walls round it (WALKIN_WALL) -- those near the trail's cells. The plans the trail was laid round by hand (the dog park,
+   the fire yard, the skate park, the memorial's plaza) are not here: their runs are theirs. */
+function vetTrailFootprints(grid, cells){
+  const out = [], push = pts => { const xs = pts.map(q => q.x), ys = pts.map(q => q.y); out.push({ x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) }); };
+  /* (a landmark's solids that touch are one thing: a pen's four fences are the pen, its run inside them) */
+  const solids = (v, toW) => { const n0 = out.length;
+    for(const sd of v.solids || []){ if(sd.prop) continue;
+      push((sd.c ? [[sd.c[0] - sd.r, sd.c[1] - sd.r], [sd.c[0] + sd.r, sd.c[1] + sd.r]] : sd.poly).map(p => toW(p[0], p[1]))); }
+    const R = out.splice(n0), touch = (a, b) => a.x0 <= b.x1 + 2 && b.x0 <= a.x1 + 2 && a.y0 <= b.y1 + 2 && b.y0 <= a.y1 + 2;
+    for(let merged = true; merged; ){ merged = false;
+      for(let i = 0; i < R.length && !merged; i++) for(let j = i + 1; j < R.length; j++) if(touch(R[i], R[j])){ const a = R[i], b = R.splice(j, 1)[0];
+        a.x0 = Math.min(a.x0, b.x0); a.x1 = Math.max(a.x1, b.x1); a.y0 = Math.min(a.y0, b.y0); a.y1 = Math.max(a.y1, b.y1); merged = true; break; } }
+    out.push(...R); };
+  for(const row of HOOD_BLOCK_LANDMARKS){ const b = grid.blockByIJ.get(row[0] + "," + row[1]), lv = b && hoodLandmarkVolAt(b); if(lv) solids(lv.v, (a, bb) => lv.fr.toWorld(a, bb)); }
+  { const seen = new Set();
+    for(const lm of parkLandmarkIndexOf(grid).values()){ if(seen.has(lm.name)) continue; seen.add(lm.name);
+      for(const t of parkLandmarkVol(lm.name) || []) solids(t.v, (a, b) => ({ x: lm.x0 + a, y: lm.y0 - b })); } }
+  for(const p of POCKETS){ let v = null; try { v = p.view ? p.view() : null; } catch(e){ v = null; }
+    if(v && isFinite(v.dx) && isFinite(v.dy)) push([{ x: p.x0 + (p.ax0 || 0) + v.dx - WALKIN_WALL, y: p.y0 + v.dy - WALKIN_WALL }, { x: p.x0 + (p.ax1 != null ? p.ax1 : p.w) + v.dx + WALKIN_WALL, y: p.y0 + p.d + v.dy + WALKIN_WALL }]); }
+  const cl = [...cells.values()], M = BLOCK/2;
+  return out.filter(r => cl.some(c => r.x1 > c.x0 - M && r.x0 < c.x1 + M && r.y1 > c.y0 - M && r.y0 < c.y1 + M));
+}
+/* A RUN BENDS ROUND WHAT STANDS ON ITS LINE (vetTrailOf, after the plans' own changes): the trail's straight lines (runs end to
+   end through the joints where nothing else meets them), and on each, every stretch whose chips, their edging and a verge
+   (VET_TRAIL.verge) would reach a footprint: the run steps out square to the nearer clear side, inside the park, runs past
+   and steps back -- four joints, each a disc as every joint is. A step out lands on a side path's line when one meets the run
+   that close (the two read as one); a side path met inside the stretch starts from the new line, or goes if it would cross
+   what stood there. The planting now on the chips goes; every other plant stays where it was. A stretch reaching the line's
+   end (a joint inside a footprint) is left: nothing to bend round to. */
+function vetTrailDetour(grid, cells, segs, spurs, nodes, plants, off, inPark){
+  const FP = vetTrailFootprints(grid, cells), H = VET_TRAIL.halfW, G = H + VET_TRAIL.edging + VET_TRAIL.verge, Gmin = H + VET_TRAIL.edging;
+  if(!FP.length) return;
+  const K = (x, y) => x + "," + y, at = new Map();
+  for(const s of segs) for(const [x, y] of [[s.x0, s.y0], [s.x1, s.y1]]){ const k = K(x, y); if(!at.has(k)) at.set(k, []); at.get(k).push(s); }
+  const isRun = s => !s.spur && !s.exit, hz = s => s.y0 === s.y1, turn = (x, y) => nodes.some(n => n.end && n.x === x && n.y === y);
+  const done = new Set(), lines = [];
+  for(const s0 of segs){
+    if(!isRun(s0) || done.has(s0)) continue;
+    const h = hz(s0), c = h ? s0.y0 : s0.x0, line = [s0]; done.add(s0);
+    for(const [ex, ey] of [[s0.x0, s0.y0], [s0.x1, s0.y1]]){
+      let px = ex, py = ey, cur = s0;
+      for(;;){ const L = at.get(K(px, py)) || []; if(L.length !== 2 || turn(px, py)) break;
+        const nx = L[0] === cur ? L[1] : L[0]; if(!isRun(nx) || done.has(nx) || hz(nx) !== h || (h ? nx.y0 : nx.x0) !== c) break;
+        done.add(nx); line.push(nx); cur = nx; [px, py] = (nx.x0 === px && nx.y0 === py) ? [nx.x1, nx.y1] : [nx.x0, nx.y0]; }
+    }
+    const us = line.flatMap(s => h ? [s.x0, s.x1] : [s.y0, s.y1]);
+    lines.push({ h, c, segs: line, u0: Math.min(...us), u1: Math.max(...us) });
+  }
+  const U = (r, h) => h ? [r.x0, r.x1] : [r.y0, r.y1], V = (r, h) => h ? [r.y0, r.y1] : [r.x0, r.x1];
+  const pt = (h, u, v) => h ? { x: u, y: v } : { x: v, y: u };
+  let changed = false;
+  for(const Ln of lines){
+    const { h, c } = Ln;
+    /* the footprints near enough the line, merged into stretches along it */
+    const on = FP.filter(r => { const [v0, v1] = V(r, h), [a0, a1] = U(r, h); return c > v0 - G && c < v1 + G && a1 + G > Ln.u0 && a0 - G < Ln.u1; })
+      .map(r => ({ r, a0: U(r, h)[0] - G, a1: U(r, h)[1] + G })).sort((p, q) => p.a0 - q.a0);
+    const st = [];
+    for(const o of on){ const l = st[st.length - 1]; if(l && o.a0 < l.a1 + G){ l.a1 = Math.max(l.a1, o.a1); l.rs.push(o.r); } else st.push({ a0: o.a0, a1: o.a1, rs: [o.r] }); }
+    for(const S of st){
+      if(S.a0 <= Ln.u0 || S.a1 >= Ln.u1) continue;                                 // (its joint is in it: nothing to bend round to)
+      /* the side: the nearer clear line either side, inside the park all the way */
+      const lo = Math.min(...S.rs.map(r => V(r, h)[0])) - G, hi = Math.max(...S.rs.map(r => V(r, h)[1])) + G;
+      const ok = v => { for(let u = S.a0; u <= S.a1; u += 100){ const p = pt(h, u, v); if(!inPark(p.x, p.y, 0)) return false; } return !FP.some(r => { const [a0, a1] = U(r, h), [v0, v1] = V(r, h); return a1 > S.a0 - Gmin && a0 < S.a1 + Gmin && v1 > v - G && v0 < v + G; }); };
+      const sides = [lo, hi].sort((p, q) => Math.abs(p - c) - Math.abs(q - c)).filter(ok);
+      if(!sides.length) continue;
+      const nv = Math.round(sides[0]), dir = Math.sign(nv - c);
+      /* a side path meeting the line just outside a step lands the step on it, while the chips still clear */
+      const spurU = s => (h ? s.x0 : s.y0), meets = s => s.spur && (h ? s.y0 === c : s.x0 === c);
+      for(const s of spurs){ if(!meets(s)) continue; const u = spurU(s);
+        if(Math.abs(u - S.a0) <= G - Gmin && u > Ln.u0) S.a0 = u;                  // (out: more verge; in: never closer than the edging)
+        if(Math.abs(u - S.a1) <= G - Gmin && u < Ln.u1) S.a1 = u; }
+      const a0 = Math.round(S.a0), a1 = Math.round(S.a1);
+      /* the line's runs cut round the stretch; the joints inside it go */
+      for(const s of Ln.segs){
+        const i = segs.indexOf(s); if(i < 0) continue;
+        const p0 = h ? s.x0 : s.y0, p1 = h ? s.x1 : s.y1, lo2 = Math.min(p0, p1), hi2 = Math.max(p0, p1);
+        if(hi2 <= a0 || lo2 >= a1) continue;
+        segs.splice(i, 1);
+        const keep = [[lo2, Math.min(hi2, a0)], [Math.max(lo2, a1), hi2]].filter(([p, q]) => q - p > 0.5);
+        for(const [p, q] of keep){ const A = pt(h, p, c), B = pt(h, q, c), ns = { x0: A.x, y0: A.y, x1: B.x, y1: B.y }; segs.push(ns); Ln.segs.push(ns); }
+      }
+      for(let i = nodes.length - 1; i >= 0; i--){ const n = nodes[i], u = h ? n.x : n.y, v = h ? n.y : n.x; if(!n.end && v === c && u > a0 && u < a1) nodes.splice(i, 1); }
+      /* out, past, back */
+      const P = [pt(h, a0, c), pt(h, a0, nv), pt(h, a1, nv), pt(h, a1, c)];
+      for(let k = 1; k < P.length; k++) segs.push({ x0: P[k-1].x, y0: P[k-1].y, x1: P[k].x, y1: P[k].y });
+      for(const p of P) if(!nodes.some(n => n.x === p.x && n.y === p.y)) nodes.push({ x: p.x, y: p.y, end: false });
+      /* the side paths met inside: from the new line, or gone */
+      for(let i = spurs.length - 1; i >= 0; i--){ const s = spurs[i]; if(!meets(s)) continue; const u = spurU(s), out = Math.sign((h ? s.y1 : s.x1) - c);
+        if(u < a0 || u > a1 || ((u === a0 || u === a1) && out !== dir)) continue;
+        if(out === dir){ if(h) s.y0 = nv; else s.x0 = nv; }
+        else { spurs.splice(i, 1); const j = segs.indexOf(s); if(j >= 0) segs.splice(j, 1); } }
+      changed = true;
+    }
+  }
+  if(!changed) return;
+  /* the planting now on or against the chips goes (as the dog park's ring does) */
+  const gap = { tree: 50, palm: 50, palmDwarf: 50, shrub: 8, bed: 40, bench: 8 };
+  for(let i = plants.length - 1; i >= 0; i--){ const p = plants[i]; if(off(p.x, p.y) < (gap[p.kind] || 8) + (p.kind === "bed" ? p.len || 0 : 0)) plants.splice(i, 1); }
+}
 function vetTrailOf(grid){
   if(!grid || !grid.blockByIJ) return null;
   if(grid._vetTrail !== undefined) return grid._vetTrail;
@@ -17441,6 +17542,9 @@ function vetTrailOf(grid){
         if((p.x > K0.X0 - m && p.x < K0.X1 + m && p.y > K0.Y0 - m && p.y < K0.Y1 + m) || off(p.x, p.y) < 10) plants.splice(i, 1); }
     }
   }
+  /* NOTHING STANDS ON THE CHIPS (Sir, 2026-11-24: "the building and the side dog pen hang out into the trail? we need to fix
+     this"): a run that passes under a building, a landmark's pieces or a walk-in room bends round them (vetTrailDetour) */
+  vetTrailDetour(grid, cells, segs, spurs, nodes, plants, off, inPark);
   /* EACH CELL A PARK OF ITS OWN THEME (PARK PLANTING VARIETY): its trees, shrubs and beds picked off the theme of the cell whose
      centre is nearest (the cell that draws it: queueParkTrail), once, here -- paint only, nothing above moves */
   { const cl = [...cells.values()];
