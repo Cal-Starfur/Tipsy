@@ -31269,11 +31269,11 @@ function sfPose(s, m, now, P){
   if(sk && sk.k > 0.5){ const st = sk.seat;
     if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
       const ph = -now*0.009 + (s.seed & 63); P.pedal = { ph, c: [11.5, 23.8], r: 8 }; /* (the ANKLE's circle: the crank's (14 before, 16 up) less the shoe -- its sole's middle 2.5 before the ankle, its bottom 6.8 under it -- and the pedal's half-thickness: the sole on the pedal all the way round) */ P.between = (g, G, st) => sfBikeMiddle(g, G, st, ph); return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
-    if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
+    if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.28]; P.bend = [0.3, 0.35 + 1.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls: the elbow kept down at the side, the forearm curling up -- a hand lifted past the drawer's RAISED drops what it holds)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
     if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.5*Math.min(1, k*1.6)]; P.bend = [0.2, 0.3]; P.headTilt = 0.3; return; }
-    const w = 0.5 + 0.5*Math.sin(now*0.004); P.lift = [0.1, 0.2 + 0.3*w]; P.bend = [0.2, 0.4 + 1.3*w]; P.headTurn = 0; P.hold = H.bell; return; }
+    const w = 0.5 + 0.5*Math.sin(now*0.004); P.lift = [0.1, 0.22]; P.bend = [0.2, 0.3 + 1.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (the elbow at the side, the forearm curling)
   if(m.look === 'kb' && !m.path){                                                                                 // (a kettlebell off the rack, once; then swings)
     if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.45*Math.min(1, k*1.6)]; P.bend = [0.2, 0.3]; P.headTilt = 0.3; return; }
     const w = 0.5 + 0.5*Math.sin(now*0.005); P.lift = [0.15 + 0.85*w, 0.15 + 0.85*w]; P.bend = [0.1, 0.1]; P.headTurn = 0; P.hold = H.kb; return; }
