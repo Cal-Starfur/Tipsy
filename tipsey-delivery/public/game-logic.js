@@ -31244,10 +31244,10 @@ function sfBikeMiddle(g, G, stage, ph){
      the far one under the far foot ('under'), the near one last, under the near foot */
   /* (the pedal under the shoe's sole -- across the foot (hipW*0.3 out, 2.5..9), its top at the sole's bottom: the ankle's circle, pose.pedal, is
      this one moved by the shoe -- the crank arm outside it) */
-  const crank = s => { const t = ph + (s > 0 ? 0 : Math.PI), a = s*E, fw = 14 + Math.cos(t)*8, up = 16 + Math.sin(t)*8;
+  const crank = s => { const t = ph + (s > 0 ? 0 : Math.PI), a = s, fw = 14 + Math.cos(t)*8, up = 16 + Math.sin(t)*8;   // (s is the drawer's own side, its raw across: the leg on side s is at +s -- times E it put each pedal under the other foot, half a turn out)
     const pb = []; for(const x of [2.5, 9]) for(const f of [-3, 3]) for(const z of [-1, 1]) pb.push(G(a*x, fw + f, up + z));
     const arm = () => fill([G(a*9, 14, 15), G(a*9, 14, 17), G(a*10.5, 14, 15), G(a*10.5, 14, 17), G(a*9, fw, up - 1), G(a*9, fw, up + 1), G(a*10.5, fw, up - 1), G(a*10.5, fw, up + 1)], 0x868c90);
-    if(s === nearS){ fill(pb, 0x1e2124); arm(); } else { arm(); fill(pb, 0x1e2124); } };   // (the arm outside the pedal: after it on the near side, before it on the far)
+    if(s === nearS){ fill(pb, 0x4a5056); arm(); } else { arm(); fill(pb, 0x4a5056); } };   // (the arm outside the pedal: after it on the near side, before it on the far)
   const nearS = E;   // (the near leg is the east one: +across is east when E is 1)
   if(stage === 'under'){ crank(-nearS); return; }
   rod(208, 6, 274, 6, 2.6, 0x2f3a3f); rod(250, 14, 228, 36, 2.4, 0x2f3a3f); rod(226, 8, 230, 66, 2.6, 0x2f3a3f);   // (the post up to under its head)
