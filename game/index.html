@@ -63920,7 +63920,11 @@ function houseCanopy(fn){
        each face that shows -- Sir: "they should have lids"; an empty one open) */
     /* a parts robot's three places at the stop: st[j] 0 nothing, 1 its empty (open), 2 a full one -- place j as the arm and the picker use it */
     const SLOTS3 = (a, b, fd, z, col, st, p) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], al = Math.abs(Math.sin(Math.round(fd)*Math.PI/2)) > 0.5;
-      for(const P of [0, 1, 2].map(j => ({ j, a: a + v[0]*(26*(1 - j) - 10), b: b + v[1]*(26*(1 - j) - 10) })).sort((p, q) => (p.a + p.b) - (q.a + q.b))){ const S = st[P.j]; if(S === 1) partTote(P.a, P.b, z, al, 0, col); else if(S === 2) partTote(P.a, P.b, z, al, 2, col, p); } };
+      for(const P of [0, 1, 2].map(j => ({ j, a: a + v[0]*(26*(1 - j) - 10), b: b + v[1]*(26*(1 - j) - 10) })).sort((p, q) => (p.a + p.b) - (q.a + q.b))){ const S = st[P.j]; if(S === 1) partTote(P.a, P.b, z, al, 0, col); else if(S === 2) partTote(P.a, P.b, z, al, p === 1 ? 0 : 2, col, p); } };
+    /* station 1's wheels in a parts robot's totes: the scooter's own back wheel, as in his hands and on the scooter (Sir, 2026-11-24: "the parts art is different in the warehouse than when it gets to the line") -- two stood across each full tote */
+    const WHEELS3 = (out, a, b, fd, st) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], u = [-v[1], v[0]], th = Math.atan2(u[1], u[0]) - Math.PI/2;
+      for(let j = 0; j < 3; j++){ if(st[j] !== 2) continue; const ta = a + v[0]*(26*(1 - j) - 10), tb = b + v[1]*(26*(1 - j) - 10);
+        for(let i = 0; i < 2; i++){ const wa = ta + v[0]*(-5 + i*10), wb = tb + v[1]*(-5 + i*10), oa = wa + 26*u[0], ob = wb + 26*u[1]; out.push({ kind: 'scooter', a: oa, b: ob, z: 40, th, stage: 'rear', brand: CWS, dd: Math.max(4, ta + tb + 14 - oa - ob) }); } } };
     const HELDBIN = (col, empty) => (box, w, z, V) => { const z0 = z - 20, la = 12, lb = 11.5;
       { box(w[0] - la, w[0] + la, w[1] - lb, w[1] + lb, z0, z - 3, col); box(w[0] - la, w[0] + la, w[1] - lb, w[1] + lb, z - 3, z, _pdk(col, 0.72)); }
       if(!V) return;
@@ -64137,9 +64141,9 @@ function houseCanopy(fn){
               if(p === 1) for(const j of [-1, 0, 1]){ const nj = Math.max(0, Math.min(2, n - 2*(j + 1))), ta = ba - 10 + 26*j; for(let i = 0; i < nj; i++){ const wa = ta - 5 + i*10; out.push({ kind: 'scooter', a: wa, b: bb + 26, z: 31 + 9, th: 0, stage: 'rear', brand: CWS, dd: Math.max(4, ba + bb + 30 - wa - (bb + 26) + 26*j) }); } }   /* (stood across the bin, side by side) */
               continue; }
             const P = R.P, A = RBA[m], q = ((((R.rr - A) % SUP) + SUP) % SUP) + A;
-            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3, 3, p) })); continue; }
+            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => SLOTS3(P.a, P.b, P.fdir, 31, col, [2, 2, 2], p) })); if(p === 1) WHEELS3(out, P.a, P.b, P.fdir, [2, 2, 2]); continue; }
             const st = [0, 1, 2].map(j => R.kind === 'empty' ? 1 : q >= A + 1000 + j*1200 + 800*ARMU1 ? 2 : q < A + 1600*j + 1600*0.3 ? 1 : 0);   /* (each place in its turn: his empty lifted off, the arm's full set on -- open, no lids) */
-            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => SLOTS3(P.a, P.b, P.fdir, 31, col, st, p) })); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => SLOTS3(P.a, P.b, P.fdir, 31, col, st, p) })); if(p === 1) WHEELS3(out, P.a, P.b, P.fdir, st); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
       { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
