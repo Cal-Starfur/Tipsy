@@ -163065,8 +163065,11 @@ const GO_SPOTS = {
     let held = 0, tries = 0;
     const go = () => {
       try {
+        /* (the garage shut first, whatever state it left the scene in: a saved game can boot into it, and then s.state is never 'play' and the jump
+           never came -- Sir, 2026-11-24, "he's trapped in the garage again") */
+        if(window.garageClose && document.body.classList.contains('tpGarage')) try { window.garageClose(); } catch(e){}
+        if(s.state !== 'play' && typeof tpEnsureFreeroam === 'function' && !document.body.classList.contains('tpGarage')) try { tpEnsureFreeroam(s); } catch(e){}
         if(s.state === 'play' && s.ow){
-          if(window.garageClose && document.body.classList.contains('tpGarage')) try { window.garageClose(); } catch(e){}
           if(Math.hypot(s.ow.px - x, s.ow.py - y) > 300){ held = 0; if(free) HOOD_LOCK.active = false; owStandUpAt(s, x, y, yaw); if(room) room(s); if(v) zoomSet(+v); }
           else held++;
         }
