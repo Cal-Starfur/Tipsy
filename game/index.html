@@ -34492,7 +34492,7 @@ walkinLife(TT_IN.name, { keep: [[0, 2000, 193, 273]], looks: [
   { id: 'games', spots: [[534, 370, Math.PI], [534, 520, Math.PI]] },
   { id: 'gondola', spots: [[240, 642, -Math.PI/2], [360, 642, -Math.PI/2]] },
   { id: 'beach', spots: [[200, 704, Math.PI/2], [440, 704, Math.PI/2]] },
-  { id: 'dollhouse', spots: [[596, 690, -Math.PI/2]] },
+  { id: 'dollhouse', spots: [[58, 92, -Math.PI/2]] },
   { id: 'till', spots: [[500, 184, -Math.PI/2], [570, 184, -Math.PI/2]] },
 ], browseNext: ttBrowseNext, pose: ttPose, drawState: ttDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
@@ -65012,7 +65012,7 @@ function houseCanopy(fn){
   /* INSIDE SANDCASTLE TOYS (TT_IN; the walk-in kit's walls, walkinRoom, its door in the east wall; the room runs back west under Sandpiper
      Shoes' east end and south over Cove Pottery's north end, which are taken off while he is inside -- pk.displace). Frame a east, b south,
      z up, world units. Built by the shop recipe (W33), in zones for its size:
-       the north wall   A BALL BIN in the corner; THE BOX WALL (a 110..430) of boxed toys; the back cupboard (a 450..612) under the name,
+       the north wall   THE DOLLHOUSE in the corner; THE BOX WALL (a 110..430) of boxed toys; the back cupboard (a 450..612) under the name,
                         THE TILL COUNTER before it (a 450..610, b 104..144, 75), Ingrid behind it: the till, a jar of lollipops and a
                         stack of the shop's bags each their own piece on top
        by the front     THE WINDOW DISPLAYS behind the two glazed bays: a sandcastle of blocks (b 14..138), a rocking horse (b 326..458)
@@ -65113,15 +65113,6 @@ function houseCanopy(fn){
       /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's warm sand and its ocean-blue trim -- the near walls' outer faces are the
          building's own; its two bays' sill (the exterior's z 34, x1.95: 66.3) stands over the low wall's top, so nothing is cut in it */
       low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#ece2cc' });
-
-    /* ---- A BALL BIN in the north-west corner: a blue wire bin, full to the brim with bright balls (back ones first) ---- */
-    items.push({ a: 56, b: 68, z: 0, solids: [{ name: 'ball bin', c: [56, 68], r: 36, h: 58 }], draw: () => {
-      cyl(56, 68, 0, 46, 34, blueD, '#3a4a5a');
-      const bl = []; for(let k = 0; k < 16; k++){ const t = k*2.4, r = 6 + (k % 4)*6.5; bl.push([56 + Math.cos(t)*r, 68 + Math.sin(t)*r*0.95, 48 + (k % 3)*2.5, TOY[k % TOY.length]]); }
-      bl.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
-      for(const [ba, bb, bz, c] of bl) ball(ba, bb, bz, 6.4, c);
-      for(let k = 0; k < 10; k++){ const t = Math.PI*0.05 + k/9*Math.PI*0.9; tube(56 + Math.cos(t - Math.PI/4)*34, 68 + Math.sin(t - Math.PI/4)*34, 0, 56 + Math.cos(t - Math.PI/4)*34, 68 + Math.sin(t - Math.PI/4)*34, 46, 0.7, blueL); }
-      oval(56, 68, 34, 34, 46.2, null, blueL, 1.6); } });
 
     /* ---- THE BOX WALL on the north wall: white cubbies of four shelves, boxed toys stood on them -- each its body, the window in its face and
        the band over it; in runs of 50 keyed at each stretch's start (against the wall). Bay by bay, west to east: the upright on its west
@@ -65382,13 +65373,13 @@ function houseCanopy(fn){
       }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
     }
 
-    /* ---- THE DOLLHOUSE on a low plinth in the south-east, its open front to the room (south): two floors and an attic, each room furnished
+    /* ---- THE DOLLHOUSE on a low plinth in the north-west corner, its back to the north wall, its open front to the room (south): two floors and an attic, each room furnished
        (the kitchen and the sitting room down, the bedroom and the nursery up, a bed in the attic), the stairs; its east wall with its windows
        and door, the roof's south slope in tiles, a chimney. Back to front: the plinth, the back wall's inside, the floors, the rooms' far
        things, the partitions, the rooms' near things, the east wall, the floors' front edges, the roof ---- */
-    items.push({ a: 596, b: 619, z: 0, solids: [solid(552, 640, 600, 638, 150, 'dollhouse')], draw: () => {
+    items.push({ a: 58, b: 23, z: 0, solids: [solid(14, 102, 4, 42, 150, 'dollhouse')], draw: () => {
       /* (shallow and tall, as a real one is: deep rooms under low floors only show their ceilings from above) */
-      const A0 = 556, A1 = 636, B0 = 604, B1 = 634, z0 = 20, FL = [z0, z0 + 42, z0 + 82], zE = z0 + 110, AM = (A0 + A1)/2;
+      const A0 = 18, A1 = 98, B0 = 8, B1 = 38, z0 = 20, FL = [z0, z0 + 42, z0 + 82], zE = z0 + 110, AM = (A0 + A1)/2;
       const wallP = ['#f4b0c0', '#9ed2ea', '#ffd870', '#b4e09c'], pink = '#e86a8a', floorC = '#a8703e';
       box(A0 - 4, A1 + 4, B0 - 4, B1 + 4, 0, z0, white, whiteF, whiteS);
       /* the back wall's inside, room by room (its papers, a picture in each), the west wall's inside */
