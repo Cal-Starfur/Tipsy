@@ -71,7 +71,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | AV fleet | `drawAvPod`, `drawProp('avpod' / 'avshuttle' / 'avsweeper' / ...)` | | |
 | Aircraft, boats, drones | `drawAircraft`, `drawPlane`, `drawJet`, `drawHeli`, `drawAutoBoat`, `drawDrone` | | |
 | Soapbox karts | `soapKartS`, `soapWheel` | | Tidewater Kart Works |
-| Scooters | `drawProp('scooter')`, `drawScooterRider` | | |
+| Scooters | `drawProp('scooter')`, `drawScooterRider` | part-built: `stage` 0..7, `'7h'` (head lamp on, no tail light); one piece alone: `'rear'`, `'p2'`..`'p7'`, `'p6s'` (one grip), `'p7t'` (the tail light) | Kickstand Scooter Co. (the line's pieces: `PIECE` / `PSETP`) |
 
 ## Building parts and street props
 
