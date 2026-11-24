@@ -34072,7 +34072,10 @@ function ssShoeHW(u){ return u > 3 ? 1 - 0.42*Math.pow((u - 3)/8.4, 2) : u < -4 
    profile, 'side' a slice of a side wall, 'panel' a panel on a side -- each with where its middle is (u along, w across, z up) and its part's
    colour key. opt.depth(u, w, z): how near the eye a place on it is -- each part's faces are painted far to near by it. opt.iK scales insets) */
 function ssShoeDraw(kind, C, pt, fill, HW, opt){
-  const o = pt(0, 0, 0), ox = pt(1, 0, 0), ow = pt(0, 1, 0), ref = Math.sign((ox.x - o.x)*(ow.y - o.y) - (ox.y - o.y)*(ow.x - o.x)) || 1;
+  /* (ref: how a face toward the eye winds on the screen -- the plate's, which on the shelf is always seen; on someone a foot kicked up behind can
+     turn its top away from the eye, the sole's underside toward it: then the plate's winding is the unseen one -- opt.depth says which) */
+  const o = pt(0, 0, 0), ox = pt(1, 0, 0), ow = pt(0, 1, 0), plateUp = !(opt && opt.depth) || opt.depth(0, 0, 1) >= opt.depth(0, 0, 0),
+        ref = (Math.sign((ox.x - o.x)*(ow.y - o.y) - (ox.y - o.y)*(ow.x - o.x)) || 1)*(plateUp ? 1 : -1);
   const seen = P => { let A = 0; for(let i = 0; i < P.length; i++){ const p = P[i], q = P[(i + 1) % P.length]; A += p.x*q.y - q.x*p.y; } return Math.sign(A) === ref; };
   /* (a profile turned so it runs heel-bottom, up, over and down the toe: clockwise with u right and z up) */
   const cw = pr => { let A = 0; for(let i = 0; i < pr.length; i++){ const p = pr[i], q = pr[(i + 1) % pr.length]; A += p[0]*q[1] - q[0]*p[1]; } return A > 0 ? pr.slice().reverse() : pr; };
@@ -34086,10 +34089,14 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
     return lo <= hi ? [lo, hi] : null; };
   const parts = SS_PARTS[kind], top = parts.find(q => q[0] === 'top');
   let base = true; const ALL = [];
+  const upLo = Math.min(...parts.filter(q => q[0] === 'p' && Math.max(...q[1].map(v => v[1])) > 6.5).map(q => Math.min(...q[1].map(v => v[1]))));   // (where the upper stands: its lowest)
   for(const part of parts){ const t = part[0], F = [];
     if(part[5] === 'worn' && !on) continue;   // (the wearer's own foot: on someone only)
-    const face = (P3, c, l, what, ck) => { const n = P3.length, m = P3.reduce((a, q) => [a[0] + q[0]/n, a[1] + q[1]/n, a[2] + q[2]/n], [0, 0, 0]);
-      if(!want(what, m[0], m[1], m[2], ck)) return; F.push({ P3, c, l, d: depth ? depth(m[0], m[1], m[2]) + (what === 'panel' ? 0.6 : 0) : F.length }); };   // (a panel just after the wall it lies on)
+    /* (under: a sole's top that the upper stands on, whole (not one the upper's bottom runs into, as a runner's midsole) -- with the shoe's faces all sorted together (opt.mix) it goes first, as the unmixed
+       pass lays the base first: sorted by its middle, the whole length of the shoe, it came after the upper's top and painted over it --
+       people_depth, the heavy build mid-stride) */
+    const face = (P3, c, l, what, ck, under) => { const n = P3.length, m = P3.reduce((a, q) => [a[0] + q[0]/n, a[1] + q[1]/n, a[2] + q[2]/n], [0, 0, 0]);
+      if(!want(what, m[0], m[1], m[2], ck)) return; F.push({ P3, c, l, d: under && on && opt.mix ? -1e9 : depth ? depth(m[0], m[1], m[2]) + (what === 'panel' ? 0.6 : 0) : F.length }); };   // (a panel just after the wall it lies on)
     if(t === 'p'){ const pr = cw(part[1]), c = C[part[2]], i = part[3], fl = !!part[4], n = pr.length, ck = part[2];
       base = base && Math.max(...part[1].map(q => q[1])) <= 6.5;
       const us = pr.map(q => q[0]), uLo = Math.min(...us), uHi = Math.max(...us);
@@ -34103,7 +34110,7 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
         const L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, lt = 0.86 + 0.14*Math.max(0, (q[0] - p[0])/L);
         if(on && !base){ face([[p[0], -hp, p[1]], [q[0], -hq, q[1]], [q[0], 0, q[1]], [p[0], 0, p[1]]], c, lt, 'strip', ck);
           face([[p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], hq, q[1]], [p[0], hp, p[1]]], c, lt, 'strip', ck); }
-        else face([[p[0], -hp, p[1]], [q[0], -hq, q[1]], [q[0], hq, q[1]], [p[0], hp, p[1]]], c, lt, base ? 'base' : 'strip', ck); }
+        else face([[p[0], -hp, p[1]], [q[0], -hq, q[1]], [q[0], hq, q[1]], [p[0], hp, p[1]]], c, lt, base ? 'base' : 'strip', ck, base && (q[0] - p[0])/L > 0.8 && Math.max(p[1], q[1]) <= upLo + 0.01); }
       /* the side walls, in slices along the shoe */
       const cuts = Array.from(new Set(us.concat(Array.from({ length: 13 }, (_, k) => uLo + (uHi - uLo)*k/12)))).sort((a, b) => a - b);
       for(const sd of [1, -1]) for(let k = 0; k < cuts.length - 1; k++){ const a0 = cuts[k], a1 = cuts[k + 1]; if(a1 - a0 < 0.05) continue;
@@ -125514,17 +125521,9 @@ class WorldScene extends Phaser.Scene {
         const lift = Math.max(0, Math.min(1, (SL.A[1] - aLo)/(shoeH*0.4))), phi = pose && pose.sit != null ? 0 : sAng*Math.min(1, 0.25 + 0.75*lift);   // (and near square to the shin, within ~11 degrees: the heel comes up with the leg, so the collar stays on it -- Sir, 2026-11-24, "rotate the shoe to stay with the leg so this gap isnt created" -- Sir, 2026-11-24, "we see the bottom of the leg")   // (a foot tips a little -- toe down off the back foot, toe up landing -- never square to a shin bent level in the swing: Sir, 2026-11-24, "turning the shoe to the wrong angle")
         const pc = Math.cos(phi), ps = Math.sin(phi), pb = b0, ph = h0 - shoeH + tz*zs;   // (pivot at the collar, where the leg goes in)
         const rot = (b, h) => [pb + (b - pb)*pc - (h - ph)*ps, ph + (b - pb)*ps + (h - ph)*pc];
-        /* THE COLLAR FOLLOWS THE LEG (Sir, 2026-11-24: "close that gap without rotating the foot back out of alignment"): the foot keeps its own
-           tip (phi); the heel's upper -- behind the collar's front, above the sole -- turns further, to square with the shin, by how high it is, so
-           its rim sits round the leg and the forefoot and sole stay where they are */
-        /* (not a hinge -- the collar is moved, not turned: each point of the heel's upper is slid toward where it would be were the shoe square to the
-           shin, by how high it stands, so its rim lands round the leg and the sole and forefoot do not move at all) */
-        const dPhi = Math.abs(sAng - phi) > 0.06 ? sAng - phi : 0, zSole = 3.5;
-        const sq = (b, h) => { const c = Math.cos(sAng), s_ = Math.sin(sAng); return [pb + (b - pb)*c - (h - ph)*s_, ph + (b - pb)*s_ + (h - ph)*c]; };
-        const rot2 = (b, h, u, z) => { const r = rot(b, h); if(true || !dPhi || u > cf + 4 || z <= zSole) return r;   // (the shoe one rigid piece: Sir, 2026-11-24, "you are breaking the geometry of the shoe by adding pieces instead of rotating the shoe")
-          const kz = Math.min(1, (z - zSole)/Math.max(1, tz - zSole)), ku = u <= cf ? 1 : 1 - (u - cf)/4, k = kz*kz*ku*ku*(3 - 2*ku), q = sq(b, h);   // (eased in from the collar's front: no step along the side)
-          return [r[0] + (q[0] - r[0])*k, r[1] + (q[1] - r[1])*k]; };
-        const pt = (u, w, z) => { let a = aC + w; const r = rot2(b0 + bOf(u), h0 - shoeH + z*zs, u, z); let h = r[1]; const b = r[0];
+        /* (the shoe one rigid piece: Sir, 2026-11-24, "you are breaking the geometry of the shoe by adding pieces instead of rotating the shoe" --
+           every point of it turns by rot, nothing bent or slid on its own) */
+        const pt = (u, w, z) => { let a = aC + w; const r = rot(b0 + bOf(u), h0 - shoeH + z*zs); let h = r[1]; const b = r[0];
           if(LX.on){ const da = a - LX.a0, dh = h - LX.h0; a = LX.a0 + da*LX.c - dh*LX.s; h = LX.h0 + da*LX.s + dh*LX.c; }
           return G(a, b, h); };
         const fill = (pts, c, l) => this.quadOn(g, pts, l < 0.999 ? _pdk(c, l) : c);
@@ -125539,17 +125538,10 @@ class WorldScene extends Phaser.Scene {
         const minHalf = u => { const db = bOf(u)/(legD*1.05); return Math.abs(db) < 1 ? legW*1.08*Math.sqrt(1 - db*db) + legW*0.06 : 0; };
         /* (the leg's end toward the eye -- a foot lifted behind, seen from behind: the whole shoe lies between the eye and the leg, all of it after) */
         const endOn = sx*eye3[1] + sy*eye3[2] < -0.25*Math.hypot(eye3[1], eye3[2]);
-        const pass = ph => endOn ? (ph === 2 ? ssShoeDraw(shopK, C, pt, fill, HW, { iK: HW/5.5, minHalf, mix: true, on: true, depth: (u, w, z) => { const r = rot(b0 + bOf(u), h0 - shoeH + z*zs); return w*eye3[0] + r[0]*eye3[1] + r[1]*eye3[2]; },
-          want: (what, u, w, z, ck) => ck !== 'skin' || true }) : 0) : ssShoeDraw(shopK, C, pt, fill, HW, { iK: HW/5.5, mix: Math.abs(phi) > 0.06, depth: (u, w, z) => { const r = rot(b0 + bOf(u), h0 - shoeH + z*zs); return w*eye3[0] + r[0]*eye3[1] + r[1]*eye3[2]; }, want: (what, u, w, z, ck) => what === 'mouth' || ck === 'skin' ? ph === 1 : what === 'base' ? (Math.abs(phi) > 0.06 && near(u, w, z) ? ph === 2 : ph === 1) :   // (the sole too, by where it is, once the foot is tipped: lifted, its sole can face the eye)
+        const pass = ph => endOn ? (ph === 2 ? ssShoeDraw(shopK, C, pt, fill, HW, { iK: HW/5.5, minHalf, mix: true, depth: (u, w, z) => { const r = rot(b0 + bOf(u), h0 - shoeH + z*zs); return w*eye3[0] + r[0]*eye3[1] + r[1]*eye3[2]; },
+          want: () => true }) : 0) : ssShoeDraw(shopK, C, pt, fill, HW, { iK: HW/5.5, mix: Math.abs(phi) > 0.06, depth: (u, w, z) => { const r = rot(b0 + bOf(u), h0 - shoeH + z*zs); return w*eye3[0] + r[0]*eye3[1] + r[1]*eye3[2]; }, want: (what, u, w, z, ck) => what === 'mouth' || ck === 'skin' ? ph === 1 : what === 'base' ? (Math.abs(phi) > 0.06 && near(u, w, z) ? ph === 2 : ph === 1) :   // (the sole too, by where it is, once the foot is tipped: lifted, its sole can face the eye)
  (what === 'panel' || ck === 'up') && what !== 'strip' && z <= tz + 0.5 ? ph === 2 : (near(u, w, z) ? ph === 2 : ph === 1) });   // (the upper's side walls and the panels on them wrap the shin: seen, they are in front of it; every other face by which side of the shin's middle line it is on -- the shin stops at the shoe's top)
-        /* THE ANKLE (Sir, 2026-11-24: "rotate the shoe to stay with the leg so this gap isnt created" / "you rotated the foot here again"): the shoe
-           keeps a foot's own tip, and where it is off square to the leg, a short joint -- the leg's own cloth or skin -- runs from the leg's end down
-           into the collar along the shoe's own up, so the two always meet. Before the shoe's near faces, after the leg */
-        const ankleJ = () => { if(true || Math.abs(sAng - phi) < 0.12 || shopK === 'sandal') return;
-          const ac = pPants.shorts || (dress && !dress.long) ? pSkin : (dress && dress.long ? dress : pPants), r0 = legW*0.98, d0 = legD*0.98;   // (as wide as the collar it goes into)
-          const L = Math.hypot(SL.K[0] - SL.A[0], SL.K[1] - SL.A[1]) || 1, e = [SL.A[0] - (SL.K[0] - SL.A[0])/L*0.6, SL.A[1] - (SL.K[1] - SL.A[1])/L*0.6];
-          limb(aC, sq(b0, ph - shoeH*0.2), e, r0, d0, ac.c, ac.dk, 1, 3); };   // (down the leg's own line into the collar, which now stands square to it)
-        if(mode === 0){ pass(1); ankleJ(); pass(2); } else { if(mode === 2) ankleJ(); pass(mode); }
+        if(mode === 0){ pass(1); pass(2); } else pass(mode);
         /* THE COLLAR, a padded ring round the ankle where the leg goes in (P21: a band round a limb is a ring -- only its faces toward the eye),
            after the leg: it covers the shin's end and the seam, from behind and as the leg leans mid-stride (Sir, 2026-11-24: "the shoe should be
            meeting the leg"). A sandal has none: the foot is bare. On the shoe's own collar, turned with the shoe: square to the
