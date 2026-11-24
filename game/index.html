@@ -3706,6 +3706,7 @@ const HAIR_M = ['crop', 'part', 'quiff', 'buzz', 'curls'], HAIR_W = ['long', 'bo
    (drawPersonHull's shoeOf); a shoe pair may name its own (pShoe.kind), a uniform its (uniform.shoeKind) */
 const SHOES_M = ['sneaker', 'dress', 'boot', 'sandal', 'sneaker'], SHOES_W = ['sneaker', 'flat', 'heel', 'boot', 'sandal'];
 const SHOES_K = ['sneaker', 'sandal', 'sneaker', 'boot', 'sneaker'];   // (a child's: no heels)
+const SHOES_SHOP = ['hightop', 'runner', 'slipon'];   // (the shoe shop's, on their own roll: Sandpiper Shoes' SS_PARTS, in the person drawer's own build)
 const PLASTER = { c: 0xf4f2ec, dk: 0xd2cec4 };   // (a leg in plaster: aid.cast, HOSP_FOLK)
 const PEOPLE_SHOE  = [{c:0x1c1c1c,dk:0x121212},{c:0x5c4530,dk:0x483623},{c:0xf2f0e8,dk:0xc4c2ba}];
 
@@ -124389,7 +124390,15 @@ class WorldScene extends Phaser.Scene {
        off their seed (SHOES_M / SHOES_W). Built at the ankle A [b, h] from a sole, an upper on it and, for some, a toe forward,
        a heel block under the back, a cuff up the shin, a strap over a bare foot. Drawn before the leg, so the shin goes down
        into the shoe's mouth and a boot's cuff shows as a ring round it */
-    const shoeKind = pShoe.kind || (uniform && uniform.shoeKind) || (pShoe.platform ? 'platform' : (build.legH < 40 ? SHOES_K : build.hairStyle === "long" ? SHOES_W : SHOES_M)[(hairHash*7 + 3) % 5]);
+    let shoeKind = pShoe.kind || (uniform && uniform.shoeKind) || (pShoe.platform ? 'platform' : (build.legH < 40 ? SHOES_K : build.hairStyle === "long" ? SHOES_W : SHOES_M)[(hairHash*7 + 3) % 5]);
+    /* THE SHOE SHOP'S KINDS ON THE STREET (Sir, 2026-11-24: "can we make these shoes accessible to our people?" -- Sandpiper Shoes' SS_PARTS):
+       a pair picked off the tables (not one set by hand: a uniform's, the pair's own kind, the goths' platforms) is now and then one of the
+       shop's -- a high-top, a runner or a slip-on for a sneaker, a chelsea boot for a boot -- on ITS OWN ROLL (P20: mulberry32 off the look's
+       hash and its own salt), so nothing else about anyone changes */
+    if(!pShoe.kind && !(uniform && uniform.shoeKind) && !pShoe.platform){
+      const sr = mulberry32((hairHash ^ 0x5b0e5) >>> 0)();
+      if(shoeKind === 'sneaker' && sr < 0.6) shoeKind = SHOES_SHOP[Math.floor(sr/0.2)];
+      else if(shoeKind === 'boot' && sr < 0.4) shoeKind = 'chelsea'; }
     const shoeOf = (aC, A, legW, legD, mode) => {   // mode 0: all of it (seated); 1: before the leg -- the sole (a flat slab the leg STANDS on: its top face must be under the leg) and, with his back to the eye, the toe (behind the leg); 2: over the leg -- the upper (a sleeve round the shin, from either side) and, facing the eye, the toe (nearer than the shin)
       const late = mode === 2;
       const b0 = A[0], h0 = A[1], S = pShoe, K = shoeKind, soleH = Math.max(1.5, shoeH*0.32), white = { c: _pmix(S.c, 0xf4f2ec, 0.78), dk: _pmix(S.dk, 0xd6d3ca, 0.65) };
@@ -124412,6 +124421,21 @@ class WorldScene extends Phaser.Scene {
                          band(legD*0.3, legD*1.6, h0 + build.legH*0.2 - 2, 2.5, { c: S.dk, dk: S.dk }); break;                              // up the shin, a cuff
         case 'sandal':   sole(legD*0.4, legD*1.8, soleH*0.9, S); upper(legD*0.3, legD*1.4, h0 - shoeH + soleH*0.9, h0, 0.8, pSkin);        // the foot bare on the sole
                          band(legD*0.5, legD*0.5, h0 - shoeH*0.55, 1.6, S); break;                                                        // a strap over it
+        /* (the shoe shop's: SHOES_SHOP, and the chelsea boot -- each the sneaker's or the boot's own build, with what makes it that kind) */
+        case 'hightop':  sole(legD*0.42, legD*1.62, soleH*1.3, white); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0 + build.legH*0.09, 0.95, S);   // up past the ankle
+                         toe(legD*0.9, legD*2.05, h0 - shoeH + soleH*1.3, h0 - shoeH*0.3, legW*1.0, white);                                 // a white toe cap
+                         band(legD*0.3, legD*1.55, h0 + build.legH*0.09 - 2, 2, white); break;                                              // its padded collar
+        case 'runner':   sole(legD*0.42, legD*1.66, soleH*0.7, { c: _pdk(S.dk, 0.7), dk: _pdk(S.dk, 0.6) });                              // the dark outsole...
+                         if(!late) limb(aC, [b0 + legD*0.4, h0 - shoeH + soleH*0.7], [b0 + legD*0.4, h0 - shoeH + soleH*1.9], legW*1.24, legD*1.6, white.c, white.dk, 1, 3);   // ...the thick white midsole on it
+                         upper(legD*0.32, legD*1.46, h0 - shoeH + soleH*1.9, h0, 0.9, S);
+                         band(legD*0.32, legD*1.5, h0 - shoeH*0.45, 1.4, { c: pShirt.c, dk: pShirt.dk });                                // a flash round it, the shirt's colour (before the toe: the toe is nearer)
+                         toe(legD*0.9, legD*2.0, h0 - shoeH + soleH*1.9, h0 - shoeH*0.25, legW*0.95, S); break;
+        case 'slipon':   sole(legD*0.42, legD*1.62, soleH*1.3, { c: 0xb8875a, dk: 0x96693e });                                               // a gum sole (the sneaker's build)
+                         upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0, 0.97, S);
+                         band(legD*0.3, legD*1.55, h0 - shoeH + soleH*1.3, 1.3, white);                                                    // the white foxing band (before the toe: the toe is nearer)
+                         toe(legD*0.9, legD*2.05, h0 - shoeH + soleH*1.3, h0 - shoeH*0.3, legW*1.0, S); break;
+        case 'chelsea':  sole(legD*0.38, legD*1.8, soleH*1.3, { c: 0x2a2826, dk: 0x1c1a18 }); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0 + build.legH*0.12, 0.9, S);
+                         toe(legD*0.9, legD*2.0, h0 - shoeH + soleH*1.3, h0 - shoeH*0.3, legW*1.0, S); break;                             // ankle high, a round toe
         case 'platform': sole(legD*0.38, legD*1.8, soleH*1.6, S); upper(legD*0.3, legD*1.55, h0 - shoeH + soleH*1.6, h0 + build.legH*0.12, 0.9, S); break;
         case 'bare':     limb(aC, [b0 - legD*0.15, h0 - shoeH*0.62], [b0 + legD*1.05, h0 - shoeH*0.62], legW*0.62, shoeH*0.34, S.c, S.dk, 0.72, 1); break;   // a bare foot, the size of a hand (gownLook)
         default:         sole(legD*0.38, legD*1.8, soleH, S); upper(legD*0.3, legD*1.55, h0 - shoeH + soleH, h0, 0.85, S);
