@@ -31176,8 +31176,11 @@ function sfHold(s){
       hull(g, at, box(x - 2.4, x + 2.4, f - 4.2, f + 4.2, h - 13, h + 1.2), towel); hull(g, at, box(x - 2.6, x + 2.6, f - 4.4, f + 4.4, h - 0.6, h + 1.4), _pdk(towel, 0.88)); },
     /* a hex dumbbell across the hand: the far head, the handle, the near head */
     bell: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1], hd = 0x2a2e32;
-      hull(g, at, box(x - 2.6, x + 2.6, f - 9, f - 4, h - 3.6, h + 3.6), hd); hull(g, at, box(x - 0.9, x + 0.9, f - 4, f + 4, h - 0.9, h + 0.9), 0xb8bec2);
-      hull(g, at, box(x - 2.6, x + 2.6, f + 4, f + 9, h - 3.6, h + 3.6), hd); },
+      /* (the grip across the hand, crossways to the forearm -- Sir, 2026-11-24: "the dumb bell isnt oriented to the arm correctly it needs to rotate
+         90 degrees": the inner head first, then the grip, then the outer head) */
+      const sd = x < 0 ? -1 : 1;
+      hull(g, at, box(x - sd*9, x - sd*4, f - 2.6, f + 2.6, h - 3.6, h + 3.6), hd); hull(g, at, box(x - 4, x + 4, f - 0.9, f + 0.9, h - 0.9, h + 0.9), 0xb8bec2);
+      hull(g, at, box(x + sd*4, x + sd*9, f - 2.6, f + 2.6, h - 3.6, h + 3.6), hd); },
     /* a kettlebell from the hand: its handle, the bell under it */
     kb: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
       hull(g, at, ring(x, f, h - 8.5, 5.6).concat(ring(x, f, h - 3.5, 5.2), ring(x, f, h - 13, 3.6)), 0xe2574c); hull(g, at, box(x - 0.8, x + 0.8, f - 3.4, f + 3.4, h - 3.4, h + 1), 0x2a2e32); },
