@@ -49053,12 +49053,119 @@ const KP_PAL = PLANTER_VARIANTS.map(v => ({ n: v.n, a: '#' + v.leafA.toString(16
 const KP_BOX = { n: 'box', a: '#4f8048', b: '#365e33', c: '#6a9a58', f: '#f4f0e2', spiky: false };
 const KP_BLOOMS = ['#e86b8a', '#f2c14e', '#f4f0e6', '#b07ad8', '#e8743b', '#d94f3d', '#7f9fe2'];
 /* what grows in it: the puffs (or blades) far to near, the mass in shade first, each lit side after (SP13) */
+/* THE ROOM PLANTS (the indoor planters pass, 2026-11-24 -- Sir: "lets do a pass on the indoor planters now"). The rooms' potted plants were
+   a cylinder and a fan of tubes or balls; each now stands in kitPlanter's pot (or trough) and grows one of these, named by o.plant (an outdoor
+   caller never names one, so nothing outside changes):
+     palm    a potted palm, its fronds the street palms' (the mall plaza's: a rib up and out from the crown and down to its tip, a leaf either
+             side narrowing to nothing, the far fronds first and the near ones after the trunk); o.trunk the crown's height (none: the fronds
+             spring from the soil, an areca or a kentia, rising to o.top), o.frond their length, o.fronds how many
+     tree    an indoor tree (a ficus, an olive): a trunk to o.trunk, a crown of puffs round it o.crown across, the mass in shade first, then
+             each puff's lit side far to near (the street planter's mound)
+     blades  sword leaves (a dracaena, a yucca) fanning from the soil to o.top, o.spread out; snake: the snake plant's, upright, their
+             yellow edges and pale bands
+     leafy   broad leaves on long stalks (a monstera, a fiddle-leaf, a peace lily): the stalks first, then each leaf far to near, dark with its
+             lit half up and to the left; o.top, o.spread, o.leafR
+   All of it lit left and dark right (SP13), the same spot always the same plant (seeded off its position). o.leaf: the green it is in. */
+const KP_ROOM = { palm: 1, tree: 1, blades: 1, snake: 1, leafy: 1 };
+function kitRoomPlant(style, ca, cb, zs, R, o, rng){
+  const leaf = o.leaf || '#4f7a4a', leafL = shade(leaf, 1.22), leafD = shade(leaf, 0.74), trunkC = o.trunkCol || '#8a7258';
+  const o0 = P(ca, cb, zs), ex = Math.hypot(P(ca + 1, cb, zs).x - o0.x, P(ca, cb + 1, zs).x - o0.x);
+  const right = x => x > o0.x + R*K*0.1;
+  const circ = (x, y, r, c) => { ctx.beginPath(); ctx.arc(x, y, Math.max(0.6, r), 0, Math.PI*2); ctx.fillStyle = c; ctx.fill(); };
+  let top = zs;
+  /* a trunk: tapered, a lit stripe down its left (the street palm's) */
+  const trunk = (z1, r0, r1, lean) => {
+    const L = [], Rt = [], N = 8;
+    for(let k = 0; k <= N; k++){ const f = k/N, z = zs + (z1 - zs)*f, c = P(ca + lean*f*f, cb, z), r = (r0 + (r1 - r0)*f)*ex; L.push({ x: c.x - r, y: c.y }); Rt.push({ x: c.x + r, y: c.y }); }
+    poly(L.concat(Rt.slice().reverse()), trunkC);
+    poly(L.map((q, i) => ({ x: q.x + (Rt[i].x - q.x)*0.15, y: q.y })).concat(L.map((q, i) => ({ x: q.x + (Rt[i].x - q.x)*0.45, y: q.y })).reverse()), shade(trunkC, 1.14));
+    top = Math.max(top, z1);
+  };
+  if(style === 'palm'){
+    const n = o.fronds || 8, L = o.frond || 30, tz = o.trunk || 0, lean = tz ? (o.lean != null ? o.lean : 3) : 0, cz = tz || zs;
+    const ta = ca + lean, rise = o.top != null ? o.top - cz : 0;
+    /* a frond's rib: up and out, then down to its tip -- off a trunk the street palm's (26, 14, -34 a hundred long), from the soil a fountain
+       that rises to the top and bows */
+    const rib = tz ? [0, 0.26*L, 0.14*L, -0.34*L] : [0, rise*0.82, rise, rise*0.62];
+    const fr = [], ph0 = rng()*6.28;
+    for(let k = 0; k < n; k++){
+      const t = k/n*Math.PI*2 + ph0 + (rng() - 0.5)*0.3, len = L*(0.88 + rng()*0.24), c = Math.cos(t), s = Math.sin(t), na = -s, nb = c, w = [0, 0.13*len*(o.wide || 1), 0.1*len*(o.wide || 1), 0];
+      const F = [0, 0.35, 0.7, 1], pt = (i, sg) => P(ta + c*len*F[i] + na*w[i]*sg, cb + s*len*F[i] + nb*w[i]*sg, cz + rib[i]*(len/L) - w[i]*0.4*Math.abs(sg));
+      fr.push({ k: P(ta + c*len, cb + s*len, 0).y, c, s, pt });
+      top = Math.max(top, cz + Math.max(...rib)*(len/L));
+    }
+    fr.sort((p, q) => p.k - q.k);
+    const cy = P(ta, cb, 0).y;
+    const frond = f => {
+      const side = sg => [0, 1, 2, 3].map(i => f.pt(i, sg)), A = side(1), B = side(-1), tip = A[3], dk = right(tip.x);
+      poly(A.concat(B.slice().reverse()), dk ? leafD : (f.k > cy ? leaf : shade(leaf, 0.9)));
+      poly([A[0], A[1], A[2], A[3], f.pt(2, 0.35), f.pt(1, 0.35)], dk ? shade(leafD, 1.08) : leafL);   // (its lit half: the side toward the light)
+      ctx.strokeStyle = shade(leaf, 1.35); ctx.lineWidth = Math.max(0.6, 0.8*K); ctx.beginPath();
+      [0, 1, 2, 3].map(i => f.pt(i, 0)).forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke();
+    };
+    if(tz){ for(const f of fr) if(f.k <= cy) frond(f); trunk(tz, o.trunkR || 3, (o.trunkR || 3)*0.7, lean); for(const f of fr) if(f.k > cy) frond(f); }
+    else for(const f of fr) frond(f);
+  } else if(style === 'tree'){
+    const tz = o.trunk || zs + 60, CR = (o.crown || 40)/2, cz = tz + CR*0.3;
+    trunk(tz, o.trunkR || 3.5, (o.trunkR || 3.5)*0.7, 0);
+    const puffs = [{ a: ca, b: cb, z: cz + CR*0.55, r: CR*0.5 }];
+    for(let i = 0, n = 6; i < n; i++){ const t = i/n*Math.PI*2 + rng()*0.5; puffs.push({ a: ca + Math.cos(t)*CR*0.42, b: cb + Math.sin(t)*CR*0.42, z: cz + CR*(0.2 + rng()*0.3), r: CR*(0.42 + rng()*0.08) }); }
+    for(let i = 0, n = 7; i < n; i++){ const t = i/n*Math.PI*2 + rng()*0.4; puffs.push({ a: ca + Math.cos(t)*CR*0.78, b: cb + Math.sin(t)*CR*0.78, z: cz - CR*(0.15 - rng()*0.3), r: CR*(0.34 + rng()*0.06) }); }
+    for(const f of puffs){ const c = P(f.a, f.b, f.z); f.x = c.x; f.y = c.y; f.k = P(f.a, f.b, 0).y; top = Math.max(top, f.z + f.r); }
+    puffs.sort((p, q) => p.k - q.k);
+    const zMid = puffs.reduce((m, f) => m + f.z, 0)/puffs.length;
+    for(const f of puffs) circ(f.x, f.y, f.r*K, leafD);
+    for(const f of puffs){ const r = f.r*K, up = f.z >= zMid, dk = right(f.x);
+      circ(f.x - r*0.2, f.y - r*0.24, r*0.76, up && !dk ? leaf : shade(leaf, 0.86));
+      if(up && !dk) circ(f.x - r*0.32, f.y - r*0.42, r*0.36, leafL); }
+  } else if(style === 'blades' || style === 'snake'){
+    const snake = style === 'snake', n = o.n || (snake ? 9 : 10), H = (o.top || zs + 60) - zs, sp = o.spread != null ? o.spread : (snake ? R*0.45 : R*1.3);
+    const bl = [];
+    for(let k = 0; k < n; k++){
+      const t = k/n*Math.PI*2 + rng()*0.5, c = Math.cos(t), s = Math.sin(t), r0 = R*(snake ? 0.55 : 0.25)*rng();
+      const ba = ca + c*r0, bb = cb + s*r0, h = H*(0.72 + rng()*0.28), out = sp*(0.6 + rng()*0.4), w = (o.bladeW || (snake ? 5.2 : 3.4))*(0.85 + rng()*0.3);
+      bl.push({ ba, bb, ta: ba + c*out, tb: bb + s*out, h, w, c, s, k: P(ba + c*out*0.5, bb + s*out*0.5, 0).y });
+      top = Math.max(top, zs + h);
+    }
+    bl.sort((p, q) => p.k - q.k);
+    for(const q of bl){
+      /* the blade broad across the eye: its width along the screen's x, through P (a sword leaf turns to the light) */
+      const pa = -0.7071, pb = 0.7071, W = (f, wf, sg) => P(q.ba + (q.ta - q.ba)*f*f + pa*q.w*wf*sg, q.bb + (q.tb - q.bb)*f*f + pb*q.w*wf*sg, zs + q.h*f);
+      const outline = wf => [W(0, 0.55*wf, 1), W(0.45, 1.0*wf, 1), W(0.8, 0.7*wf, 1), W(1, 0, 1), W(0.8, 0.7*wf, -1), W(0.45, 1.0*wf, -1), W(0, 0.55*wf, -1)];
+      const dk = right(W(1, 0, 1).x);
+      if(snake){ poly(outline(1), dk ? '#a8a24a' : '#d8cf6a');   // (its yellow edge)
+        poly(outline(0.72), dk ? leafD : leaf);
+        for(const f of [0.3, 0.52, 0.72]) poly([W(f, 0.66, 1), W(f + 0.04, 0.66, 1), W(f + 0.04, 0.66, -1), W(f, 0.66, -1)], dk ? shade(leafD, 1.18) : leafL); }   // (its pale bands)
+      else { poly(outline(1), dk ? leafD : leaf); poly([W(0, 0.2, -1), W(0.45, 0.4, -1), W(0.8, 0.3, -1), W(1, 0, 1), W(0.8, 0.1, 1), W(0.45, 0.1, 1), W(0, 0.1, 1)], dk ? leaf : leafL); }
+    }
+  } else if(style === 'leafy'){
+    const n = o.n || 9, H = (o.top || zs + 60) - zs, sp = o.spread != null ? o.spread : R*1.4, lr = o.leafR || R*0.7;
+    const lv = [];
+    for(let k = 0; k < n; k++){
+      const t = k/n*Math.PI*2 + rng()*0.6, out = sp*(0.45 + rng()*0.55), h = H*(0.45 + rng()*0.55) - lr*0.3;
+      lv.push({ a: ca + Math.cos(t)*out, b: cb + Math.sin(t)*out*0.85, z: zs + h, r: lr*(0.8 + rng()*0.35), t, k: P(ca + Math.cos(t)*out, cb + Math.sin(t)*out*0.85, 0).y });
+    }
+    lv.sort((p, q) => p.k - q.k || p.z - q.z);
+    ctx.strokeStyle = shade(leaf, 0.7); ctx.lineWidth = Math.max(0.7, 1.1*K);
+    for(const l of lv){ const p0 = P(ca, cb, zs), p1 = P(l.a, l.b, l.z - l.r*0.4); ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); }
+    for(const l of lv){
+      const c = P(l.a, l.b, l.z), d = P(l.a + Math.cos(l.t)*l.r, l.b + Math.sin(l.t)*l.r, l.z + l.r*0.2), rot = Math.atan2(d.y - c.y, d.x - c.x), r = l.r*K*1.2, dk = right(c.x);
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, r, r*0.62, rot, 0, Math.PI*2); ctx.fillStyle = dk ? leafD : shade(leaf, 0.86); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(c.x - r*0.16, c.y - r*0.18, r*0.72, r*0.4, rot, 0, Math.PI*2); ctx.fillStyle = dk ? leaf : leafL; ctx.fill();
+      ctx.strokeStyle = shade(leaf, 0.62); ctx.lineWidth = Math.max(0.5, 0.6*K); ctx.beginPath(); ctx.moveTo(c.x - Math.cos(rot)*r*0.8, c.y - Math.sin(rot)*r*0.8); ctx.lineTo(c.x + Math.cos(rot)*r*0.8, c.y + Math.sin(rot)*r*0.8); ctx.stroke();
+      top = Math.max(top, l.z + l.r*0.6);
+    }
+  }
+  P(ca, cb, top);   // (its real top: a runPiece's zTop and w37's measure)
+}
 function kitPlanting(open, ca, cb, zs, kind, o, rng, grng, dark){
+  if(KP_ROOM[o.plant]) return kitRoomPlant(o.plant, ca, cb, zs, open.round ? open.r : Math.min(open.a1 - open.a0, open.b1 - open.b0)/2, o, rng);   // (a room's plant: kitRoomPlant)
   const pick = (arr) => arr[Math.floor(grng() * arr.length) % arr.length];
   let style = o.plant && o.plant !== 'auto' ? o.plant : pick(kind === 'bed' ? ['flower', 'mound', 'flower'] : kind === 'pot' ? ['mound', 'ball', 'grass', 'flower', 'succulent'] : ['mound', 'ball', 'grass', 'flower', 'mound']);
   /* (a building's planting is kept: the street planter's autumn palette reads as dying in a forecourt, so it is left to the street) */
   const pal = o.pal ? (KP_PAL.find(p => p.n === o.pal) || KP_BOX) : style === 'ball' ? KP_BOX : (style === 'grass' || style === 'succulent') ? pick(KP_PAL.filter(p => p.spiky)) : pick(KP_PAL.filter(p => !p.spiky && p.n !== 'autumn'));
   const blooms = [pick(KP_BLOOMS), pick(KP_BLOOMS), pal.f];
+  if(o.bloom){ blooms[0] = blooms[1] = o.bloom; }   // (one bloom colour asked for: a nursery pot's)
   const flowering = style === 'flower' || (style === 'mound' && grng() < 0.4);
   const A = open.round ? open.r*2 : open.a1 - open.a0, B = open.round ? open.r*2 : open.b1 - open.b0, mn = Math.min(A, B), mx = Math.max(A, B);
   const ph = o.plantH != null ? o.plantH : Math.max(style === 'flower' ? 16 : 9, Math.min(34, mn*(kind === 'pot' ? 0.85 : 0.55)));
@@ -55506,9 +55613,7 @@ function houseCanopy(fn){
       cyl(960, HB + 70, 160, 196, 22, '#f3e6c4', '#fff6dc'); ball(960, HB + 70, 176, 9, '#fff2c8', '#fffbe4');
     }});
     items.push({ a: 1560, b: HB + 80, z: 0, solids: [{ name:'plant', c: [1560, HB + 80], r: 26, h: 150 }], draw: () => {
-      cyl(1560, HB + 80, 0, 46, 24, goldD, gold); cyl(1560, HB + 80, 46, 47, 20, '#4a3a2a', '#5a4634'); cyl(1560, HB + 80, 47, 118, 5, '#6b5038', '#7d5f44');   // (its trunk, as the hospital's)
-      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; ball(1560 + 18*Math.cos(t), HB + 80 + 18*Math.sin(t), 90 + (k % 3)*22, 20, '#3f7f45', '#5a9a5c'); }
-      ball(1560, HB + 80, 150, 18, '#3f7f45', '#5a9a5c');
+      kitPlanter(1560 - 24, 1560 + 24, HB + 80 - 24, HB + 80 + 24, 0, 46, { kind: 'pot', mat: 'stone', col: goldD, plant: 'tree', trunk: 98, crown: 86, trunkR: 5, trunkCol: '#6b5038', leaf: '#3f7f45' });   // (the shared planter, a room tree: kitPlanter)
     }});
     /* ---- THE COAT CHECK: its counter (the coats and their rail gone: Sir, 2026-10-18) ---- */
     items.push({ a: 445, b: HB + 165, z: 0, solids: [{ name:'coat counter', poly: volRect(290, 600, HB + 140, HB + 190), h: 75 }], draw: () => {   // (a counter's 75: it was 104 -- Sir, 2026-11-20)
@@ -55521,9 +55626,7 @@ function houseCanopy(fn){
     /* the service elevator down to the basement (SVC), behind the coat check */
     svcLiftItems(items, 230, SVC_FINISH.hall);
     items.push({ a: 640, b: HB + 70, z: 0, solids: [{ name:'plant', c: [640, HB + 70], r: 26, h: 150 }], draw: () => {
-      cyl(640, HB + 70, 0, 46, 24, goldD, gold); cyl(640, HB + 70, 46, 47, 20, '#4a3a2a', '#5a4634'); cyl(640, HB + 70, 47, 118, 5, '#6b5038', '#7d5f44');
-      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; ball(640 + 18*Math.cos(t), HB + 70 + 18*Math.sin(t), 90 + (k % 3)*22, 20, '#3f7f45', '#5a9a5c'); }
-      ball(640, HB + 70, 150, 18, '#3f7f45', '#5a9a5c');
+      kitPlanter(640 - 24, 640 + 24, HB + 70 - 24, HB + 70 + 24, 0, 46, { kind: 'pot', mat: 'stone', col: goldD, plant: 'tree', trunk: 98, crown: 86, trunkR: 5, trunkCol: '#6b5038', leaf: '#3f7f45' });   // (the shared planter, a room tree: kitPlanter)
     }});
 
     /* ---- THE BANDSTAND: a stage, its steps, a grand piano and a drum kit ---- */
@@ -56303,8 +56406,7 @@ function houseCanopy(fn){
     }
     /* two potted palms by the door, a planter at each window pier */
     for(const [pa, pb] of [[338, 806], [498, 806], [26, 806], [818, 806]]) items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'planter', c: [pa, pb], r: 16, h: 70 }], draw: () => {
-      box(pa - 14, pa + 14, pb - 14, pb + 14, 0, 26, '#8a5a3a', '#7a4e32', '#5b3d2a');
-      for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 26, pa + Math.cos(t)*22, pb + Math.sin(t)*22, 60 + (k%2)*12, 2, '#3f8f4a'); } } });
+      kitPlanter(pa - 14, pa + 14, pb - 14, pb + 14, 0, 26, { kind: 'tub', mat: 'timber', col: '#7a4e32', plant: 'palm', top: 70, frond: 24, fronds: 7, leaf: '#3f8f4a' }); } });   // (the shared planter, a potted palm: kitPlanter)
 
     /* ---- THE BACK ROOM'S FIXTURES (a 0..416, b 0..416) ----
        THE ROASTER, the north-west, 28 west of where it was so the roof ladder's foot is clear: a steel base, the copper drum on it, its hopper over and its flue to the ceiling */
@@ -58734,9 +58836,7 @@ function houseCanopy(fn){
     /* ---- PLANTERS AND GARDEN STOCK, low along the east wall (a 676..718, b 190..300, in runs) ---- */
     for(const [s0, s1] of runs(190, 300))
       items.push({ a: 697, b: (s0 + s1)/2, z: 0, solids: [solid(676, 718, s0, s1, 56, 'planters')], draw: () => {
-        box(676, 718, s0, s1, 0, 28, '#a35f3c', '#8a4e30', '#6f3f26');
-        T(678, 716, s0 + 1, s1 - 1, 28.3, '#4a3a26');
-        for(let b = s0 + 8; b < s1 - 4; b += 18){ ball(697, b, 40, 10, ['#4e8058', '#3f6b4a', '#6b9a52'][((b/18) | 0) % 3]); ball(697, b + 4, 48, 7, ['#c26a7e', '#e8c34a', '#b4674a'][((b/18) | 0) % 3]); }
+        kitPlanter(676, 718, s0, s1, 0, 28, { kind: 'box', mat: 'terracotta', col: '#8a4e30', plant: 'flower', plantH: 20, group: 'dune garden' });   // (the shared planter: kitPlanter)
       }});
 
     /* ---- THE CHECKOUT (a 560..590, b 320..450): a counter along b, two tills facing the cashier's side (west), a belt on
@@ -59432,14 +59532,11 @@ function houseCanopy(fn){
     const clay = '#b4674a', clayD = '#8f4f38', soil = '#5a4a30';
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
-    const pot = (ca, cb, z0, r, hh, col) => { cyl(ca, cb, z0, z0 + hh, r, clay); plateHoop(ca, cb, z0 + hh - 3, r + 1, clayD, 2); plateCircle(ca, cb, z0 + hh, r - 1, soil, soil, 1);
-      if(col) ball(ca, cb, z0 + hh + r*0.9, r*0.95, col); };
+    /* (the shared planter: kitPlanter's pot, its plant a mound of that green, or that bloom on a mound) */
+    const pot = (ca, cb, z0, r, hh, col) => kitPlanter(ca - r, ca + r, cb - r, cb + r, z0, hh, { kind: 'pot', mat: 'terracotta', col: clay, plant: !col ? 'none' : /^#(c26a7e|e8c34a)$/.test(col) ? 'flower' : 'mound', bloom: col, pal: 'garden', plantH: r*1.6 });
     const GREENS = ['#4e8058', '#3f6b4a', '#568a5e', '#c26a7e', '#e8c34a'];
     const palm = (ca, cb) => {
-      cyl(ca, cb, 0, 30, 15, '#8a5a3a'); plateCircle(ca, cb, 30, 13, soil, soil, 1);
-      cyl(ca, cb, 30, 96, 3, '#6b5a3a');
-      for(let k = 0; k < 6; k++){ const q = k*1.05; tube(ca, cb, 96, ca + 28*Math.cos(q), cb + 28*Math.sin(q), 84, 3.2, GREENS[k % 3]); ball(ca + 30*Math.cos(q), cb + 30*Math.sin(q), 80, 8, GREENS[k % 3]); }
-      ball(ca, cb, 102, 10, '#4e8058');
+      kitPlanter(ca - 15, ca + 15, cb - 15, cb + 15, 0, 30, { kind: 'pot', mat: 'terracotta', col: '#8a5a3a', plant: 'palm', trunk: 96, frond: 34, fronds: 8, trunkCol: '#6b5a3a', leaf: '#4e8058' });   // (the shared planter, a potted palm)
     };
 
     /* ---- THE FLOOR: plank boards along a (15 wide), a threshold and mat at the doorway (W13) ---- */
@@ -59746,9 +59843,7 @@ function houseCanopy(fn){
 
     /* ---- A PALM in a stone pot past the bench (a 4..40, b 592..628), clear of the west pair's corner ---- */
     items.push({ a: 22, b: 610, z: 0, solids: [{ name: 'palm', c: [22, 610], r: 18, h: 60 }], draw: () => {
-      cyl(22, 610, 0, 54, 18, stoneD, stoneL); plateCircle(22, 610, 54, 16, '#5a4636', null, 0);
-      tube(22, 610, 54, 26, 606, 150, 2.4, '#7a5e3e');
-      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(26, 606, 150, 26 + 44*Math.cos(t), 606 + 44*Math.sin(t), 128, 3.2, k % 2 ? '#4f7a4a' : '#5f8f58'); }
+      kitPlanter(22 - 18, 22 + 18, 610 - 18, 610 + 18, 0, 54, { kind: 'pot', mat: 'stone', col: stoneD, plant: 'palm', trunk: 150, lean: 4, frond: 48, fronds: 8, trunkR: 2.6, trunkCol: '#7a5e3e', leaf: '#4f7a4a' });   // (the shared planter, a potted palm)
     }});
 
     /* ---- THE FRONT: the exterior's lobby front (the 'Palmline Tower' entry's lobbyFront, PALMLINE_PLAN) cut at the near walls' height LH, in
@@ -59873,7 +59968,7 @@ function houseCanopy(fn){
       for(const a of [70, 140, 210, 280]) stool(a, 678); for(const a of [36, 334]) box(a - 3, a + 3, 702, 722, 0, 70, oakD, oakD, oakD); box(30, 340, 700, 724, 70, 74, oak, oakF, oakD);
       cyl(120, 712, 74, 82, 5, '#f6f3ea'); cyl(250, 712, 74, 80, 5, '#f6f3ea'); });
     for(const [a, b] of [[810, 760], [24, 620]]) items.push({ a, b, z: 0, solids: [{ name: 'plant', c: [a, b], r: 16, h: 60 }], draw: () => {
-      cyl(a, b, 0, 46, 16, stoneD, '#efe7d6'); plateCircle(a, b, 46, 14, '#5a4636', null, 0); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(a, b, 46, a + 26*Math.cos(t), b + 26*Math.sin(t), 100, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+      kitPlanter(a - 16, a + 16, b - 16, b + 16, 0, 46, { kind: 'pot', mat: 'stone', col: stoneD, plant: 'palm', top: 100, frond: 28, fronds: 8, leaf: '#4f7a4a' }); } });   // (the shared planter, a potted palm)
     walkinStaffSolids(items, 'Coral Cafe Interior');
     depthSort(items);
   }
@@ -59955,7 +60050,7 @@ function houseCanopy(fn){
         for(const [a, bkA] of [[ta - 40, [ta - 52, ta - 48]], [ta + 40, [ta + 48, ta + 52]]]){ box(a - 12, a + 12, tb - 12, tb + 12, 0, 46, oak, oakF, oakD); box(bkA[0], bkA[1], tb - 12, tb + 12, 46, 84, oak, oakF, oakD); }
         cyl(ta, tb, 0, 56, 2.6, '#3a3e46'); cyl(ta, tb, 56, 60, 24, '#f1efe9', '#d8d3c4'); plateCircle(ta, tb, 60, 23, '#f1efe9', '#c9c3b4', 1); } });
     for(const [a, b] of [[810, 760], [24, 440]]) items.push({ a, b, z: 0, solids: [{ name: 'plant', c: [a, b], r: 16, h: 60 }], draw: () => {
-      cyl(a, b, 0, 46, 16, stoneD, '#efe7d6'); plateCircle(a, b, 46, 14, '#5a4636', null, 0); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(a, b, 46, a + 26*Math.cos(t), b + 26*Math.sin(t), 100, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+      kitPlanter(a - 16, a + 16, b - 16, b + 16, 0, 46, { kind: 'pot', mat: 'stone', col: stoneD, plant: 'palm', top: 100, frond: 28, fronds: 8, leaf: '#4f7a4a' }); } });   // (the shared planter, a potted palm)
     walkinStaffSolids(items, 'Marina Deli Interior');
     depthSort(items);
   }
@@ -60158,7 +60253,7 @@ function houseCanopy(fn){
       box(672, 696, 548, 572, 0, 116, dark, dark, '#16181b'); F(676, 692, 60, 104, '#3a3e44', null, 0, 572.2); F(678, 690, 84, 100, '#e2b23c', null, 0, 572.4);
       F(679, 689, 48, 56, '#16181b', null, 0, 572.4); cyl(684, 576, 40, 48, 3, '#f4f2ec'); } });
     items.push({ a: 640, b: 742, z: 0, solids: [{ name: 'plant', c: [640, 734], r: 12, h: 110 }], draw: () => {
-      cyl(640, 734, 0, 28, 11, trim, trimD); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(640, 734, 28, 640 + Math.cos(t)*16, 734 + Math.sin(t)*12, 78 + (k % 3)*12, 2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
+      kitPlanter(640 - 11, 640 + 11, 734 - 11, 734 + 11, 0, 28, { kind: 'pot', mat: 'concrete', col: trim, plant: 'blades', top: 102, spread: 16, leaf: '#3f7a4a' }); } });   // (the shared planter: kitPlanter)
 
     walkinStaffSolids(items, PG_IN.name);
     depthSort(items);
@@ -60325,8 +60420,7 @@ function houseCanopy(fn){
       for(const ca of [a(420), a(620)]) items.push({ a: ca, b: b(440), z: 0, solids: [{ name: 'armchair', c: [ca, b(440)], r: 18, h: 70 }], draw: () => {
         box(ca - 18, ca + 18, b(422), b(458), 0, 34, leather, leatherF, leatherS); box(ca < a(500) ? ca - 18 : ca + 6, ca < a(500) ? ca - 6 : ca + 18, b(422), b(458), 34, 68, leather, leatherF, leatherS); } });
       for(const [pa, pb] of [[a(640), b(360)], [a(420), b(360)]]) items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'palm', c: [pa, pb], r: 14, h: 120 }], draw: () => {
-        cyl(pa, pb, 0, 28, 14, brass, brassD); tube(pa, pb, 28, pa, pb, 70, 2, '#6b5a3a');
-        for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 70, pa + Math.cos(t)*26, pb + Math.sin(t)*20, 58, 2.6, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+        kitPlanter(pa - 14, pa + 14, pb - 14, pb + 14, 0, 28, { kind: 'pot', mat: 'steel', col: brass, plant: 'palm', trunk: 72, lean: 1, frond: 30, fronds: 7, trunkR: 2, trunkCol: '#6b5a3a', leaf: '#4f7a4a' }); } });   // (the shared planter, a potted palm)
     }
 
     walkinStaffSolids(items, PS_IN.name);
@@ -60362,7 +60456,7 @@ function houseCanopy(fn){
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
     const ring = (a, b, z, r, c, plane) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(plane === 'w' ? P(a, b + Math.cos(t)*r, z + Math.sin(t)*r) : P(a + Math.cos(t)*r, b, z + Math.sin(t)*r)); } poly(pts, c); };
     const palm = (pa, pb) => items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'palm', c: [pa, pb], r: 14, h: 110 }], draw: () => {
-      cyl(pa, pb, 0, 26, 14, jade, shade(jade, 1.15)); for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 26, pa + Math.cos(t)*16, pb + Math.sin(t)*12, 84, 2.2, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+      kitPlanter(pa - 14, pa + 14, pb - 14, pb + 14, 0, 26, { kind: 'pot', mat: 'stone', col: jade, plant: 'blades', top: 84, spread: 16, leaf: '#4f7a4a' }); } });   // (the shared planter: kitPlanter)
 
     /* ---- THE FLOOR: dark planks, the red runner up the lane, the threshold ---- */
     T(0, W, 0, D, 0, plank);
@@ -60746,8 +60840,7 @@ function houseCanopy(fn){
         items.push({ a: 838, b: bb + 12, z: 30, fpLab: { a0: 826, a1: 836, b0: bb - 11, b1: bb + 11, z1: 66 }, solids: [], draw: () => { box(826, 830, bb - 11, bb + 11, 34, 66, shade(c, 1.2), c, shade(c, 0.8)); box(830, 836, bb - 4, bb + 4, 34, 40, caseF, caseF, caseS); } }); } }
     /* a fern in a pot by the door, south of the lane */
     items.push({ a: 815, b: 410, z: 0, solids: [{ name: 'plant', c: [815, 410], r: 14, h: 100 }], draw: () => {
-      cyl(815, 410, 0, 26, 13, '#a86a3a', shade('#a86a3a', 1.15));
-      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(815, 410, 26, 815 + Math.cos(t)*20, 410 + Math.sin(t)*16, 62 + (k % 3)*8, 2, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+      kitPlanter(815 - 13, 815 + 13, 410 - 13, 410 + 13, 0, 26, { kind: 'pot', mat: 'terracotta', col: '#a86a3a', plant: 'blades', top: 78, spread: 20, leaf: '#4f7a4a' }); } });   // (the shared planter: kitPlanter)
 
     /* (its doors are the street's: the door kit's panelled pair on the shop, swung live, cut to the front wall's height from in here) */
     walkinStaffSolids(items, BK_IN.name);
@@ -61045,8 +61138,7 @@ function houseCanopy(fn){
       cyl(790, 602, 0, 3, 9, steelD); tube(790, 602, 3, 790, 602, 38, 1.4, steel); cyl(790, 602, 38, 41, 13, lac, '#f8f8f6');
       box(782, 796, 594, 606, 41, 43, '#2f7fae', '#24689a', '#1f5a86'); box(785, 799, 598, 610, 43, 44.5, '#f6d860', '#d8ba44', '#c4a434'); } });
     items.push({ a: 818, b: 676, z: 0, solids: [{ name: 'plant', c: [818, 676], r: 14, h: 120 }], draw: () => {
-      cyl(818, 676, 0, 30, 13, '#e8ecee', '#f4f6f6');
-      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(818, 676, 30, 818 + Math.cos(t)*18, 676 + Math.sin(t)*14, 80 + (k % 3)*14, 2.2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
+      kitPlanter(818 - 13, 818 + 13, 676 - 13, 676 + 13, 0, 30, { kind: 'pot', mat: 'concrete', col: '#e8ecee', plant: 'blades', top: 108, spread: 18, leaf: '#3f7a4a' }); } });   // (the shared planter: kitPlanter)
 
     /* ---- THE WINDOW'S DISPLAY behind the shop window: a low white platform, frames on little stands facing the street ---- */
     { const b0 = MO_IN.ra(MO_IN.WIN[0]) + 4, b1 = MO_IN.ra(MO_IN.WIN[1]) - 4;
@@ -61326,8 +61418,7 @@ function houseCanopy(fn){
       else { box(ca - 14, ca + 10, cb - 14, cb + 14, 28, 33, oakT, oak, oakS); box(ca + 10, ca + 15, cb - 14, cb + 14, 28, 72, oak, oak, oakS); } } });
     for(const [ta, tb] of [[650, 380], [780, 470], [650, 580]]){ table(ta, tb); chair(ta - 38, tb, 'e'); chair(ta + 38, tb, 'w'); }
     items.push({ a: 826, b: 676, z: 0, solids: [{ name: 'plant', c: [826, 676], r: 14, h: 130 }], draw: () => {
-      cyl(826, 676, 0, 32, 13, '#c8553d', '#d8705a');
-      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(826, 676, 32, 826 + Math.cos(t)*18, 676 + Math.sin(t)*14, 84 + (k % 3)*16, 2.2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
+      kitPlanter(826 - 13, 826 + 13, 676 - 13, 676 + 13, 0, 32, { kind: 'pot', mat: 'terracotta', col: '#c8553d', plant: 'blades', top: 116, spread: 18, leaf: '#3f7a4a' }); } });   // (the shared planter: kitPlanter)
 
     /* ---- THE WINDOW'S DISPLAY behind the shop window: a low oak platform, bags and a little sample roaster facing the street ---- */
     { const a0 = LC_IN.ra(LC_IN.WIN[0]) + 4, a1 = LC_IN.ra(LC_IN.WIN[1]) - 4;
@@ -61584,8 +61675,7 @@ function houseCanopy(fn){
       else { box(ca - 14, ca + 10, cb - 14, cb + 14, 28, 33, '#f4efe4', coral, coralD); box(ca + 10, ca + 15, cb - 14, cb + 14, 28, 72, coral, coral, coralD); } } });
     for(const [ta, tb] of SB_TABLES){ table(ta, tb); chair(ta - 38, tb, 'e'); chair(ta + 38, tb, 'w'); }
     items.push({ a: 826, b: 676, z: 0, solids: [{ name: 'plant', c: [826, 676], r: 14, h: 130 }], draw: () => {
-      cyl(826, 676, 0, 32, 13, sky, '#9ccade');
-      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(826, 676, 32, 826 + Math.cos(t)*18, 676 + Math.sin(t)*14, 84 + (k % 3)*16, 2.2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
+      kitPlanter(826 - 13, 826 + 13, 676 - 13, 676 + 13, 0, 32, { kind: 'pot', mat: 'concrete', col: sky, plant: 'blades', top: 116, spread: 18, leaf: '#3f7a4a' }); } });   // (the shared planter: kitPlanter)
 
     /* ---- THE WINDOW'S DISPLAY behind the shop window: a low oak platform, a tiered stand of cakes, loaves and a basket facing the street ---- */
     { const a0 = Math.max(4, SB_IN.ra(SB_IN.WIN[0])) + 4, a1 = SB_IN.ra(SB_IN.WIN[1]) - 4;
@@ -61846,19 +61936,11 @@ function houseCanopy(fn){
 
     /* ---- BIG POTS by the front: a monstera, an olive ---- */
     items.push({ a: 560, b: 650, z: 0, solids: [{ name: 'plant', c: [560, 650], r: 24, h: 150 }], draw: () => {
-      cyl(560, 650, 0, 34, 20, terra, terraT); cyl(560, 650, 30, 34, 22, terraD, terraT); cyl(560, 650, 33.6, 34, 19, '#5a3e2a', '#5a3e2a');
-      /* (its leaves: broad, split, on long stalks -- each a flattened ball of two greens, the far ones first) */
-      const lv = []; for(let k = 0; k < 11; k++){ const t = k/11*Math.PI*2 + 0.3, rr = 16 + (k % 3)*9; lv.push([560 + Math.cos(t)*rr, 650 + Math.sin(t)*rr*0.75, 64 + (k % 4)*22]); }
-      lv.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
-      for(const [la, lb, lz] of lv) tube(560, 650, 34, la, lb, lz - 6, 1.4, leafD);
-      for(const [la, lb, lz] of lv){ ball(la, lb, lz, 15, leafD, leaf); ball(la + 2, lb + 2, lz + 3, 10, leaf, leafL); } } });
+      /* (its leaves: broad, on long stalks -- the shared planter's leafy plant, in kitPlanter's pot) */
+      kitPlanter(560 - 22, 560 + 22, 650 - 22, 650 + 22, 0, 34, { kind: 'pot', mat: 'terracotta', col: terra, plant: 'leafy', top: 138, spread: 32, leafR: 15, n: 11, leaf }); } });
     items.push({ a: 720, b: 655, z: 0, solids: [{ name: 'plant', c: [720, 655], r: 20, h: 170 }], draw: () => {
-      cyl(720, 655, 0, 30, 16, '#e8e2d6', '#f2ede2'); cyl(720, 655, 29.6, 30, 14, '#5a3e2a', '#5a3e2a');
-      tube(720, 655, 30, 718, 655, 110, 2.4, '#7a6a52'); tube(718, 655, 100, 708, 652, 140, 1.4, '#7a6a52'); tube(719, 655, 104, 732, 658, 146, 1.4, '#7a6a52');
-      /* (its crown: a cloud of small grey-green clumps, the far and low ones first) */
-      const cr = []; for(let k = 0; k < 16; k++){ const t = k*2.39996, rr = 8 + 14*hsh(k*3 + 7); cr.push([720 + Math.cos(t)*rr, 655 + Math.sin(t)*rr*0.8, 128 + 40*hsh(k*5 + 1), 9 + 4*hsh(k*7 + 2)]); }
-      cr.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
-      for(const [la, lb, lz, r] of cr) ball(la, lb, lz, r, '#7a9a72', '#9cbc90'); } });
+      /* (an olive: its crown a cloud of grey-green -- the shared planter's tree, in kitPlanter's pot) */
+      kitPlanter(720 - 16, 720 + 16, 655 - 16, 655 + 16, 0, 30, { kind: 'pot', mat: 'concrete', col: '#e8e2d6', plant: 'tree', trunk: 122, crown: 50, trunkR: 2.4, trunkCol: '#7a6a52', leaf: '#7a9a72' }); } });
 
     /* ---- THE WINDOW'S DISPLAY behind the shop window: a low platform, a tall urn of mixed stems in the middle and buckets beside it ---- */
     { const a0 = Math.max(4, FL_IN.ra(FL_IN.WIN[0])) + 4, a1 = FL_IN.ra(FL_IN.WIN[1]) - 4;
@@ -62076,17 +62158,9 @@ function houseCanopy(fn){
 
     /* ---- A PALM in a pot by the west wall, A MONSTERA in the south-east corner ---- */
     items.push({ a: 48, b: 630, z: 0, solids: [{ name: 'plant', c: [48, 630], r: 22, h: 190 }], draw: () => {
-      cyl(48, 630, 0, 34, 18, terra, terraT); cyl(48, 630, 30, 34, 20, shade(terra, 0.85), terraT); cyl(48, 630, 33.6, 34, 17, '#5a3e2a', '#5a3e2a');
-      tube(48, 630, 34, 50, 630, 150, 3, '#8a6a4a');
-      const fr = []; for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2; fr.push([50 + Math.cos(t)*44, 630 + Math.sin(t)*34, 150 + (k % 3)*8 - 18]); }
-      fr.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
-      for(const [fa, fb, fz] of fr){ tube(50, 630, 152, (50 + fa)/2, (630 + fb)/2, 160, 2.4, leaf); tube((50 + fa)/2, (630 + fb)/2, 160, fa, fb, fz, 2, leafL); } } });
+      kitPlanter(48 - 20, 48 + 20, 630 - 20, 630 + 20, 0, 34, { kind: 'pot', mat: 'terracotta', col: terra, plant: 'palm', trunk: 150, lean: 2, frond: 50, fronds: 9, trunkCol: '#8a6a4a', leaf }); } });   // (the shared planter, a potted palm: kitPlanter)
     items.push({ a: 812, b: 640, z: 0, solids: [{ name: 'plant', c: [812, 640], r: 22, h: 150 }], draw: () => {
-      cyl(812, 640, 0, 32, 18, cream, '#ffffff'); cyl(812, 640, 31.6, 32, 16, '#5a3e2a', '#5a3e2a');
-      const lv = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + 0.3, rr = 14 + (k % 3)*8; lv.push([812 + Math.cos(t)*rr, 640 + Math.sin(t)*rr*0.75, 60 + (k % 4)*20]); }
-      lv.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
-      for(const [la, lb, lz] of lv) tube(812, 640, 32, la, lb, lz - 6, 1.4, leafD);
-      for(const [la, lb, lz] of lv){ ball(la, lb, lz, 13, leafD, leaf); ball(la + 2, lb + 2, lz + 3, 9, leaf, leafL); } } });
+      kitPlanter(812 - 18, 812 + 18, 640 - 18, 640 + 18, 0, 32, { kind: 'pot', mat: 'concrete', col: cream, plant: 'leafy', top: 128, spread: 26, leafR: 13, n: 10, leaf }); } });   // (the shared planter: kitPlanter)
 
     /* (its door is the kiosk's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
     walkinStaffSolids(items, LT_IN.name);
@@ -62336,11 +62410,7 @@ function houseCanopy(fn){
     [[818, 446, 22, teal], [814, 494, 19, coral]].forEach(([ea, eb, r, c]) => items.push({ a: ea, b: eb, z: 0, solids: [{ name: 'ball', c: [ea, eb], r: r + 2, h: r*2 }], draw: () => {
       ball(ea, eb, r, r, c, shade(c, 1.18)); } }));
     items.push({ a: 812, b: 640, z: 0, solids: [{ name: 'plant', c: [812, 640], r: 22, h: 150 }], draw: () => {
-      cyl(812, 640, 0, 32, 18, char, charL); cyl(812, 640, 31.6, 32, 16, '#5a3e2a', '#5a3e2a');
-      const lv = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + 0.3, rr = 14 + (k % 3)*8; lv.push([812 + Math.cos(t)*rr, 640 + Math.sin(t)*rr*0.75, 60 + (k % 4)*20]); }
-      lv.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
-      for(const [la, lb, lz] of lv) tube(812, 640, 32, la, lb, lz - 6, 1.4, leafD);
-      for(const [la, lb, lz] of lv){ ball(la, lb, lz, 13, leafD, leaf); ball(la + 2, lb + 2, lz + 3, 9, leaf, leafL); } } });
+      kitPlanter(812 - 18, 812 + 18, 640 - 18, 640 + 18, 0, 32, { kind: 'pot', mat: 'steel', col: char, plant: 'leafy', top: 128, spread: 26, leafR: 13, n: 10, leaf }); } });   // (the shared planter: kitPlanter)
 
     /* (its door is the gym's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
     walkinStaffSolids(items, SF_IN.name);
@@ -62591,11 +62661,7 @@ function houseCanopy(fn){
 
     /* ---- A PALM in a terracotta pot in the south-east corner (the juice bar's) ---- */
     items.push({ a: 790, b: 660, z: 0, solids: [{ name: 'plant', c: [790, 660], r: 22, h: 190 }], draw: () => {
-      cyl(790, 660, 0, 34, 18, terra, terraT); cyl(790, 660, 30, 34, 20, shade(terra, 0.85), terraT); cyl(790, 660, 33.6, 34, 17, '#5a3e2a', '#5a3e2a');
-      tube(790, 660, 34, 788, 660, 150, 3, '#8a6a4a');
-      const fr = []; for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2; fr.push([788 + Math.cos(t)*44, 660 + Math.sin(t)*34, 150 + (k % 3)*8 - 18]); }
-      fr.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
-      for(const [fa, fb, fz] of fr){ tube(788, 660, 152, (788 + fa)/2, (660 + fb)/2, 160, 2.4, leaf); tube((788 + fa)/2, (660 + fb)/2, 160, fa, fb, fz, 2, leafL); } } });
+      kitPlanter(790 - 20, 790 + 20, 660 - 20, 660 + 20, 0, 34, { kind: 'pot', mat: 'terracotta', col: terra, plant: 'palm', trunk: 150, lean: -2, frond: 50, fronds: 9, trunkCol: '#8a6a4a', leaf }); } });   // (the shared planter, a potted palm: kitPlanter)
 
     /* (its door is the showroom's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
     walkinStaffSolids(items, DF_IN.name);
@@ -62686,10 +62752,7 @@ function houseCanopy(fn){
 
     /* ---- A SNAKE PLANT in a white pot in the north-west corner: the pot, the soil, its blades (far first) ---- */
     items.push({ a: 24, b: 36, z: 0, solids: [{ name: 'plant', c: [24, 36], r: 18, h: 130 }], draw: () => {
-      cyl(24, 36, 0, 30, 14, white, whiteF); cyl(24, 36, 29.6, 30, 12, '#5a3e2a', '#5a3e2a');
-      const bl = []; for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2 + 0.3; bl.push([24 + Math.cos(t)*7, 36 + Math.sin(t)*6, 96 + (k*37 % 5)*8]); }
-      bl.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
-      for(const [ba, bb, bz] of bl){ tube(24 + (ba - 24)*0.3, 36 + (bb - 36)*0.3, 30, ba, bb, bz, 2.6, (bz | 0) % 16 ? leaf : leafL); tube(ba, bb, bz - 30, ba, bb, bz, 1.4, '#c9c46a'); } } });
+      kitPlanter(24 - 14, 24 + 14, 36 - 14, 36 + 14, 0, 30, { kind: 'pot', mat: 'concrete', col: white, plant: 'snake', top: 128, n: 9, leaf: '#3f6f45' }); } });   // (the shared planter, the snake plant: kitPlanter)
 
     /* ---- THE STOCK WALL on the north wall under the name: white cubbies of five rows, two stacks of three shoeboxes a cubby -- each box its lid's
        band and its end label to the room; in runs of 50 keyed at each stretch's start (against the wall). Bay by bay, west to east: the upright on
@@ -62786,11 +62849,7 @@ function houseCanopy(fn){
 
     /* ---- PALMS in terracotta pots in the south-west and south-east corners (the juice bar's) ---- */
     const palm = (pa, pb) => items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'plant', c: [pa, pb], r: 22, h: 190 }], draw: () => {
-      cyl(pa, pb, 0, 34, 18, terra, terraT); cyl(pa, pb, 30, 34, 20, shade(terra, 0.85), terraT); cyl(pa, pb, 33.6, 34, 17, '#5a3e2a', '#5a3e2a');
-      tube(pa, pb, 34, pa - 2, pb, 150, 3, '#8a6a4a');
-      const fr = []; for(let k = 0; k < 9; k++){ const t = k/9*Math.PI*2; fr.push([pa - 2 + Math.cos(t)*40, pb + Math.sin(t)*30, 150 + (k % 3)*8 - 18]); }
-      fr.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
-      for(const [fa, fb, fz] of fr){ tube(pa - 2, pb, 152, (pa - 2 + fa)/2, (pb + fb)/2, 160, 2.4, leaf); tube((pa - 2 + fa)/2, (pb + fb)/2, 160, fa, fb, fz, 2, leafL); } } });
+      kitPlanter(pa - 20, pa + 20, pb - 20, pb + 20, 0, 34, { kind: 'pot', mat: 'terracotta', col: terra, plant: 'palm', trunk: 150, lean: -2, frond: 46, fronds: 9, trunkCol: '#8a6a4a', leaf }); } });   // (the shared planter, a potted palm: kitPlanter)
     palm(40, 664); palm(640, 664);
 
     /* (its door is the shop's: the door kit's single leaf, from in here the away door's -- whole, in its full-height wall, swung live) */
@@ -62921,8 +62980,7 @@ function houseCanopy(fn){
       for(const b of [186, 274]) box(LOB[0] + 8, LOB[0] + 36, b - 3, b + 3, 0, 32, '#c9ced2', '#a9b0b5', '#8f969b');   // (its seat at 40)
       box(LOB[0] + 4, LOB[0] + 40, 180, 280, 32, 40, wood, woodD, shade(woodD, 0.8)); } });
     items.push({ a: LOB[1] - 24, b: 250, z: 0, when: flats, solids: onC(FL, [LOB[1] - 24, 250], 16, 60, 'plant'), draw: () => {
-      cyl(LOB[1] - 24, 250, 0, 48, 16, stoneD, stoneL); plateCircle(LOB[1] - 24, 250, 48, 14, '#5a4636', null, 0);
-      for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(LOB[1] - 24, 250, 48, LOB[1] - 24 + 26*Math.cos(t), 250 + 26*Math.sin(t), 96, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+      kitPlanter(LOB[1] - 24 - 16, LOB[1] - 24 + 16, 250 - 16, 250 + 16, 0, 48, { kind: 'pot', mat: 'stone', col: stoneD, plant: 'palm', top: 96, frond: 28, fronds: 7, leaf: '#4f7a4a' }); } });   // (the shared planter, a potted palm: kitPlanter)
 
     /* ---- FLOORS 11 AND 12: THE PENTHOUSES (pt4b, the design pass -- Sir, 2026-11-17), each one open home the floor's width, its private lift
        opening into a foyer (the lane a 735..820 from the car to the glass kept clear). Zones, west to east: the living room (a 30..600), the
@@ -62942,8 +63000,7 @@ function houseCanopy(fn){
       const bk = { n: [a - r, a + r, b + r - 4, b + r], s: [a - r, a + r, b - r, b - r + 4], e: [a - r, a - r + 4, b - r, b + r], w: [a + r - 4, a + r, b - r, b + r] }[dir];
       box(bk[0], bk[1], bk[2], bk[3], 38, 80, C[0], C[1], C[2]); };
     const plantAt = (a, b, big) => { const r = big ? 18 : 14, h = big ? 50 : 40;
-      cyl(a, b, 0, h, r, stoneD, stoneL); plateCircle(a, b, h, r - 2, '#5a4636', null, 0);
-      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(a, b, h, a + (big ? 34 : 26)*Math.cos(t), b + (big ? 34 : 26)*Math.sin(t), h + (big ? 70 : 54), 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } };
+      kitPlanter(a - r, a + r, b - r, b + r, 0, h, { kind: 'pot', mat: 'stone', col: stoneD, plant: 'palm', top: h + (big ? 70 : 54), frond: big ? 36 : 28, fronds: 8, leaf: '#4f7a4a' }); };   // (the shared planter, a potted palm: kitPlanter)
     const artOn = (a0, a1, z0, z1, c, fr) => { F(a0 - 4, a1 + 4, z0 - 4, z1 + 4, fr, null, 0, 0.8); F(a0, a1, z0, z1, '#f4f1e8', null, 0, 0.9);
       F(a0 + 6, a0 + (a1 - a0)*0.55, z0 + 6, z1 - 6, c[0], null, 0, 1.0); F(a0 + (a1 - a0)*0.45, a1 - 6, z0 + (z1 - z0)*0.4, z1 - 10, c[1], null, 0, 1.05);
       F(a0 + (a1 - a0)*0.3, a0 + (a1 - a0)*0.7, z0 + 8, z0 + (z1 - z0)*0.3, c[2], null, 0, 1.1); };
@@ -64437,10 +64494,7 @@ function houseCanopy(fn){
     /* ---- TWO TUBS OF PALMS flanking the lane (a 360 and a 660, b 600) ---- */
     for(const ta of [350, 670]){
       items.push({ a: ta, b: 600, z: 0, solids: [{ name: 'palm tub', c: [ta, 600], r: 24, h: 120 }], draw: () => {
-        cyl(ta, 600, 0, 34, 22, '#5a6a72', '#7a8a92'); plateCircle(ta, 600, 34, 20, '#4a3a2a', '#4a3a2a', 1);
-        tube(ta, 600, 34, ta, 600, 92, 2.4, '#7a5a3a');
-        for(let k = 0; k < 6; k++){ const q = k*Math.PI/3; tube(ta, 600, 92, ta + 34*Math.cos(q), 600 + 34*Math.sin(q), 78, 2.4, '#3f8f4f'); }
-        ball(ta, 600, 90, 6, '#4aa05a', '#357a42');
+        kitPlanter(ta - 22, ta + 22, 600 - 22, 600 + 22, 0, 34, { kind: 'pot', mat: 'steel', col: '#5a6a72', plant: 'palm', trunk: 92, lean: 0, frond: 38, fronds: 7, trunkR: 2.4, trunkCol: '#7a5a3a', leaf: '#3f8f4f' });   // (the shared planter, a potted palm: kitPlanter)
       }});
     }
 
@@ -64726,9 +64780,7 @@ function houseCanopy(fn){
         ball(ra, rb, 130, 3, steel); }});
       const [pa, pb] = R.palm;
       items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 16, pa + 16, pb - 16, pb + 16, 120, 'palm')], draw: () => {
-        cyl(pa, pb, 0, 30, 14, '#c8b48a'); T(pa - 11, pa + 11, pb - 11, pb + 11, 30.5, '#6b5a44');
-        tube(pa, pb, 30, pa + 3, pb, 96, 3, '#8a7258');
-        for(let k = 0; k < 7; k++){ const q = k/7*Math.PI*2; tube(pa + 3, pb, 96, pa + 3 + Math.cos(q)*30, pb + Math.sin(q)*30, 80, 4, ['#4e8058', '#3f6b4a', '#568a5e'][k % 3]); } }});
+        kitPlanter(pa - 14, pa + 14, pb - 14, pb + 14, 0, 30, { kind: 'pot', mat: 'concrete', col: '#c8b48a', plant: 'palm', trunk: 96, lean: 3, frond: 34, fronds: 7, trunkCol: '#8a7258', leaf: '#4e8058' }); }});   // (the shared planter, a potted palm: kitPlanter)
       for(const [ca, cb] of R.chairs) items.push({ a: ca, b: cb, z: 0, solids: [solid(ca - 18, ca + 18, cb - 18, cb + 18, 60, 'chair')], draw: () => {
         for(const [da, db] of [[-10, -10], [10, -10], [-10, 10], [10, 10]]) tube(ca + da, cb + db, 0, ca + da*0.6, cb + db*0.6, 22, 1, '#3b4248');
         box(ca - 16, ca + 14, cb - 16, cb + 16, 22, 30, coral, shade(coral, 0.9), shade(coral, 0.8));
@@ -67641,10 +67693,8 @@ function houseCanopy(fn){
       cyl(am, bm, 0, 150, rr, '#7a2e2a', '#8a3a33'); cyl(am, bm, 150, 160, rr - 12, '#5a1f1c', '#6a2a24'); tube(am, bm, 160, am, bm, H, 8, '#8d959c');
       ball(am, bm + rr, 100, 7, gold, '#ffffff'); };
     const plant = (r) => { const a = (r[0] + r[1])/2, b = (r[2] + r[3])/2;
-      cyl(a, b, 0, 40, 18, '#8e6a3f', '#b08856'); cyl(a, b, 40, 41, 15, '#4a3a2a', '#5a4634');   // the pot, its soil
-      cyl(a, b, 41, 96, 4, '#6b5038', '#7d5f44');                                                  // the trunk, up into the leaves (Sir: "missing that trunk piece")
-      for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; ball(a + 14*Math.cos(t), b + 14*Math.sin(t), 74 + (k % 3)*16, 15, '#3f7f45', '#5a9a5c'); }
-      ball(a, b, 120, 14, '#3f7f45', '#5a9a5c'); };
+      /* the pot and its tree, the trunk up into the leaves (Sir: "missing that trunk piece") -- the shared planter's: kitPlanter */
+      kitPlanter(a - 18, a + 18, b - 18, b + 18, 0, 40, { kind: 'pot', mat: 'timber', col: '#8e6a3f', plant: 'tree', trunk: 82, crown: 60, trunkR: 4, trunkCol: '#6b5038', leaf: '#3f7f45' }); };
     /* a door's jambs, the plate at their top in the room's colour (hospInRoomKind, d.kind) */
     const PLATE = { security: '#25324a', giftshop: '#d8538a', beds: '#3f7fc4', station: '#2f8f8a', chairs: '#e8b54a', theatre: '#4f9a84', machine: '#7a4a8a', shelves: '#8a8f96', boiler: '#7a2e2a', pharmacy: '#2f9a5a', lab: '#5c8a4e', office: '#5f6b78', er: '#d8352a', gift: '#e8b54a' };
     const jamb = (r, kind) => { const pc = PLATE[kind] || null; box(r[0], r[1], r[2], r[3], 0, pc ? 80 : 96, bandD, teal, bandD); if(pc) box(r[0], r[1], r[2], r[3], 80, 96, shade(pc, 1.1), pc, shade(pc, 0.8)); };
@@ -83487,8 +83537,7 @@ marinaEntry(),
       for(let k = 0; k < 4; k++) box(130 + k*16, 140 + k*16, 632, 646, 44, 46, ['#2f8a8a', '#d9b44a', '#c24a3a', '#f4f1ea'][k], '#ddd', '#bbb');
     }});
     items.push({ a: 50, b: 590, z: 0, solids: [solid(38, 62, 578, 602, 60, 'plant')], draw: () => {
-      cyl(50, 590, 0, 28, 12, '#b0583a', '#c9694a');
-      for(const [da, db, h] of [[0, 0, 74], [-8, 4, 58], [8, -4, 62], [4, 8, 50]]) cyl(50 + da, 590 + db, 28, 28 + h, 3.5, '#4f7a4a', '#6aa05a');
+      kitPlanter(50 - 12, 50 + 12, 590 - 12, 590 + 12, 0, 28, { kind: 'pot', mat: 'terracotta', col: '#b0583a', plant: 'snake', top: 102, n: 7, leaf: '#4f7a4a' });   // (the shared planter, a snake plant: kitPlanter)
     }});
     for(const [b0, b1] of [[40, 150], [190, 300]]) for(const [s0, s1] of runs(b0, b1, 37)) items.push({ a: (s0 + s1)/2, b: 738, z: 0, solids: [solid(s0, s1, 724, 752, 40, 'bench')], draw: () => {
       if(s0 < b0 + 1) box(s0, s0 + 6, 728, 748, 0, 34, woodD, woodD, shade(woodD, .85));   // (its seat at 40 -- Sir, 2026-11-20, benches)
@@ -84819,8 +84868,8 @@ marinaEntry(),
           else { cyl(a, 22, 60, 66, 9, '#9a9a9a', '#cfcfcf'); ball(a, 22, 76, 10, '#e8b54a', '#f6d27a'); } } }); }
     /* the bench and the potted palms either side of the door's lane, the bulletin stand */
     bench(R.lobby.a0 + 14, R.lobby.a0 + 74, 300, 328); bench(R.lobby.a1 - 74, R.lobby.a1 - 14, 300, 328);
-    for(const a of [R.lobby.a0 + 34, R.lobby.a1 - 34]) { const b = 470; furn(a - 14, a + 14, b - 14, b + 14, 120, 'plant', () => { cyl(a, b, 0, 24, 13, '#c2452e', '#d56a4e'); cyl(a, b, 24, 26, 11, '#4a3a2a');
-      for(let k = 0; k < 7; k++){ const t = k*0.9 + 0.3; tube(a, b, 26, a + Math.cos(t)*22, b + Math.sin(t)*22, 90 + (k % 3)*10, 2.2, '#4a8a52'); ball(a + Math.cos(t)*24, b + Math.sin(t)*24, 96 + (k % 3)*10, 7, '#5aa064', '#7ac484'); } }); }
+    for(const a of [R.lobby.a0 + 34, R.lobby.a1 - 34]) { const b = 470; furn(a - 14, a + 14, b - 14, b + 14, 120, 'plant', () =>
+      kitPlanter(a - 13, a + 13, b - 13, b + 13, 0, 24, { kind: 'pot', mat: 'terracotta', col: '#c2452e', plant: 'leafy', top: 106, spread: 24, leafR: 8, n: 8, leaf: '#4a8a52' })); }   // (the shared planter: kitPlanter)
 
     /* ---------- A CLASSROOM'S FURNITURE (one plan for the desks, the staff read it: TPE_IN.desks) ---------- */
     const chair = (a, b, col, south) => items.push({ a, b: b + 4, z: 0, solids: [solid(a - 13, a + 13, b - 12, b + 13, 50, 'chair', true)], draw: () => {
@@ -85034,7 +85083,7 @@ marinaEntry(),
           for(let j = 0; j < 9; j++){ const x = b0 + 540*(j + 0.5)/9, col = (j + (rb/70 | 0)) % 2 ? '#9a2f3c' : '#7f2430';
             for(const ea of [x - 18, x + 18]) box(ea - 1.5, ea + 1.5, rb + 8, rb + 12, 0, 20, steel, steelD, steelD);   // (its legs, then the seat over them: W37)
             box(x - 20, x + 20, rb - 10, rb + 12, 20, 26, shade(col, 1.12), col, shade(col, 0.8)); box(x - 19, x + 19, rb + 10, rb + 14, 26, 50, shade(col, 1.05), col, shade(col, 0.78)); } }, { solids: [solid(b0, b0 + 540, rb - 14, rb + 14, 50, 'seats', true)] });
-        for(const a of [90, 1410]) furn(a - 12, a + 12, 1488, 1512, 90, 'plant', () => { cyl(a, 1500, 0, 24, 12, '#c2452e', '#d56a4e'); for(let k = 0; k < 6; k++){ const t = k*1.05; tube(a, 1500, 24, a + Math.cos(t)*18, 1500 + Math.sin(t)*18, 76 + (k % 3)*8, 2, '#4a8a52'); ball(a + Math.cos(t)*20, 1500 + Math.sin(t)*20, 82 + (k % 3)*8, 6, '#5aa064', '#7ac484'); } }); }
+        for(const a of [90, 1410]) furn(a - 12, a + 12, 1488, 1512, 90, 'plant', () => kitPlanter(a - 12, a + 12, 1500 - 12, 1500 + 12, 0, 24, { kind: 'pot', mat: 'terracotta', col: '#c2452e', plant: 'leafy', top: 90, spread: 20, leafR: 7, n: 7, leaf: '#4a8a52' })); }   // (the shared planter: kitPlanter)
       /* ---------- THE COMPUTER LAB ---------- */
       { const r = R2.lab;
         for(const bn of r.benches) furn(bn.a0, bn.a1, bn.b - 20, bn.b + 20, 50, 'computer bench', () => {
@@ -85068,8 +85117,8 @@ marinaEntry(),
             for(let k = 0; k < 9; k++){ const b = s0 + 30 + k*30, a = 3612 + (k % 3)*14; ball(a, b, 46, 7 + (k % 2)*2, ['#8a8d86', '#9a9d96', '#7a7d76'][k % 3], '#b4b7ae'); }
             for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } }, { alongB: true });
         // (the spine's benches are gone, Sir 2026-11-08: "these benches in the schools entry can be removed")
-        for(const a of [r.a0 + 34, r.a1 - 34]) furn(a - 14, a + 14, 1476, 1504, 120, 'plant', () => { cyl(a, 1490, 0, 24, 13, '#c2452e', '#d56a4e'); cyl(a, 1490, 24, 26, 11, '#4a3a2a');
-          for(let k = 0; k < 7; k++){ const t = k*0.9 + 0.3; tube(a, 1490, 26, a + Math.cos(t)*22, 1490 + Math.sin(t)*22, 90 + (k % 3)*10, 2.2, '#4a8a52'); ball(a + Math.cos(t)*24, 1490 + Math.sin(t)*24, 96 + (k % 3)*10, 7, '#5aa064', '#7ac484'); } });
+        for(const a of [r.a0 + 34, r.a1 - 34]) furn(a - 14, a + 14, 1476, 1504, 120, 'plant', () =>
+          kitPlanter(a - 13, a + 13, 1490 - 13, 1490 + 13, 0, 24, { kind: 'pot', mat: 'terracotta', col: '#c2452e', plant: 'leafy', top: 106, spread: 24, leafR: 8, n: 8, leaf: '#4a8a52' }));   // (the shared planter: kitPlanter)
         /* the school's emblem let into the hall floor, and the name on a low board by the door */
         plateCircle(AT, 1250, 0.5, 70, tealD); plateCircle(AT, 1250, 0.55, 62, '#f1e8d2');
         for(let k = 0; k < 6; k++){ const t = k*Math.PI/3 + 0.3; poly([P(AT + Math.cos(t)*14, 1250 + Math.sin(t)*14, 0.6), P(AT + Math.cos(t + 0.5)*50, 1250 + Math.sin(t + 0.5)*50, 0.6), P(AT + Math.cos(t - 0.5)*50, 1250 + Math.sin(t - 0.5)*50, 0.6)], k % 2 ? teal : tealL); }
@@ -85078,11 +85127,10 @@ marinaEntry(),
       { const r = R2.sports;
         for(const rb of [700, 820, 940, 1060, 1180]) for(const [a0, a1] of [[r.a0 + 80, r.a0 + 600], [r.a0 + 800, r.a1 - 80]]) furn(a0, a1, rb - 22, rb + 22, 56, 'planting bench', () => {
           for(const [ea, eb] of [[a0 + 6, rb - 18], [a1 - 6, rb - 18], [a0 + 6, rb + 18], [a1 - 6, rb + 18]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 36, woodD, woodD, woodD);
-          box(a0, a1, rb - 22, rb + 22, 36, 44, wood, woodL, woodD); T(a0 + 3, a1 - 3, rb - 19, rb + 19, 44, '#4a3a2a');
-          for(let a = a0 + 14; a < a1 - 8; a += 26){ const k = hash(a*3 + rb); ball(a, rb - 4 + (k*10 | 0), 54 + (k*14 | 0), 9 + (k*4 | 0), ['#3f6b4a', '#4e8058', '#568a5e', '#6aa468'][(a/26 | 0) % 4]);
-            if(k > 0.55) ball(a + 3, rb - 2, 72 + (k*10 | 0), 4, [coral, yel, '#d57ca6'][(a/26 | 0) % 3], '#f6d27a'); } });
+          /* its top a tray of seedlings: the shared planter's raised bed on the legs (kitPlanter) */
+          kitPlanter(a0, a1, rb - 22, rb + 22, 36, 8, { kind: 'bed', mat: 'timber', col: woodL, lipO: 1, plant: 'flower', plantH: 18, group: 'greenhouse ' + rb }); });
         furn(r.a1 - 90, r.a1 - 30, 1480, 1534, 90, 'sink', () => { box(r.a1 - 90, r.a1 - 30, 1480, 1534, 0, 70, steelL, steel, steelD); cyl(r.a1 - 60, 1507, 70, 72, 16, '#7a8a90', '#aab3b8'); tube(r.a1 - 60, 1488, 72, r.a1 - 60, 1498, 90, 1.6, steelD); });
-        for(const [a, b] of [[r.a0 + 60, 1500], [r.a0 + 110, 1500], [r.a0 + 160, 1500]]) items.push({ a, b, z: 0, draw: () => { cyl(a, b, 0, 22, 14, '#c2452e', '#d56a4e'); cyl(a, b, 22, 24, 12, '#4a3a2a'); } }); }
+        for(const [a, b] of [[r.a0 + 60, 1500], [r.a0 + 110, 1500], [r.a0 + 160, 1500]]) items.push({ a, b, z: 0, draw: () => kitPlanter(a - 14, a + 14, b - 14, b + 14, 0, 22, { kind: 'pot', mat: 'terracotta', col: '#c2452e', plant: 'none' }) }); }   // (empty pots: the shared planter's, kitPlanter)
       /* ---------- THE SCIENCE LAB ---------- */
       { const r = R2.science;
         for(const bn of [{ a0: 6540, a1: 6670, b: 780 }, { a0: 6850, a1: 6940, b: 780 }, { a0: 6540, a1: 6670, b: 980 }, { a0: 6850, a1: 6940, b: 980 }]) furn(bn.a0, bn.a1, bn.b - 24, bn.b + 24, 70, 'lab bench', () => {
