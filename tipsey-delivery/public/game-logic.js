@@ -60387,10 +60387,17 @@ function houseCanopy(fn){
         for(let b = B0; b <= B1 + 0.1; b += 26) box(A0 + 14, A0 + 18, b - 2, b + 2, 104, 144, brass, brassD, brassD);
         S(A0 + 16, B0, B1, 112, 144, 'rgba(190,216,226,.32)');
         box(A0 + 12, A0 + 20, B0, B1, 144, 148, brass, brassD, brassD);
-      }, { alongB: true, run: 44 });
+      }, { alongB: true, run: 44, keyStart: true });
+      /* (keyStart: each run keyed at its stretch's NORTH end. Keyed at its middle, the run past a customer at a window (a 186, b 70 / 150) --
+         behind him on a, its middle 25 south of him -- sorted after him and laid its top, rail and glass over the hand he rests on the
+         counter (room_people over 8, 2026-11-24). At its north end every run whose stretch reaches him sorts before him; the tellers behind
+         it (a 70..84) still sort before every run they stand behind) */
       /* (the tellers' screens stand ON it: each its own piece (W28, recipe 3), keyed on the counter's east side just after the last of its
-         runs it stands on -- lcOnZ along b) */
-      for(const tb of [70, 150, 230]) items.push({ a: A1, b: tb, z: lcOnZ(B0, B1, 44, tb - 12, tb + 12, tb), fpLab: { a0: A0 + 4, a1: A0 + 26, b0: tb - 12, b1: tb + 12, z1: 122 }, solids: [], draw: () => {
+         runs it stands on -- that run's north end, as the runs are keyed: before the customer at its window) */
+      const onZ = (f0, f1, b) => { const n = Math.max(1, Math.ceil((B1 - B0)/44 - 1e-9)); let m = -1e9;
+        for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n; if(s1 > f0 && s0 < f1) m = Math.max(m, s0); }
+        return Math.max(0, m - b) + 1; };
+      for(const tb of [70, 150, 230]) items.push({ a: A1, b: tb, z: onZ(tb - 12, tb + 12, tb), fpLab: { a0: A0 + 4, a1: A0 + 26, b0: tb - 12, b1: tb + 12, z1: 122 }, solids: [], draw: () => {
         box(A0 + 4, A0 + 26, tb - 12, tb + 12, 104, 122, '#2b3138', '#23282e', '#1c2025'); } }); }
 
     /* ---- TWO LOAN DESKS (moved DX east into the bigger room): dark wood, a banker's lamp and a screen (to the officer), a chair before each ---- */
@@ -83524,7 +83531,11 @@ marinaEntry(),
     }
 
     /* ---- RECEPTION, east of the lane in the front: the counter b 520..550 across a 540..720 (runs), its computer, phone and bell; the stock room's bags behind the east kennels ---- */
-    for(const [s0, s1] of runs(540, 720, 36)) items.push({ a: (s0 + s1)/2, b: 535, z: 0, solids: [solid(s0, s1, 520, 550, 78, 'counter')], draw: () => {
+    /* (each run keyed at its WEST end, a s0: keyed at its middle, the run west of the receptionist at her screen (a 630, b 496) sorted after
+       her -- 594 + 535 against her 1126 -- and laid its top over the hand she rests on the counter at its east end (room_people over 1,
+       2026-11-24). Keyed at its west end it sorts before her; the run she stands behind (a 612..648) still after her, its front over her
+       legs; at her other post (a 590) the same, a run west of her before, hers after. The visitor at the counter (b 590) sorts after them all) */
+    for(const [s0, s1] of runs(540, 720, 36)) items.push({ a: s0, b: 535, z: 0, solids: [solid(s0, s1, 520, 550, 78, 'counter')], draw: () => {
       box(s0, s1, 520, 550, 0, 66, wood, teal, tealD);                                // (a counter's height: 66 and its top, under the waist)
       box(s0 - 0.5, s1 + 0.5, 518, 552, 66, 72, '#e4d3b0', '#cdb98f', '#b9a578');
     }});
