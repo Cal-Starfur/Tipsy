@@ -32179,28 +32179,66 @@ const SS_SEATS = [
 /* the shop's colours: the shoes on the wall, the boxes, the bag */
 const SS_SHOE = [0xd0342c, 0x2f6fb8, 0xe8b13a, 0x3f8f5a, 0x1e1e20, 0xe0e0dc, 0xe2574c, 0x24435a];
 const SS_BOX = [0xe2874a, 0x24435a, 0xf2f0ec, 0x3f8f9a, 0xe2574c];
-/* THE SHOP'S SHOES, SIX KINDS (Sir, 2026-11-24: "the shoes all look the exact same ... we want multiple different pairs"): one table of parts
-   for every shoe the shop draws -- on the wall, on the risers, in a customer's hands -- so they match everywhere. Each kind is its parts, back
-   to front along the shoe (u: -11 the heel .. +11 the toe; z up from the shelf; i: how far in from its two sides): 'box' a solid, 'top' a plate
-   over a box (a collar's mouth), 'side' a face on its seen side (a stripe, a panel). Parts meet face to face, never inside one another (W37).
-     low     the skate shoe: a flat sole, the heel's upper, its collar, the toe, a stripe down the side
-     high    the high-top: the upper up past the ankle, its collar, the toe and a white toe cap, an ankle badge
-     runner  the running shoe: a dark outsole, a thick white midsole, a heel tab, the heel and the toe, two flashes down the side
+/* THE SHOP'S SHOES, SIX KINDS (Sir, 2026-11-24: "the shoes all look the exact same ... we want multiple different pairs"), ROUNDED (Sir,
+   2026-11-24: "i think they are too square"): one table for every shoe the shop draws -- on the wall, on the risers, in a customer's hands --
+   so they match everywhere. Each part is drawn from its SIDE PROFILE (u: -11 the heel .. +11 the toe; z up from what it stands on), the
+   profile carried across the shoe's width, and the width narrowed toward the toe and the heel (ssShoeHW): a rounded heel, a vamp that slopes
+   down from the collar to a round toe, a sole with rounded ends. Kinds of part:
+     ['p', profile, colour, inset, flat?]  a solid from its profile, narrowed (flat: straight across -- a sandal's strap)
+     ['top', u0, u1, z, colour, inset]     a plate on a part's flat top (a collar's mouth)
+     ['side', outline, colour, inset]      a panel on the shoe's side face, following its curve (a stripe, a flash, a badge, a gore)
+   Its faces are only those the eye sees (each face's own turn on the screen, ssShoeDraw), the parts back to front, a base before what stands
+   on it (W37).
+     low     the skate shoe: a flat sole, the upper sloping to a round toe, its collar, a flash down the side
+     high    the high-top: the upper up past the ankle, its padded collar, a toe cap, an ankle badge
+     runner  the running shoe: a dark outsole, a white midsole thick at the heel, a heel tab, a sleek upper, two flashes
      slip    the slip-on: a gum sole, one low upper, its big opening, a white foxing band round the foot
-     boot    the chelsea boot: a lugged sole, a pull tab, the shaft, its mouth, the foot, the elastic gore
-     sandal  the slide sandal: a sole, a cork footbed, two straps across */
+     boot    the chelsea boot: a lugged sole, a pull tab, the shaft and a round-toed foot, its mouth, the elastic gore
+     sandal  the slide sandal: a sole, a cork footbed, two arched straps across */
 const SS_KINDS = ['low', 'high', 'runner', 'slip', 'boot', 'sandal'];
+const ssSole = h => [[-10.3, 0], [-11, h*0.45], [-10.8, h], [10.6, h], [11.4, h*0.55], [10.5, 0]];
 const SS_PARTS = {
-  low:    [['box', -11, 11, 0, 3, 'sl', 0], ['box', -10.5, 1, 3, 12, 'up', 0.6], ['top', -8.5, -2.5, 12, 0, 'dk', 2], ['box', 1, 10.5, 3, 7.5, 'up', 0.6], ['side', -6, 5, 5, 7.4, 'sl', 0.6]],
-  high:   [['box', -11, 11, 0, 3, 'sl', 0], ['box', -10.5, 2, 3, 19, 'up', 0.6], ['top', -8.5, -2, 19, 0, 'dk', 2], ['box', 2, 8, 3, 7.5, 'up', 0.6], ['box', 8, 10.8, 3, 7, 'sl', 0.6],
-           ['side', -7.5, -4, 12.5, 16, 'ac', 0.6], ['side', -3, 6, 4.5, 6.5, 'ac', 0.6]],
-  runner: [['box', -11, 11, 0, 2, 'dk', 0], ['box', -11, 10.5, 2, 5.5, 'mid', 0], ['box', -11.4, -10.6, 8, 14.5, 'ac', 1.5], ['box', -10.6, -1, 5.5, 13, 'up', 0.6], ['top', -8.5, -3, 13, 0, 'dk', 2],
-           ['box', -1, 10, 5.5, 9, 'up', 0.6], ['side', -5, 5, 6.5, 8.2, 'ac', 0.6], ['side', -9.5, -5.5, 9.5, 11.5, 'ac', 0.6]],
-  slip:   [['box', -11, 11, 0, 2.2, 'gum', 0], ['box', -10.5, 10.5, 2.2, 7.6, 'up', 0.6], ['top', -8.5, 1.5, 7.6, 0, 'dk', 1.8], ['side', -10.5, 10.5, 2.2, 3.6, 'mid', 0.6]],
-  boot:   [['box', -11, 11, 0, 3.5, 'dk', 0], ['box', -11.4, -10.5, 18, 25, 'ac', 2], ['box', -10.5, -1, 3.5, 23, 'up', 0.5], ['top', -8.5, -3, 23, 0, 'dk', 2],
-           ['box', -1, 10.5, 3.5, 9.5, 'up', 0.5], ['side', -7, -3, 10, 20, 'dk', 0.5]],
-  sandal: [['box', -11, 11, 0, 2.5, 'dk', 0], ['box', -10.5, 10.5, 2.5, 3.4, 'cork', 0.4], ['box', -6, -2.5, 3.4, 6.8, 'up', 0], ['box', 3, 6.5, 3.4, 6.2, 'up', 0]],
+  low:    [['p', ssSole(3), 'sl', 0], ['p', [[-10.5, 3], [-10.9, 9.5], [-9.9, 12], [-2.6, 12], [-0.6, 10.8], [3.4, 8.7], [7.6, 7.7], [10.2, 6.5], [11.1, 4.7], [10.9, 3]], 'up', 0.6],
+           ['top', -8.8, -2.8, 12, 'dk', 2], ['side', [[-5.5, 5.2], [3.6, 5], [5.2, 7], [-4, 7.8]], 'sl', 0.6]],
+  high:   [['p', ssSole(3), 'sl', 0], ['p', [[-10.5, 3], [-11, 15], [-10.2, 19], [-2.2, 19], [-1.4, 13], [1, 10.3], [4.6, 8.7], [8.4, 7.7], [10.4, 6.4], [11.1, 4.6], [10.9, 3]], 'up', 0.6],
+           ['top', -8.8, -2.6, 19, 'dk', 2], ['side', [[7.2, 3], [10.9, 3], [11.1, 4.6], [10.4, 6.4], [8.4, 7.7], [7.2, 7.8]], 'sl', 0.6],
+           ['side', [[-7.4, 13], [-4.6, 13], [-4.2, 15.6], [-6, 16.6], [-7.6, 15.6]], 'ac', 0.6], ['side', [[-3, 4.6], [6, 4.4], [6.4, 6], [-2.6, 6.6]], 'ac', 0.6]],
+  runner: [['p', ssSole(2), 'dk', 0], ['p', [[-10.7, 2], [-11.3, 4.2], [-10.6, 6.2], [9.8, 5], [11.2, 3.6], [10.9, 2]], 'mid', 0],
+           ['p', [[-11.3, 9], [-11.8, 14.4], [-10.9, 15.6], [-10.2, 13.6], [-10.4, 9]], 'ac', 1.5],
+           ['p', [[-10.5, 5.8], [-10.9, 11], [-10, 13.4], [-3.2, 13], [-1, 11.4], [3, 9.4], [7.4, 8.1], [9.8, 6.8], [10.4, 5.1]], 'up', 0.6],
+           ['top', -8.6, -3.4, 13.1, 'dk', 2], ['side', [[-5, 6.4], [4.6, 5.6], [5.6, 7.4], [-4, 8.6]], 'ac', 0.6], ['side', [[-9.6, 9.4], [-6, 8.4], [-5.4, 10.2], [-9.4, 11.4]], 'ac', 0.6]],
+  slip:   [['p', ssSole(2.2), 'gum', 0], ['p', [[-10.5, 2.2], [-10.8, 6.4], [-9.8, 8], [1, 8], [4, 7.4], [8, 6.6], [10.4, 5.4], [11.1, 3.8], [10.9, 2.2]], 'up', 0.6],
+           ['top', -8.6, 1, 8, 'dk', 1.8], ['side', [[-10.7, 2.2], [10.9, 2.2], [11.1, 3.6], [-10.8, 3.6]], 'mid', 0.6]],
+  boot:   [['p', ssSole(3.5), 'dk', 0], ['p', [[-11.3, 19], [-11.7, 25], [-10.4, 25.4], [-10.4, 19]], 'ac', 2],
+           ['p', [[-10.4, 3.5], [-10.7, 22.6], [-10, 24], [-2.8, 24], [-2.4, 15], [0, 11.6], [4, 10.1], [8, 9.2], [10.4, 7.6], [11.2, 5.4], [10.9, 3.5]], 'up', 0.5],
+           ['top', -8.8, -3.2, 24, 'dk', 2], ['side', [[-5.3, 11.6], [-3, 21], [-7.6, 21]], 'dk', 0.5]],
+  sandal: [['p', ssSole(2.5), 'dk', 0], ['p', [[-10.3, 2.5], [-10.4, 3.3], [10.6, 3.3], [10.6, 2.5]], 'cork', 0.5],
+           ['p', [[-6.2, 3.3], [-6, 6.4], [-4.3, 7.2], [-2.6, 6.4], [-2.4, 3.3]], 'up', 0, true], ['p', [[2.8, 3.3], [3, 5.9], [4.8, 6.6], [6.4, 5.9], [6.6, 3.3]], 'up', 0, true]],
 };
+/* how wide the shoe is at u, as a part of its full width: the toe rounds in, the heel a little */
+function ssShoeHW(u){ return u > 3 ? 1 - 0.42*Math.pow((u - 3)/8.4, 2) : u < -6 ? 1 - 0.28*Math.pow((-6 - u)/5.2, 2) : 1; }
+/* DRAW ONE: pt(u, w, z) the screen point of a place on it (w across it, from its middle), fill(points, colour, light) a face; HW its half
+   width. A face is drawn only when it turns toward the eye (its corners' turn on the screen against a plate's, which is always seen), so a
+   rounded heel's far face, the far side, a strap's underside never paint over what is in front of them */
+function ssShoeDraw(kind, C, pt, fill, HW){
+  const o = pt(0, 0, 0), ox = pt(1, 0, 0), ow = pt(0, 1, 0), ref = Math.sign((ox.x - o.x)*(ow.y - o.y) - (ox.y - o.y)*(ow.x - o.x)) || 1;
+  const seen = P => { let A = 0; for(let i = 0; i < P.length; i++){ const p = P[i], q = P[(i + 1) % P.length]; A += p.x*q.y - q.x*p.y; } return Math.sign(A) === ref; };
+  /* (a profile turned so it runs heel-bottom, up, over and down the toe: clockwise with u right and z up) */
+  const cw = pr => { let A = 0; for(let i = 0; i < pr.length; i++){ const p = pr[i], q = pr[(i + 1) % pr.length]; A += p[0]*q[1] - q[0]*p[1]; } return A > 0 ? pr.slice().reverse() : pr; };
+  const half = (u, i, flat) => Math.max(0.3, HW*(flat ? 1 : ssShoeHW(u)) - i);
+  for(const part of SS_PARTS[kind]){ const t = part[0];
+    if(t === 'p'){ const pr = cw(part[1]), c = C[part[2]], i = part[3], fl = !!part[4], n = pr.length;
+      for(let k = 0; k < n; k++){ const p = pr[k], q = pr[(k + 1) % n], hp = half(p[0], i, fl), hq = half(q[0], i, fl);
+        const F = [pt(p[0], -hp, p[1]), pt(q[0], -hq, q[1]), pt(q[0], hq, q[1]), pt(p[0], hp, p[1])];
+        if(seen(F)){ const L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, up = (q[0] - p[0])/L; fill(F, c, 0.86 + 0.14*Math.max(0, up)); } }
+      for(const sd of [1, -1]){ const S = pr.map(p => pt(p[0], sd*half(p[0], i, fl), p[1])); if(sd < 0) S.reverse(); if(seen(S)) fill(S, c, 0.78); } }
+    else if(t === 'top'){ const [, u0, u1, z, ck, i] = part, F = [];
+      for(let k = 0; k <= 4; k++){ const u = u0 + (u1 - u0)*k/4; F.push(pt(u, -half(u, i), z + 0.05)); }
+      for(let k = 4; k >= 0; k--){ const u = u0 + (u1 - u0)*k/4; F.push(pt(u, half(u, i), z + 0.05)); }
+      fill(F, C[ck], 1); }
+    else { const ol = cw(part[1]), c = C[part[2]], i = part[3];
+      for(const sd of [1, -1]){ const S = ol.map(p => pt(p[0], sd*(half(p[0], i) + 0.12), p[1])); if(sd < 0) S.reverse(); if(seen(S)) fill(S, c, 0.84); } } }
+}
 /* a shoe's colours: its upper, and the rest by its kind (a boot's leathers, a sandal's straps from the shop's own) */
 const SS_BOOTC = [0x6a4a32, 0x2a2826, 0xb8875a, 0x8a5a36];
 function ssShoeCols(kind, k){
@@ -32223,12 +32261,9 @@ function ssHold(s){
     lo.pop(); hi.pop(); g.fillStyle(c, al == null ? 1 : al); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
   const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
   const seed = ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, pick = ssShoeAt(seed >>> 5);
-  /* a shoe across them, its toe to their right: the shop's parts (SS_PARTS), each a box in their frame, its seen side to whoever they face */
-  const shoe = (g, at, f, h, kind, k) => { const C = ssShoeCols(kind, k), W = 3.6;
-    for(const [t, u0, u1, z0, z1, ck, i] of SS_PARTS[kind]){ const c = C[ck];
-      if(t === 'box') hull(g, at, box(u0*0.86, u1*0.86, f - W + i*0.6, f + W - i*0.6, h + z0*0.8 - 3, h + z1*0.8 - 3), c);
-      else if(t === 'top') hull(g, at, box(u0*0.86, u1*0.86, f - W + i*0.6, f + W - i*0.6, h + z0*0.8 - 3, h + z0*0.8 - 2.6), c);
-      else hull(g, at, box(u0*0.86, u1*0.86, f + W - i*0.6, f + W - i*0.6 + 0.4, h + z0*0.8 - 3, h + z1*0.8 - 3), c); } };
+  /* a shoe across them, its toe to their right: the shop's own drawer (ssShoeDraw), in their frame, a little smaller than on the shelf */
+  const shoe = (g, at, f, h, kind, k) => ssShoeDraw(kind, ssShoeCols(kind, k), (u, w, z) => at.G(u*0.86, f + w, h + z*0.8 - 3),
+    (pts, c, l) => { g.fillStyle(l < 0.999 ? _pdk(c, l) : c, 1); g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); }, 3.6);
   return (s._ssH = { v: s.visit,
     shoe: (g, p, K, at) => { if(!at) return; shoe(g, at, at.hand[0] + 3, at.hand[1] - 1, pick.kind, pick.col); },
     /* the bag hanging from the hand: its body, the coral band, the box's lid in its mouth, the handles' two loops up into the fist */
@@ -62461,15 +62496,12 @@ function houseCanopy(fn){
       },
       low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#ece9e4' });
 
-    /* A SHOE OF THE SHOP'S (SS_PARTS: six kinds, the same everywhere), lying along b with its toe south (the west wall's: its side to the room,
-       drawn on its east face) or along a with its toe east (a riser's: its side to the camera, its south face): its parts back to front, heel to
-       toe -- each a box, the plate over a collar's mouth, the stripes and panels on its seen side */
+    /* A SHOE OF THE SHOP'S (SS_PARTS: six kinds, rounded, the same everywhere: ssShoeDraw), lying along b with its toe south (the west wall's:
+       its side to the room) or along a with its toe east (a riser's: its side to the camera) */
     const hx = n => '#' + (n >>> 0).toString(16).padStart(6, '0');
-    const shoeOf = (alongB, w0, w1, c, z, at) => { const C = ssShoeCols(at.kind, at.col);
-      for(const [t, u0, u1, z0, z1, ck, i] of SS_PARTS[at.kind]){ const col = hx(C[ck]), q0 = w0 + i, q1 = w1 - i;
-        if(t === 'box'){ if(alongB) box(q0, q1, c + u0, c + u1, z + z0, z + z1, col, shade(col, 0.86), shade(col, 0.78)); else box(c + u0, c + u1, q0, q1, z + z0, z + z1, col, shade(col, 0.86), shade(col, 0.78)); }
-        else if(t === 'top'){ if(alongB) T(q0, q1, c + u0, c + u1, z + z0 + 0.05, col); else T(c + u0, c + u1, q0, q1, z + z0 + 0.05, col); }
-        else { if(alongB) S(q1 + 0.1, c + u0, c + u1, z + z0, z + z1, col); else F(c + u0, c + u1, z + z0, z + z1, col, null, 0, q1 + 0.1); } } };
+    const shoeOf = (alongB, w0, w1, c, z, at) => { const wc = (w0 + w1)/2;
+      ssShoeDraw(at.kind, ssShoeCols(at.kind, at.col), alongB ? (u, w, zz) => P(wc + w, c + u, z + zz) : (u, w, zz) => P(c + u, wc + w, z + zz),
+        (pts, col, l) => poly(pts, shade(hx(col), l)), (w1 - w0)/2); };
     const shoeB = (a0, a1, bc, z, at) => shoeOf(true, a0, a1, bc, z, at);
     const shoeA = (ac, b0, b1, z, at) => shoeOf(false, b0, b1, ac, z, at);
 
