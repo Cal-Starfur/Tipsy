@@ -32421,7 +32421,7 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
        show between them in hairlines, a grid over the shoe -- Sir, 2026-11-24, "the shoe itself seems really segmented") */
     const face = (P3, c, l, what, ck, under) => { const n = P3.length, m = P3.reduce((a, q) => [a[0] + q[0]/n, a[1] + q[1]/n, a[2] + q[2]/n], [0, 0, 0]);
       if(on && n === 4) P3 = P3.map(q => [q[0] + (q[0] - m[0] > 0.02 ? gU : q[0] - m[0] < -0.02 ? -gU : 0), q[1] + (q[1] - m[1] > 0.02 ? gW : q[1] - m[1] < -0.02 ? -gW : 0), q[2]]);
-      if(!want(what, m[0], m[1], m[2], ck)) return; F.push({ P3, c, l, d: under && on && opt.mix ? -1e9 : what === 'panel' && on && opt.mix ? 1e9 + F.length : depth ? depth(m[0], m[1], m[2]) + (what === 'panel' ? 0.6 : 0) : F.length }); };   // (a panel just after the wall it lies on)
+      if(!want(what, m[0], m[1], m[2], ck)) return; F.push({ P3, c, l, d: under === 'last' && on && opt.mix ? 3e9 : under && on && opt.mix ? -1e9 : what === 'panel' && on && opt.mix ? 1e9 + F.length : depth ? depth(m[0], m[1], m[2]) + (what === 'panel' ? 0.6 : 0) : F.length }); };   // (a panel just after the wall it lies on)
     if(t === 'p'){ const pr = cw(part[1]), c = C[part[2]], i = part[3], fl = !!part[4], n = pr.length, ck = part[2];
       base = base && Math.max(...part[1].map(q => q[1])) <= 6.5;
       const us = pr.map(q => q[0]), uLo = Math.min(...us), uHi = Math.max(...us);
@@ -32429,16 +32429,17 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
          front, its outline the shoe's own, rounded, in plan; no hole cut in it, the leg comes up out of it -- Sir, 2026-11-24: "the shoe should
          be meeting the leg not have created gap. and the circularness should be the entire top of the shoe") */
       const rf = on && ck === 'up' && top ? Math.max(top[2], ...pr.filter(q => q[1] >= top[3] - 0.6).map(q => q[0])) : null;   // (where the top really ends, forward: the profile's own, past the opening's front)
-      const roofed = rf != null ? (u0, u1, zmin) => u1 <= rf + 0.01 && zmin >= top[3] - 3.6 : () => false;
+      const rb = rf != null ? Math.min(rf, ...pr.filter(q => q[1] >= top[3] - 0.6 && q[0] <= rf).map(q => q[0])) : null;   // (and where it starts, behind: where the top is flat -- from the heel's end it dipped down over the heel's rounded back and laid one flat face across it, a hole from behind: Sir, 2026-11-24, "faces missing where they connect")
+      const roofed = rf != null ? (u0, u1, zmin) => u0 >= rb - 0.01 && u1 <= rf + 0.01 && zmin >= top[3] - 3.6 : () => false;
       for(let k = 0; k < n; k++){ const p = pr[k], q = pr[(k + 1) % n], hp = half(p[0], i, fl), hq = half(q[0], i, fl);
         if(roofed(Math.min(p[0], q[0]), Math.max(p[0], q[0]), Math.min(p[1], q[1])) && q[0] - p[0] > 0.3) continue;   // (its top faces, under the roof -- not the heel's back wall)
         const L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, lt = 0.86 + 0.14*Math.max(0, (q[0] - p[0])/L);
         if(on && !base){ face([[p[0], -hp, p[1]], [q[0], -hq, q[1]], [q[0], 0, q[1]], [p[0], 0, p[1]]], c, lt, 'strip', ck);
           face([[p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], hq, q[1]], [p[0], hp, p[1]]], c, lt, 'strip', ck); }
-        else if(on && base && p[1] === q[1] && p[0] - q[0] > 3){ const S = [], N = 12;   // (the sole's underside: its outline the shoe's own, rounded, in plan -- one quad between its narrow heel and toe left the foot's wide middle uncovered, the upper showing round it from behind: Sir, 2026-11-24)
+        else if(on && base && p[1] === q[1] && p[1] <= 0.01 && p[0] - q[0] > 3){ const S = [], N = 12;   // (the sole's underside: its outline the shoe's own, rounded, in plan -- one quad between its narrow heel and toe left the foot's wide middle uncovered, the upper showing round it from behind: Sir, 2026-11-24)
           for(let k = 0; k <= N; k++){ const u = p[0] + (q[0] - p[0])*k/N; S.push([u, -half(u, i, fl), p[1]]); }
           for(let k = N; k >= 0; k--){ const u = p[0] + (q[0] - p[0])*k/N; S.push([u, half(u, i, fl), p[1]]); }
-          face(S, c, lt, 'base', ck); }
+          face(S, c, lt, 'base', ck, 'last'); }   // (when it faces the eye, the nearest of the shoe: last -- sorted by its middle, the upper's side walls came after it and lay bands across it)
         else face([[p[0], -hp, p[1]], [q[0], -hq, q[1]], [q[0], hq, q[1]], [p[0], hp, p[1]]], c, lt, base ? 'base' : 'strip', ck, base && (q[0] - p[0])/L > 0.8 && Math.max(p[1], q[1]) <= upLo + 0.01); }
       /* the side walls, in slices along the shoe */
       const cuts = Array.from(new Set(us.concat(Array.from({ length: 13 }, (_, k) => uLo + (uHi - uLo)*k/12)))).sort((a, b) => a - b);
@@ -32448,7 +32449,7 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
         const Q = [[a0, w0, r0[0]], [a1, w1, r1[0]], [a1, w1, r1[1]], [a0, w0, r0[1]]];
         face(sd > 0 ? Q.slice().reverse() : Q, c, 0.78, base ? 'base' : 'side', ck); }   // (turned as the profile is: clockwise, outward on +w)
       /* the roof: the upper's top round the collar, along its own profile's top, its outline the shoe's */
-      if(rf != null){ const R = [], a0 = uLo, a1 = rf, N = 10;
+      if(rf != null){ const R = [], a0 = rb, a1 = rf, N = 10;
         for(let k = 0; k <= N; k++){ const u = a0 + (a1 - a0)*k/N, r = zAt(pr, Math.min(a1, Math.max(a0 + 0.001, u))); R.push([u, -half(u, i, fl), r ? r[1] + 0.04 : top[3]]); }
         for(let k = N; k >= 0; k--){ const u = a0 + (a1 - a0)*k/N, r = zAt(pr, Math.min(a1, Math.max(a0 + 0.001, u))); R.push([u, half(u, i, fl), r ? r[1] + 0.04 : top[3]]); }
         /* (in quads, each half across it its own: the half toward the eye drawn over the leg going down into it, the far half under the leg) */
