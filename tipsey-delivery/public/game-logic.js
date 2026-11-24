@@ -13052,6 +13052,15 @@ function parkPathPosts(grid){
   return out;
 }
 const PLAZA = { a:0xd9c9a8, b:0xceba95, edge:0xb09b74 };
+/* THE COURTYARDS' MATERIAL, BY DISTRICT (Sir picked "mix by district"): each hood lays one material on most of its yards (its
+   own, seeded off its name), the odd block another; seeded, so a yard is always what it was. 'A' concrete pavers in a running
+   bond, 'B' a worn asphalt service yard with a concrete apron along the backs, 'C' brick in a basket weave. */
+function courtLookAt(x, y){
+  const h = typeof hoodAtWorld === 'function' ? hoodAtWorld(x, y) : null, ks = ['A', 'C', 'B'];
+  const p = ks[natStrSeed('court|' + (h && h.n || '')) % 3], r = natHash(natStrSeed('courtblk|' + Math.round(x/100) + ',' + Math.round(y/100)));
+  if(r < 0.68) return p;
+  const o = ks.filter(k => k !== p); return o[r < 0.84 ? 0 : 1];
+}
 
 const EXT_YARD_DEPTH = 220, EXT_PARK_DEPTH = 380; // exterior (world-perimeter) lot depths
 
@@ -119728,8 +119737,75 @@ class WorldScene extends Phaser.Scene {
       }
     }
   }
+  /* ==================== THE COURTYARDS (courtyard pass, 2026-11-24) ====================
+     Sir, on the shops' courtyards (the commercial block's middle, and a commercial lot's yard): "these court yards that the shops
+     sit on need an updated look". They were PLAZA, a flat two-tone chequer of 92 tiles with an outline. Now laid as a real yard,
+     all ground (the ground cache paints it once a tile), on the sidewalk's own lattice (tile k spans k*T2..(k+1)*T2, so where
+     the yard meets the pavement the joints run on), every mark seeded off where it lies, never the frame, and aged as the
+     street is: soft stains, the odd replaced or sunken piece, moss along the shop backs.
+     The material by district (courtLookAt): concrete pavers in a running bond, a worn asphalt service yard with a concrete apron
+     along the backs, or brick in a basket weave. */
+  courtyardFill(g, blk){
+    const L = courtLookAt((blk.x0 + blk.x1)/2, (blk.y0 + blk.y1)/2), T = T2, ap = 92;
+    const i0 = Math.floor(blk.x0/T), i1 = Math.ceil(blk.x1/T) - 1, j0 = Math.floor(blk.y0/T), j1 = Math.ceil(blk.y1/T) - 1;
+    const R = (x0, x1, y0, y1, c, al = 1) => { x0 = Math.max(x0, blk.x0); x1 = Math.min(x1, blk.x1); y0 = Math.max(y0, blk.y0); y1 = Math.min(y1, blk.y1);
+      if(x1 - x0 < 0.3 || y1 - y0 < 0.3) return; const pts = [this.W(x0, y0, 0), this.W(x1, y0, 0), this.W(x1, y1, 0), this.W(x0, y1, 0)];
+      if(this.ptsOnScreen(pts)) this.quadOn(g, pts, c, al); };
+    const h = (a, b, k) => natHash((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(k, 83492791)) >>> 0);
+    const tone = (c, f) => { const r = Math.min(255, ((c >> 16) & 255)*f)|0, gg = Math.min(255, ((c >> 8) & 255)*f)|0, b = Math.min(255, (c & 255)*f)|0; return (r << 16) | (gg << 8) | b; };
+    const det = this.grainOn();
+    const edgeD = (x, y) => Math.min(x - blk.x0, blk.x1 - x, y - blk.y0, blk.y1 - y);     // how far in from the yard's edge (the shop backs)
+    for(let bj = j0; bj <= j1; bj++) for(let bi = i0; bi <= i1; bi++){
+      const tx0 = bi*T, ty0 = bj*T, tx1 = tx0 + T, ty1 = ty0 + T;
+      if(!this.ptsOnScreen([this.W(Math.max(tx0, blk.x0), Math.max(ty0, blk.y0), 0), this.W(Math.min(tx1, blk.x1), Math.max(ty0, blk.y0), 0),
+                            this.W(Math.min(tx1, blk.x1), Math.min(ty1, blk.y1), 0), this.W(Math.max(tx0, blk.x0), Math.min(ty1, blk.y1), 0)])) continue;
+      const ed = edgeD(tx0 + T/2, ty0 + T/2);
+      if(L === 'A'){                                                   // CONCRETE PAVERS: 92 x 46, a running bond, joints dark
+        R(tx0, tx1, ty0, ty1, 0xa69c8b);
+        for(let r = 0; r < 2; r++){ const y0 = ty0 + r*T/2, off = ((bj*2 + r) & 1)*T/2;
+          for(let k = -1; k < 2; k++){ const x0 = tx0 + k*T + off, x1 = x0 + T; if(x1 <= tx0 || x0 >= tx1) continue;
+            const pk = Math.floor((x0 + 1e4*T)/T), v = h(pk, bj*2 + r, 1);
+            let c = tone(v < 0.5 ? 0xd2c9b8 : 0xcac0ad, 0.96 + 0.08*h(pk, bj*2 + r, 2));
+            if(v > 0.965) c = tone(c, 0.86);                                // a replaced one, newer and darker
+            R(Math.max(x0, tx0) + (x0 >= tx0 ? 1.2 : 0), Math.min(x1, tx1) - (x1 <= tx1 ? 1.2 : 0), y0 + 1.2, y0 + T/2 - 1.2, c); } }
+      } else if(L === 'B'){                                            // A SERVICE YARD: worn asphalt, a concrete apron along the backs
+        if(ed < ap){ R(tx0, tx1, ty0, ty1, 0x9c968a); R(tx0 + 1.5, tx1 - 1.5, ty0 + 1.5, ty1 - 1.5, tone(0xc7c0b2, 0.95 + 0.08*h(bi, bj, 3))); }
+        else R(tx0, tx1, ty0, ty1, tone(0x63666b, 0.97 + 0.05*h(bi, bj, 4)));
+      } else {                                                          // BRICK: a basket weave, two bricks a 46 square turning each square
+        R(tx0, tx1, ty0, ty1, 0x8a5c48);
+        for(let qy = 0; qy < 2; qy++) for(let qx = 0; qx < 2; qx++){ const x0 = tx0 + qx*T/2, y0 = ty0 + qy*T/2, turn = (bi*2 + qx + bj*2 + qy) & 1;
+          for(let k = 0; k < 2; k++){ const v = h(bi*2 + qx, bj*2 + qy, 10 + k), c = tone(v < 0.33 ? 0xb46e4f : v < 0.66 ? 0xa86449 : 0xbe7a59, 0.94 + 0.1*h(bi*2 + qx, bj*2 + qy, 20 + k));
+            if(turn) R(x0 + 1, x0 + T/2 - 1, y0 + k*T/4 + 1, y0 + (k + 1)*T/4 - 1, c); else R(x0 + k*T/4 + 1, x0 + (k + 1)*T/4 - 1, y0 + 1, y0 + T/2 - 1, c); } }
+      }
+      /* moss in the joints, along the shop backs */
+      if(det && ed < 70 && h(bi, bj, 5) < 0.35) R(tx0 + T*0.2*h(bi, bj, 6), tx0 + T*(0.5 + 0.4*h(bi, bj, 7)), ty0 + T*0.3, ty0 + T*0.7, 0x5c6e3a, 0.12);
+    }
+    /* the yard's age, seeded off the block: stains, and (B) patches, crack seal, oil, a drain in the middle */
+    const s = natStrSeed('court' + Math.round(blk.x0) + ',' + Math.round(blk.y0)), r = lotDriveRand(s);
+    const W = blk.x1 - blk.x0, D = blk.y1 - blk.y0, n = Math.max(2, Math.round(W*D/220000));
+    const blot = (cx, cy, rx, ry, c, al) => { for(const q of [1, 0.7, 0.42]){ const pts = [];
+      for(let k = 0; k < 14; k++){ const a = k/14*Math.PI*2, f = q*(1 + 0.12*Math.sin(3*a + cx));
+        pts.push(this.W(Math.max(blk.x0, Math.min(blk.x1, cx + rx*f*Math.cos(a))), Math.max(blk.y0, Math.min(blk.y1, cy + ry*f*Math.sin(a))), 0)); }
+      if(this.ptsOnScreen(pts)) this.quadOn(g, pts, c, al/2); } };
+    for(let k = 0; k < n; k++) blot(blk.x0 + W*r(), blk.y0 + D*r(), 60 + r()*120, 40 + r()*90, r() < 0.6 ? 0x1a1b18 : 0xffffff, 0.06 + r()*0.04);
+    if(L === 'B'){
+      const in0x = blk.x0 + ap, in1x = blk.x1 - ap, in0y = blk.y0 + ap, in1y = blk.y1 - ap;
+      for(let k = 0; k < n; k++){ const px = in0x + (in1x - in0x - 200)*r(), py = in0y + (in1y - in0y - 160)*r(), pw = 80 + r()*150, pd = 60 + r()*110;
+        R(px, px + pw, py, py + pd, 0x141518, 0.16); for(const [a, b, c, d] of [[px, px + pw, py - 1.5, py + 1.5], [px, px + pw, py + pd - 1.5, py + pd + 1.5], [px - 1.5, px + 1.5, py, py + pd], [px + pw - 1.5, px + pw + 1.5, py, py + pd]]) R(a, b, c, d, 0x1f2024, 0.5); }
+      for(let k = 0; k < n*2; k++) blot(in0x + (in1x - in0x)*r(), in0y + (in1y - in0y)*r(), 24 + r()*20, 16 + r()*12, 0x101112, 0.22);   // oil, where vans stand
+      if(det) for(let k = 0; k < n*2; k++){ let x = in0x + (in1x - in0x)*r(), y = in0y + (in1y - in0y)*r(); const along = r() < 0.5;
+        for(let i = 0; i < 8 + r()*10; i++){ const x2 = along ? x + 16 + r()*16 : x + (r() - 0.5)*12, y2 = along ? y + (r() - 0.5)*12 : y + 16 + r()*16;
+          const l = Math.hypot(x2 - x, y2 - y) || 1, nx = -(y2 - y)/l*1.6, ny = (x2 - x)/l*1.6;
+          if(x2 > in0x && x2 < in1x && y2 > in0y && y2 < in1y){ const pts = [this.W(x + nx, y + ny, 0), this.W(x2 + nx, y2 + ny, 0), this.W(x2 - nx, y2 - ny, 0), this.W(x - nx, y - ny, 0)]; if(this.ptsOnScreen(pts)) this.quadOn(g, pts, 0x1f2024, 0.42); }
+          x = x2; y = y2; } }
+      const cx = (blk.x0 + blk.x1)/2, cy = (blk.y0 + blk.y1)/2;                                                 // the drain in the middle
+      R(cx - 22, cx + 22, cy - 22, cy + 22, 0x8b9096); R(cx - 18, cx + 18, cy - 18, cy + 18, 0x2c2e31);
+      for(let x = cx - 15; x < cx + 15; x += 7) R(x, x + 3, cy - 16, cy + 16, 0x121315, 0.9);
+    }
+  }
   fillBlockInterior(g, blk, tone, edges = 0){
     if(tone === GRASS || tone === ROUGH || tone.mow) return this.turfFill(g, blk, tone, edges);   // a lawn: turf (THE GRASS PASS)
+    if(tone === PLAZA) return this.courtyardFill(g, blk);                                             // a shops' yard (THE COURTYARDS)
     /* ONE WORLD CHECKER (2026-09-22, Sir: "unify grass... so its all one
        thing"). Tiles used to start at each rect's own x0/y0, so every
        block, park strip and exterior lot laid its own checker at its own
