@@ -59826,7 +59826,9 @@ function houseCanopy(fn){
       for(const a of [165, 235]){ box(a - 10, a + 10, 342, 352, 96, 98, steelD, steelD, steelS); box(a - 18, a + 18, 340, 344, 112, 136, dark, dark, '#1c2126'); box(a - 2, a + 2, 344, 348, 96, 112, steelS, steelS, steelS); }   // (its foot first, then the screen, the neck in front of it: W37)
       box(192, 212, 360, 372, 96, 100, '#f3ecdc', '#e2dccb', '#cfc8b6');                                           // a visitors' book
       cyl(250, 366, 96, 104, 5, '#f3ecdc'); ball(250, 366, 110, 8, '#c4603a', '#e07a52');                      // a bowl of oranges
-    });
+    }, { keyStart: true });   // (each run keyed at its stretch's west end: keyed at its middle, a run sorted after a tenant stood in front of its west end
+                              // (a 170, b 404) and painted its front over them -- room_people "over"; the receptionist behind, 69 back of its front, still
+                              // sorts before every run of 47)
 
     /* ---- THE SECURITY DESK (a 140..260, b 585..625, 92 high), facing the doors: a monitor and a sign-in book, their faces to the guard ---- */
     runPiece(items, 140, 260, 585, 625, 128, (s0, s1) => [solid(s0, s1, 585, 625, 96, 'security desk')], () => {
@@ -59836,7 +59838,7 @@ function houseCanopy(fn){
       box(170, 204, 594, 598, 104, 128, dark, dark, '#1c2126'); box(185, 189, 598, 602, 92, 104, steelS, steelS, steelS);
       box(220, 246, 598, 616, 92, 95, '#f3ecdc', '#e2dccb', '#cfc8b6'); tube(226, 606, 95, 238, 610, 96, 0.8, '#2b3138');
       blockWordIn('SECURITY', 160, 240, 52, 70, 625.3, '#efe7d6', null, 3);
-    });
+    }, { keyStart: true });   // (as the reception desk: keyed at each stretch's west end, the guard 65 behind its front)
 
     /* ---- THE BENCH under the print (a 6..42, b 420..540): a walnut seat on steel legs, facing east ---- */
     items.push({ a: 24, b: 480, z: 0, solids: [solid(6, 42, 420, 540, 40, 'bench')], draw: () => {
@@ -64483,12 +64485,19 @@ function houseCanopy(fn){
 
     /* ---- THE CHECK-IN DESK (a 60..370, b 110..150, 90 high): a blue front with a white band, an oak top; two monitors with their backs to us (their screens
        face the agent), a baggage scale in front of it with a case on it ---- */
-    items.push({ a: 215, b: 130, z: 0, solids: [solid(60, 370, 110, 150, 92, 'check-in desk'), solid(100, 190, 165, 215, 24, 'baggage scale')], draw: () => {
+    /* (a long fixture: runPiece'd in seven runs of ~44, each keyed at its stretch's west end (keyStart) -- as one piece keyed at its middle
+       (a 215, b 130) it sorted after a traveller stood in front of its west end and painted its front over them; the agent behind it, 52 back
+       of its front, sorts before every run. Its zTop the monitors' top) */
+    runPiece(items, 60, 370, 110, 150, 130, (s0, s1) => [solid(s0, s1, 110, 150, 92, 'check-in desk')], () => {
       box(60, 370, 110, 150, 0, 84, blue, blueD, shade(blue, 0.7));
       F(66, 364, 40, 60, '#f4f1ea', null, 0, 150.2); blockWordIn('SDA', 150, 280, 42, 58, 150.4, blue, null, 2);
       box(56, 374, 106, 154, 84, 90, oakL, oak, oakF);
       for(const a of [120, 260]){ box(a - 22, a + 22, 116, 130, 90, 128, dark, '#23292f', '#1c2126'); box(a - 14, a + 14, 120, 124, 128, 130, '#8f969b', '#7d868b', '#6a7378'); box(a - 8, a + 8, 123, 127, 90, 96, steelD, steelD, steelS); }
       box(310, 346, 118, 136, 90, 98, '#f6f3ea', steelD, steelS); cyl(328, 127, 98, 104, 5, '#c8352e');              // the tag printer, a stamp
+    }, { keyStart: true, pad: 4 });
+    /* the baggage scale in front of it, its own piece: keyed at its south-west corner (a 100, b 215) -- a traveller south of it sorts after it,
+       one west of it before; the desk behind it, every run, before */
+    items.push({ a: 100, b: 215, z: 0, solids: [solid(100, 190, 165, 215, 24, 'baggage scale')], draw: () => {
       box(100, 190, 165, 215, 0, 10, steelD, steelS, '#7d868b'); T(104, 186, 169, 211, 10.2, '#2b3138');            // the scale's platform
       box(112, 176, 176, 206, 10, 44, '#8a3a3a', shade('#8a3a3a', 0.85), shade('#8a3a3a', 0.7)); F(120, 168, 20, 30, '#d8dde0', null, 0, 206.2);   // a hard case on it, a strap
       box(138, 150, 176, 206, 44, 48, '#2b3138', '#23292f', '#1c2126');
@@ -64496,14 +64505,20 @@ function houseCanopy(fn){
 
     /* ---- THE CAFE (a 960..1230): the back bar on the north wall (b 2..30, 90 high) and the counter at b 100..140 (84 high) with its espresso machine, till and
        a pastry case; the barista stands between them, north of the counter ---- */
-    items.push({ a: 1095, b: 16, z: 0, solids: [solid(960, 1230, 2, 30, 92, 'cafe back bar')], draw: () => {
+    /* (the back bar against the north wall: runPiece'd in three runs of 90, seams at a 1050 and 1140 clear of the grinder and the brewer, each
+       keyed at its stretch's west end (keyStart: nothing behind it) -- as one piece keyed at its middle (a 1095, b 16) it sorted after the
+       barista at her post in front of its west half (a 1040, b 70) and painted over her. zTop the grinder's hopper) */
+    runPiece(items, 960, 1230, 2, 30, 130, (s0, s1) => [solid(s0, s1, 2, 30, 92, 'cafe back bar')], () => {
       box(960, 1230, 2, 30, 0, 86, shade(red, 0.9), shade(red, 0.75), shade(red, 0.6));
       box(958, 1232, 0, 32, 86, 90, oakL, oak, oakF);
       for(const a of [966, 1048, 1130, 1198]){ F(a, a + 28, 8, 74, shade(red, 1.15), shade(red, 0.7), 1, 32.2); }
       box(990, 1020, 6, 26, 90, 112, '#2b3138', '#23292f', '#1c2126'); cyl(1005, 16, 112, 130, 8, 'rgba(205,230,240,.6)', '#6b4a32');   // a grinder with its hopper
       box(1090, 1124, 6, 26, 90, 120, steel, steelD, steelS);                                                                              // a drip brewer
-    }});
-    items.push({ a: 1095, b: 120, z: 0, solids: [solid(960, 1230, 100, 140, 86, 'cafe counter')], draw: () => {
+    }, { run: 90, pad: 4, keyStart: true });
+    /* (the counter: runPiece'd in four runs of 67.5, each keyed at its stretch's west end -- the barista behind it (b 70, 70 back of its front)
+       sorts before every run, anyone in front of it after; seams at a 1095 and 1162.5 clear of the till and the pastry case. zTop the pastry
+       case's top) */
+    runPiece(items, 960, 1230, 100, 140, 116, (s0, s1) => [solid(s0, s1, 100, 140, 86, 'cafe counter')], () => {
       box(960, 1230, 100, 140, 0, 80, red, shade(red, 0.8), shade(red, 0.65));
       for(let a = 966; a < 1226; a += 20) F(a, a + 16, 24, 56, '#f4f1ea', null, 0, 140.2);                                              // the tile band on its front
       box(958, 1232, 98, 142, 80, 84, oakL, oak, oakF);
@@ -64512,7 +64527,7 @@ function houseCanopy(fn){
       box(1100, 1130, 108, 128, 84, 92, '#2b3138', '#23292f', '#1c2126'); box(1102, 1128, 122, 128, 92, 106, '#3a3e46', '#2b3036', '#23292f');   // the till, its back to us
       box(1170, 1226, 102, 138, 84, 90, steelD, steelD, steelS); box(1170, 1226, 102, 138, 90, 114, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');   // the pastry case
       for(const a of [1184, 1204]) for(const b of [114, 128]) cyl(a, b, 90, 94, 5, '#c98a4a', '#e0b27a');
-    }});
+    }, { run: 67.5, pad: 4, keyStart: true });
 
     /* ---- THE LOUNGE (a 700..1200, b 300..540): four rows of two benches facing the board, a blue cushion on a steel frame with a back, a low table between ---- */
     for(const bb of [290, 370, 450, 530]){
