@@ -20798,6 +20798,128 @@ function hoodShopVolBlocked(grid, blk, x, y, R){
   }
   return undefined;
 }
+/* ==================== CITY DRIVES: THE APRON AS POURED (drive pass, 2026-11-24) ====================
+   Sir, with a drive circled: "lets look at drive ways.. we have alot of them for different situations but id like to upgrade
+   them too". The apron was one flat plate with a triangle at each end -- and a 45-degree triangle's long side, (+1 along,
+   +1 out), projects to a VERTICAL line on screen at one end of every drive (which end depends on the street's heading), so
+   the paving beside it read as the side face of a raised box: a step where there is none. Now:
+   - THE WINGS ARE LOW WEDGES: from the drive's side 0.4 FL back to the kerb flare's top end, FL along (the same reach
+     along the kerb as before, so the dropped kerb and the paving still meet corner to corner), so their long side lies
+     well off the vertical at every heading. (A curve was tried: in this projection it read as a curled page.) Each wing
+     is a slope down to the mouth, toned as a face turned that way (SP13: turned to screen-left lit, to screen-right
+     dark), its crease with the level paving a soft seam.
+   - CONCRETE IS SLABS: tooled joints across it (and down it on a wide drive), each slab a lighter broom-finished field
+     inside a smooth trowelled margin, a little tone jitter slab to slab. Asphalt (a garage's lane) stays one sheet.
+   - ITS EDGES ARE CUT IN: a fine dark seam where the apron meets the footway, so it reads as a pour, not a decal.
+   - WEAR WHERE CARS RUN: tyre tracks down each lane and a drip of oil near the lot end, seeded off the drive's position
+     (stable, never per frame). The paint goes down first and the tracks over it, so arrows and lines wear under the
+     wheels; the paint itself is laid a touch translucent, in the ground's plane.
+   Ground pass (cached), never live. P(al, lat) is the caller's: along the kerb and out from the lot line, at z = 0. */
+const DRIVE_ART = { margin: 7, field: 1.035, jit: 0.018, joint: 0.8, jointA: 0.6, broom: 0.93, broomA: 0.16, seam: 0.62,
+                    seamA: 0.5, wingLit: 1.045, wingDark: 0.91, track: 0.55, trackA: 0.035, oil: 0x2a2824, oilA: 0.16,
+                    paint: 0xd9d5c6, paintA: 0.86, slab: 125, slabAl: 190, wing: 0.4 };
+function driveSeed(d, k){
+  const e = d.e, x = Math.round(e.ox + e.dv.x*d.al0), y = Math.round(e.oy + e.dv.y*d.al0);
+  return natHash(((x*73856093) ^ (y*19349663) ^ (k*83492791)) >>> 0);
+}
+const DRIVE_DROP_H = 1.8;   // a drive's dropped kerb, how high its stone stands (the kerb pass's rampCuts)
+/* A DRIVE'S DROPPED KERB, across its mouth between two of the kerb pass's sections (kSec: rx, ry the road edge, px, py the
+   paving edge). Not the painted stone at a lower height -- drawn that way its bright top read as the kerb running on
+   across the mouth -- but a low, worn lip: a top halfway to the gutter's concrete, a dark road face where it is turned to
+   the eye, a soft arris. */
+function cityDropKerb(S, g, a, b){
+  const R = (s, z) => S.W(s.rx, s.ry, z), P = (s, z) => S.W(s.px, s.py, z), h = a.h;
+  const O = S.W(0, 0, 0), N = S.W(a.rx - a.px, a.ry - a.py, 0);
+  if(N.y - O.y > 0) S.quadOn(g, [R(a, h), R(b, h), R(b, 0.6), R(a, 0.6)], mixC(KERB_STONE.face, KERB_STONE.dk, 0.55));
+  S.quadOn(g, [R(a, h), R(b, h), P(b, h), P(a, h)], mixC(KERB_STONE.top, 0x9a9488, 0.45));
+  const p = R(a, h), q = R(b, h);
+  g.lineStyle(1, KERB_ARRIS, 0.55); g.lineBetween(p.x, p.y, q.x, q.y);
+}
+function cityDriveApron(S, g, d, P, FL, SW){
+  const A = DRIVE_ART, APRON = d.col ? parseInt(d.col.slice(1), 16) : 0x909390, PAINT = A.paint;
+  const lo = Math.min(d.al0, d.al1), hi = Math.max(d.al0, d.al1), w = hi - lo, am = (lo + hi)/2;
+  const wings = d.wings !== false, conc = !d.lane;
+  /* a lane's run-on laps back 8 over the lot's own tarmac: butted at the lot line, the paving showed through the join */
+  const L0 = d.lane ? -8 : 0;
+  const quad = (a0, l0, a1, l1, col, al) => S.quadOn(g, [P(a0, l0), P(a1, l0), P(a1, l1), P(a0, l1)], col, al);
+  /* the wing, side s (-1 at lo, +1 at hi): from the drive's side WD back from the kerb to the kerb FL along -- a long, low
+     wedge (WD = 0.4 FL), whose long side runs well off the screen's vertical at every heading */
+  const WD = FL*DRIVE_ART.wing;
+  const wingPts = (a, s) => [P(a, SW - WD), P(a + s*FL, SW)];
+  /* 1. the sheet, and its wings */
+  quad(lo, L0, hi, SW, APRON);
+  if(wings){
+    const O = P(0, 0), X = P(1, 0), alRight = X.x - O.x > 0;     // +along runs to screen-right
+    for(const [a, s] of [[lo, -1], [hi, 1]]){
+      const pts = wingPts(a, s);
+      pts.push(P(a, SW));
+      /* the slope falls toward the mouth (-s along): turned to screen-right it is in shade */
+      S.quadOn(g, pts, shadeN(APRON, (alRight ? -s : s) > 0 ? A.wingDark : A.wingLit));
+    }
+  }
+  /* 2. slabs: margins, broom-finished fields, tooled joints */
+  if(conc){
+    const nL = Math.max(2, Math.round(SW/A.slab)), nA = Math.max(1, Math.round(w/A.slabAl)), M = A.margin;
+    const dl = SW/nL, da = w/nA;
+    for(let i = 0; i < nL; i++) for(let j = 0; j < nA; j++){
+      const l0 = i*dl, l1 = (i + 1)*dl, a0 = lo + j*da, a1 = lo + (j + 1)*da;
+      const fc = shadeN(APRON, A.field*(1 + (driveSeed(d, 1 + i*7 + j) - 0.5)*2*A.jit));
+      quad(a0 + M, l0 + M, a1 - M, l1 - M, fc);
+      /* the broom's grain, across the way the cars run (along the kerb): a few faint strokes */
+      g.lineStyle(1, shadeN(fc, A.broom), A.broomA);
+      for(let k = 1; k <= 3; k++){
+        const lk = l0 + M + (l1 - l0 - 2*M)*k/4, p = P(a0 + M + 3, lk), q = P(a1 - M - 3, lk);
+        g.lineBetween(p.x, p.y, q.x, q.y);
+      }
+    }
+    g.lineStyle(1, shadeN(APRON, A.joint), A.jointA);
+    for(let i = 1; i < nL; i++){ const p = P(lo, i*dl), q = P(hi, i*dl); g.lineBetween(p.x, p.y, q.x, q.y); }
+    for(let j = 1; j < nA; j++){ const p = P(lo + j*da, 0), q = P(lo + j*da, SW); g.lineBetween(p.x, p.y, q.x, q.y); }
+  }
+  /* 3. the seam with the footway, down each side and round its wing to the kerb */
+  g.lineStyle(1, shadeN(APRON, A.seam), A.seamA);
+  for(const [a, s] of [[lo, -1], [hi, 1]]){
+    g.beginPath();
+    const p0 = P(a, L0); g.moveTo(p0.x, p0.y);
+    if(wings){ for(const q of wingPts(a, s)) g.lineTo(q.x, q.y); }
+    else { const q = P(a, SW); g.lineTo(q.x, q.y); }
+    g.strokePath();
+  }
+  /* 4. the paint: the lane's edge lines (6 in), and the arrows -- the lane's own shape, laid in (along, out). IN points at
+     the lot (lat falling). A two-way drive gets one each way, on its own half, with a dashed centre line between them. */
+  if(d.lines) for(const [a, s] of [[lo, -1], [hi, 1]]){ const la = a - s*6; quad(la - 3, 0, la + 3, SW, PAINT, A.paintA); }
+  const arrow = (c, ab, dirIn) => {
+    const k = dirIn ? 1 : -1, Q = (da, dl) => P(c + da, ab + k*dl);
+    S.quadOn(g, [Q(0,-40), Q(-22,-6), Q(-8,-6), Q(-8,34), Q(8,34), Q(8,-6), Q(22,-6)], PAINT, A.paintA);
+  };
+  /* ONE PIECE WITH ITS LANES (Sir, 2026-10-10: "lets unify the two pieces"): the garage's drive is its forecourt lanes run
+     on to the kerb -- no edge lines, no arrows of its own, their solid centre line carried through in their paint and width */
+  const two = d.lane || d.arrows === "both";
+  if(d.lane) quad(am - 6, L0, am + 6, SW, 0xe8e2d0, 0.92);
+  else if(d.arrows === "both"){
+    arrow(am - w/4, SW/2, true); arrow(am + w/4, SW/2, false);
+    for(let lat = 20; lat < SW - 20; lat += 70) quad(am - 3, lat, am + 3, lat + 36, PAINT, A.paintA);
+  } else if(d.arrows !== "none") arrow(am, SW/2, d.arrows !== "out");    // a house's drive is plain
+  /* 5. wear: a pair of tyre tracks down each lane, over the paint; and a drip of oil where a car waits at the lot end */
+  const lanes = two ? [am - w/4, am + w/4] : [am];
+  const half = Math.min(52, (two ? w/2 : w)*0.3), TW = 14, tc = shadeN(APRON, A.track), ta = d.lane ? A.trackA*0.6 : A.trackA;
+  for(const c of lanes) for(const s of [-1, 1]){
+    const t = c + s*half;
+    for(const f of [1, 0.62, 0.3]) quad(t - TW*f, L0, t + TW*f, SW, tc, ta);   // soft-edged: three widths laid over each other
+  }
+  if(driveSeed(d, 97) > 0.3){
+    const c = lanes[Math.floor(driveSeed(d, 98)*lanes.length)] + (driveSeed(d, 99) - 0.5)*half*0.6;
+    const lc = 60 + driveSeed(d, 100)*70, rot = driveSeed(d, 101)*Math.PI, cr = Math.cos(rot), sr = Math.sin(rot);
+    for(const [ra, rb, al] of [[24, 15, A.oilA], [12, 8, A.oilA]]){
+      const pts = [];
+      for(let i = 0; i < 16; i++){
+        const th = i/16*Math.PI*2, wob = 1 + 0.16*Math.sin(th*3 + rot*2), x = Math.cos(th)*ra*wob, y = Math.sin(th)*rb*wob;
+        pts.push(P(c + x*cr - y*sr, lc + x*sr + y*cr));
+      }
+      S.quadOn(g, pts, A.oil, al);
+    }
+  }
+}
 /* ==================== DRIVEWAYS (Sir, 2026-09-26) ====================
    "can we make the driveway go all the way to the street? give it
    shoulders too" -- Pelican Drug's drive lane ended at its own hedge, with
@@ -114166,45 +114288,11 @@ class WorldScene extends Phaser.Scene {
       const P = (al, lat) => this.W(e.ox + e.dv.x*al + e.rv.x*lat, e.oy + e.dv.y*al + e.rv.y*lat, 0);
       if(!this.visProp("sidewalkend", e.ox + e.dv.x*(d.al0 + d.al1)/2 + e.rv.x*SW/2,
                                       e.oy + e.dv.y*(d.al0 + d.al1)/2 + e.rv.y*SW/2)) continue;
-      /* THE DRIVE LANE, CARRIED ON (Sir, on-device: "the drive way is the
-         wrong color can we have it match the drive through color and have
-         arrows and all removing the segments in it"). Same concrete as the
-         lane -- the entry's shade(conc,.86) -- the lane's two painted edge
-         lines run through to the kerb, and an IN arrow sits mid-footway.
-         No joints: it reads as the lane, not as paving. The shoulders are
-         the same surface flaring out to the kerb flares. */
-      /* each drive wears what it leads into: the drive-through's concrete
-         and edge lines, or the car park's asphalt */
-      const APRON = d.col ? parseInt(d.col.slice(1), 16) : 0x909390, PAINT = 0xd9d5c6;
-      /* a lane's run-on laps back 8 over the lot's own tarmac: butted at the
-         lot line, the paving showed through the join as a hairline */
-      const L0 = d.lane ? -8 : 0;
-      this.quadOn(g, [P(d.al0, L0), P(d.al1, L0), P(d.al1, SW), P(d.al0, SW)], APRON);
-      for(const [a, s] of [[d.al0, -1], [d.al1, 1]]){
-        if(d.wings !== false) this.quadOn(g, [P(a, SW - FL), P(a, SW), P(a + s*FL, SW)], APRON);   // the shoulders (a drive declared wings: false has square ends)
-        if(!d.lines) continue;
-        const la = a - s*6;                                   // the lane's edge line, 6 in
-        this.quadOn(g, [P(la-3, 0), P(la+3, 0), P(la+3, SW), P(la-3, SW)], PAINT);
-      }
-      /* the arrows: the lane's own shape, laid in (along, out). IN points
-         at the lot (lat falling). A two-way drive gets one each way, on
-         its own half, with a dashed centre line between them. */
-      const arrow = (am, ab, dirIn) => {
-        const k = dirIn ? 1 : -1, A = (da, dl) => P(am + da, ab + k*dl);
-        this.quadOn(g, [A(0,-40), A(-22,-6), A(-8,-6), A(-8,34), A(8,34), A(8,-6), A(22,-6)], PAINT);
-      };
-      const am = (d.al0 + d.al1)/2;
-      /* ONE PIECE WITH ITS LANES (Sir, 2026-10-10: "lets unify the two
-         pieces"): the garage's drive is its forecourt lanes run on to the
-         kerb -- no edge lines, no arrows of its own, their solid centre
-         line carried through in their paint and width */
-      if(d.lane){ this.quadOn(g, [P(am-6, L0), P(am+6, L0), P(am+6, SW), P(am-6, SW)], 0xe8e2d0); continue; }
-      if(d.arrows === "both"){
-        const q = (d.al1 - d.al0)/4;
-        arrow(am - q, SW/2, true); arrow(am + q, SW/2, false);
-        for(let lat = 20; lat < SW - 20; lat += 70)
-          this.quadOn(g, [P(am-3, lat), P(am+3, lat), P(am+3, lat+36), P(am-3, lat+36)], PAINT);
-      } else if(d.arrows !== "none") arrow(am, SW/2, d.arrows !== "out");    // a house's drive is plain
+      /* THE DRIVE LANE, CARRIED ON (Sir, on-device: "the drive way is the wrong color can we have it match the drive through
+         color and have arrows and all removing the segments in it"): each drive wears what it leads into -- the drive-through's
+         concrete and edge lines, the car park's asphalt. THE APRON AS POURED (drive pass, 2026-11-24): cityDriveApron lays it
+         -- slabs, wings, wear, paint (see CITY DRIVES above hoodDrivewaysOf). */
+      cityDriveApron(this, g, d, P, FL, SW);
     }
     /* curb: a genuine vertical riser face, not a wide sloped strip —
        zero width ACROSS the curb line, just a height difference from
@@ -114367,13 +114455,13 @@ class WorldScene extends Phaser.Scene {
           if(ends.some(q => Math.abs(sgn*q.lat - ROAD_HALF) > 30)) continue;
           const c0 = Math.min(ends[0].alo, ends[1].alo), c1 = Math.max(ends[0].alo, ends[1].alo);
           if(c1 < 0 || c0 > len) continue;
-          raw.push([Math.max(0, c0), Math.min(len, c1), d.wings === false]);   // (flat: no flares, the kerb stops square at the mouth)
+          raw.push([Math.max(0, c0), Math.min(len, c1), d.wings === false, true]);   // (flat: no flares, the kerb stops square at the mouth; true: a drive's)
         }
         raw.sort((a, b) => a[0] - b[0]);
         const out = [];
         for(const c of raw){
           const last = out[out.length-1];
-          if(last && c[0] - last[1] <= 8){ last[1] = Math.max(last[1], c[1]); last[2] = !!(last[2] && c[2]); }
+          if(last && c[0] - last[1] <= 8){ last[1] = Math.max(last[1], c[1]); last[2] = !!(last[2] && c[2]); last[3] = !!(last[3] && c[3]); }
           else out.push(c);
         }
         r.grid._kerbCuts.set(ck, out);
@@ -114428,7 +114516,7 @@ class WorldScene extends Phaser.Scene {
         const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG + (lOut(edge.b, edge.f) ? ROAD_HALF - L_OUT_R : 0));
         band(sgn, s0, s1);
         let cur = s0, capNext = false;
-        for(const [c0, c1, flat] of cuts){
+        for(const [c0, c1, flat, drv] of cuts){
           /* THE FLARES ARE OUTSIDE THE PAD, the drop is across it: full
              kerb up to the flare, flare down, flush the width of the pad,
              flare back up. Both flares used to sit inside the mouth, which
@@ -114472,12 +114560,17 @@ class WorldScene extends Phaser.Scene {
              and THE SEAM DOWN THE FLARE TOO (Sir, on-device, circling a ramp wedge: "i think we are missing the dark line on the
              down slope part of the curbs"). The low end sits at the pad's own height (WORLD_RAMP.streetZ), so its corner lands on
              the pad's corner on screen too. */
-          const flare = (sEdge, sPad) => this.kerbPath(g, [kSec(sgn, sEdge, KERB_H), kSec(sgn, sPad, WORLD_RAMP.streetZ)]);
+          /* A DRIVE'S MOUTH KEEPS A DROPPED KERB (drive pass, 2026-11-24): not nothing, as at a crossing, but a low stone across
+             it, DRIVE_DROP_H proud, worn to the gutter's tone (cityDropKerb) -- and its flares fall to that height, so the kerb
+             runs down, across and up again. Drawn only: the mouth stays open to him (owAtRampMouth). */
+          const lowH = drv ? DRIVE_DROP_H : WORLD_RAMP.streetZ;
+          const flare = (sEdge, sPad) => this.kerbPath(g, [kSec(sgn, sEdge, KERB_H), kSec(sgn, sPad, lowH)]);
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
           if(!flat) flare(fs0, c0);
           const fs1 = Math.min(s1, c1 + FL);
           if(!flat) flare(fs1, c1);
+          if(drv) cityDropKerb(this, g, kSec(sgn, c0, lowH), kSec(sgn, c1, lowH));
           cur = fs1; capNext = !!flat;
         }
         if(s1 - cur > 1) kerbRun(sgn, cur, s1, KERB_H, KERB_H, capNext, false);
