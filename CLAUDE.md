@@ -18,6 +18,14 @@
    `tools/perf_baseline.json` with that change.
 4. Publish the full `game/index.html` as an Artifact so I can play it on my iPad.
    Keep ONE preview per session: republish to the same artifact after changes.
+## Splitting work across agents
+- Parallel agents (side by side, each in its own worktree) are the default for speed -- when each has its own area of code: its
+  own drawer or function, its own part of the file. Give each its own named spot for any NEW functions it adds (e.g. just above
+  its own drawer), so two agents never add code at the same point (Sir, 2026-11-24: the park trees and planting both added
+  methods above queueParkPlants and collided).
+- Stack instead (one after another, the second built on the first's commit) when the pieces share a function or sit close in
+  the file: those collide side by side.
+
 ## Pushing
 - Commit and push straight to `main`. No side branches, no PRs.
 - Several sessions push to `main`, so expect it to have moved. Fetch and rebase
