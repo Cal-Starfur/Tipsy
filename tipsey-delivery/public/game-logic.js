@@ -121245,8 +121245,12 @@ class WorldScene extends Phaser.Scene {
       limb(_armAC, s0, along(S, ang, SLE), skinW, skinW, pSkin.c, pSkin.dk, 0.95, 0);
       sleeveOn(s0, along(S, ang, SLE));
       limb(_armAC, along(S, ang, SLE - 1), ext(E, S, ELB), skinW*0.95, skinW*0.95, pSkin.c, pSkin.dk, 0.9/0.95, 0); };   // (ELB: how far the sleeve and its hem run past the elbow -- 2 and 2.2 stuck out at the bend's outside, past the forearm)
-    const shoulderCap = side => RB ? prism(side*(build.torsoW/2 - 1), 0, build.armW*sleeveW*1.12, build.armW*sleeveW*1.12, shoulderH - 4.5, shoulderH + 1, jointP, { top: 0.5, topCol: hullTones(jointP).c, edge: false })
-      : limb(side*(build.torsoW/2 - 1), along([0, shoulderZ], capAng, 3.5), along([0, shoulderZ], capAng, -2), build.armW*sleeveW*1.12/1.06, build.armW*sleeveW*1.12/1.06, pSleeve.c, pSleeve.dk, 0.5, 1);
+    /* THE SHOULDER CAP (Sir, 2026-11-24: "fix the cap first then apply to both"): round the arm's root, so a ring -- its sides only, no
+       filled silhouette (it laid a flat lid over the arm it wraps, people_depth's 'lid under nearArm') -- closed only at its top, the end
+       up at the shoulder, past the arm's own end. One for people and the humanoid alike, turned with the arm (capAng): the robot's in its
+       joint colour, where it had been an upright block that never moved ("his shoulders don't ever move") */
+    const shoulderCap = side => { const P = RB ? jointP : pSleeve;
+      limb(side*(build.torsoW/2 - 1), along([0, shoulderZ], capAng, 3.5), along([0, shoulderZ], capAng, -2), build.armW*sleeveW*1.12/1.06, build.armW*sleeveW*1.12/1.06, P.c, P.dk, 0.8, 1, false); };
     const handP = RB ? { c: RB.hand, dk: _pdk(RB.hand, 0.8) } : pSkin, hingeP = RB ? jointP : pSkin;   // (a robot's: dark hands, its joints)
     const elbowZ = shoulderZ - sleeveLen;
     /* ---- THE AID (uniform.aid) ----
