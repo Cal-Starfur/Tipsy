@@ -123523,7 +123523,12 @@ class WorldScene extends Phaser.Scene {
     const grid = this.route && this.route.grid;
     if(!grid) return;
     cityFurnEdgeIndex(grid);
-    const t = this.time.now;
+    /* THE FRAME'S CLOCK, the t each item's fn is handed and draws with (drawWorldIn parks it as _matT) -- never this.time.now.
+       The scene clock runs on its own (it stops while the scene is paused and adds its deltas up), so it drifts from the frame's
+       t: measured 1.8 s apart, and a walker was keyed where they had been then, up to 120 off where they were drawn -- a wall run
+       keyed at its middle sorted after a passer-by walking past the airfield terminal and painted over them. One clock for the
+       key, the screen gate, the corridor test and the draw: every walker, jogger, dog and its owner keyed where they stand. */
+    const t = this._matT !== undefined ? this._matT : this.time.now;
     for(let fi = 0; fi < 4; fi++){
       for(const cp of cityFurnitureForEdgeCached(grid, { blk, fi })){
         if(GROUND_KINDS_CF[cp.type] || cp.taken) continue;
