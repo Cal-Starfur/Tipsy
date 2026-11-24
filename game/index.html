@@ -97225,6 +97225,16 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           const { WW, DD, H } = X, doorMid = !!X.WINS && X.WINS.length === 2, mid0 = WW/2;
           const copper = '#e79a35', copperD = '#b06f20', dark = '#2a1a11', cream = '#f1e6cf', brick = '#7a3f2a', brickD = '#5d2f1f';
           const rev = P(1, 0, 0).x < P(0, 0, 0).x, seeA = P(1, 0, 0).y > P(0, 0, 0).y;
+          /* THE ROOF HATCH, seen from the street (Sir, 2026-11-24: "from the outside i dont see the roof hatch"): the one MINDING THE
+             SHOP climbs out of, where the roof's own room has it (BBR: a 96..174 west to east, 0..58 from the square's north edge, world
+             units). That corner of the roof is the EAST leg's (its frontage the north 416 of the square on the east street, 836 deep
+             west): along its frontage 0..58 from the north, 662..740 in from the street; /1.3, and the shell's grow GR on both.
+             A galvanized curb, the slate lid shut on it, its raised panel and handle. Back to front. */
+          if(!doorMid){ const GR = 30/1.3, a0 = GR + 2, a1 = a0 + 58/1.3, b0 = -GR - 740/1.3, b1 = -GR - 662/1.3, ch = H + 18/1.95, t = 6/1.3;
+            box(a0, a1, b0, b1, H, ch, '#c3c9cd', '#a3abb1', '#7f878e');                                     // the curb
+            box(a0 + 1.5, a1 - 1.5, b0 + 1.5, b1 - 1.5, ch, ch + 2, '#5f6b76', '#4d5862', '#3a434b');           // the lid, shut
+            T(a0 + 1.5 + t, a1 - 1.5 - t, b0 + 1.5 + t + 4, b1 - 1.5 - t - 4, ch + 2.05, '#6a7782');            // its raised panel
+            box(a1 - 6, a1 - 4, (b0 + b1)/2 - 4, (b0 + b1)/2 + 4, ch + 2, ch + 3.2, '#6e757c', '#596067', '#596067'); }   // the handle
           /* the plinth: brick under the glass, in runs either side of the door (K2: nothing over its surround) */
           for(const [a0, a1] of (doorMid ? [[0, mid0 - 46], [mid0 + 46, WW]] : [[0, WW]])){
             F(a0, a1, 0, 22, brick, null, 0, 0.45);
