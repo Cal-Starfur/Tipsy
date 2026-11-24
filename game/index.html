@@ -20885,6 +20885,14 @@ function cityDriveApron(S, g, d, P, FL, SW){
     else { const q = P(a, SW); g.lineTo(q.x, q.y); }
     g.strokePath();
   }
+  /* A GARAGE'S LANE: the forecourt's worn asphalt carried on to the kerb by the same painter, its marks seeded off the
+     same lane, so lane and run-on are one surface (GARAGE LANES, above mallGarageDrives); it owns what centres past 10,
+     where the forecourt's tarmac ends over it */
+  if(d.lane){
+    garageLanePaint({ Pt: (u, v) => P(lo + u, v), fill: (pts, c, al) => S.quadOn(g, pts, c, al) }, w, L0, SW,
+                    { seed: d.blockKey + ':' + Math.round(lo), own: [10, SW] });
+    return;
+  }
   /* 4. the paint: the lane's edge lines (6 in), and the arrows -- the lane's own shape, laid in (along, out). IN points at
      the lot (lat falling). A two-way drive gets one each way, on its own half, with a dashed centre line between them. */
   if(d.lines) for(const [a, s] of [[lo, -1], [hi, 1]]){ const la = a - s*6; quad(la - 3, 0, la + 3, SW, PAINT, A.paintA); }
@@ -20892,17 +20900,15 @@ function cityDriveApron(S, g, d, P, FL, SW){
     const k = dirIn ? 1 : -1, Q = (da, dl) => P(c + da, ab + k*dl);
     S.quadOn(g, [Q(0,-40), Q(-22,-6), Q(-8,-6), Q(-8,34), Q(8,34), Q(8,-6), Q(22,-6)], PAINT, A.paintA);
   };
-  /* ONE PIECE WITH ITS LANES (Sir, 2026-10-10: "lets unify the two pieces"): the garage's drive is its forecourt lanes run
-     on to the kerb -- no edge lines, no arrows of its own, their solid centre line carried through in their paint and width */
-  const two = d.lane || d.arrows === "both";
-  if(d.lane) quad(am - 6, L0, am + 6, SW, 0xe8e2d0, 0.92);
-  else if(d.arrows === "both"){
+  /* (a garage's lane -- ONE PIECE WITH ITS LANES, Sir, 2026-10-10 -- went above: garageLanePaint) */
+  const two = d.arrows === "both";
+  if(d.arrows === "both"){
     arrow(am - w/4, SW/2, true); arrow(am + w/4, SW/2, false);
     for(let lat = 20; lat < SW - 20; lat += 70) quad(am - 3, lat, am + 3, lat + 36, PAINT, A.paintA);
   } else if(d.arrows !== "none") arrow(am, SW/2, d.arrows !== "out");    // a house's drive is plain
   /* 5. wear: a pair of tyre tracks down each lane, over the paint; and a drip of oil where a car waits at the lot end */
   const lanes = two ? [am - w/4, am + w/4] : [am];
-  const half = Math.min(52, (two ? w/2 : w)*0.3), TW = 14, tc = shadeN(APRON, A.track), ta = d.lane ? A.trackA*0.6 : A.trackA;
+  const half = Math.min(52, (two ? w/2 : w)*0.3), TW = 14, tc = shadeN(APRON, A.track), ta = A.trackA;
   for(const c of lanes) for(const s of [-1, 1]){
     const t = c + s*half;
     for(const f of [1, 0.62, 0.3]) quad(t - TW*f, L0, t + TW*f, SW, tc, ta);   // soft-edged: three widths laid over each other
@@ -36381,6 +36387,140 @@ function fleetGateBlocked(x, y, R){
 /* every landmark driveway declared in the world, not on a block edge */
 function landmarkDrives(){
   return (typeof HOSP !== "undefined" ? HOSP.drives : []).concat(typeof AIR !== "undefined" ? AIR.drives : [], mallGarageDrives(), MARINA.drives);
+}
+/* ==================== GARAGE LANES: THE ASPHALT, WORN (drive pass 2, 2026-11-24) ====================
+   Sir: "lets do inside lots and garage lanes". A garage's two lanes were one plain sheet of tarmac, a crisp centre line and
+   two arrows, from the barrier out to the kerb -- the forecourt's part drawn by the garage's entry, the run-on across the
+   footway by the kerb pass (cityDriveApron's `lane`). Now both are the same worn asphalt, laid by this one painter, so lane
+   and run-on read as ONE drive: every mark is placed in the lane's own (u, v) -- u across from its west edge (0..W), v from
+   the lot line (0) out to the kerb (+), into the lot (-) -- and seeded off the garage and the lane's world x, so a track, a
+   crack or a line that starts in the forecourt carries on across the footway where the other drawer takes over.
+   - TYRE POLISH: two soft dark wheel paths down each lane (a car's track, 72 across), wandering a little along it, a faint
+     sheen down their middle; a broad dull band over the lane's middle dims its paint where every car runs.
+   - PATCHES AND CRACK SEAL: a few rectangles of newer, darker asphalt with their edges sealed (one a utility cut right
+     across), and wandering lines of tar where cracks were sealed, over the paint as a sealer is poured.
+   - PAINT WORN: the solid centre line in short lengths, each its own wear (some chipped narrow); the arrows translucent
+     (the caller's o.paint, laid after the line and before the wear).
+   - OIL where cars wait at the barrier (o.arm): before the arm in the ENTER (west) lane, inside it in the EXIT lane.
+   - A TRENCH DRAIN across the mouth of the garage, just out from its face (o.drain): a steel channel, its grate's slots.
+   One piece's marks are owned by the piece whose o.own range holds their centre (a blot, the drain); the long ones are
+   clipped to [v0, v1], and where two pieces overlap (the run-on laps 8 under the forecourt, which runs 10 over it) the
+   forecourt's opaque tarmac lies over the run-on, so nothing doubles. Drawn into caches only (the garage's entry in the
+   building cache, the run-on in the kerb pass); the marks are made once per lane (garageLaneWear) and kept.
+   K: { Pt(u, v) -> point, fill(pts, col, alpha) }; garageLaneKit makes one for a shop library entry's P and poly. */
+const GARAGE_LANE_ART = { base: 0x5d6066, mottle: 0x6b6f75, mottleA: 0.07, patch: 0x4f5258, patchA: 0.92, seal: 0x2b2d31, sealA: 0.55,
+  crack: 0x2e3034, crackA: 0.46, crackW: 1.6, paint: 0xe8e2d0, paintA: [0.6, 0.9], dull: 0x2a2c30, dullA: 0.05, dullW: 52,
+  track: 0x24262a, trackA: 0.055, sheen: 0x959aa1, sheenA: 0.07, tread: 36, trackW: 12, oil: 0x141518, oilA: 0.2,
+  drain: 0x2c2e31, drainRim: 0x8b9096, slot: 0x121315, V0: -1400, V1: 420 };
+const _garageLaneWear = new Map();
+function garageLaneWear(seed, W){
+  const key = seed + '|' + Math.round(W);
+  let w = _garageLaneWear.get(key);
+  if(w) return w;
+  let h = 2166136261;
+  for(const ch of key) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const A = GARAGE_LANE_ART, r = lotDriveRand(h), n = Math.max(1, Math.round(W/240)), lw = W/n;
+  w = { h: h >>> 0, n, lw, patches: [], cracks: [], tracks: [], mottle: [] };
+  for(let v = A.V0; v < A.V1; v += 240 + r()*220){
+    if(r() < 0.5) continue;
+    if(r() < 0.35) w.patches.push({ u0: 0, u1: W, v0: v, v1: v + 24 + r()*14 });                          // a utility cut, right across
+    else { const u0 = r()*W*0.7, uw = 70 + r()*130; w.patches.push({ u0, u1: Math.min(W, u0 + uw), v0: v, v1: v + 50 + r()*90 }); }
+  }
+  for(let v = A.V0; v < A.V1; v += 150 + r()*200){
+    const pts = [];
+    if(r() < 0.45){                                                                                        // across the lanes
+      let u = r()*W*0.25, vv = v; const u1 = W*(0.45 + r()*0.55);
+      while(u < u1){ pts.push({ u, v: vv }); u += 16 + r()*18; vv += (r() - 0.5)*12; }
+    } else {                                                                                              // along a lane
+      let u = lw*Math.floor(r()*n) + lw*(0.12 + r()*0.76); const L = 110 + r()*230;
+      for(let s = 0; s <= L; s += 18 + r()*14){ pts.push({ u, v: v + s }); u += (r() - 0.5)*11; }
+    }
+    if(pts.length > 1) w.cracks.push(pts);
+  }
+  for(let i = 0; i < n; i++) for(const s of [-1, 1])
+    w.tracks.push({ c: (i + 0.5)*lw + s*A.tread, amp: 3 + r()*4, k: 1/(150 + r()*150), ph: r()*6.283 });
+  for(let v = A.V0; v < A.V1; v += 160 + r()*120) w.mottle.push({ u: r()*W, v, ru: 50 + r()*70, rv: 30 + r()*40, al: 0.5 + r()*0.5 });
+  _garageLaneWear.set(key, w);
+  return w;
+}
+/* a shop library entry's kit: its P(a, b, z) through Pt, its poly with the colour as rgba */
+function garageLaneKit(Pt, poly){
+  return { Pt, fill: (pts, c, al) => poly(pts, 'rgba(' + ((c >> 16) & 255) + ',' + ((c >> 8) & 255) + ',' + (c & 255) + ',' + (al == null ? 1 : al) + ')') };
+}
+function garageLanePaint(K, W, v0, v1, o){
+  const A = GARAGE_LANE_ART, w = garageLaneWear(o.seed, W), { Pt, fill } = K;
+  const own = o.own || [v0, v1], mine = v => v >= own[0] && v < own[1];
+  const R = (u0, u1, a, b, c, al) => {
+    a = Math.max(a, v0); b = Math.min(b, v1); u0 = Math.max(u0, 0); u1 = Math.min(u1, W);
+    if(b > a && u1 > u0) fill([Pt(u0, a), Pt(u1, a), Pt(u1, b), Pt(u0, b)], c, al);
+  };
+  const blot = (cu, cv, ru, rv, c, al, ph) => { const pts = [];
+    for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2, f = 1 + 0.17*Math.sin(3*t + ph);
+      pts.push(Pt(Math.max(0, Math.min(W, cu + ru*f*Math.cos(t))), cv + rv*f*Math.sin(t))); }
+    fill(pts, c, al); };
+  /* a thin band along a line in (u, v), clipped to [v0, v1] */
+  const seg = (p, q, hw, c, al) => {
+    let a = p, b = q;
+    if(a.v > b.v){ const t = a; a = b; b = t; }
+    if(b.v < v0 || a.v > v1) return;
+    const cut = (x, y, vv) => ({ u: x.u + (y.u - x.u)*(vv - x.v)/((y.v - x.v) || 1), v: vv });
+    if(a.v < v0) a = cut(a, b, v0);
+    if(b.v > v1) b = cut(a, b, v1);
+    const du = b.u - a.u, dv = b.v - a.v, L = Math.hypot(du, dv) || 1, nu = -dv/L*hw, nv = du/L*hw;
+    fill([Pt(a.u + nu, a.v + nv), Pt(b.u + nu, b.v + nv), Pt(b.u - nu, b.v - nv), Pt(a.u - nu, a.v - nv)], c, al);
+  };
+  /* 1. the tarmac (the forecourt's; the run-on's sheet is the apron's own), its weathering, its patches */
+  if(o.base != null) R(0, W, v0, v1, o.base, 1);
+  for(const m of w.mottle) if(mine(m.v)) blot(m.u, m.v, m.ru, m.rv, A.mottle, A.mottleA*m.al, m.u);
+  for(const p of w.patches){
+    R(p.u0, p.u1, p.v0, p.v1, A.patch, A.patchA);
+    R(p.u0, p.u1, p.v0 - 1.5, p.v0 + 1.5, A.seal, A.sealA); R(p.u0, p.u1, p.v1 - 1.5, p.v1 + 1.5, A.seal, A.sealA);
+    if(p.u0 > 0) R(p.u0 - 1.5, p.u0 + 1.5, p.v0, p.v1, A.seal, A.sealA);
+    if(p.u1 < W) R(p.u1 - 1.5, p.u1 + 1.5, p.v0, p.v1, A.seal, A.sealA);
+  }
+  /* 2. the paint: the centre line in short lengths, each worn its own way; then the caller's arrows */
+  if(o.centre !== false){
+    const c = W/2;
+    for(let v = Math.floor(v0/26)*26; v < v1; v += 26){
+      const t = natHash((w.h ^ Math.imul(Math.round(v/26) + 7919, 2654435761)) >>> 0);
+      const al = A.paintA[0] + (A.paintA[1] - A.paintA[0])*t, hw = t < 0.14 ? 3.5 : 6;
+      R(c - hw + (t < 0.07 ? 2.5 : 0), c + hw, v, v + 26, A.paint, al);
+    }
+  }
+  if(o.paint) o.paint();
+  /* 3. crack seal, poured over the paint */
+  for(const cr of w.cracks) for(let i = 1; i < cr.length; i++) seg(cr[i - 1], cr[i], A.crackW, A.crack, A.crackA);
+  /* 4. the wheels: a dull band down each lane's middle, and two wheel paths each, soft-edged, a sheen down their middle */
+  for(let i = 0; i < w.n; i++){ const c = (i + 0.5)*w.lw; R(c - A.dullW, c + A.dullW, v0, v1, A.dull, A.dullA); }
+  const off = (t, v) => t.amp*Math.sin(v*t.k + t.ph);
+  for(const t of w.tracks){
+    for(let v = Math.floor(v0/30)*30; v < v1; v += 30){
+      const va = Math.max(v, v0), vb = Math.min(v + 30, v1);
+      if(vb <= va) continue;
+      const ca = t.c + off(t, va), cb = t.c + off(t, vb);
+      for(const f of [1, 0.6, 0.3]){ const hw = A.trackW*f;
+        fill([Pt(ca - hw, va), Pt(ca + hw, va), Pt(cb + hw, vb), Pt(cb - hw, vb)], A.track, A.trackA); }
+      fill([Pt(ca - 1.2, va), Pt(ca + 1.2, va), Pt(cb + 1.2, vb), Pt(cb - 1.2, vb)], A.sheen, A.sheenA);
+    }
+  }
+  /* 5. oil where a car waits at the barrier: ahead of the arm entering (west lane), behind it leaving (east) */
+  if(o.arm != null) for(let i = 0; i < w.n; i++){
+    if(w.n > 1 && i > 0 && i < w.n - 1) continue;
+    const enter = i === 0, rr = k => natHash((w.h ^ (i*977 + k*131)) >>> 0);
+    const cu = (i + 0.5)*w.lw + (rr(1) - 0.5)*24, cv = o.arm + (enter ? 1 : -1)*(34 + rr(2)*26);
+    if(!mine(cv)) continue;
+    blot(cu, cv, 30 + rr(3)*12, 20 + rr(4)*8, A.oil, A.oilA*0.55, rr(5)*6);
+    blot(cu + 4, cv - 3, 17 + rr(6)*6, 11 + rr(7)*5, A.oil, A.oilA, rr(8)*6);
+    blot(cu - 18 + rr(9)*36, cv + (rr(10) - 0.5)*30, 6, 4, A.oil, A.oilA*0.8, 0);
+  }
+  /* 6. the trench drain across the mouth: a steel-edged channel, its grate's slots */
+  if(o.drain != null && mine(o.drain)){
+    const d = o.drain, m = 10;
+    R(m, W - m, d - 9, d + 9, A.drainRim, 0.95);
+    R(m + 2, W - m - 2, d - 7, d + 7, A.drain, 1);
+    for(let u = m + 6; u < W - m - 6; u += 9) R(u, u + 4, d - 6, d + 6, A.slot, 0.9);
+    R(m, W - m, d + 7.5, d + 9, 0xb7bcc1, 0.8);                                                    // the near rim catches the light
+  }
 }
 /* THE MALL GARAGE'S DRIVEWAY (Sir, 2026-10-12): its lanes on across the
    footway to the kerb, as the hospital garage's -- a car turns in and out
@@ -53791,11 +53931,12 @@ function houseCanopy(fn){
              with it, a sliver of the pale pave showed under their edge as a
              hairline where the driveway carries them on to the kerb */
           { const L = G_.lanes, lr = clipR([L[0], L[1], G_.y1, C.site[3]]); if(okR(lr)) lr[3] = C.site[3] + 10;
-            if(okR(lr)){ Tw(lr, 0.5, '#5d6066');
-              const m = (L[0] + L[1])/2, cl = clipR([m - 6, m + 6, G_.y1, C.site[3]]); if(okR(cl)){ cl[3] = C.site[3] + 10; Tw(cl, 0.7, '#e8e2d0'); }
-              for(const [x, dir] of [[(L[0]*3 + L[1])/4, -1], [(L[0] + L[1]*3)/4, 1]]) if(mine(x, G_.y1 + 160)){
-                const a = A(x), b0 = B(G_.y1 + 170), tip = b0 - dir*50;
-                poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8'); } } }
+            /* (worn: GARAGE LANES -- the arms at the face + 60, the drain across the mouth; the cell that holds them lays them whole) */
+            if(okR(lr)) garageLanePaint(garageLaneKit((u, v) => P(A(L[0] + u), B(C.site[3] + v), 0.5), poly), L[1] - L[0], G_.y1 - C.site[3], 10,
+              { seed: 'hosp:' + Math.round(L[0]), base: 0x5d6066, own: [G_.y1 - C.site[3], 10], arm: G_.y1 + 60 - C.site[3], drain: G_.y1 + 30 - C.site[3], paint: () => {
+                for(const [x, dir] of [[(L[0]*3 + L[1])/4, -1], [(L[0] + L[1]*3)/4, 1]]) if(mine(x, G_.y1 + 160)){
+                  const a = A(x), b0 = B(G_.y1 + 170), tip = b0 - dir*50;
+                  poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], 'rgba(242,236,216,0.84)'); } } }); }
           /* the car park: its asphalt, its stall lines, its aisles' arrows */
           const lr = clipR([LT.x0, LT.x1, LT.y0, LT.y1]);
           if(okR(lr)){
@@ -54453,13 +54594,13 @@ function houseCanopy(fn){
         if(inView(A(ST[0]), A(ST[1]), B(ST[3]), B(ST[2]), 0, 40)){
           Tw([ST[0], ST[1], ST[2] - 4, ST[3] + 4], 0.4, pave);
           /* the lanes in tarmac out to the footway (the driveway carries them on), a line between, the arrows */
-          Tw([Ln[0], Ln[1], G_.y1, ST[3] + 10], 0.5, '#5d6066');
-          const m = (Ln[0] + Ln[1])/2;
-          Tw([m - 6, m + 6, G_.y1, ST[3] + 10], 0.7, '#e8e2d0');
-          for(const [x, dir] of [[(Ln[0]*3 + Ln[1])/4, -1], [(Ln[0] + Ln[1]*3)/4, 1]]){
-            const a = A(x), b0 = B(G_.y1 + 170), tip = b0 - dir*50;
-            poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8');
-          }
+          /* (worn: GARAGE LANES -- the arms at the face + 60, the drain across the mouth) */
+          garageLanePaint(garageLaneKit((u, v) => P(A(Ln[0] + u), B(ST[3] + v), 0.5), poly), Ln[1] - Ln[0], G_.y1 - ST[3], 10,
+            { seed: 'marina:' + Math.round(Ln[0]), base: 0x5d6066, own: [G_.y1 - ST[3], 10], arm: G_.y1 + 60 - ST[3], drain: G_.y1 + 30 - ST[3], paint: () => {
+              for(const [x, dir] of [[(Ln[0]*3 + Ln[1])/4, -1], [(Ln[0] + Ln[1]*3)/4, 1]]){
+                const a = A(x), b0 = B(G_.y1 + 170), tip = b0 - dir*50;
+                poly([P(a - 8, b0 + dir*40, 0.9), P(a + 8, b0 + dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], 'rgba(242,236,216,0.84)');
+              } } });
           /* the lift's apron, in the lift's gold */
           { const c0 = GP.X0 + GP.CAR0, c1 = GP.X0 + GP.CAR1, y = G_.core[3];
             Tw([c0, c1, y, y + 70], 0.6, 'rgba(232,181,74,.22)');
@@ -86865,12 +87006,15 @@ marinaEntry(),
     if(PASS !== 'upper'){
     T(0, LEN, -DEP, 0, 0.4, concL);
     T(0, LEN, -46, 0, 0.5, '#dcd6ca');
-    T(LANE0, LANE1, BF, 0, 0.6, '#5d6066');
-    T((LANE0 + LANE1)/2 - 6, (LANE0 + LANE1)/2 + 6, BF, 0, 0.8, '#e8e2d0');
-    for(const [a, dir] of [[(LANE0*3 + LANE1)/4, -1], [(LANE0 + LANE1*3)/4, 1]]){   // in on the west lane, out on the east
-      const b0 = -110, tip = b0 + dir*50;
-      poly([P(a - 8, b0 - dir*40, 0.9), P(a + 8, b0 - dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], '#f2ecd8');
-    }
+    /* the lanes' worn asphalt, one surface with their run-on to the kerb (GARAGE LANES): the arms at b -60, the drain
+       across the mouth just out from the face */
+    { const D = mallGarageDrives()[0];
+      garageLanePaint(garageLaneKit((u, v) => P(LANE0 + u, v, 0.6), poly), LANE1 - LANE0, BF, 0,
+        { seed: 'mall:' + Math.round(D ? D.x0 : 0), base: 0x5d6066, own: [BF, 10], arm: -60, drain: BF + 30, paint: () => {
+          for(const [a, dir] of [[(LANE0*3 + LANE1)/4, -1], [(LANE0 + LANE1*3)/4, 1]]){   // in on the west lane, out on the east
+            const b0 = -110, tip = b0 + dir*50;
+            poly([P(a - 8, b0 - dir*40, 0.9), P(a + 8, b0 - dir*40, 0.9), P(a + 8, b0, 0.9), P(a + 22, b0, 0.9), P(a, tip, 0.9), P(a - 22, b0, 0.9), P(a - 8, b0, 0.9)], 'rgba(242,236,216,0.84)');
+          } } }); }
     }
     /* THE GROUND FLOOR'S SLAB, in the game (2026-10-14, perf: at view 1 by
        the garage the building cache needed ~22M px against its 20M and
