@@ -65553,10 +65553,13 @@ function houseCanopy(fn){
     /* EACH STATION AT ITS OWN PART (Sir, 2026-11-20: "they need to look like they are actually doing what they are doing"): he stands at
        the part he fits -- the rear wheel, the front fork, the deck, the stem, the bars, the lamps -- turned to it, crouched or bent over to it,
        his hands on it (each arm aimed at its own point on the scooter: hP), and working it in the job's own rhythm. The scooter: along a, its
-       front west; a local x is a0 + x*1.45, its height JZ + h*1.45. -> { at (where he stands), f, lift, bend, waist, drop, legs } */
+       front west; a local x is a0 + x*1.45, its height LZ + h*1.45. -> { at (where he stands), f, lift, bend, waist, drop, legs } */
     /* (a point on the scooter, given in the old model's terms (prod: x along it, front west, h up) and put where the game's own scooter has
        it -- its wheels at +-26, deck at 12 over the jig's top (36), the post up to the bars 18 ahead of its middle at about 77) */
-    const SK = (a0, b0, x, y, h) => { const up = h > 20, hz = h <= 16 ? h*0.78 : 12 + (h - 16)*1.3; return [a0 + (up && x < -20 ? -18 : x), b0 + y*1.45, 36 + hz]; };
+    /* (LZ: the scooter is built straight on the line robot's yellow top, no grey jig -- Sir, 2026-11-24: "can we remove the grey deck on top of the
+       warehouse bots in line a and b and just have the scooter built on its yellow top") */
+    const LZ = 31;
+    const SK = (a0, b0, x, y, h) => { const up = h > 20, hz = h <= 16 ? h*0.78 : 12 + (h - 16)*1.3; return [a0 + (up && x < -20 ? -18 : x), b0 + y*1.45, LZ + hz]; };
     /* A WORKER'S POSE FOR HIS HANDS' TARGETS (Sir, 2026-11-23: "the joints and their movements need to look better"): each arm reaches its
        target as two links -- the shoulder where his lean and crouch put it, the upper arm and forearm the humanoid's own (armLen 0.48 / 0.52),
        the elbow below -- as the drawer's own reach does; crouched on both knees (crouch), or down on one knee (kneel: the near leg forward,
@@ -65653,7 +65656,7 @@ function houseCanopy(fn){
       const g = PGRIP[p]; return { pcs: [{ k: p, C, th }], T: [PPT(C, th, g[0]), PPT(C, th, g[1])] }; };
     const SETHANDS = (p, pcs) => p === 6 || p === 7 ? [pcs[0].C, pcs[1].C] : [PPT(pcs[0].C, pcs[0].th, PGRIP[p][0]), PPT(pcs[0].C, pcs[0].th, PGRIP[p][1])];
     /* the set where it goes on the scooter on its robot at (a, b), its forward west */
-    const WSET = (p, a, b) => { const W = k => [a - POFF[k][0], b, 36 + POFF[k][1]];
+    const WSET = (p, a, b) => { const W = k => [a - POFF[k][0], b, LZ + POFF[k][1]];
       if(p === 6){ const G = W(6); return [{ k: '6s', C: [G[0], G[1] + GRX, G[2]], th: Math.PI }, { k: '6s', C: [G[0], G[1] - GRX, G[2]], th: Math.PI }]; }
       if(p === 7) return [{ k: 7, C: W(7), th: Math.PI }, { k: '7t', C: W('7t'), th: Math.PI }];
       return [{ k: p, C: W(p), th: Math.PI }]; };
@@ -65724,8 +65727,6 @@ function houseCanopy(fn){
       if(st >= 7){ ball(A(-25), b0, Z(60), 2.6*K2, lampC, lit ? '#ffffff' : lampC); bx(22, 26, -2.5, 2.5, 52, 55, lit ? '#ff4a3a' : '#7a2a24', '#6a2420', '#5a1e1a'); }
     };
     /* the jig on a robot's lid (z 31): a steel plate and two cradles */
-    const JZ = 40, jig = (a, b) => { box(a - 46, a + 46, b - 30, b + 30, 31, 36, steelD, steelS, '#7d868b'); T(a - 42, a + 42, b - 26, b + 26, 36.1, '#a3a9ae');
-      for(const da of [-20, 20]) box(a + da - 3, a + da + 3, b - 5, b + 5, 36, JZ, dark, '#23272d', '#1c1f23'); };
 
     /* ---- THE FLOOR: the lane from the door (kept clear), the assembly cell's hatched edge, the stations' bays, the runners' loop, the pallet
        mover's aisle ---- */
@@ -65986,7 +65987,7 @@ function houseCanopy(fn){
         const col = PCOL, eb = false;
         /* (a stage is done half way through the stand: loaded at the first stop, lifted off at the last) */
         const fitU = p === 1 ? 1300 + 380*0.6 : p === 0 ? 1500 : p <= 7 ? FITS(p)[1] + 0.6*LOF[p] : DWELL*0.5, st0 = u < fitU ? (p ? STAGE[p - 1] : -1) : STAGE[p], st = p === 7 && st0 === 7 && u < FITS(7)[2] + 0.6*LOF[7] ? '7h' : st0,   /* (2 to 7: the moment his hands set it there -- FITS; station 7's tail light after its head lamp) */   /* (station 1's: once his wheel is on -- his moment, OF 380) */ gone = p === NPOS - 1 && u >= UNL + 3000;   /* (the finished one stays on the last stop till the packer lifts it off -- after he has set the box on the conveyor robot) */
-        out.push(bot(a, b, 2, { wheel: (a + b)*0.12, cargo: tt => { jig(a, b); } })); if((st === '7h' || st >= 0) && !gone) out.push(SCO(a, b, 36, st, 4));
+        out.push(bot(a, b, 2, { wheel: (a + b)*0.12 })); if((st === '7h' || st >= 0) && !gone) out.push(SCO(a, b, LZ, st, 4));
       }
       const jr5 = (((t - PAL0) % PALT) + PALT) % PALT;
       for(let p = 0; p < NPOS; p++){ if((p === 0 && (deckWin(jr5) || dumpWin(jr5))) || (p === NPOS - 1 && flatWin(jr5))) continue;   /* (off with the shuttle: phase 5's crew draws him) */
@@ -66022,8 +66023,8 @@ function houseCanopy(fn){
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? Math.max(500, u - OF*0.6) : 501, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
         if(on && J0.pcs) for(const q of J0.pcs) PDRAW(out, q, Math.max(pa + pb + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8));   /* (2 to 7: the set in his hands -- FITJOB's) */
-        if(on && p === 1 && (J0.fit != null ? Math.max(500, u - LOF[p]*0.6) < J0.fit : u < DWELL*0.5) && J0.hT){ const h = J0.pp || J0.hT, pz = J0.pp ? h[2] - 7 : h[2] + 4; const ddH = Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]); if(p === 1) out.push(SCO(h[0] - 26, h[1], h[2] - 7, 'rear', ddH + 26)); else out.push({ kind: 'scooter', a: pa, b: pb, z: 36, th: Math.PI/2, stage: 'p' + p, brand: CWS, dd: Math.max(1, h[0] + h[1] + ddH - pa - pb) }); }   /* (the others: the piece held in its place on the scooter while he fits it, the very piece the stage then shows there) */   /* (station 1's: the scooter's own back wheel, fender and swingarm, drawn by the scooter's drawer -- just as it then shows on the scooter: Sir, "the rim on the wheel appears at placement") */   /* (in his hands until it is on: the wheel with its fender, as the scooter has it) */   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
-        if(p === 0 && here && u >= w0 && u < 1500){ const at0 = J0.at, k = ease(clamp01((u - w0)/(1500 - w0))), Jd = [pa, pb, 36 + 12 + 1.5], st = [at0[0], at0[1] + 20, 68], pp = [st[0] + (Jd[0] - st[0])*k, st[1] + (Jd[1] - st[1])*k, st[2] + (Jd[2] - st[2])*k];
+        if(on && p === 1 && (J0.fit != null ? Math.max(500, u - LOF[p]*0.6) < J0.fit : u < DWELL*0.5) && J0.hT){ const h = J0.pp || J0.hT, pz = J0.pp ? h[2] - 7 : h[2] + 4; const ddH = Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]); if(p === 1) out.push(SCO(h[0] - 26, h[1], h[2] - 7, 'rear', ddH + 26)); else out.push({ kind: 'scooter', a: pa, b: pb, z: LZ, th: Math.PI/2, stage: 'p' + p, brand: CWS, dd: Math.max(1, h[0] + h[1] + ddH - pa - pb) }); }   /* (the others: the piece held in its place on the scooter while he fits it, the very piece the stage then shows there) */   /* (station 1's: the scooter's own back wheel, fender and swingarm, drawn by the scooter's drawer -- just as it then shows on the scooter: Sir, "the rim on the wheel appears at placement") */   /* (in his hands until it is on: the wheel with its fender, as the scooter has it) */   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
+        if(p === 0 && here && u >= w0 && u < 1500){ const at0 = J0.at, k = ease(clamp01((u - w0)/(1500 - w0))), Jd = [pa, pb, LZ + 12 + 1.5], st = [at0[0], at0[1] + 20, 68], pp = [st[0] + (Jd[0] - st[0])*k, st[1] + (Jd[1] - st[1])*k, st[2] + (Jd[2] - st[2])*k];
           out.push(SCO(pp[0], pp[1], pp[2] - 12 - 1.5, 0, Math.max(4, at0[0] + at0[1] + 10 - pp[0] - pp[1], pa + pb + 14 - pp[0] - pp[1])));   /* (laid on the jig in both hands: after the line robot and its jig, or it sank under the jig's top as it neared it -- Sir, 2026-11-23, "the deck is making a jump"; and after his top half drawn again over the robot, or his body painted over it -- Sir, 2026-11-24, "the deck snaps to be behind the robot's body") */
           const ps = [at0[0], at0[1]];   /* (a step right in to the jig as he lowers it, his legs behind the robot, so his reach keeps his hands on the deck all the way down -- Sir, 2026-11-24: "more arm extension to keep the hands on the deck") */   /* (a step in, bent at the waist and the knees, his arms long enough to set it down in the middle of the jig -- Sir, 2026-11-23: "the deck is still floating to the warehouse robot") */
           { const PZ = POSEMIX(hP(ps, 1, [ps[0] - 18, ps[1] + 20, 68], [ps[0] + 18, ps[1] + 20, 68], 0, 0.05), hP(ps, 1, [pp[0] - 14, pp[1] - 7, pp[2] + 1], [pp[0] + 14, pp[1] - 7, pp[2] + 1], 0.2*k, 0.15 + 0.1*k), ease(clamp01((u - w0)/250)));   /* (from carrying it at his chest, eased) */   /* (hands on its near edge, by its ends, to the last) */
