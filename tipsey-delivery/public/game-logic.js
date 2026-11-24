@@ -31225,7 +31225,12 @@ function sfBrowseNext(R, s, m, now, bot){
    -- the bike's own (SF_BIKES' piece) drawn again in the rider's frame (G: across, forward, up; the rider sat at the saddle, the frame 2 up: z + 2,
    forward 264 - b), so the far leg is behind it and the near one before it. Back to front as the piece is: the frame down its middle, the
    flywheel on the bike's east side, the crank's hub */
-function sfBikeMiddle(g, G){
+/* is the bike at a c ridden -- someone sat on it, or getting on or off (their own cranks drawn with them)? */
+function sfBikeRidden(c){
+  const pk = POCKETS.find(q => q.name === SF_IN.name), R = pk && pk._life;
+  return !!(R && R.people.some(o => { const m = o._m; return m && !o._gone && ((m.seat && m.seat.kind === 'bike' && m.seat.at[0] === c && !m.path) || (m.unseat && m.unseat.seat.kind === 'bike' && m.unseat.seat.at[0] === c)); }));
+}
+function sfBikeMiddle(g, G, stage, ph){
   const o = G(0, 0, 0), e = G(1, 0, 0), E = (e.x - o.x) > 0 ? 1 : -1;               // (+across toward the east, or west)
   const W = (a, b, z) => G(a*E, 264 - b, z + 2);                                    // (a across from the bike's middle, east +; b and z the world's: sat at 50, the frame 2 up)
   const fill = (pts, c) => { const P = pts.slice().sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
@@ -31235,9 +31240,17 @@ function sfBikeMiddle(g, G){
   const disc = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(W(a, b + Math.cos(t)*r, z + Math.sin(t)*r)); } fill(pts, c); };
   const box = (a0, a1, b0, b1, z0, z1, c) => { const pts = []; for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1]) pts.push(W(a, b, z)); fill(pts, c); };
   const rod = (b0, z0, b1, z1, r, c) => fill([W(-r, b0, z0 - r), W(r, b0, z0 - r), W(-r, b0, z0 + r), W(r, b0, z0 + r), W(-r, b1, z1 - r), W(r, b1, z1 - r), W(-r, b1, z1 + r), W(r, b1, z1 + r)], c);
+  /* the cranks and pedals, turning with the feet (pose.pedal's phase: the leg on side s at ph, + PI on the other; s east is the near side):
+     the far one under the far foot ('under'), the near one last, under the near foot */
+  const crank = s => { const t = ph + (s > 0 ? 0 : Math.PI), a = s*E, fw = 14 + Math.cos(t)*8, up = 16 + Math.sin(t)*8;
+    fill([G(a*6, 14, 15), G(a*6, 14, 17), G(a*7.5, 14, 15), G(a*7.5, 14, 17), G(a*6, fw, up - 1), G(a*6, fw, up + 1), G(a*7.5, fw, up - 1), G(a*7.5, fw, up + 1)], 0x868c90);
+    const pb = []; for(const x of [7.5, 13]) for(const f of [-2.5, 2.5]) for(const z of [-1, 1]) pb.push(G(a*x, fw + f, up + z)); fill(pb, 0x1e2124); };
+  const nearS = E;   // (the near leg is the east one: +across is east when E is 1)
+  if(stage === 'under'){ crank(-nearS); return; }
   rod(208, 6, 274, 6, 2.6, 0x2f3a3f); rod(250, 14, 228, 36, 2.4, 0x2f3a3f); rod(226, 8, 230, 66, 2.6, 0x2f3a3f);   // (the post up to under its head)
   disc(5, 216, 21, 17, 0xe2574c); disc(5.3, 216, 21, 14.5, 0x3e4a50); disc(5.5, 216, 21, 5, 0xc8ccd0); disc(5.7, 216, 21, 2, 0x2f3a3f);
   disc(5, 250, 14, 5.4, 0x262e33); disc(5.3, 250, 14, 2, 0xc8ccd0);
+  crank(nearS);
 }
 function sfPose(s, m, now, P){
   const H = sfHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
@@ -31252,7 +31265,7 @@ function sfPose(s, m, now, P){
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ const st = sk.seat;
     if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
-      P.pedal = { ph: -now*0.009 + (s.seed & 63), c: [14, 16], r: 8 }; P.between = sfBikeMiddle; return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
+      const ph = -now*0.009 + (s.seed & 63); P.pedal = { ph, c: [14, 16], r: 8 }; P.between = (g, G, st) => sfBikeMiddle(g, G, st, ph); return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
     if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
@@ -60852,7 +60865,16 @@ function houseCanopy(fn){
       tube(c - 19.5, 230, 73, c - 13, 230, 73, 2.6, blk); tube(c + 13, 230, 73, c + 19.5, 230, 73, 2.6, blk);
       disc(c + 5, 216, 21, 17, coral); disc(c + 5.3, 216, 21, 14.5, charL); disc(c + 5.5, 216, 21, 5, steelL); disc(c + 5.7, 216, 21, 2, char);   // (a dark weighted flywheel, a coral rim)
       tube(c, 266, 6, c, 264, 46, 2.6, char); box(c - 5, c + 5, 254, 274, 46, 50, blk, charD, blk);
-      disc(c + 5, 250, 14, 5.4, charD); disc(c + 5.3, 250, 14, 2, steelL); } }));   // (the crank's hub, the rider's feet round it)
+      disc(c + 5, 250, 14, 5.4, charD); disc(c + 5.3, 250, 14, 2, steelL); },   // (the crank's hub, the rider's feet round it)
+      /* THE CRANKS AND PEDALS (Sir, 2026-11-23: "the bike has no pedals or crank"): its own part (fx.kit, cached while still), so a ridden bike's
+         turn with its rider's feet (sfBikeMiddle, between the legs) and the still pair is not left under them. Still: the far crank up and back
+         under the far pedal, the saddle's post and saddle again over it, the near crank down and forward */
+      fx: { kit: () => { if(sfBikeRidden(c)) return;
+          tube(c - 6.5, 250, 14, c - 6.5, 255.7, 19.7, 1.1, steelD); box(c - 13, c - 7.5, 253.2, 258.2, 18.7, 20.7, blk, blk, blk);
+          tube(c, 266, 6, c, 264, 46, 2.6, char); box(c - 5, c + 5, 254, 274, 46, 50, blk, charD, blk);
+          disc(c + 5, 250, 14, 5.4, charD); disc(c + 5.3, 250, 14, 2, steelL);
+          tube(c + 6.5, 250, 14, c + 6.5, 244.3, 8.3, 1.1, steelD); box(c + 7.5, c + 13, 241.8, 246.8, 7.3, 9.3, '#2a2e32', blk, blk); },
+        state: () => sfBikeRidden(c) ? 'ridden' : 'still' } }));   // (only while nobody rides it: a rider's are drawn with them)
 
     /* ---- THE POWER RACK on the weights floor: four posts and a frame over, the bar on its hooks loaded with a plate each end; keyed at its middle.
        Inside it, back to front: the north posts (west first) and the north rail, the bar and its plates, the south posts and the south rail ---- */
@@ -120728,8 +120750,8 @@ class WorldScene extends Phaser.Scene {
     const lapLate = sit != null && faceB > 0;
     /* (pose.between(g, G): what stands BETWEEN the legs -- an exercise bike's frame: after the far leg, before the near one, so the far leg is
        behind the bike and the near one in front of it. Sir, 2026-11-23, Surfside Fitness: "the far leg should not be drawing over the bike") */
-    const between = () => { if(pose && pose.between) pose.between(g, G); };
-    if(sit != null && !lapLate){ PT && PT('legs'); if(!(pose && pose.astride)) seatLeg(-nearSide); between(); seatLeg(nearSide); }   // (astride: the far leg is behind the bike -- Sir, 2026-10-15, "still seeing all of both legs")
+    const between = st => { if(pose && pose.between) pose.between(g, G, st || 'mid'); };   // (st 'under': before the far leg -- its pedal under its foot)
+    if(sit != null && !lapLate){ PT && PT('legs'); between('under'); if(!(pose && pose.astride)) seatLeg(-nearSide); between(); seatLeg(nearSide); }   // (astride: the far leg is behind the bike -- Sir, 2026-10-15, "still seeing all of both legs")
     if(faceB > 0){ PT && PT('back'); hairBack(); veil(); }
     if(RB && faceB > 0) robotPack();
     /* BOTH ARMS UP (bothArms: a rider's two hands on the bar). The far arm
@@ -120812,7 +120834,7 @@ class WorldScene extends Phaser.Scene {
     if(RB && RB.decal && RB.decal !== 'none' && faceB > 0) GS.decal(RB);
     if(RB && RB.packStyle && RB.packStyle !== 'none') GS.straps(RB, RB.packStyle, faceB > 0);   // (the pack's straps over his shoulders and down his chest)
     if(RB && faceB < 0) robotPack();   // (his back to the eye: the pack goes on over what he wears on his back -- the apron's straps, the vest, the sash -- and under his arms)
-    if(lapLate){ PT && PT('lap'); if(!pose.astride) seatLeg(-nearSide); between(); seatLeg(nearSide); }
+    if(lapLate){ PT && PT('lap'); between('under'); if(!pose.astride) seatLeg(-nearSide); between(); seatLeg(nearSide); }
     /* (pose.armsLate: both hands up at the face -- Gideon's to his head, msDistressPose -- both arms over the head when they face the eye) */
     if(farFront && !noArms && !farLate){ PT && PT('farArmFront'); arm(-nearSide, false, 'front'); }
     PT && PT('held');
