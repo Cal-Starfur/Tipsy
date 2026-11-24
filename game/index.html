@@ -65165,7 +65165,7 @@ function houseCanopy(fn){
       for(let p = 0; p < NPOS; p++){ if((p === 0 && (deckWin(jr5) || dumpWin(jr5))) || (p === NPOS - 1 && flatWin(jr5))) continue;   /* (off with the shuttle: phase 5's crew draws him) */
         const [pa, pb] = POS[p], here = ((p - c) % NPOS + NPOS) % NPOS < NCAR;
         const OF = LOF[p], OB = LOB[p], TT = LTT[p];   /* (each station on its own time: turning to the job and back to the bench at its own moment and pace -- Sir, 2026-11-23: "all of row A's robots are acting in unison") */
-        const w0 = 400 + OF, w1 = DWELL - 400 - OB, on = here && u > w0 && u < w1, s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - TT))/TT) : clamp01((u - w1)/TT);
+        const w0 = 400 + OF, w1 = DWELL - 400 - OB, on = here && u > w0 && u < w1 && !(p === 0 && cwLoaderSE(jr5) < (((u - w0) % CYC) + CYC) % CYC),   /* (after a cardboard spell the loader goes for the next deck, not back to the scooter -- Sir, 2026-11-24) */ s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - TT))/TT) : clamp01((u - w1)/TT);
         if(p === NPOS - 1){   /* (the packer -- Sir, 2026-11-20: "he should be boxing on that warehouse bot, then it goes to the picker"): turned to the line
              robot to lift the finished one off, folding it in his hands, then boxing it on the conveyor robot docked south of him (PKD) */
           /* (Sir, 2026-11-23: "the warehouse robot should show up and then he puts the box, then he picks up the scooter and folds it and
@@ -65189,7 +65189,7 @@ function houseCanopy(fn){
         if(p === 0 && here && u >= w0 && u < 1500){ const at0 = J0.at, k = ease(clamp01((u - w0)/(1500 - w0))), Jd = [pa, pb, 36 + 12 + 1.5], st = [at0[0], at0[1] + 20, 68], pp = [st[0] + (Jd[0] - st[0])*k, st[1] + (Jd[1] - st[1])*k, st[2] + (Jd[2] - st[2])*k];
           out.push(SCO(pp[0], pp[1], pp[2] - 12 - 1.5, 0, Math.max(4, at0[0] + at0[1] + 10 - pp[0] - pp[1], pa + pb + 14 - pp[0] - pp[1])));   /* (laid on the jig in both hands: after the line robot and its jig, or it sank under the jig's top as it neared it -- Sir, 2026-11-23, "the deck is making a jump"; and after his top half drawn again over the robot, or his body painted over it -- Sir, 2026-11-24, "the deck snaps to be behind the robot's body") */
           const ps = [at0[0], at0[1]];   /* (a step right in to the jig as he lowers it, his legs behind the robot, so his reach keeps his hands on the deck all the way down -- Sir, 2026-11-24: "more arm extension to keep the hands on the deck") */   /* (a step in, bent at the waist and the knees, his arms long enough to set it down in the middle of the jig -- Sir, 2026-11-23: "the deck is still floating to the warehouse robot") */
-          { const PZ = hP(ps, 1, [pp[0] - 14, pp[1] - 7, pp[2] + 1], [pp[0] + 14, pp[1] - 7, pp[2] + 1], 0.2*k, 0.15 + 0.1*k);   /* (hands on its near edge, by its ends, to the last) */
+          { const PZ = POSEMIX(hP(ps, 1, [ps[0] - 18, ps[1] + 20, 68], [ps[0] + 18, ps[1] + 20, 68], 0, 0.05), hP(ps, 1, [pp[0] - 14, pp[1] - 7, pp[2] + 1], [pp[0] + 14, pp[1] - 7, pp[2] + 1], 0.2*k, 0.15 + 0.1*k), ease(clamp01((u - w0)/250)));   /* (from carrying it at his chest, eased) */   /* (hands on its near edge, by its ends, to the last) */
             out.push(man(ps[0], ps[1], 1, PZ)); out.push(man(ps[0], ps[1], 1, Object.assign({}, PZ, { noLegs: true, dd: pa + pb + 10 - ps[0] - ps[1] }))); }   /* (all of him in his place, the robot over his legs; his top half again after the robot and its jig, his hands over its top -- Sir, 2026-11-23: "the hands get drawn over by the warehouse robot") */
           continue; }
         if(on && J0.tool){ const w = J0.tool; out.push({ kind: 'cargo', a: w[0], b: w[1], dd: Math.max(6, J0.at[0] + Math.max(pb, J0.at[1]) + 9 - w[0] - w[1]), cargo: () => { tube(w[0], w[1], w[2], w[0] + 15*Math.cos(w[3]), w[1] - 2, w[2] + 15*Math.sin(w[3]), 2.4, '#c8ccd2'); box(w[0] - 1.6, w[0] + 1.6, w[1] - 3.6, w[1] - 0.4, w[2] - 1.6, w[2] + 1.6, '#3d424c', '#34383f', '#2b2f35'); } }); }   /* (his wrench, the socket on the nut, the handle swinging) */
@@ -65199,12 +65199,11 @@ function houseCanopy(fn){
            and, as the next robot stops, lays it on the jig (it shows there from 1500) and presses it home */
         /* (after a cardboard trip -- his empty deck carton, or the packer's -- he goes straight to the feeder for the next deck, not back to the
            deck he had set down: Sir, 2026-11-24, "after the cardboard job he should get a new deck ready") */
-        if(p === 0 && here){ let se = Infinity; for(const e of [DW0 + P5W, LW0 + P5C + 500]) se = Math.min(se, (((jr5 - e) % PALT) + PALT) % PALT);
-          const Ls = (((u - w0) % CYC) + CYC) % CYC;
-          if(se < Ls && se < CYC){ const q = se, at0 = J0.at, L0p = [POS[0][0], RA - 78], S = [at0[0], FEED[1] + 40], inC = [FEED[0], FEED[1] + 4, 40], E = (a0, a1) => ease(clamp01((q - a0)/(a1 - a0)));
+        if(p === 0 && here){ const se = cwLoaderSE(jr5), Ls = (((u - w0) % CYC) + CYC) % CYC;
+          if(se < Ls && se < CYC){ const q = se*Math.max(1, 3000/(se + CYC - Ls)),   /* (the deck fetched in the time left before the next scooter) */ at0 = J0.at, L0p = [POS[0][0], RA - 78], S = [at0[0], FEED[1] + 40], inC = [FEED[0], FEED[1] + 4, 40], E = (a0, a1) => ease(clamp01((q - a0)/(a1 - a0)));
             let pos = S, f = 3, pose = {}, pp = null;
             if(q < 600){ const k = E(0, 600); pos = [L0p[0] + (S[0] - L0p[0])*k, L0p[1] + (S[1] - L0p[1])*k]; pose = { walk: k < 1 ? 1 : 0, gait: k*Math.hypot(S[0] - L0p[0], S[1] - L0p[1])/7 }; }
-            else if(q < 1400){ const k = E(600, 1100), T = [inC[0], S[1] - 20 + (inC[1] - S[1] + 20)*k, 70 + (inC[2] - 70)*k]; pose = hP(S, 3, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*k); if(q >= 1100) pp = T; }
+            else if(q < 1400){ const k = E(600, 1100), T = [inC[0], S[1] - 20 + (inC[1] - S[1] + 20)*k, 70 + (inC[2] - 70)*k]; pose = POSEMIX({ lift: [0.08, 0.08], bend: [0.15, 0.15] }, hP(S, 3, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*k), E(600, 800)); if(q >= 1100) pp = T; }   /* (his arms eased up to the carton) */
             else if(q < 1900){ const k = E(1400, 1900), T = [inC[0], inC[1] + (S[1] - 20 - inC[1])*k, inC[2] + (68 - inC[2])*k]; pose = hP(S, 3, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*(1 - k)); pp = T; }
             else { const kt = E(1900, 2400), kw = E(2400, 3000); f = 3 - 2*kt; pos = [at0[0], S[1] + (at0[1] - S[1])*kw]; const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)]; pp = [pos[0] + fv[0]*20, pos[1] + fv[1]*20, 68];
               pose = Object.assign({ walk: kw > 0 && kw < 1 ? 1 : 0, gait: kw*Math.abs(S[1] - at0[1])/7 }, hP(pos, f, [pp[0] - 18, pp[1], pp[2]], [pp[0] + 18, pp[1], pp[2]], 0, 0.05)); }   /* (turned back to the line with it, waiting at his place for the next robot) */
@@ -65213,9 +65212,9 @@ function houseCanopy(fn){
         if(p === 0 && here && !on && !(u >= w0 && u < 1500)){ const o = u > w1 ? u - w1 : u + CYC - w1, OFF = CYC - w1 + w0, at0 = J0.at, E = (u0, u1) => ease(clamp01((o - u0)/(u1 - u0)));
           const S = [at0[0], FEED[1] + 40], fB = 3, fW = 1, inC = [FEED[0], FEED[1] + 4, 40];
           let pos = at0, f = fW, pose = {}, held = false, pp = null;
-          if(o < 500) f = fW + 2*E(0, 500);
+          if(o < 500){ f = fW + 2*E(0, 500); pose = POSEMIX(JOBAT(0, pa, pb, w1 - 1, t + p*700), { lift: [0.08, 0.08], bend: [0.15, 0.15] }, E(0, 400)); }   /* (his hands off the deck, eased, as he turns) */
           else if(o < 1100){ const k = E(500, 1100); pos = [at0[0], at0[1] + (S[1] - at0[1])*k]; f = fB; pose = { walk: k < 1 ? 1 : 0, gait: k*Math.abs(S[1] - at0[1])/7 }; }
-          else if(o < 1900){ pos = S; f = fB; const k = E(1100, 1600), T = [inC[0], S[1] - 20 + (inC[1] - S[1] + 20)*k, 70 + (inC[2] - 70)*k]; pose = hP(S, f, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*k); held = o >= 1600; pp = [T[0], T[1], T[2]]; }   /* (both hands in, either end of a deck) */
+          else if(o < 1900){ pos = S; f = fB; const k = E(1100, 1600), T = [inC[0], S[1] - 20 + (inC[1] - S[1] + 20)*k, 70 + (inC[2] - 70)*k]; pose = POSEMIX({ lift: [0.08, 0.08], bend: [0.15, 0.15] }, hP(S, f, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*k), E(1100, 1300)); held = o >= 1600; pp = [T[0], T[1], T[2]]; }   /* (both hands in, either end of a deck) */
           else if(o < 2400){ pos = S; f = fB; const k = E(1900, 2400), T = [inC[0], inC[1] + (S[1] - 20 - inC[1])*k, inC[2] + (68 - inC[2])*k]; pose = hP(S, f, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*(1 - k)); held = true; pp = T; }   /* (lifted out, up to his chest) */
           else { const k = E(2400, OFF - 300), kw = E(2600, OFF - 300); f = fB - 2*E(2400, 2900); pos = [at0[0], S[1] + (at0[1] - S[1])*kw]; const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)]; pp = [pos[0] + fv[0]*20, pos[1] + fv[1]*20, 68];
             pose = Object.assign({ walk: kw > 0 && kw < 1 ? 1 : 0, gait: kw*Math.abs(S[1] - at0[1])/7 }, hP(pos, f, [pp[0] - 18, pp[1], pp[2]], [pp[0] + 18, pp[1], pp[2]], 0, 0.05)); held = true; }   /* (turned back to the line with it, back to his place) */
@@ -65287,7 +65286,7 @@ function houseCanopy(fn){
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => SLOTS3(P.a, P.b, P.fdir, 31, col, st, p) })); WHEELS3(out, P.a, P.b, P.fdir, st, p, col); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
-      { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
+      { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(PM(jr5 - DW0 - LC_A.tPick) < DECK_SET - DW0 - LC_A.tPick); CW_FLOW.decks = on ? n : 'swap';
         out.push(bot(FEED[0], FEED[1], 0, { build: 'amrstock', loads: [], cargo: on ? () => openDeckCarton(FEED[0], FEED[1], 31, -2) : null }));   /* (its floor and back walls) */
         /* (the decks in it drawn by the scooter's own drawer, the very deck he lays on the jig -- Sir, 2026-11-23, station 0 "the same way"), then its
            front wall over them */
@@ -65303,11 +65302,50 @@ function houseCanopy(fn){
     const RT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RSTOP.length; i++){ tt += (RSTOP[i] - s0)/RV; RT0.push(tt); tt += RDW[i]; s0 = RSTOP[i]; } }
     /* PHASE 5'S CLOCK: the loader's free spell between scooters (DW0, on the pallet clock) unpacks the deck carton onto the frame rack; the
        packer's (FW0) puts the flat boxes on the packing table; each 1400 a carry, then 500 back to his place */
-    const DW0 = 50970, FW0 = 8670, LW0 = 14970, P5C = 1400, P5W = 2*P5C + 500, deckWin = jr => jr >= DW0 && jr < DW0 + P5W, flatWin = jr => false, dumpWin = jr => jr >= LW0 && jr < LW0 + P5C + 500;
-    const DECK_SET = DW0 + P5C + P5C*CARRY_GO, FLAT_SET = FW0 + P5C*CARRY_GO;
     /* (the deck feeder behind the loader; the cardboard baler beside it, the loader's to fill: the deck feeder's empty carton and the packer's
        flat-box carton, folded, go in -- Sir, 2026-11-20: "take the cardboard from each and put it in a recycling bot") */
     const FEED = [2000, 652], BALER = [1830, 600], BALS = [1912, 650], BALD = [1866, 615, 104], BVIA = [1930, 722];   /* (off the parts robots' lane (b 520), on the open floor west of the feeder -- Sir, 2026-11-20: "this recycle bot is crowding this roadway") */   /* (the baler out of the crush by the feeder -- Sir, 2026-11-20: "our recycle bot is crowded in" -- in the strip the tugger had; the loader round the feeder to it, BVIA) */
+    /* THE LOADER'S CARTON CARRIES, at a walk (Sir, 2026-11-24: "he's moving too fast to put the cardboard away ... he gets pulled back to the
+       warehouse robot to mess with the deck again"): from where he stands, each walk timed by its length (LV a ms), turned smoothly, the
+       carton reached for, lifted to his chest, carried, set down and let go. His spells start as he has laid the deck (u 1500) and go on into
+       his time between scooters; after one he goes for the next deck, never back to the scooter (cwLoaderSE) */
+    const LV = 0.19, D1S = [2130, 700], AT0 = [POS[0][0], RA - 28], FS = [FEED[0], RA - 78], FA = [FEED[0], FEED[1], 31];
+    const lcLen = Q => Q.slice(1).reduce((L, q, i) => L + Math.hypot(q[0] - Q[i][0], q[1] - Q[i][1]), 0);
+    const lcPlan = (prev, src, dst, f0) => { const P1 = src.via ? [prev, src.via, src.stand] : [prev, src.stand], P2 = dst ? (dst.via ? [src.stand, dst.via, dst.stand] : [src.stand, dst.stand]) : null;
+      const W1 = lcLen(P1)/LV, W2 = P2 ? lcLen(P2)/LV : 0, t = [0]; const d0 = P1.length > 1 && lcLen(P1) > 2 ? faceTo(P1[0], P1[1]) : src.f, a0 = Math.abs(((d0 - (f0 == null ? d0 : f0)) % 4 + 6) % 4 - 2), T0 = 100 + 130*a0;   /* (the first turn as long as it is wide) */
+      for(const d of dst ? [T0, W1, 150, 250, 220, W2, 150, 310, 160] : [T0, W1, 240]) t.push(t[t.length - 1] + d);
+      return { P1, P2, L1: lcLen(P1), L2: P2 ? lcLen(P2) : 0, t, T: t[t.length - 1], tPick: dst ? t[4] : 0, tDrop: dst ? t[8] : 0 }; };
+    const LC_A = lcPlan(AT0, { stand: FS, f: 3, at: FA }, { stand: BALS, f: 2, at: BALD, via: BVIA }, 1);   /* (the feeder's empty carton into the baler) */
+    const LC_B = lcPlan(BALS, { stand: [D1S[0] - 60, D1S[1] - 22], f: 0, at: [D1S[0], D1S[1] - 22, 31], via: BVIA }, { stand: FS, f: 3, at: FA }, 2);   /* (the shuttle's full carton onto the feeder) */
+    const LC_D = lcPlan(AT0, { stand: [D1S[0] - 50, D1S[1] + 22], f: 0, at: [D1S[0], D1S[1] + 22, 31] }, { stand: BALS, f: 2, at: BALD, via: BVIA }, 1);   /* (the packer's carton, off the shuttle, into the baler) */
+    const LC_R = lcPlan(BALS, { stand: FS, f: 3, via: BVIA }, null, 2);   /* (back round to the feeder) */
+    const DW0 = 49370, FW0 = 8670, LW0 = 13370,   /* (his spells start as the deck is laid, u 1500) */ P5C = 1400, P5W = LC_A.T + LC_B.T, PM = x => ((x % PALT) + PALT) % PALT, deckWin = jr => PM(jr - DW0) < P5W, flatWin = jr => false, dumpWin = jr => PM(jr - LW0) < LC_D.T + LC_R.T;   /* (on the pallet clock round its turn: the deck spell runs over into the next pallet cycle) */
+    const cwLoaderSE = jr => Math.min(...[DW0 + P5W, LW0 + LC_D.T + LC_R.T].map(e => (((jr - e) % PALT) + PALT) % PALT));   /* (how long since his last cardboard spell ended) */
+    const DECK_SET = DW0 + LC_A.T + LC_B.tDrop, FLAT_SET = FW0 + P5C*CARRY_GO;
+    /* where he is in a carry: walks along their paths, facing his way; the carton (bin) from its tote to his chest to where it goes */
+    const lcAt = (pl, q, f0, src, dst, P0) => { const t = pl.t, E = (a, b) => ease(clamp01((q - a)/(b - a))), fv = f => [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)], fA = (A, B, k) => angTo(A*Math.PI/2, B*Math.PI/2, k)/(Math.PI/2);
+      const at = (Q, d) => { for(let i = 1; i < Q.length; i++){ const l = Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]); if(d <= l || i === Q.length - 1){ const k = l ? clamp01(d/l) : 0; return [Q[i - 1][0] + (Q[i][0] - Q[i - 1][0])*k, Q[i - 1][1] + (Q[i][1] - Q[i - 1][1])*k]; } d -= l; } return Q[Q.length - 1]; };
+      const dirAt = (Q, L, d) => L < 2 ? null : faceTo(at(Q, Math.max(0, Math.min(L, d) - 14)), at(Q, Math.min(L, d) + 14));   /* (eased round a corner) */
+      const lerp = (A, B, k) => A.map((v, i) => v + (B[i] - v)*k);
+      let pos, f, walk = 0, gait = 0, bin = null, lift = 0.08, bend = 0.15;
+      const W = (a, b) => { const x = clamp01((q - a)/(b - a)), r = 0.15; return x < r ? x*x/(2*r*(1 - r)) : x > 1 - r ? 1 - (1 - x)*(1 - x)/(2*r*(1 - r)) : (x - r/2)/(1 - r); };   /* (a walk: a step to get going, then a steady pace) */
+      const chest = () => { const v = fv(f); return [pos[0] + v[0]*22, pos[1] + v[1]*22, 50]; };
+      const aim = (T, k) => { const v = fv(f), fwd = Math.max(4, (T[0] - pos[0])*v[0] + (T[1] - pos[1])*v[1]), dz = T[2] + 10 - 95, th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz);
+        lift = 0.08 + (Math.min(2, th/(Math.PI/2)) - 0.08)*k; bend = 0.15 + (Math.max(0, Math.min(0.95, (40 - d)/40*1.7)) - 0.15)*k; };
+      const d10 = dirAt(pl.P1, pl.L1, 0), d1e = dirAt(pl.P1, pl.L1, pl.L1);
+      if(q < t[1]){ pos = pl.P1[0]; f = fA(f0, d10 != null ? d10 : src.f, E(t[0], t[1])); }
+      else if(q < t[2]){ const k = W(t[1], t[2]), d = k*pl.L1; pos = at(pl.P1, d); f = dirAt(pl.P1, pl.L1, d); walk = k > 0 && k < 1 ? 1 : 0; gait = d/7; }
+      else if(q < t[3] || !dst){ pos = src.stand; f = fA(d1e != null ? d1e : src.f, src.f, E(t[2], t[3])); }
+      else { const d20 = dirAt(pl.P2, pl.L2, 0), d2e = dirAt(pl.P2, pl.L2, pl.L2);
+        if(q < t[4]){ pos = src.stand; f = src.f; aim(src.at, E(t[3], t[4])); }
+        else if(q < t[5]){ pos = src.stand; f = d20 != null ? fA(src.f, d20, E(t[4], t[5])) : src.f; bin = lerp(src.at, chest(), E(t[4], t[5])); aim(src.at, 1); const k = E(t[4], t[5]); lift += (0.5 - lift)*k; bend += (0.7 - bend)*k; }   /* (from his reach into the carton up to carrying it) */
+        else if(q < t[6]){ const k = W(t[5], t[6]), d = k*pl.L2; pos = at(pl.P2, d); f = dirAt(pl.P2, pl.L2, d); walk = k > 0 && k < 1 ? 1 : 0; gait = d/7; bin = chest(); lift = 0.5; bend = 0.7; }
+        else if(q < t[7]){ pos = dst.stand; f = fA(d2e != null ? d2e : dst.f, dst.f, E(t[6], t[7])); bin = chest(); lift = 0.5; bend = 0.7; }
+        else if(q < t[8]){ pos = dst.stand; f = dst.f; bin = lerp(chest(), dst.at, E(t[7], t[8])); aim(bin, 1); const k = 1 - E(t[7], t[7] + 200); lift += (0.5 - lift)*k; bend += (0.7 - bend)*k; }   /* (from carrying it down to where it goes) */
+        else { pos = dst.stand; f = dst.f; aim(dst.at, 1 - E(t[8], t[9])); } }
+      let pose = { lift: [lift, lift], bend: [bend, bend], walk, gait };
+      if(P0 && q < t[1]) pose = Object.assign(POSEMIX(P0, pose, E(t[0], t[1])), { walk: 0 });   /* (from the pose he was in) */
+      return { pos, f, pose, bin }; };
     const openDeckCarton = (a, b, z, n) => { const it = RCV[0], la = it.la, lb = it.lb, h = it.h, col = '#c98a4a', W = 2;
       if(n === -1){ box(a - la, a + la, b + lb - W, b + lb, z, z + h, col, shade(col, .88), shade(col, .74)); F(a - 14, a + 14, z + 9, z + 18, '#2e8bd8', null, 0, b + lb + 0.3); return; }   /* (its front wall alone, over the decks in it) */
       box(a - la, a + la, b - lb, b + lb, z, z + 1.5, shade(col, .6), shade(col, .55), shade(col, .5));
@@ -65709,7 +65747,7 @@ function houseCanopy(fn){
       const face = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
       const flatC = (a, b, z, it) => { box(a - it.la, a + it.la, b - it.lb, b + it.lb, z, z + 3, '#b98a52', '#a87b46', '#966c3c'); };   /* (an emptied carton, folded flat) */
       /* the baler's fill: two cartons a pallet, a bale out of its back at every sixth (the bale left behind it for the recycling run, phase 7) */
-      const nDrop = t => { const c = Math.floor((t - PAL0)/PALT), jr = t - PAL0 - c*PALT; return 2*c + (jr >= DW0 + P5C*CARRY_GO ? 1 : 0) + (jr >= LW0 + P5C*CARRY_GO ? 1 : 0); };
+      const nDrop = t => { const c = Math.floor((t - PAL0)/PALT), jr = t - PAL0 - c*PALT; return 2*c + (jr >= DW0 + LC_A.tDrop ? 1 : 0) + (jr >= LW0 + LC_D.tDrop ? 1 : 0); };
       items.push({ a: 2150, b: 800, z: 0, solids: [solid(BALER[0] - 50, BALER[0] + 50, BALER[1] - 36, BALER[1] + 36, 100, 'cardboard baler')], draw: () => {}, fx: { crew: t => {
         const out = [], jr = (((t - PAL0) % PALT) + PALT) % PALT;
         /* its round: away from Receiving with the two cartons (40400, before the jack takes the empty pallet out past it) to the loader (the deck carton), to the packer (the flat boxes), back by
@@ -65726,13 +65764,13 @@ function houseCanopy(fn){
           if(!late){
             if(j2 < 2300){ P = { a: SP[0], b: SP[1] }; fd = 1; flats = partsLeft(t, PAL0 + 6000, UNL + 2600); folded = true; }
             else if(j2 < 4300){ P = dr(QOUT, (j2 - 2300)/2000); folded = true; }
-            else if(j2 < 16000){ P = { a: D1[0], b: D1[1] }; fd = 3; folded = j2 < LW0 + P5C*0.3; }
+            else if(j2 < 16000){ P = { a: D1[0], b: D1[1] }; fd = 3; folded = j2 < LW0 + LC_D.tPick; }
             else if(j2 < 19600) P = along(P4, (j2 - 16000)/3600);
             else if(j2 < 40700){ P = { a: R[0], b: R[1] }; fd = 3; deck = j2 >= JS(JDECK) + 2500*JK; full = j2 >= JS(JFLAT) + 2500*JK; }
             else if(j2 < 44000){ P = along(P1, (j2 - 40700)/3300); deck = full = true; }
-            else { P = { a: D1[0], b: D1[1] }; fd = 1; full = true; deck = j2 < DW0 + P5C + P5C*0.3; } }
+            else { P = { a: D1[0], b: D1[1] }; fd = 1; full = true; deck = j2 < DW0 + LC_A.T + LC_B.tPick; } }
           else {
-            if(j2 < 300){ P = { a: D1[0], b: D1[1] }; fd = 1; full = true; }
+            if(j2 < 300){ P = { a: D1[0], b: D1[1] }; fd = 1; full = true; deck = j2 < DW0 + LC_A.T + LC_B.tPick - PALT; }   /* (the deck carton still on it till he takes it, just round the clock's turn) */
             else if(j2 < 2300){ P = along(QW, (j2 - 300)/2000); full = true; }
             else if(j2 < 4300){ P = { a: WT[0], b: WT[1] }; fd = 2; full = true; }
             else if(j2 < 6000){ P = along(QIN, (j2 - 4300)/1700); full = true; }
@@ -65755,19 +65793,17 @@ function houseCanopy(fn){
           const full = k === 0 && n > 0 && !(tt >= 5000 && tt < 20000);   /* (full from its sixth carton till it is out of the door; empty after, till the next goes in) */
           if(P && P.a < W + 30) out.push({ kind: 'bot', botKind: 'cargobot', bSkin: 'cgcard:cratewell', build: 'cgcard', a: P.a, b: P.b, fdir: P.fdir, wheel: s0*0.05, data: { fill: full ? 1 : 0.1 + k*0.15, eject: 0 } });
           CW_FLOW.baler = run ? (tt < 3000 ? 'out with a bale' : tt < 5000 ? 'at Dispatch' : 'back') : (k === 0 && n > 0 && tt >= 8000 ? 0 : k) + '/6'; }
-        const L0 = [POS[0][0], RA - 78], FS = [FEED[0], RA - 78], fa = [FEED[0], FEED[1], 31];
-        /* the loader's spell: the feeder's empty carton folded into the baler; the shuttle's full deck carton onto the feeder; back to his place */
-        if(deckWin(jr)){ const q = jr - DW0, SS = [D1[0] - 60, D1[1] - 22], sh = [D1[0], D1[1] - 22, 31];
-          if(q < 2*P5C){ const one = q < P5C, J2 = one ? carryJob(q, P5C, L0, { stand: FS, f: 3, at: fa }, { stand: BALS, f: 2, at: BALD, via: BVIA }, null) : carryJob(q - P5C, P5C, BALS, { stand: SS, f: 0, at: sh, via: BVIA }, { stand: FS, f: 3, at: fa }, null);
-            out.push(man(J2.pos[0], J2.pos[1], J2.f, J2.pose));
-            if(J2.bin){ const b2 = J2.bin; out.push({ kind: 'cargo', a: b2[0], b: b2[1], dd: 2, cargo: () => one ? flatC(b2[0], b2[1], b2[2], RCV[0]) : rcvItemKit(RCV[0], b2[0], b2[1], b2[2]) }); } }
-          else { const k = clamp01((q - 2*P5C)/500); out.push(man(L0[0], L0[1], 3 - 2*ease(k), {})); } }
-        /* his second spell: the packer's carton, folded, off the shuttle back by him and into the baler */
-        if(dumpWin(jr)){ const q = jr - LW0, SS = [D1[0] - 50, D1[1] + 22], sh = [D1[0], D1[1] + 22, 31];
-          if(q < P5C){ const J2 = carryJob(q, P5C, L0, { stand: SS, f: 0, at: sh }, { stand: BALS, f: 2, at: BALD, via: BVIA }, null);
-            out.push(man(J2.pos[0], J2.pos[1], J2.f, J2.pose));
-            if(J2.bin){ const b2 = J2.bin; out.push({ kind: 'cargo', a: b2[0], b: b2[1], dd: 2, cargo: () => flatC(b2[0], b2[1], b2[2], RCV[3]) }); } }
-          else { const k = clamp01((q - P5C)/500), d1 = Math.hypot(BVIA[0] - BALS[0], BVIA[1] - BALS[1]), d2 = Math.hypot(L0[0] - BVIA[0], L0[1] - BVIA[1]), s1 = d1/(d1 + d2), A = k < s1 ? BALS : BVIA, B = k < s1 ? BVIA : L0, kk = k < s1 ? k/s1 : (k - s1)/(1 - s1), p2 = [A[0] + (B[0] - A[0])*kk, A[1] + (B[1] - A[1])*kk]; out.push(man(p2[0], p2[1], k < 0.95 ? face(A, B) : 1, { walk: k < 1 ? 1 : 0, gait: k*(d1 + d2)/7 })); } }
+        /* the loader's spell: the feeder's empty carton folded into the baler; the shuttle's full deck carton onto the feeder -- then the next deck */
+        const LAY = hP(AT0, 1, [POS[0][0] - 14, RA - 7, 50.5], [POS[0][0] + 14, RA - 7, 50.5], 0.2, 0.25);   /* (as he left the deck on the jig) */
+        if(deckWin(jr)){ const q = PM(jr - DW0), one = q < LC_A.T, SB = { stand: [D1[0] - 60, D1[1] - 22], f: 0, at: [D1[0], D1[1] - 22, 31], via: BVIA };
+          const J2 = one ? lcAt(LC_A, q, 1, { stand: FS, f: 3, at: FA }, { stand: BALS, f: 2, at: BALD, via: BVIA }, LAY) : lcAt(LC_B, q - LC_A.T, 2, SB, { stand: FS, f: 3, at: FA }, null);
+          out.push(man(J2.pos[0], J2.pos[1], J2.f, J2.pose));
+          if(J2.bin){ const b2 = J2.bin; out.push({ kind: 'cargo', a: b2[0], b: b2[1], dd: 2, cargo: () => one ? flatC(b2[0], b2[1], b2[2], RCV[0]) : rcvItemKit(RCV[0], b2[0], b2[1], b2[2]) }); } }
+        /* his second spell: the packer's carton, folded, off the shuttle back by him and into the baler; then round to the feeder */
+        if(dumpWin(jr)){ const q = PM(jr - LW0), SD = { stand: [D1[0] - 50, D1[1] + 22], f: 0, at: [D1[0], D1[1] + 22, 31] };
+          const J2 = q < LC_D.T ? lcAt(LC_D, q, 1, SD, { stand: BALS, f: 2, at: BALD, via: BVIA }, LAY) : lcAt(LC_R, q - LC_D.T, 2, { stand: FS, f: 3, via: BVIA }, null, null);
+          out.push(man(J2.pos[0], J2.pos[1], J2.f, J2.pose));
+          if(J2.bin){ const b2 = J2.bin; out.push({ kind: 'cargo', a: b2[0], b: b2[1], dd: 2, cargo: () => flatC(b2[0], b2[1], b2[2], RCV[3]) }); } }
         return out; } } });
     }
 
