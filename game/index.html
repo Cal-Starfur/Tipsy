@@ -37323,12 +37323,13 @@ function roadWearOf(key, len){
   _roadWear.set(key, w);
   return w;
 }
-/* S the scene, g its ground layer. o: { ax, ay, dv, rv, s0, s1 (the run painted, along from a), key, stopAt: [s of each stop line,
-   with the side (t sign) of the lane that waits at it] } */
+/* S the scene, g its ground layer. o: { ax, ay, dv, rv, s0, s1 (the run painted, along from a), len, key, stopAt: [s of each stop line,
+   with the side (t sign) of the lane that waits at it], z (its height) or zf(s) (up a ramp) } */
 function roadAsphaltPaint(S, g, o){
   const L = ROAD_ART.look, A = ROAD_ART, E = A.edge, { ax, ay, dv, rv, s0, s1 } = o;
   const w = roadWearOf(o.key, o.len), det = S.grainOn();
-  const P = (s, t) => S.W(ax + dv.x*s + rv.x*t, ay + dv.y*s + rv.y*t, 0);
+  const z0 = o.z || 0, zf = o.zf;                                          // its height: level, or zf(s) up a ramp
+  const P = (s, t) => S.W(ax + dv.x*s + rv.x*t, ay + dv.y*s + rv.y*t, zf ? zf(s) : z0);
   const R = (a, b, t0, t1, c, al) => { a = Math.max(a, s0); b = Math.min(b, s1); t0 = Math.max(t0, -E); t1 = Math.min(t1, E);
     if(b > a && t1 > t0 && al > 0) S.quadOn(g, [P(a, t0), P(b, t0), P(b, t1), P(a, t1)], c, al); };
   const blot = (cs, ct, rs, rt, c, al, ph) => { if(cs + rs < s0 || cs - rs > s1 || al <= 0) return;
@@ -37400,6 +37401,31 @@ function roadJunctionPaint(S, g, nd){
     const Q = (a, b, t0, t1, c, al) => S.quadOn(g, ax ? [P(a, t0), P(b, t0), P(b, t1), P(a, t1)] : [P(t0, a), P(t0, b), P(t1, b), P(t1, a)], c, al);
     Q(s0, s0 + sw, -E, E, A.dk, 0.2); Q(s0 - 1.5, s0 + 1.5, -E, E, A.seal, 0.5); Q(s0 + sw - 1.5, s0 + sw + 1.5, -E, E, A.seal, 0.5); }
   if(r() < 0.6) roadCover(S, g, P, { s: (r() - 0.5)*120, t: (r() - 0.5)*120, r: 28, ph: r()*6 });
+}
+/* A TURNING CIRCLE'S ASPHALT (the gate round, the harbour's, the estate's motor court): the same marks laid round the ring.
+   P(x, y) the point at (x, y) off its centre on its asphalt; r0..r1 the annulus the marks keep to (off the island's kerb and
+   the ring's gutter); lane the radius every car circles at -- its oil band and two wheel paths, a little wandering. */
+function roadRoundPaint(S, g, P, r0, r1, lane, key){
+  const L = ROAD_ART.look, A = ROAD_ART, h = natStrSeed('rd' + key), r = lotDriveRand(h), TAU = Math.PI*2, N = 48;
+  const band = (rr, hw, wob, ph, c, al) => { for(let i = 0; i < N; i++){
+    const a = i/N*TAU, b = (i + 1)/N*TAU, ra = rr + wob*Math.sin(3*a + ph), rb = rr + wob*Math.sin(3*b + ph);
+    const ia = Math.max(r0, ra - hw), oa = Math.min(r1, ra + hw), ib = Math.max(r0, rb - hw), ob = Math.min(r1, rb + hw);
+    if(oa <= ia || ob <= ib) continue;
+    S.quadOn(g, [P(Math.cos(a)*ia, Math.sin(a)*ia), P(Math.cos(a)*oa, Math.sin(a)*oa), P(Math.cos(b)*ob, Math.sin(b)*ob), P(Math.cos(b)*ib, Math.sin(b)*ib)], c, al); } };
+  const blot = (cx, cy, rs, c, al, ph) => { for(const q of [1, 0.72, 0.45]){ const pts = [];
+    for(let k = 0; k < 14; k++){ const a = k/14*TAU, f = q*(1 + 0.12*Math.sin(3*a + ph)); let x = cx + rs*f*Math.cos(a), y = cy + rs*0.7*f*Math.sin(a);
+      const d = Math.hypot(x, y); if(d > r1){ x *= r1/d; y *= r1/d; } else if(d < r0 && d > 0){ x *= r0/d; y *= r0/d; } pts.push(P(x, y)); }
+    S.quadOn(g, pts, c, al/2); } };
+  for(let k = 0; k < 6; k++){ const a = r()*TAU, d = r0 + (r1 - r0)*r(); blot(Math.cos(a)*d, Math.sin(a)*d, 70 + r()*90, r() < 0.5 ? A.lt : A.dk, L.tone*(0.6 + r()*0.6), r()*6); }
+  band(lane, 26, 6, r()*6, A.dk, L.oil);
+  for(const o of [-1, 1]) for(const f of [1, 0.55]) band(lane + o*A.tread, A.trackW*f, 5, r()*6, A.dk, L.track);
+  if(S.grainOn()) for(let k = 0; k < 3; k++){                  // tar snakes, round a piece of the ring
+    let a = r()*TAU, d = r0 + (r1 - r0)*(0.15 + r()*0.7); const n = 6 + Math.floor(r()*8);
+    for(let i = 0; i < n; i++){ const a2 = a + (16 + r()*16)/d, d2 = Math.max(r0, Math.min(r1, d + (r() - 0.5)*12));
+      const x0 = Math.cos(a)*d, y0 = Math.sin(a)*d, x1 = Math.cos(a2)*d2, y1 = Math.sin(a2)*d2, l = Math.hypot(x1 - x0, y1 - y0) || 1, nx = -(y1 - y0)/l*1.6, ny = (x1 - x0)/l*1.6;
+      S.quadOn(g, [P(x0 + nx, y0 + ny), P(x1 + nx, y1 + ny), P(x1 - nx, y1 - ny), P(x0 - nx, y0 - ny)], A.seal, L.crack); a = a2; d = d2; } }
+  if(r() < 0.8){ const a = r()*TAU, d = lane + (r() < 0.5 ? -1 : 1)*(60 + r()*20);
+    if(d > r0 + 34 && d < r1 - 34) roadCover(S, g, (s, t) => P(s, t), { s: Math.cos(a)*d, t: Math.sin(a)*d, r: 26, ph: r()*6 }); }
 }
 /* a paint mark's wear: 1 at full, less for the faded ones, seeded off where it lies */
 function roadPaintWear(x, y){
@@ -112338,6 +112364,17 @@ class WorldScene extends Phaser.Scene {
         const ipts = []; for(let a = 0; a < 16; a++){ const t = a/16*Math.PI*2; ipts.push([S.circle.x + Math.cos(t)*160, S.circle.y + Math.sin(t)*160, z + 1.5]); }
         const IP = ipts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(IP)) this.quadOn(g, IP, LAWN);
       }
+      /* THE ASPHALT, LAID AND LIVED ON (road pass): this shelf's drives as the city's streets, the motor court's ring round its island */
+      for(const rn of S.runs) for(let q = 0; q < rn.pts.length - 1; q++){
+        const p0 = rn.pts[q], p1 = rn.pts[q + 1];
+        if(p0.z !== p1.z || p0.z !== S.z[k]) continue;
+        const L = Math.hypot(p1.x - p0.x, p1.y - p0.y), mx = (p0.x + p1.x)/2, my = (p0.y + p1.y)/2;
+        if(!onScreen([this.W(p0.x, p0.y, z), this.W(p1.x, p1.y, z), this.W(mx + RH, my + RH, z), this.W(mx - RH, my - RH, z)])) continue;
+        roadAsphaltPaint(this, g, { ax: p0.x, ay: p0.y, dv: DIRV[rn.f], rv: DIRV[(rn.f + 1) % 4], s0: 0, s1: L, len: L, z: z + 1.05,
+          key: 'sv' + p0.x + ',' + p0.y + '>' + p1.x + ',' + p1.y });
+      }
+      if(S.circle.k === k){ const c = S.circle, KW = KERB_STONE.w;
+        roadRoundPaint(this, g, (x, y) => this.W(c.x + x, c.y + y, z + 1.05), 160 + KW + 24, c.r - KW - CURB_W - 14, (160 + c.r)/2, 'svc' + c.x + ',' + c.y); }
       drawDrives(k);                                         // this shelf's driveways, on its paving (see THE DRIVEWAYS' GROUND)
       if(S.circle.k === k) drawCourt(z);                     // the estate's motor court (see THE MOTOR COURT)
       if(S.z.indexOf(S.tennis.z) === k) drawTennis();        // the tennis court's surface and lines (see THE TENNIS COURT)
@@ -112422,6 +112459,9 @@ class WorldScene extends Phaser.Scene {
       const zf = y => zAt(Math.max(rp.yN, Math.min(rp.yS, y))) + 0.2;
       for(const t0 of S._tiles.rmp[k-1].w) tile(t0, zf);
       Q([[rp.x - RH, rp.yS, rp.zS + 1],[rp.x + RH, rp.yS, rp.zS + 1],[rp.x + RH, rp.yN, rp.zN + 1],[rp.x - RH, rp.yN, rp.zN + 1]], ROADC);
+      { const RL = rp.yS - rp.yN;                            // its asphalt laid and lived on, up the slope (road pass)
+        roadAsphaltPaint(this, g, { ax: rp.x, ay: rp.yS, dv: DIRV[3], rv: DIRV[0], s0: 0, s1: RL, len: RL, zf: s => rp.zS + 1.05 + (rp.zN - rp.zS)*s/RL,
+          key: 'svr' + rp.x + ',' + rp.yS }); }
       for(const t0 of S._tiles.rmp[k-1].e) tile(t0, zf);
       streetFeatures(k);
       /* the east block, nearer than the ramp, last; its open end faces the
@@ -112873,6 +112913,9 @@ class WorldScene extends Phaser.Scene {
       for(let k = NF; k >= 0; k--) w.push(at(c.rf - 0.5, k/NF));
       poly(w, 0.4, ROADC);
     }
+    /* THE ASPHALT, LAID AND LIVED ON (road pass): the city's wear round the ring, off the island's kerb and the gutter */
+    { const r0 = (c.ri ? c.ri + KW + 20 : 0) + 4, r1 = c.r - KW - GW - 14;
+      roadRoundPaint(this, g, (x, y) => W(x, y, 0.45), r0, r1, (c.ri ? (r0 + r1)/2 : c.r - TRAF_LANE - 40), Math.round(c.x) + ',' + Math.round(c.y)); }
     /* stop bars where each lane meets its gate: the lane in (east) is met
        coming north, the lane out (west) coming south */
     if(o.stopBars){ const xa = c.ri + KW + GW + 12, xb = c.r - KW - GW - 12;
