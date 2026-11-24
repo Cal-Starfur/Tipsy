@@ -14569,23 +14569,30 @@ const PARK_MOW = { a: 0x5da255, b: 0x529147 };
                  seeded off world position): drier, yellower ground drifting into lusher, bluer -- no tile checker anywhere;
      mown        a park's stripes (PARK_MOW) ride on that field, with a headland lap round its edge where it meets the pavement
                  (the mower's turn), wider and crisper on a sports "Field" (stripe 3 tiles);
-     ROUGH       uncut grass (the rim's wild lots, a verge): the same greens, more mottled, with tufts at views 1 and 2;
-     drifts      a few soft sub-tile patches over it (views 1, 2), so the lattice never shows;
+     ROUGH       uncut grass (the rim's wild lots, a verge): the same greens, its grain taller and denser, grown out of the
+                 lawn beside it over a band (turfRough);
+     the grain   the surface itself (Sir, 2026-11-24: "i like a blade grain lets add it into our grass" -- the soft drifts the
+                 pass first had read as stains, and are gone): a dense, even scatter of short blade ticks, lit leaning left,
+                 dark leaning right (turfGrain), at views 1 and 2, on every lawn -- parks, yards, verges, the rim's lots, the
+                 ring lawn past the city, Sierra Vista's shelves;
      the edge    a trimmed, slightly darker edge along a lawn's side that meets paving, two soft washes (no hard seam);
      specks      a few daisies and clover, very sparse (views 1, 2);
      wear        worn, trodden patches where people walk -- where a park's walk meets the pavement, round its picnic tables, at a
                  ball game's ends, by a cart (turfWearOf: once per grid), and fallen leaves under the trail's shade trees.
    Every roll is a pure function of world position (paveRoll), never time or the camera. Colours: dry and lush are where the
    field pulls the lawn's own greens (mixC), so every lawn keeps its family. */
-const TURF = { dry: 0x93ab58, lush: 0x3e7b45, dryK: 0.5, lushK: 0.5, amp: 1.5, mowK: 0.6, roughK: 1.25,
+const TURF = { dry: 0x93ab58, lush: 0x3e7b45, dryK: 0.5, lushK: 0.5, amp: 0.6, mowK: 0.6,
   head: 1,                                   // the headland lap, tiles
-  driftP: 0.13, driftA: 0.075, roughDriftP: 0.3,
+  /* the blade grain (turfGrain): screen px per blade at view 1 / view 2, the most a tile takes; a blade's height (world units,
+     mown and uncut; held at grainMinK's scale at view 2), how many more blades uncut grass has; the two strokes' alpha (dark,
+     lit), their shades; the band (world units) over which rough grass grows out of the lawn beside it */
+  grainPx1: 165, grainPx2: 80, grainCap: 200, bladeH: 3, roughH: 5.2, grainMinK: 1.15, roughN: 0.5,
+  grainA: [0.8, 0.85], grainDk: 0x24572b, grainLt: 0xb9d77e, grainBand: 230,
   trim: 0x356f38, trimA: [0.3, 0.12], trimW: [4, 13],
   daisyP: 0.035, cloverP: 0.05, daisy: 0xf3f1e6, daisyEye: 0xe8c64a, clover: 0x4c8d4c,
-  tuftN: 3, tuftDk: 0x3f7a3c, tuftLt: 0x86b562,
   worn: 0xa49d66, soil: 0x9a8760, wornA: [0.2, 0.24, 0.2],
   leaves: [0xc98a3a, 0xd9a840, 0xb5662f, 0xa4813e, 0xcf7533] };
-const ROUGH = { a: GRASS.a, b: GRASS.b, rough: 1 };   // uncut grass: same greens, tufty (turfFill)
+const ROUGH = { a: GRASS.a, b: GRASS.b, rough: 1 };   // uncut grass: same greens, taller grain (turfFill)
 function parkMowTone(grid, blk){
   if(!grid || !grid.blockByIJ || blk.i === undefined) return GRASS;
   if(!grid._parkMow){
@@ -111693,7 +111700,7 @@ class WorldScene extends Phaser.Scene {
       const y0 = S.e[k+1], y1 = S.e[k], z = S.z[k];
       rect(S.xw, S.xe, y0, y1, z, LAWN);
       for(let x = S.xw; x < S.xe; x += 520) rect(x, Math.min(x + 260, S.xe), y0, y1, z + 0.3, LAWN2);   // mown stripes
-      this.turfDrifts(g, S.xw, S.xe, y0, y1, z + 0.35, LAWN);   // drier and lusher patches over them (THE GRASS PASS)
+      this.turfGrainRect(g, S.xw, S.xe, y0, y1, z + 0.35, LAWN2, LAWN, S.xw);   // its blade grain (THE GRASS PASS)
       /* (the strip from here to the harbor's edge is a body: see drawSierraEdge) */
       /* this shelf's sidewalks, then its asphalt over their inner edge */
       for(const t0 of S._tiles.lvl[k]) tile(t0, () => z + 0.2);
@@ -111759,6 +111766,7 @@ class WorldScene extends Phaser.Scene {
         const s0 = Math.max(x, x0), s1 = Math.min(x + 260, x1);
         if(s1 > s0) rect(s0, s1, yFr, yTop, z + 0.3, LAWN2);
       }
+      this.turfGrainRect(g, x0, x1, Math.min(yFr, yTop), Math.max(yFr, yTop), z + 0.35, LAWN2, LAWN, S.xw);   // (its grain: THE GRASS PASS)
       if(face) wallFace(x0, x1, yFr, zLo, z);
     };
     if(paint)     for(let k = 3; k >= 1; k--){
@@ -116455,6 +116463,8 @@ class WorldScene extends Phaser.Scene {
          one the sidewalk and the estate use. */
       const i0 = Math.floor(bx0/T2) - 1, i1 = Math.ceil(bx1/T2);
       const j0 = Math.floor(by0/T2) - 1, j1 = Math.ceil(by1/T2);
+      const rg = this.grainOn() ? (this._ringGrain || (this._ringGrain = [])) : null;
+      if(rg) rg.length = 0;
       for(let bi = i0; bi <= i1; bi++){
         const bx = (bi + 0.5)*T2;
         for(let bj = j0; bj <= j1; bj++){
@@ -116475,12 +116485,17 @@ class WorldScene extends Phaser.Scene {
           ];
           if(!onScreen(pts)) continue;
           if(bx < gx0 || bx > gx1 || by < gy0 || by > gy1){
-            this.quadOn(g, pts, this.turfTone(GRASS, bi, bj, bx, by, false));   // (turf, as every lawn: THE GRASS PASS)
+            const tc = this.turfTone(GRASS, bi, bj, bx, by, true);   // (turf, as every lawn: THE GRASS PASS; its grain after the pass)
+            this.quadOn(g, pts, tc);
+            if(rg) rg.push(bi, bj, tc, cx0, bx + half, by - half, cy1);
             continue;
           }
           this.paveSlabOn(g, pts, d, bx, by);
         }
       }
+      /* the ring lawn's blade grain, over all its tiles (THE GRASS PASS) */
+      if(rg) for(let k = 0; k < rg.length; k += 7)
+        this.turfGrain(g, rg[k], rg[k + 1], (rg[k] + 0.5)*T2, (rg[k + 1] + 0.5)*T2, rg[k + 2], 0, rg[k + 3], rg[k + 4], rg[k + 5], rg[k + 6]);
     }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
@@ -120417,7 +120432,8 @@ class WorldScene extends Phaser.Scene {
      (DOOR_H/DOOR_W) and a real person (PERSON_H), not picked
      independently — see PERSON_H's own comment. ================= */
   /* ---- THE GRASS PASS (TURF): a lawn painted as turf, in the ground pass (the ground cache paints it once). New grass
-     helpers go here, above fillBlockInterior. ---- */
+     helpers go here, above fillBlockInterior. Nothing here allocates per tile or per blade: the ground pass is drawn live on the
+     frames a zoom eases, so its points are scratch objects (turfPt) and its rolls an inline LCG. ---- */
   /* value noise at (x, y): -1..1, smooth across cells `cell` wide (seeded off the lattice corners: stable everywhere) */
   turfVN(x, y, cell, salt){
     const fx = x/cell, fy = y/cell, ix = Math.floor(fx), iy = Math.floor(fy);
@@ -120425,21 +120441,34 @@ class WorldScene extends Phaser.Scene {
     const a = paveRoll(ix, iy, salt), b = paveRoll(ix + 1, iy, salt), c = paveRoll(ix, iy + 1, salt), d = paveRoll(ix + 1, iy + 1, salt);
     return (a + (b - a)*u + (c - a)*v + (a - b - c + d)*u*v)*2 - 1;
   }
-  /* the city's one grass field at (x, y): + drier, - lusher */
+  /* the city's one grass field at (x, y): + drier, - lusher (a calm wash: the grain carries the surface) */
   turfField(x, y){ return (0.62*this.turfVN(x, y, 1700, 31) + 0.38*this.turfVN(x, y, 640, 37))*TURF.amp; }
+  /* a colour t of the way from a to b (mixC without its closure) */
+  turfMix(a, b, t){
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const r = ((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255))*t), gg = ((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255))*t),
+          bb = (a & 255) + (((b & 255) - (a & 255))*t);
+    return (Math.round(r) << 16) | (Math.round(gg) << 8) | Math.round(bb);
+  }
+  /* world (x, y, z) to the screen, into the scratch point p (W without the new object) */
+  turfPt(p, x, y, z = 0){
+    const xr = x - this.camX, yr = y - this.camY;
+    p.x = (xr - yr)*this.K + this.cx; p.y = ((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy;
+    return p;
+  }
   /* a lattice tile's turf colour: tile bi, bj, its centre wx, wy; head: on a mown lawn's headland lap (no stripe) */
   turfTone(tone, bi, bj, wx, wy, head){
     const T = TURF;
     let n = this.turfField(wx, wy), base;
     if(tone.mow && !head){ base = (Math.floor((tone.mow === 1 ? bi : bj)/(tone.w || 2)) & 1) ? tone.b : tone.a; n *= T.mowK; }
-    else { base = mixC(tone.a, tone.b, 0.5); if(tone.rough) n *= T.roughK; }
+    else base = this.turfMix(tone.a, tone.b, 0.5);
     n = n > 1 ? 1 : n < -1 ? -1 : n;
-    return n > 0 ? mixC(base, T.dry, n*T.dryK) : mixC(base, T.lush, -n*T.lushK);
+    return n > 0 ? this.turfMix(base, T.dry, n*T.dryK) : this.turfMix(base, T.lush, -n*T.lushK);
   }
   /* a soft patch on the ground: an oval rx by ry turned ang, its rim wandering (seed), at height z, each point held inside R
-     (so a patch at a lawn's edge flattens along it, never onto the paving). Affine off its centre: one W. */
+     (so a patch at a lawn's edge flattens along it, never onto the paving). Affine off its centre. */
   turfBlob(g, cx, cy, rx, ry, ang, col, alpha, seed, R, z = 0){
-    const K = this.K, o = this.W(cx, cy, z), m = (rx + ry)*K;
+    const K = this.K, o = this.turfPt(this._turfO || (this._turfO = { x: 0, y: 0 }), cx, cy, z), m = (rx + ry)*K;
     if(o.x < -m || o.y < -m || o.x > this.vpW() + m || o.y > this.vpH() + m) return;
     const N = 10, P = this._turfP || (this._turfP = Array.from({ length: N }, () => ({ x: 0, y: 0 })));
     const ca = Math.cos(ang), sa = Math.sin(ang);
@@ -120451,15 +120480,50 @@ class WorldScene extends Phaser.Scene {
     }
     this.quadOn(g, P, col, alpha);
   }
+  /* THE BLADE GRAIN (Sir, 2026-11-24, of three directions: "i like a blade grain lets add it into our grass"): a tile's surface,
+     a dense, even scatter of short blade ticks over its colour col -- half a shade darker leaning right, half a shade lighter
+     leaning left (SP13: lit from screen-left). Tile bi, bj, centre wx, wy at height z; only inside x0..x1, y0..y1 (the lawn's
+     rect, or the tile's own). rough 0 (mown) .. 1 (uncut): taller blades and more of them. Views 1 and 2 only (grainOn): at
+     view 3 a blade is under a pixel and would only grey the lawn. Density is per screen area (grainPx), so a lawn's grain
+     looks the same at either view; at view 2 the blades are held a little longer (grainMinK) so they still read. */
+  turfGrain(g, bi, bj, wx, wy, col, rough, x0, x1, y0, y1, z = 0, ks = 1, dn = 1){
+    const T = TURF, K = this.K, Kh = K < T.grainMinK ? T.grainMinK : K;
+    const p = this.turfPt(this._turfO || (this._turfO = { x: 0, y: 0 }), wx, wy, z), px = p.x, py = p.y;
+    const lx0 = x0 - wx + 9, lx1 = x1 - wx - 2, ly0 = y0 - wy + 9, ly1 = y1 - wy - 2;   // (the far sides inset: a blade leans up-screen, never over the paving)
+    const n = Math.min(T.grainCap, Math.round(T2*T2*K*K/(K >= 1 ? T.grainPx1 : T.grainPx2)*(1 + T.roughN*rough)*dn));
+    const h = (T.bladeH + (T.roughH - T.bladeH)*rough)*Kh, bw = (K < 1 ? 0.85 : K*0.55);   // (a blade: one thin triangle, its base bw each side)
+    for(let pass = 0; pass < 2; pass++){
+      let s = (Math.imul(bi, 0x27d4eb2d) ^ Math.imul(bj, 0x165667b1) ^ (pass ? 0x2c1b3c6d : 0x5bd1e995)) >>> 0;
+      const lean = pass ? -0.35 : 0.35;
+      g.fillStyle(pass ? this.turfMix(col, T.grainLt, 0.4) : this.turfMix(col, T.grainDk, 0.45*ks), pass ? T.grainA[1] : T.grainA[0]);
+      for(let k = 0; k < n; k += 2){
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0; const dx = (s/4294967296 - 0.5)*T2;
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0; const dy = (s/4294967296 - 0.5)*T2;
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0; const hh = h*(0.6 + s/4294967296*0.8);
+        if(dx < lx0 || dx > lx1 || dy < ly0 || dy > ly1) continue;
+        const X = px + (dx - dy)*K, Y = py + (dx + dy)*K*0.5;
+        g.fillTriangle(X - bw, Y, X + bw, Y, X + lean*hh, Y - hh);
+      }
+    }
+  }
+  grainOn(){ return this.K >= 0.6 && !this.drawClip; }
+  /* how uncut a ROUGH lawn's tile is: 1 inside, easing to 0 over a band (grainBand) at the lawn's edges, the band's inner line
+     wandering (value noise) and a tile's own jitter on it, so rough grass grows out of the mown lawn beside it, not on a line */
+  turfRough(R, wx, wy, bi, bj){
+    const T = TURF, d = Math.min(wx - R.x0, R.x1 - wx, wy - R.y0, R.y1 - wy);
+    const t = (d - T2*0.5)/(T.grainBand*(0.7 + 0.6*(this.turfVN(wx, wy, 520, 91)*0.5 + 0.5))) + (paveRoll(bi, bj, 93) - 0.5)*0.35;
+    return t <= 0 ? 0 : t >= 1 ? 1 : t*t*(3 - 2*t);
+  }
   /* A LAWN (R: x0..x1, y0..y1) as turf, on the world lattice (tile k spans k*T2..(k+1)*T2, as the pavement's): each tile its
-     colour off the field (turfTone), then over the tiles on screen, at views 1 and 2 only (det), the drifts, daisies, clover and
-     (ROUGH) tufts, and last the trimmed edge along each side in `edges` (1 x0, 2 x1, 4 y0, 8 y1: a side that meets paving) --
-     a mown lawn's headland lap runs inside those same sides */
+     colour off the field (turfTone), then over the tiles on screen, at views 1 and 2 only, the blade grain (turfGrain), a few
+     daisies and clover, and last the trimmed edge along each side in `edges` (1 x0, 2 x1, 4 y0, 8 y1: a side that meets
+     paving) -- a mown lawn's headland lap runs inside those same sides */
   turfFill(g, R, tone, edges = 0){
-    const T = TURF, K = this.K, det = K >= 0.6, hd = tone.mow && edges ? T.head*T2 : 0;
+    const T = TURF, K = this.K, det = this.grainOn(), hd = tone.mow && edges ? T.head*T2 : 0;
     const i0 = Math.floor(R.x0/T2), i1 = Math.ceil(R.x1/T2) - 1;
     const j0 = Math.floor(R.y0/T2), j1 = Math.ceil(R.y1/T2) - 1;
     const vis = this._turfVis || (this._turfVis = []);
+    const Q = this._turfQ || (this._turfQ = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]);
     vis.length = 0;
     for(let bj = j0; bj <= j1; bj++){
       const ty0 = Math.max(R.y0, bj*T2), ty1 = Math.min(R.y1, (bj + 1)*T2);
@@ -120468,75 +120532,67 @@ class WorldScene extends Phaser.Scene {
       for(let bi = i0; bi <= i1; bi++){
         const tx0 = Math.max(R.x0, bi*T2), tx1 = Math.min(R.x1, (bi + 1)*T2);
         if(tx1 - tx0 < 0.5) continue;
-        const pts = [this.W(tx0,ty0,0), this.W(tx1,ty0,0), this.W(tx1,ty1,0), this.W(tx0,ty1,0)];
-        if(!this.ptsOnScreen(pts)) continue;
+        this.turfPt(Q[0], tx0, ty0); this.turfPt(Q[1], tx1, ty0); this.turfPt(Q[2], tx1, ty1); this.turfPt(Q[3], tx0, ty1);
+        if(!this.ptsOnScreen(Q)) continue;
         const wx = (bi + 0.5)*T2;
         const head = hd > 0 && (((edges & 1) && wx - R.x0 < hd) || ((edges & 2) && R.x1 - wx < hd) || ((edges & 4) && wy - R.y0 < hd) || ((edges & 8) && R.y1 - wy < hd));
-        this.quadOn(g, pts, this.turfTone(tone, bi, bj, wx, wy, head));
-        if(det) vis.push(bi, bj);
+        const col = this.turfTone(tone, bi, bj, wx, wy, head);
+        this.quadOn(g, Q, col);
+        if(det) vis.push(bi, bj, col);
       }
     }
-    /* the detail, over the tiles (a drift may run across a tile's edge; held inside the lawn) */
-    const clipped = !!this.drawClip;
-    for(let k = 0; k < vis.length; k += 2){
+    /* the grain and the specks, over every tile (a blade may lean over a tile's edge) */
+    const P = this._turfS || (this._turfS = { x: 0, y: 0 });
+    for(let k = 0; k < vis.length; k += 3){
       const bi = vis[k], bj = vis[k + 1], wx = (bi + 0.5)*T2, wy = (bj + 0.5)*T2;
-      if(paveRoll(bi, bj, 41) < (tone.rough ? T.roughDriftP : T.driftP)){
-        const rx = T2*(0.6 + paveRoll(bi, bj, 44)*0.55), ry = rx*(0.45 + paveRoll(bi, bj, 45)*0.35), seed = (bi*7 + bj*131) | 0;
-        const cx = wx + (paveRoll(bi, bj, 42) - 0.5)*T2, cy = wy + (paveRoll(bi, bj, 43) - 0.5)*T2, ang = paveRoll(bi, bj, 46)*Math.PI;
-        const col = (this.turfField(cx, cy) + (paveRoll(bi, bj, 47) - 0.5)) > 0 ? T.dry : T.lush;
-        this.turfBlob(g, cx, cy, rx, ry, ang, col, T.driftA, seed, R);
-        this.turfBlob(g, cx, cy, rx*0.6, ry*0.6, ang, col, T.driftA, seed + 1, R);
-      }
-      if(clipped) continue;
-      const p = this.W(wx, wy, 0);
-      const at = (u, v) => { const dx = (u - 0.5)*T2, dy = (v - 0.5)*T2; return wx + dx >= R.x0 + 3 && wx + dx <= R.x1 - 3 && wy + dy >= R.y0 + 3 && wy + dy <= R.y1 - 3; };
-      const sx = (u, v) => p.x + ((u - v)*T2)*K, sy = (u, v) => p.y + ((u + v - 1)*T2)*K*0.5;
-      if(tone.rough){
-        /* tufts: a few blades each, the dark ones first, a lit blade on the left (SP13) */
-        const bw = Math.max(1, K*0.9);
-        for(const [c, al, lit] of [[T.tuftDk, 0.55, 0], [T.tuftLt, 0.6, 1]]){
-          g.lineStyle(bw, c, al); g.beginPath();
-          for(let n = 0; n < T.tuftN; n++){
-            const u = 0.12 + paveRoll(bi, bj, 50 + n)*0.76, v = 0.12 + paveRoll(bi, bj, 60 + n)*0.76;
-            if(!at(u, v)) continue;
-            const x = sx(u, v), y = sy(u, v) , s = (0.8 + paveRoll(bi, bj, 70 + n)*0.5)*K;
-            if(lit){ g.moveTo(x - 1*s, y); g.lineTo(x - 4*s, y - 6*s); }
-            else { g.moveTo(x, y); g.lineTo(x - 0.5*s, y - 8*s); g.moveTo(x + 1*s, y); g.lineTo(x + 4.5*s, y - 6*s); }
-          }
-          g.strokePath();
-        }
-        continue;
-      }
+      this.turfGrain(g, bi, bj, wx, wy, vis[k + 2], tone.rough ? this.turfRough(R, wx, wy, bi, bj) : 0, R.x0, R.x1, R.y0, R.y1);
+      if(tone.rough) continue;
       const r1 = paveRoll(bi, bj, 48);
       if(r1 < T.daisyP){
         /* a few daisies in a loose clump */
         const u0 = 0.25 + paveRoll(bi, bj, 49)*0.5, v0 = 0.25 + paveRoll(bi, bj, 50)*0.5;
         for(let n = 0; n < 6; n++){
-          const u = u0 + (paveRoll(bi, bj, 80 + n) - 0.5)*0.4, v = v0 + (paveRoll(bi, bj, 90 + n) - 0.5)*0.4;
-          if(!at(u, v)) continue;
-          const x = sx(u, v), y = sy(u, v);
-          g.fillStyle(T.daisy, 0.95); g.fillRect(x - 1.1*K, y - 0.6*K, 2.2*K, 1.2*K);
-          if(n & 1){ g.fillStyle(T.daisyEye, 1); g.fillRect(x - 0.4*K, y - 0.3*K, 0.8*K, 0.6*K); }
+          const x = wx + (u0 + (paveRoll(bi, bj, 80 + n) - 0.5)*0.4 - 0.5)*T2, y = wy + (v0 + (paveRoll(bi, bj, 90 + n) - 0.5)*0.4 - 0.5)*T2;
+          if(x < R.x0 + 3 || x > R.x1 - 3 || y < R.y0 + 3 || y > R.y1 - 3) continue;
+          this.turfPt(P, x, y);
+          g.fillStyle(T.daisy, 0.95); g.fillRect(P.x - 1.1*K, P.y - 0.6*K, 2.2*K, 1.2*K);
+          if(n & 1){ g.fillStyle(T.daisyEye, 1); g.fillRect(P.x - 0.4*K, P.y - 0.3*K, 0.8*K, 0.6*K); }
         }
       } else if(r1 > 1 - T.cloverP){
         /* a patch of clover: small, darker, bluer leaves */
         const u0 = 0.25 + paveRoll(bi, bj, 51)*0.5, v0 = 0.25 + paveRoll(bi, bj, 52)*0.5;
         g.fillStyle(T.clover, 0.6);
         for(let n = 0; n < 7; n++){
-          const u = u0 + (paveRoll(bi, bj, 100 + n) - 0.5)*0.32, v = v0 + (paveRoll(bi, bj, 110 + n) - 0.5)*0.32;
-          if(at(u, v)) g.fillRect(sx(u, v) - 1.6*K, sy(u, v) - 0.8*K, 3.2*K, 1.6*K);
+          const x = wx + (u0 + (paveRoll(bi, bj, 100 + n) - 0.5)*0.32 - 0.5)*T2, y = wy + (v0 + (paveRoll(bi, bj, 110 + n) - 0.5)*0.32 - 0.5)*T2;
+          if(x < R.x0 + 3 || x > R.x1 - 3 || y < R.y0 + 3 || y > R.y1 - 3) continue;
+          this.turfPt(P, x, y); g.fillRect(P.x - 1.6*K, P.y - 0.8*K, 3.2*K, 1.6*K);
         }
       }
     }
     /* the trimmed edge where the lawn meets paving: two soft washes, darker toward the edge (no hard seam) */
     if(edges) for(let s = 0; s < 2; s++){
-      const w = T.trimW[s];
-      const side = (x0, x1, y0, y1) => { const q = [this.W(x0, y0, 0), this.W(x1, y0, 0), this.W(x1, y1, 0), this.W(x0, y1, 0)];
-        if(this.ptsOnScreen(q)) this.quadOn(g, q, T.trim, T.trimA[s]); };
-      if(edges & 1) side(R.x0, R.x0 + w, R.y0, R.y1);
-      if(edges & 2) side(R.x1 - w, R.x1, R.y0, R.y1);
-      if(edges & 4) side(R.x0, R.x1, R.y0, R.y0 + w);
-      if(edges & 8) side(R.x0, R.x1, R.y1 - w, R.y1);
+      const w = T.trimW[s], a = T.trimA[s];
+      if(edges & 1) this.turfStrip(g, Q, R.x0, R.x0 + w, R.y0, R.y1, a);
+      if(edges & 2) this.turfStrip(g, Q, R.x1 - w, R.x1, R.y0, R.y1, a);
+      if(edges & 4) this.turfStrip(g, Q, R.x0, R.x1, R.y0, R.y0 + w, a);
+      if(edges & 8) this.turfStrip(g, Q, R.x0, R.x1, R.y1 - w, R.y1, a);
+    }
+  }
+  turfStrip(g, Q, x0, x1, y0, y1, a){
+    this.turfPt(Q[0], x0, y0); this.turfPt(Q[1], x1, y0); this.turfPt(Q[2], x1, y1); this.turfPt(Q[3], x0, y1);
+    if(this.ptsOnScreen(Q)) this.quadOn(g, Q, TURF.trim, a);
+  }
+  /* a flat lawn drawn some other way (Sierra Vista's shelves: stripes 260 wide from sx0, c0 then c1), x0..x1 by y0..y1 at z,
+     given its grain tile by tile on the lattice -- only the tiles on screen (their centre within a tile's reach of it); a pale
+     estate lawn takes its dark blades lighter (ks), and fewer of them (dn: a shelf is a whole screen of lawn) */
+  turfGrainRect(g, x0, x1, y0, y1, z, c0, c1, sx0){
+    if(!this.grainOn()) return;
+    const K = this.K, gw = this.vpW(), gh = this.vpH(), m = T2*K, P = this._turfS || (this._turfS = { x: 0, y: 0 });
+    for(let bj = Math.floor(y0/T2); bj*T2 < y1; bj++) for(let bi = Math.floor(x0/T2); bi*T2 < x1; bi++){
+      const wx = (bi + 0.5)*T2, wy = (bj + 0.5)*T2;
+      this.turfPt(P, wx, wy, z);
+      if(P.x < -m || P.x > gw + m || P.y < -m || P.y > gh + m) continue;
+      this.turfGrain(g, bi, bj, wx, wy, ((wx - sx0) % 520) < 260 ? c0 : c1, 0, Math.max(x0, bi*T2), Math.min(x1, (bi + 1)*T2), Math.max(y0, bj*T2), Math.min(y1, (bj + 1)*T2), z, 0.6, 0.55);
     }
   }
   /* where a park's grass is worn and where leaves lie (k: a patch's strength; -1 a tree's leaves), by cell, once per grid:
@@ -120588,29 +120644,15 @@ class WorldScene extends Phaser.Scene {
         continue;
       }
       if(K < 0.6 || this.drawClip) continue;
-      const o = this.W(x, y, 0);
+      const o = this.turfPt(this._turfO || (this._turfO = { x: 0, y: 0 }), x, y);
       if(o.x < -r*K*2 || o.y < -r*K || o.x > gw + r*K*2 || o.y > gh + r*K) continue;
       for(let n = 0; n < 24; n++){
         const a = paveRoll(sd, n, 140)*Math.PI*2, d = Math.sqrt(paveRoll(sd, n, 141))*r, lx = x + Math.cos(a)*d, ly = y + Math.sin(a)*d;
         if(lx < R.x0 + 4 || lx > R.x1 - 4 || ly < R.y0 + 4 || ly > R.y1 - 4) continue;
-        const dx = lx - x, dy = ly - y, px = o.x + (dx - dy)*K, py = o.y + (dx + dy)*K*0.5;
+        const dx = lx - x, dy = ly - y, px = o.x + (dx - dy)*K, py = o.y + (dx + dy)*K*0.5;   // (o: the scratch point, read before the next)
         g.fillStyle(T.leaves[Math.floor(paveRoll(sd, n, 142)*T.leaves.length)], 0.9);
         g.fillRect(px - 1.8*K, py - 0.9*K, 3.6*K, 1.8*K);
       }
-    }
-  }
-  /* an estate's lawn (Sierra Vista's shelves: one colour and its mown stripes), x0..x1 by y0..y1 at z: soft drier and lusher
-     patches off the city's field, so it is not one flat sheet */
-  turfDrifts(g, x0, x1, y0, y1, z, lawn){
-    const R = { x0, x1, y0, y1 }, S = 430, dry = mixC(lawn, TURF.dry, 0.55), lush = mixC(lawn, TURF.lush, 0.4);
-    for(let gy = Math.floor(y0/S); gy*S < y1; gy++) for(let gx = Math.floor(x0/S); gx*S < x1; gx++){
-      if(paveRoll(gx, gy, 150) > 0.55) continue;
-      const cx = (gx + 0.2 + paveRoll(gx, gy, 151)*0.6)*S, cy = (gy + 0.2 + paveRoll(gx, gy, 152)*0.6)*S;
-      if(cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
-      const rx = 150 + paveRoll(gx, gy, 153)*140, ry = rx*(0.5 + paveRoll(gx, gy, 154)*0.35), ang = paveRoll(gx, gy, 155)*Math.PI;
-      const col = this.turfField(cx, cy) + (paveRoll(gx, gy, 156) - 0.5) > 0 ? dry : lush, sd = (gx*13 + gy*101) | 0;
-      this.turfBlob(g, cx, cy, rx, ry, ang, col, 0.16, sd, R, z);
-      this.turfBlob(g, cx, cy, rx*0.6, ry*0.6, ang, col, 0.14, sd + 1, R, z);
     }
   }
   fillBlockInterior(g, blk, tone, edges = 0){
