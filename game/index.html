@@ -34144,6 +34144,7 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
     return lo <= hi ? [lo, hi] : null; };
   const parts = SS_PARTS[kind], top = parts.find(q => q[0] === 'top');
   let base = true; const ALL = [];
+  const gU = Math.min(0.12, 0.5/(Math.hypot(ox.x - o.x, ox.y - o.y) || 1)), gW = Math.min(0.12, 0.5/(Math.hypot(ow.x - o.x, ow.y - o.y) || 1));   // (half a pixel, along and across -- at most a hair of the shoe, when it points at the eye)
   const upLo = Math.min(...parts.filter(q => q[0] === 'p' && Math.max(...q[1].map(v => v[1])) > 6.5).map(q => Math.min(...q[1].map(v => v[1]))));   // (where the upper stands: its lowest)
   for(const part of parts){ const t = part[0], F = [];
     if(part[5] === 'worn' && !on) continue;   // (the wearer's own foot: on someone only)
@@ -34153,7 +34154,11 @@ function ssShoeDraw(kind, C, pt, fill, HW, opt){
     /* (under: a sole's top that the upper stands on, whole (not one the upper's bottom runs into, as a runner's midsole) -- with the shoe's faces all sorted together (opt.mix) it goes first, as the unmixed
        pass lays the base first: sorted by its middle, the whole length of the shoe, it came after the upper's top and painted over it --
        people_depth, the heavy build mid-stride) */
+    /* (on someone, each face overlaps its neighbours by half a pixel along the shoe and across it -- never up, so the outline round the
+       leg does not grow: the shoe is many small faces, slices along it and halves across it, and their anti-aliased edges let the ground
+       show between them in hairlines, a grid over the shoe -- Sir, 2026-11-24, "the shoe itself seems really segmented") */
     const face = (P3, c, l, what, ck, under) => { const n = P3.length, m = P3.reduce((a, q) => [a[0] + q[0]/n, a[1] + q[1]/n, a[2] + q[2]/n], [0, 0, 0]);
+      if(on && n === 4) P3 = P3.map(q => [q[0] + (q[0] - m[0] > 0.02 ? gU : q[0] - m[0] < -0.02 ? -gU : 0), q[1] + (q[1] - m[1] > 0.02 ? gW : q[1] - m[1] < -0.02 ? -gW : 0), q[2]]);
       if(!want(what, m[0], m[1], m[2], ck)) return; F.push({ P3, c, l, d: under && on && opt.mix ? -1e9 : what === 'panel' && on && opt.mix ? 1e9 + F.length : depth ? depth(m[0], m[1], m[2]) + (what === 'panel' ? 0.6 : 0) : F.length }); };   // (a panel just after the wall it lies on)
     if(t === 'p'){ const pr = cw(part[1]), c = C[part[2]], i = part[3], fl = !!part[4], n = pr.length, ck = part[2];
       base = base && Math.max(...part[1].map(q => q[1])) <= 6.5;
