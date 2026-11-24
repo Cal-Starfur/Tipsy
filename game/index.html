@@ -2511,6 +2511,46 @@ function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let
 /* the park planting's colour helpers (drawParkShrub, drawParkBed): a colour scaled toward black or white, and two mixed */
 function parkPlantShade(c, k){ return ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0); }
 function parkPlantMix(c1, c2, t){ const m = s => Math.round(((c1 >> s) & 255)*(1 - t) + ((c2 >> s) & 255)*t); return (m(16) << 16) | (m(8) << 8) | m(0); }
+/* PARK PLANTING VARIETY (the parks variety pass, 2026-11-24 -- Sir: "can we expand our offerings in this area. trees shrubs and flower
+   beds need more variations keeping with our latest drawing style pass"). A park is PLANTED ON PURPOSE, not sprinkled: each park (each
+   cell of the Veterans trail, the Costa Palma letters' park) takes a THEME, and the theme names its trees (a main kind and its accents,
+   by weight), its shrubs (one kind per border run -- a run shares its green and bloom, so it hashes to one kind) and its beds (a main
+   scheme and a second, its beds' shapes, one edging for the park). 'classic' keeps the first pass's look (the round / spreading /
+   upright trees, the shrubs' kind from their green, the stone-edged oval of drifts). All of it is picked off the plant's position and
+   its park's (parkPlantHash), once, when the park's list is built -- the same spot always gets the same plant, never per frame -- and
+   it is only paint: no position, radius, collider or walk changes. A tree's size class (sapling on its stakes, young, mature) scales
+   its art about its foot (PARK_TREE_SIZE), never its collider. Drawers: drawShadeTree / drawParkTreeSp, drawParkShrub /
+   drawParkShrubSp, drawParkBed / drawParkBedSp (the library: docs/kits/library.md, park planting). */
+const PARK_THEMES = {
+  classic:  { trees: null, shrubs: null, beds: null },
+  coastal:  { trees: [["olive", 5], ["pepper", 3], ["conifer", 2]], shrubs: ["lavender", "agave", "grass", "rosemary"], beds: ["succulent", "cottage"], shapes: ["kidney", "oval"], edge: "steel" },
+  bloom:    { trees: [["jacaranda", 5], ["flame", 2], [null, 3]], shrubs: ["hydrangea", "bougainvillea", null], beds: ["rose", "drift"], shapes: ["round", "oval"], edge: "brick" },
+  formal:   { trees: [["conifer", 4], [null, 4], ["citrus", 2]], shrubs: ["cone", "spiral", "ball"], beds: ["bulb", "rose"], shapes: ["rect", "oval"], edge: "brick" },
+  woodland: { trees: [["birch", 5], ["conifer", 3], [null, 2]], shrubs: ["fern", "hydrangea", null], beds: ["cottage", "drift"], shapes: ["kidney", "round"], edge: "timber" },
+  orchard:  { trees: [["citrus", 5], ["olive", 3], [null, 2]], shrubs: ["rosemary", "lavender", "cone"], beds: ["cottage", "bulb"], shapes: ["rect", "oval"], edge: "timber" },
+  tropical: { trees: [["flame", 4], ["jacaranda", 3], ["pepper", 3]], shrubs: ["cycad", "bougainvillea", "agave", "grass"], beds: ["tropical", "succulent"], shapes: ["kidney", "round"], edge: "none" },
+};
+const PARK_THEME_ORDER = ["classic", "coastal", "bloom", "formal", "woodland", "orchard", "tropical"];
+const PARK_TREE_SIZE = { sapling: 0.5, young: 0.74, mature: 1 };
+function parkPlantHash(x, y, salt){ return mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ salt) >>> 0)(); }
+/* a park's theme off its own place (a trail cell's centre) */
+function parkThemeAt(x, y){ return PARK_THEME_ORDER[Math.floor(parkPlantHash(x, y, 0x7a3e51)*PARK_THEME_ORDER.length)]; }
+/* one plant's variety in its park's theme; (gx, gy) is its park's place, which a border run's shrubs share */
+function parkPlantVariety(p, theme, gx, gy){
+  const T = PARK_THEMES[theme]; if(!T) return p;
+  if(p.kind === "tree"){
+    if(T.trees){ let tot = 0; for(const e of T.trees) tot += e[1];
+      let a = parkPlantHash(p.x, p.y, 0x51ee)*tot; p.sp = null;
+      for(const e of T.trees){ a -= e[1]; if(a < 0){ p.sp = e[0]; break; } } }
+    if(!p.sz){ const z = parkPlantHash(p.x, p.y, 0x5123); p.sz = z < 0.1 ? "sapling" : z < 0.3 ? "young" : "mature"; }
+  } else if(p.kind === "shrub"){
+    if(T.shrubs) p.sk = T.shrubs[Math.floor(parkPlantHash(gx + (p.col & 0xffff), gy + (p.bloom || 0) % 9973, 0x5b7)*T.shrubs.length)];
+  } else if(p.kind === "bed"){
+    if(T.beds){ p.bs = T.beds[parkPlantHash(p.x, p.y, 0xbed1) < 0.65 ? 0 : 1];
+      p.shape = T.shapes[Math.floor(parkPlantHash(p.x, p.y, 0xbed2)*T.shapes.length)]; p.edge = T.edge; }
+  }
+  return p;
+}
 /* clip a polygon of screen points {x,y} to a CONVEX screen polygon
    (Sutherland-Hodgman); null when nothing is left. The scene's drawClip
    (quadOn / edgeOn) uses it to show someone only through a doorway. */
@@ -19024,6 +19064,12 @@ function vetTrailOf(grid){
         if((p.x > K0.X0 - m && p.x < K0.X1 + m && p.y > K0.Y0 - m && p.y < K0.Y1 + m) || off(p.x, p.y) < 10) plants.splice(i, 1); }
     }
   }
+  /* EACH CELL A PARK OF ITS OWN THEME (PARK PLANTING VARIETY): its trees, shrubs and beds picked off the theme of the cell whose
+     centre is nearest (the cell that draws it: queueParkTrail), once, here -- paint only, nothing above moves */
+  { const cl = [...cells.values()];
+    for(const p of plants){ if(p.kind !== "tree" && p.kind !== "shrub" && p.kind !== "bed") continue;
+      let best = null, bd = Infinity; for(const c of cl){ const d = Math.abs(c.cx - p.x) + Math.abs(c.cy - p.y); if(d < bd){ bd = d; best = c; } }
+      if(best) parkPlantVariety(p, parkThemeAt(best.cx, best.cy), best.cx, best.cy); } }
   /* what stops him: trunks and shrubs, not the flower beds */
   const posts = [];
   for(const p of plants){
@@ -51882,7 +51928,11 @@ function labTree(ta, tb, o){
     ctx.lineCap = 'butt';
     fill([[p0.x - w0, p0.y + 1], [p0.x + w0, p0.y + 1], [b1.x + wm, b1.y], [b2.x + w1, b2.y], [b2.x - w1, b2.y], [b1.x - wm, b1.y]], shade(bark, 0.7));
     fill([[p0.x - w0, p0.y + 1], [p0.x, p0.y + 1], [b1.x - wm*0.05, b1.y], [b2.x - w1*0.05, b2.y], [b2.x - w1, b2.y], [b1.x - wm, b1.y]], bark);
-    fill([[p0.x - w0*0.78, p0.y], [p0.x - w0*0.42, p0.y], [b1.x - wm*0.45, b1.y], [b1.x - wm*0.8, b1.y]], shade(bark, 1.18)); }
+    fill([[p0.x - w0*0.78, p0.y], [p0.x - w0*0.42, p0.y], [b1.x - wm*0.45, b1.y], [b1.x - wm*0.8, b1.y]], shade(bark, 1.18));
+    /* an olive (o.form 'olive', the parks variety pass's olive in the kit's terms): a second gnarled stem twisting off the first */
+    if(o.form === 'olive'){ const c2 = P(ca + R*0.9, cb - R*0.9, z0 + (top - z0)*0.86), m2 = P(ta + R*0.12, tb - R*0.45, z0 + (top - z0)*0.4), f2 = P(ta + 1, tb - 1, z0);
+      fill([[f2.x - w0*0.6, f2.y], [f2.x + w0*0.7, f2.y], [m2.x + wm*0.9, m2.y], [c2.x + w1, c2.y], [c2.x - w1, c2.y], [m2.x - wm*0.7, m2.y]], shade(bark, 0.62));
+      fill([[f2.x - w0*0.6, f2.y], [f2.x, f2.y], [m2.x, m2.y], [c2.x, c2.y], [c2.x - w1, c2.y], [m2.x - wm*0.7, m2.y]], shade(bark, 0.92)); } }
   /* THE CROWN, as a mass in three coats */
   const Q = cl.filter(c => CUT === null || c[2] <= CUT).map(c => { const s = P(c[0], c[1], c[2]); return { x: s.x, y: s.y, r: c[3]*K }; });
   if(!Q.length) return;
@@ -51893,6 +51943,9 @@ function labTree(ta, tb, o){
   for(const q of Q) disc(q.x - q.r*0.04, q.y - q.r*0.04, q.r*0.9, shade(leaf, 0.88*lit(q)));
   for(const q of Q){ const L = lit(q); disc(q.x - q.r*0.2, q.y - q.r*0.22, q.r*0.66, shade(leaf, 1.02*L));
     if(L > 1.06) disc(q.x - q.r*0.34, q.y - q.r*0.38, q.r*0.3, shade(leaf, 1.16*L)); }
+  /* an olive's silver: the leaves' pale undersides catching the light on the lit clumps (seeded, as the rest) */
+  if(o.form === 'olive') for(const q of Q) if(lit(q) > 0.98) for(let k = 0; k < 3; k++){ const a = rnd()*Math.PI*2, d = rnd()*q.r*0.55;
+    disc(q.x - q.r*0.2 + Math.cos(a)*d, q.y - q.r*0.25 + Math.sin(a)*d*0.8, Math.max(0.8, q.r*0.07), '#c4ccae'); }
 }
 /* a saguaro */
 function houseCactus(a, b, h, col){
@@ -88658,7 +88711,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   fore(p){
     houseProp('palm L', () => housePalm(40, -60, 180, '#5f8f4f'));
-    houseProp('olive R', () => labTree(780, -70, { zt: 34, tr: 3.6, R: 11, zr: 54, br: 20, zc: 70, cr: 20, n: 5, leaf: '#7a8f5a', bark: '#6b5a44' }));
+    houseProp('olive R', () => labTree(780, -70, { zt: 34, tr: 3.6, R: 11, zr: 54, br: 20, zc: 70, cr: 20, n: 5, leaf: '#7a8f5a', bark: '#6b5a44', form: 'olive' }));
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -97267,6 +97320,8 @@ function cplParkPlants(){
   out.push({ kind: 'bed', x: 30000, y: -1000, len: 220, ax: 1, ay: 0, bloom: 0xf2a03a, bloom2: 0xf7f6f0 });
   for(const x of [28420, 29850, 30250]) out.push({ kind: 'palm', x, y: -800 });
   for(const [x, y] of CPL_PARK.BENCHES) out.push({ kind: 'bench', x, y, dv: DIRV[0] });
+  /* a coastal garden under the letters (PARK PLANTING VARIETY): olives and pepper trees, lavender, agaves and grasses, a succulent bed */
+  for(const p of out) parkPlantVariety(p, "coastal", 29700, -1150);
   return (CPL_PARK._plants = out);
 }
 /* the park's pieces in the world's order: its plants (the park kit), its lamps (the city's, cached) and their light at night */
@@ -119811,7 +119866,8 @@ class WorldScene extends Phaser.Scene {
          each clump's place and size and the lean jittered, so an avenue is not clones.
      The trunk is inside the crown, so it goes down first and the crown over it (the limbs show only under the crown). Its reach
      stays inside queueParkPlants' cull box (160h across, 350h up) and its foot is where it was (the trail's collision). */
-  drawShadeTree(g, x, y, h, col, rr){
+  drawShadeTree(g, x, y, h, col, rr, sp){
+    if(sp) return this.drawParkTreeSp(g, x, y, h, col, rr, sp);   // (a species of its park's theme: PARK PLANTING VARIETY)
     const K = this.K, W = (a, b, z) => this.W(a, b, z);
     const tone = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0);
     const f = rr(), form = f < 0.55 ? 0 : f < 0.8 ? 1 : 2;                    // round, spreading, upright
@@ -119847,6 +119903,179 @@ class WorldScene extends Phaser.Scene {
     for(const q of P){ const L = lit(q); g.fillStyle(tone(col, 1.02*L), 1); g.fillCircle(q.x - q.r*0.2, q.y - q.r*0.22, q.r*0.66);
       if(L > 1.06){ g.fillStyle(tone(col, 1.16*L), 1); g.fillCircle(q.x - q.r*0.34, q.y - q.r*0.38, q.r*0.3); } }
   }
+  /* PARK TREE SPECIES (the parks variety pass, 2026-11-24; see PARK PLANTING VARIETY). The shade tree's own moves -- a tapered trunk
+     lit left and shaded right (SP13), limbs reaching into the crown, the crown one mass of clumps painted in three coats (the whole
+     silhouette in shade, each clump's body, each clump's lit face, toned across the crown on the same light) -- on each species' own
+     structure, seeded off its position (rr):
+       olive     a short gnarled pair of stems, twisting apart; a broad open crown of small grey-green clumps, silver on the lit side;
+       citrus    a short trunk under a dense round crown, low and dark and glossy, hung with fruit (orange or lemon by its seed);
+       birch     two or three slender white stems with dark lenticels, leaning apart; an airy upright crown of small light clumps with
+                 the stems and twigs showing between them;
+       pepper    (the California pepper tree, a weeper) a stout leaning trunk, a spreading crown, and curtains of fine foliage hanging
+                 from its near side, a few pink berry sprays;
+       jacaranda an umbrella crown on spreading limbs, flat-topped, its clumps flushed purple and flecked with bloom;
+       flame     (a coral / flame tree) a rounder crown, flushed and flecked red-orange;
+       conifer   a straight trunk under stacked tiers, each a shallow cone (shade under it, its mantle, the lit side, drooping tips
+                 round its rim), narrowing to a spire -- blue-green.
+     Everything stays inside queueParkPlants' cull box for a tree (160h across, 350h up) and its foot is where it was. */
+  drawParkTreeSp(g, x, y, h, col, rr, sp){
+    const K = this.K, W = (a, b, z) => this.W(a, b, z), sh = parkPlantShade, mix = parkPlantMix;
+    /* a tapered stem from (x0, y0) at its foot to (x1, y1, z1): shade, its lit half, a lit ridge */
+    const stem = (x0, y0, x1, y1, z1, w0, w1, bark, barkL, barkD, bend) => {
+      const b0 = W(x0, y0, 0), bm = W((x0 + x1)/2 + (bend || 0), (y0 + y1)/2 - (bend || 0), z1*0.5), b2 = W(x1, y1, z1);
+      const wm = (w0 + w1)/2;
+      this.quadOn(g, [{ x: b0.x - w0, y: b0.y + 2*K }, { x: b0.x + w0, y: b0.y + 2*K }, { x: bm.x + wm, y: bm.y }, { x: b2.x + w1, y: b2.y }, { x: b2.x - w1, y: b2.y }, { x: bm.x - wm, y: bm.y }], barkD);
+      this.quadOn(g, [{ x: b0.x - w0, y: b0.y + 2*K }, { x: b0.x + w0*0.1, y: b0.y + 2*K }, { x: bm.x + wm*0.05, y: bm.y }, { x: b2.x, y: b2.y }, { x: b2.x - w1, y: b2.y }, { x: bm.x - wm, y: bm.y }], bark);
+      if(barkL !== null) this.quadOn(g, [{ x: b0.x - w0*0.78, y: b0.y + K }, { x: b0.x - w0*0.42, y: b0.y + K }, { x: bm.x - wm*0.45, y: bm.y }, { x: bm.x - wm*0.8, y: bm.y }], barkL);
+      return { b0, bm, b2 };
+    };
+    const limb = (p, q, w, c) => { g.lineStyle(w, c, 1); g.lineBetween(p.x, p.y, q.x, q.y); };
+    /* a crown: clumps [a, b, z, r] (world), sorted far to near and low to high, painted in the three coats round its middle o */
+    const crown = (cl, leaf, cx, cy, zMid, zTop, spread, o2) => {
+      cl.sort((p, q) => (p[0] + p[1] - q[0] - q[1]) || (p[2] - q[2]));
+      const o = W(cx, cy, zMid), P = cl.map(([a, b, z, r]) => { const c = W(a, b, z); return { x: c.x, y: c.y, r: r*K, w: [a, b, z, r] }; });
+      const sx = spread*K, sz = Math.max(1, o.y - W(cx, cy, zTop).y);
+      const lit = q => { const v = (o.y - q.y)/sz; return Math.max(0.72, Math.min(1.18, 1 - 0.2*(q.x - o.x)/sx + (v > 0 ? 0.16 : 0.3)*v)); };
+      const body = (o2 && o2.body) || (() => leaf);
+      g.fillStyle(sh(leaf, (o2 && o2.deep) || 0.6), 1);
+      for(const q of P) g.fillCircle(q.x + q.r*0.08, q.y + q.r*0.12, q.r);
+      for(const q of P){ g.fillStyle(sh(body(q), 0.88*lit(q)), 1); g.fillCircle(q.x - q.r*0.04, q.y - q.r*0.04, q.r*0.9); }
+      for(const q of P){ const L = lit(q), c = body(q); g.fillStyle(sh(c, 1.02*L), 1); g.fillCircle(q.x - q.r*0.2, q.y - q.r*0.22, q.r*0.66);
+        if(L > 1.06){ g.fillStyle(o2 && o2.glint ? o2.glint : sh(c, 1.16*L), 1); g.fillCircle(q.x - q.r*0.34, q.y - q.r*0.38, q.r*0.3); } }
+      return { P, lit, o };
+    };
+    /* a ring of n clumps R out at z, radius r (jittered), turned by ph */
+    const ring = (cl, cx, cy, n, R, z, r, ph, jz) => { for(let k = 0; k < n; k++){ const q = ph + k/n*Math.PI*2 + (rr() - 0.5)*0.5, d = R*(0.82 + rr()*0.3);
+      cl.push([cx + d*Math.cos(q), cy + d*Math.sin(q), z + (rr() - 0.5)*(jz || 20)*h, r*(0.8 + rr()*0.26)]); } };
+    const la = (rr() - 0.5)*14*h, lb = (rr() - 0.5)*14*h, ph = rr()*Math.PI*2;
+    const BARK = [0x6b4f36, 0x86644a, 0x48362a];
+
+    if(sp === "olive"){
+      const leaf = mix(col, 0x8a9a72, 0.78), bark = 0x76695a, cx = x + la, cy = y + lb;
+      /* two gnarled stems twisting apart from one foot, a lit ridge each */
+      const s1 = stem(x - 3*h, y + 2*h, cx - 20*h, cy + 8*h, 104*h, 8.5*K*h, 3.4*K*h, bark, 0x9a8c78, 0x4f463c, 9*h);
+      const s2 = stem(x + 3*h, y - 2*h, cx + 18*h, cy - 10*h, 96*h, 7.5*K*h, 3*K*h, sh(bark, 0.92), 0x8e806c, 0x463e35, -10*h);
+      const cl = []; ring(cl, cx, cy, 9, 66*h, 138*h, 30*h, ph, 26); ring(cl, cx, cy, 5, 34*h, 168*h, 28*h, ph + 0.6, 16);
+      cl.push([cx + (rr() - 0.5)*12*h, cy + (rr() - 0.5)*12*h, 190*h, 28*h]);
+      for(const c of [cl[0], cl[3], cl[6]]) limb(c[0] < cx ? s1.b2 : s2.b2, W(c[0] + (cx - c[0])*0.3, c[1] + (cy - c[1])*0.3, c[2] - 8*h), 2.6*K*h, 0x4f463c);
+      const { P, lit } = crown(cl, leaf, cx, cy, 160*h, 215*h, 96*h, { glint: 0xc9d2b4 });
+      /* silver flecks on the lit side: the leaves' pale undersides catching the light */
+      g.fillStyle(0xc4ccae, 1);
+      for(const q of P) if(lit(q) > 0.98) for(let k = 0; k < 3; k++){ const a = rr()*Math.PI*2, d = rr()*q.r*0.6; g.fillCircle(q.x - q.r*0.2 + Math.cos(a)*d, q.y - q.r*0.25 + Math.sin(a)*d*0.8, 1.6*K*h + 0.4); }
+      return;
+    }
+    if(sp === "citrus"){
+      const leaf = mix(col, 0x2f6030, 0.55), cx = x + la*0.5, cy = y + lb*0.5;
+      stem(x, y, cx, cy, 78*h, 6.5*K*h, 3.4*K*h, BARK[0], BARK[1], BARK[2]);
+      const cl = []; ring(cl, cx, cy, 7, 42*h, 108*h, 36*h, ph, 18); ring(cl, cx, cy, 4, 22*h, 140*h, 32*h, ph + 0.4, 10);
+      cl.push([cx, cy, 160*h, 30*h]);
+      const { P, lit } = crown(cl, leaf, cx, cy, 128*h, 192*h, 78*h, { glint: 0x8fc070 });
+      /* the fruit: hung on the clumps' faces, more low and out on the rim; lit on the left, in shade on the right */
+      const fruit = rr() < 0.62 ? 0xf2952c : 0xf2d03a, fr = Math.max(1.6, 4.4*K*h);
+      for(const q of P){ const n = 1 + Math.floor(rr()*3);
+        for(let k = 0; k < n; k++){ const a = rr()*Math.PI*2, d = (0.3 + rr()*0.5)*q.r, fx = q.x + Math.cos(a)*d, fy = q.y + Math.abs(Math.sin(a))*d*0.7 - q.r*0.1;
+          const L = lit(q)*(fx > q.x ? 0.86 : 1.04);
+          g.fillStyle(sh(fruit, 0.82*L), 1); g.fillCircle(fx, fy, fr);
+          g.fillStyle(mix(sh(fruit, L), 0xffffff, 0.25), 1); g.fillCircle(fx - fr*0.35, fy - fr*0.35, fr*0.45); } }
+      return;
+    }
+    if(sp === "birch"){
+      const leaf = mix(col, 0x9cc455, 0.5), white = 0xece8de, grey = 0xb9b3a6, dark = 0x3b3530;
+      const n = 2 + (rr() < 0.5 ? 1 : 0), stems = [];
+      for(let k = 0; k < n; k++){ const a = ph + k/n*Math.PI*2, ox = Math.cos(a)*5*h, oy = Math.sin(a)*5*h;
+        stems.push({ x0: x + ox, y0: y + oy, x1: x + ox*6 + la, y1: y + oy*6 + lb, z1: (190 + rr()*40)*h }); }
+      stems.sort((p, q) => (p.x0 + p.y0) - (q.x0 + q.y0));
+      const cl = [];
+      for(const s of stems){
+        const S = stem(s.x0, s.y0, s.x1, s.y1, s.z1, 4.4*K*h, 1.8*K*h, white, null, grey);
+        /* the lenticels: short dark dashes across the stem, and the dark at its foot */
+        g.fillStyle(dark, 1);
+        for(let t = 0.08; t < 0.92; t += 0.1 + rr()*0.06){ const p = W(s.x0 + (s.x1 - s.x0)*t, s.y0 + (s.y1 - s.y0)*t, s.z1*t), w = 4.4*K*h*(1 - t*0.6);
+          g.fillRect(p.x - w*(0.2 + rr()*0.7), p.y, w*(0.4 + rr()*0.5), Math.max(1, 1.3*K*h)); }
+        g.fillStyle(0x4a423a, 1); { const p = W(s.x0, s.y0, 0); g.fillRect(p.x - 4.4*K*h, p.y - 14*K*h, 8.8*K*h, 12*K*h); }
+        /* its twigs out to its clumps */
+        for(let k = 0; k < 8; k++){ const t = 0.42 + rr()*0.5, a = rr()*Math.PI*2, d = (20 + rr()*30)*h, z = s.z1*t + (14 + rr()*30)*h;
+          const p0 = W(s.x0 + (s.x1 - s.x0)*t, s.y0 + (s.y1 - s.y0)*t, s.z1*t), c = [s.x0 + (s.x1 - s.x0)*t + Math.cos(a)*d, s.y0 + (s.y1 - s.y0)*t + Math.sin(a)*d, z, (20 + rr()*9)*h];
+          limb(p0, W(c[0], c[1], c[2]), Math.max(1, 1.4*K*h), 0x5a4c40); cl.push(c); }
+        cl.push([s.x1, s.y1, s.z1 + 8*h, 24*h]);
+      }
+      crown(cl, leaf, x + la, y + lb, 200*h, 290*h, 70*h, { deep: 0.66 });
+      return;
+    }
+    if(sp === "pepper"){
+      const leaf = mix(col, 0x98b452, 0.45), cx = x + la*1.6, cy = y + lb*1.6;
+      const s = stem(x, y, cx, cy, 150*h, 10*K*h, 4.2*K*h, 0x6e5440, 0x8c6e56, 0x4a382c, 8*h);
+      const cl = []; ring(cl, cx, cy, 8, 74*h, 168*h, 38*h, ph, 22); ring(cl, cx, cy, 4, 36*h, 196*h, 34*h, ph + 0.5, 12);
+      cl.push([cx, cy, 214*h, 32*h]);
+      for(const c of [cl[1], cl[4], cl[6]]) limb(s.bm, W(c[0] + (cx - c[0])*0.3, c[1] + (cy - c[1])*0.3, c[2] - 10*h), 3*K*h, 0x4a382c);
+      const { P, lit, o } = crown(cl, leaf, cx, cy, 185*h, 246*h, 112*h);
+      /* the weeping curtain: fine strands hanging from the near clumps, each a thin tapering streak, toned on the light; on the
+         near half only (strands from the far clumps would hang over the near ones' faces) */
+      const near = P.slice(Math.floor(P.length*0.45));
+      for(const q of near){ const n = 5 + Math.floor(rr()*3);
+        for(let k = 0; k < n; k++){ const sx = q.x + (k/(n - 1) - 0.5)*q.r*1.5 + (rr() - 0.5)*q.r*0.2, sy = q.y + q.r*(0.62 + rr()*0.25)*Math.sqrt(1 - ((k/(n - 1) - 0.5)*1.5)**2), L = (36 + rr()*46)*K*h, w = (2 + rr()*1.4)*K*h;
+          const c = sh(leaf, (sx > o.x ? 0.72 : 0.95)*(0.92 + rr()*0.14));
+          g.fillStyle(c, 1); g.fillTriangle(sx - w, sy - 4*K*h, sx + w, sy - 4*K*h, sx + (rr() - 0.3)*w*1.5, sy + L); } }
+      /* pink berry sprays on the lit side */
+      g.fillStyle(0xd86a80, 1);
+      for(const q of P) if(lit(q) > 1 && rr() < 0.6) for(let k = 0; k < 4; k++) g.fillCircle(q.x - q.r*0.1 + (rr() - 0.5)*q.r*0.8, q.y + (rr() - 0.2)*q.r*0.6, Math.max(1, 1.6*K*h));
+      return;
+    }
+    if(sp === "jacaranda" || sp === "flame"){
+      const jac = sp === "jacaranda";
+      const leaf = jac ? mix(col, 0x7aa050, 0.3) : mix(col, 0x3f6e32, 0.4);
+      const blo = jac ? 0x8f72d8 : 0xe2552c, bloL = jac ? 0xb7a0f2 : 0xf59442, bloD = jac ? 0x5e4a9e : 0xa03322;
+      const cx = x + la, cy = y + lb, R = jac ? 86 : 60, zr = jac ? 196 : 178, zc = jac ? 228 : 236;
+      const s = stem(x, y, cx, cy, (jac ? 150 : 128)*h, 8.5*K*h, 3.6*K*h, BARK[0], BARK[1], BARK[2], 6*h);
+      const cl = []; ring(cl, cx, cy, jac ? 9 : 7, R*h, zr*h, (jac ? 40 : 46)*h, ph, jac ? 14 : 22); ring(cl, cx, cy, jac ? 5 : 4, R*0.48*h, (zr + 24)*h, 36*h, ph + 0.5, 10);
+      cl.push([cx, cy, zc*h, (jac ? 32 : 40)*h]);
+      /* the limbs reach well out under an umbrella */
+      for(const c of [cl[0], cl[2], cl[4], cl[6]]) limb(s.b2, W(c[0] + (cx - c[0])*0.2, c[1] + (cy - c[1])*0.2, c[2] - 12*h), 2.8*K*h, BARK[2]);
+      const flush = new Map();
+      const { P, lit } = crown(cl, leaf, cx, cy, (zr + zc)/2*h, (zc + 40)*h, (R + 44)*h, { body: q => { let f = flush.get(q); if(f === undefined){ f = 0.35 + rr()*0.4; flush.set(q, f); } return mix(leaf, blo, f); } });
+      /* the bloom: flecks of florets over each clump, many up on the lit side, darker in the shade */
+      for(const q of P){ const L = lit(q), n = 5 + Math.floor(rr()*4);
+        for(let k = 0; k < n; k++){ const a = rr()*Math.PI*2, d = rr()*q.r*0.8, fx = q.x - q.r*0.12 + Math.cos(a)*d, fy = q.y - q.r*0.15 + Math.sin(a)*d*0.8;
+          const side = (fx - q.x)/q.r - (fy - q.y)/q.r*0.6, c = L > 1.02 && side < 0.1 ? bloL : L < 0.9 || side > 0.4 ? bloD : blo;
+          g.fillStyle(c, 1); g.fillCircle(fx, fy, (2.4 + rr()*1.8)*K*h + 0.3); } }
+      return;
+    }
+    if(sp === "conifer"){
+      /* tiers of flat foliage pads round a straight trunk, narrowing to a spire: the pads are the crown's clumps, wide and low, painted
+         bottom tier first (each tier sits over the one under it) in the same three coats, so the tiers read as layered boughs */
+      const leaf = mix(col, 0x2c5a4c, 0.55), tx = x + la*0.3, ty = y + lb*0.3;
+      stem(x, y, tx, ty, 150*h, 7*K*h, 3*K*h, 0x6b4a36, 0x86604a, 0x45302a);
+      const n = 7, base = 76*h, step = 35*h, cl = [];
+      for(let k = 0; k < n; k++){ const t = k/(n - 1), R = (72*(1 - t*0.84) + 6)*h, z = base + k*step, m = Math.max(3, Math.round(7 - t*4));
+        for(let i = 0; i < m; i++){ const a = ph + i/m*Math.PI*2 + k*0.7 + (rr() - 0.5)*0.4, d = R*(0.62 + rr()*0.3);
+          cl.push([tx + Math.cos(a)*d, ty + Math.sin(a)*d, z + (rr() - 0.5)*8*h, R*0.5 + 9*h, k]); }
+        cl.push([tx, ty, z + 8*h, R*0.6 + 8*h, k + 0.5]); }
+      cl.push([tx, ty, base + n*step - 6*h, 10*h, n]);
+      cl.sort((p, q) => (p[4] - q[4]) || (p[0] + p[1] - q[0] - q[1]));
+      const o = W(tx, ty, base + n*step*0.45), P = cl.map(([a, b, z, r]) => { const c = W(a, b, z); return { x: c.x, y: c.y, rx: r*K*1.3, ry: r*K*0.66 }; });
+      const sx = 90*h*K, sz = Math.max(1, o.y - W(tx, ty, base + n*step).y);
+      const lit = q => { const v = (o.y - q.y)/sz; return Math.max(0.72, Math.min(1.18, 1 - 0.22*(q.x - o.x)/sx + (v > 0 ? 0.12 : 0.26)*v)); };
+      /* tier by tier: its pads' shade (hanging a little low: the drooping bough tips), then their bodies, then their lit tops */
+      let i0 = 0;
+      while(i0 < P.length){ const k0 = Math.floor(cl[i0][4]); let i1 = i0; while(i1 < P.length && Math.floor(cl[i1][4]) === k0) i1++;
+        const T = P.slice(i0, i1);
+        g.fillStyle(sh(leaf, 0.52), 1); for(const q of T) g.fillEllipse(q.x + q.rx*0.04, q.y + q.ry*0.3, q.rx*2, q.ry*2, 14);
+        for(const q of T){ g.fillStyle(sh(leaf, 0.84*lit(q)), 1); g.fillEllipse(q.x - q.rx*0.04, q.y - q.ry*0.06, q.rx*1.8, q.ry*1.7, 14); }
+        for(const q of T){ const L = lit(q); g.fillStyle(sh(leaf, 1.02*L), 1); g.fillEllipse(q.x - q.rx*0.22, q.y - q.ry*0.3, q.rx*1.1, q.ry*0.95, 14);
+          if(L > 1.04){ g.fillStyle(sh(leaf, 1.18*L), 1); g.fillEllipse(q.x - q.rx*0.38, q.y - q.ry*0.45, q.rx*0.5, q.ry*0.4, 14); } }
+        i0 = i1; }
+      return;
+    }
+  }
+  /* A SAPLING'S STAKES: two pale timber posts either side of it on screen (at its own depth, so neither is in front), each tied
+     to the trunk -- drawn before the tree, so the trunk goes over the ties */
+  drawTreeStakes(g, x, y, h){
+    const K = this.K, W = (a, b, z) => this.W(a, b, z), zt = 150*h, t = W(x, y, zt*0.5);
+    for(const s of [-1, 1]){ const b = W(x + s*14, y - s*14, 0), u = W(x + s*14, y - s*14, zt*0.62), w = 1.8*K;
+      this.quadOn(g, [{ x: b.x - w, y: b.y }, { x: b.x + w, y: b.y }, { x: u.x + w, y: u.y }, { x: u.x - w, y: u.y }], s < 0 ? 0xc2a476 : 0x8e7250);
+      this.quadOn(g, [{ x: b.x - w, y: b.y }, { x: b.x - w*0.2, y: b.y }, { x: u.x - w*0.2, y: u.y }, { x: u.x - w, y: u.y }], s < 0 ? 0xd8bd90 : 0xa68a64);
+      g.lineStyle(Math.max(1, 1.2*K), 0x3e3a34, 1); g.lineBetween(u.x, u.y + 6*K, t.x, t.y); }
+  }
   /* PARK PLANTING (the parks pass, 2026-11-23 -- Sir: "look over the parks and trees and flower beds and all that they need a pass").
      The park kit's shrubs and flower beds (queueParkPlants: the park trail's ~1000 shrubs and ~85 beds, Costa Palma's park) were three
      flat discs and a mulch oval sprinkled with dots. Each now reads as the thing, built off the street planter's mound (drawProp
@@ -119863,6 +120092,7 @@ class WorldScene extends Phaser.Scene {
      All of it is screen circles over world points (a round plant looks the same from every side), so nothing turns wrong at any
      facing; it is all drawn once into the plant's cached image (bcDraw, keyed at its foot), never per frame. */
   drawParkShrub(g, p, rr){
+    if(p.sk) return this.drawParkShrubSp(g, p, rr);   // (a kind of its park's theme: PARK PLANTING VARIETY)
     const K = this.K, r = p.r, x = p.x, y = p.y, col = p.col, bloom = p.bloom;
     const sh = parkPlantShade, dark = sh(col, 0.62), mid = col, lit = parkPlantMix(sh(col, 1.16), 0xe8f0a0, 0.12), hi = parkPlantMix(sh(col, 1.32), 0xf4f8c8, 0.25);
     /* its kind, from its green (a border run shares one), so a run is one planting */
@@ -119873,7 +120103,7 @@ class WorldScene extends Phaser.Scene {
       /* a clipped boxwood: one clean dome, a soft roll from lit to shade, a couple of clipped tufts */
       const c = this.W(x, y, 0.72*r), R = 0.86*r*K;
       /* its skirt on the grass: the dark lip under the dome */
-      g.fillStyle(sh(col, 0.5), 1); { const b = this.W(x, y, 0.08*r); g.fillEllipse(b.x + R*0.1, b.y - R*0.05, R*1.3, R*0.36); }
+      g.fillStyle(sh(col, 0.5), 1); { const b = this.W(x, y, 0.08*r); g.fillEllipse(b.x + R*0.1, b.y - R*0.05, R*1.3, R*0.36, 14); }
       g.fillStyle(dark, 1); g.fillCircle(c.x, c.y + R*0.05, R*0.9);
       g.fillStyle(mid, 1); g.fillCircle(c.x - R*0.12, c.y - R*0.1, R*0.8);
       g.fillStyle(lit, 1); g.fillCircle(c.x - R*0.3, c.y - R*0.32, R*0.52);
@@ -119921,6 +120151,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
   drawParkBed(g, p, rr){
+    if(p.bs || p.shape || p.edge) return this.drawParkBedSp(g, p, rr);   // (a scheme, shape and edging of its park's theme: PARK PLANTING VARIETY)
     const K = this.K, x = p.x, y = p.y, L = p.len, Wd = 58, ax = p.ax, ay = p.ay, sh = parkPlantShade;
     const at = (u, v) => ({ x: x + ax*u - ay*v, y: y + ay*u + ax*v });
     const ell = (l, w, z) => Array.from({ length: 32 }, (_, k) => { const th = k/32*Math.PI*2, q = at(Math.cos(th)*l, Math.sin(th)*w); return this.W(q.x, q.y, z); });
@@ -119985,6 +120216,373 @@ class WorldScene extends Phaser.Scene {
     items.sort((a, b) => a.k - b.k);
     for(const it of items) it.fn(it.q);
   }
+  /* PARK SHRUB KINDS (the parks variety pass, 2026-11-24; see PARK PLANTING VARIETY), off the shrub's own moves (a mass in shade, each
+     part's lit side far to near, lit left: SP13), each on its own structure:
+       hydrangea     a loose mound with big round flower heads (blue, or its bloom's pink / white / mauve), each head a shaded ball with
+                     its lit cap and florets;
+       lavender      a low grey-green cushion of fine upright stems, purple spikes on top -- lit left, deep on the right;
+       rosemary      the same cushion, dark and needled, upright, a dusting of pale blue flowers;
+       agave         a rosette of stiff, thick blue-grey leaves, each folded on its midrib (its left half lit, its right in shade), a dark
+                     spine at its tip, the far leaves first, the upright heart last;
+       cycad / fern  arching fronds, each a curved rib combed with leaflets -- a sago palm on its short shaggy trunk, or a fern straight
+                     from the ground, lighter and softer;
+       cone / spiral clipped topiary: a cone lit on its left and shaded on its right with a clipped grain, or a spiral of balls
+                     climbing a stem round itself, the balls behind the stem before it and the ones in front after;
+       grass         a fountain of fine arching blades, back blades first, buff plumes at the tips;
+       bougainvillea a dark mound smothered in bracts and spilling them down its near side (magenta, or orange / purple by its bloom);
+       ball          the clipped boxwood (drawParkShrub's), whatever its green.
+     All inside queueParkPlants' cull box for a shrub (2r across, 2.6r up); its collider (the shrub post) is unchanged. */
+  drawParkShrubSp(g, p, rr){
+    const K = this.K, r = p.r, x = p.x, y = p.y, sk = p.sk, W = (a, b, z) => this.W(a, b, z), sh = parkPlantShade, mix = parkPlantMix;
+    const foot = W(x, y, 0);
+    /* a mound of puffs (the shrub's own): the whole mass in shade, a skirt, then each puff's body and lit side far to near */
+    const mound = (col, n, zs, spread) => {
+      const puffs = [], add = (a, d, z, rad) => puffs.push({ x: x + Math.cos(a)*d*r*1.12*spread, y: y + Math.sin(a)*d*r*1.12*spread, z: z*r*zs, rad: rad*r*1.14 });
+      add(0, rr()*0.08, 0.86 + rr()*0.12, 0.46);
+      for(let k = 0; k < n; k++) add(k/n*Math.PI*2 + rr()*0.6, 0.3, 0.64 + rr()*0.12, 0.4);
+      for(let k = 0; k < n + 2; k++) add(k/(n + 2)*Math.PI*2 + rr()*0.4, 0.6 + rr()*0.1, 0.34 + rr()*0.12, 0.34 + rr()*0.06);
+      for(const f of puffs){ const c = W(f.x, f.y, f.z); f.sx = c.x; f.sy = c.y; f.k = W(f.x, f.y, 0).y; }
+      puffs.sort((a, b) => a.k - b.k);
+      const zMid = puffs.reduce((m, f) => m + f.z, 0)/puffs.length;
+      g.fillStyle(sh(col, 0.62), 1); for(const f of puffs) g.fillCircle(f.sx, f.sy, f.rad*K);
+      g.fillStyle(sh(col, 0.5), 1); for(const f of puffs) if(f.z < zMid) g.fillCircle(f.sx + f.rad*K*0.12, f.sy + f.rad*K*0.4, f.rad*K*0.62);
+      for(const f of puffs){ const R = f.rad*K, up = f.z >= zMid;
+        g.fillStyle(up ? col : sh(col, 0.84), 1); g.fillCircle(f.sx - R*0.2, f.sy - R*0.24, R*0.8);
+        g.fillStyle(up ? mix(sh(col, 1.16), 0xe8f0a0, 0.12) : sh(col, 0.98), 1); g.fillCircle(f.sx - R*0.34, f.sy - R*0.4, R*(up ? 0.48 : 0.36)); }
+      return puffs.map(f => ({ x: f.sx, y: f.sy, R: f.rad*K, up: f.z >= zMid }));
+    };
+    const shaded = sx => sx > foot.x + r*K*0.2;
+
+    if(sk === "ball"){ return this.drawParkShrub(g, Object.assign({}, p, { sk: null, col: 0x46743f, bloom: null }), rr); }
+    if(sk === "hydrangea"){
+      const P = mound(0x4c7a40, 4, 0.9, 1.04);
+      const bl = p.bloom === 0xe86a8a || p.bloom === 0xf2f0e6 || p.bloom === 0xb07ad8 ? p.bloom : 0x7f9fe2;
+      for(const q of P){ if(!q.up && rr() < 0.5) continue;
+        const hx = q.x + (rr() - 0.55)*q.R*0.7, hy = q.y - q.R*(0.2 + rr()*0.3), hr = Math.max(2.5, 0.17*r*K*(0.85 + rr()*0.3)), s = shaded(hx);
+        g.fillStyle(sh(bl, s ? 0.66 : 0.8), 1); g.fillCircle(hx, hy, hr);
+        g.fillStyle(s ? sh(bl, 0.86) : bl, 1); g.fillCircle(hx - hr*0.18, hy - hr*0.2, hr*0.78);
+        g.fillStyle(s ? bl : mix(bl, 0xffffff, 0.45), 1);
+        for(const [ox, oy] of [[-0.42, -0.36], [-0.05, -0.5], [-0.5, 0.05]]) g.fillCircle(hx + ox*hr, hy + oy*hr, hr*0.24); }
+      return;
+    }
+    if(sk === "lavender" || sk === "rosemary"){
+      const lav = sk === "lavender", col = lav ? 0x8aa184 : 0x4e7048;
+      /* the cushion: a low mound of the foliage */
+      mound(col, 3, 0.5, 0.9);
+      /* its stems, far to near, each from the cushion's face up and leaning out */
+      const st = [];
+      for(let k = 0; k < 34; k++){ const a = rr()*Math.PI*2, d = Math.sqrt(rr())*r*0.8, bx = x + Math.cos(a)*d, by = y + Math.sin(a)*d;
+        st.push({ bx, by, z0: r*0.5*(1 - (d/r)**2*0.7), hgt: r*(lav ? 0.55 : 0.4)*(0.75 + rr()*0.5), ox: Math.cos(a)*d*0.25, oy: Math.sin(a)*d*0.25, k: bx + by }); }
+      st.sort((a, b) => a.k - b.k);
+      for(const s of st){ const b = W(s.bx, s.by, s.z0), t = W(s.bx + s.ox, s.by + s.oy, s.z0 + s.hgt), dk = shaded(t.x);
+        g.lineStyle(Math.max(1, (lav ? 1.1 : 1.8)*K), sh(col, dk ? 0.66 : lav ? 1.05 : 1.25), 1); g.lineBetween(b.x, b.y, t.x, t.y);
+        if(lav){ const m = { x: b.x + (t.x - b.x)*0.55, y: b.y + (t.y - b.y)*0.55 };
+          g.lineStyle(Math.max(1.6, 3.2*K), dk ? 0x6a58a6 : 0x8f78d0, 1); g.lineBetween(m.x, m.y, t.x, t.y); }
+        else if(rr() < 0.35){ g.fillStyle(dk ? 0x8090c0 : 0xb8c6f0, 1); g.fillCircle(t.x, t.y + 2*K, Math.max(0.8, 1.3*K)); } }
+      return;
+    }
+    if(sk === "agave"){
+      const N = 14, rot = rr()*Math.PI*2, Lr = r*1.0, blu = 0x86a8a0, leaves = [];
+      for(let k = 0; k < N; k++){ const t = rot + k/N*Math.PI*2, inner = k % 3 === 0, Ls = Lr*(inner ? 0.5 : 0.8 + rr()*0.2), zt = r*(inner ? 1.15 : 0.5 + rr()*0.35);
+        leaves.push({ t, tx: x + Math.cos(t)*Ls, ty: y + Math.sin(t)*Ls, zt, w: r*(inner ? 0.2 : 0.27), k: Math.cos(t)*Ls + Math.sin(t)*Ls + (inner ? 0 : -1e-3) }); }
+      /* far leaves first; the upright heart among them by its own tip */
+      leaves.sort((a, b) => a.k - b.k);
+      for(const L of leaves){ const nx = -Math.sin(L.t)*L.w, ny = Math.cos(L.t)*L.w;
+        const b1 = W(x + nx, y + ny, r*0.12), b2 = W(x - nx, y - ny, r*0.12), m = W(x + Math.cos(L.t)*L.w*0.6, y + Math.sin(L.t)*L.w*0.6, r*0.2), tip = W(L.tx, L.ty, L.zt);
+        const lft = b1.x < b2.x ? b1 : b2, rgt = b1.x < b2.x ? b2 : b1, s = shaded(tip.x) ? 0.8 : 1;
+        g.fillStyle(sh(blu, 0.72*s), 1); g.fillTriangle(m.x, m.y, rgt.x, rgt.y, tip.x, tip.y);
+        g.fillStyle(sh(blu, 1.12*s), 1); g.fillTriangle(lft.x, lft.y, m.x, m.y, tip.x, tip.y);
+        g.fillStyle(0x4a3a2a, 1); g.fillCircle(tip.x, tip.y, Math.max(0.8, 1.2*K)); }
+      return;
+    }
+    if(sk === "cycad" || sk === "fern"){
+      const cyc = sk === "cycad", col = cyc ? 0x3c6c38 : 0x6aa04e, zt = cyc ? r*0.5 : r*0.12;
+      if(cyc){ /* the shaggy trunk: its shade, its lit side, the old frond bases in dark flecks */
+        const b = W(x, y, 0), t = W(x, y, zt), w = r*0.28*K;
+        this.quadOn(g, [{ x: b.x - w, y: b.y }, { x: b.x + w, y: b.y }, { x: t.x + w*0.9, y: t.y }, { x: t.x - w*0.9, y: t.y }], 0x5a4530);
+        this.quadOn(g, [{ x: b.x - w, y: b.y }, { x: b.x, y: b.y }, { x: t.x, y: t.y }, { x: t.x - w*0.9, y: t.y }], 0x7a6044);
+        g.fillStyle(0x3e2e20, 1); for(let k = 0; k < 6; k++) g.fillRect(b.x - w + rr()*w*1.6, t.y + rr()*(b.y - t.y), 2*K, 1.4*K); }
+      const N = cyc ? 14 : 16, rot = rr()*Math.PI*2, fr = [];
+      for(let k = 0; k < N; k++){ const a = rot + k/N*Math.PI*2 + (rr() - 0.5)*0.3, L = r*(cyc ? 1.15 : 0.95)*(0.8 + rr()*0.3);
+        fr.push({ a, L, up: (cyc ? 0.42 : 0.62)*r*(0.8 + rr()*0.4), k: Math.cos(a) + Math.sin(a) }); }
+      fr.sort((a, b) => a.k - b.k);
+      for(const f of fr){
+        /* the rib: up out of the heart, arching over and down to its tip */
+        const pts = []; for(let i = 0; i <= 5; i++){ const u = i/5, d = f.L*u, z = zt + f.up*Math.sin(u*Math.PI*0.85) - r*0.05*u;
+          pts.push(W(x + Math.cos(f.a)*d, y + Math.sin(f.a)*d, z)); }
+        const dk = shaded(pts[5].x), c = sh(col, dk ? 0.68 : f.k > 0 ? 1.05 : 0.85);
+        g.lineStyle(Math.max(1, 1.4*K), sh(c, 0.8), 1);
+        for(let i = 0; i < 5; i++) g.lineBetween(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y);
+        /* its leaflets, combed out both sides and drooping, shorter to the tip */
+        g.lineStyle(Math.max(1, (cyc ? 1.9 : 1.3)*K), c, 1);
+        for(let i = 1; i < 5; i++){ const p0 = pts[i], p1 = pts[i + 1], dx = p1.x - p0.x, dy = p1.y - p0.y, l = Math.hypot(dx, dy) || 1, nx = -dy/l, ny = dx/l, s = r*K*0.22*(1 - i/6);
+          for(const u of [0.1, 0.4, 0.7, 0.95]){ const px = p0.x + dx*u, py = p0.y + dy*u;
+            g.lineBetween(px, py, px + nx*s + dx/l*s*0.4, py + ny*s + s*0.5); g.lineBetween(px, py, px - nx*s + dx/l*s*0.4, py - ny*s + s*0.5); } } }
+      return;
+    }
+    if(sk === "cone"){
+      const col = 0x3f6e3a, Hh = r*1.95, R = r*0.62, base = W(x, y, r*0.06), top = W(x, y, Hh), rx = R*K*1.35, ry = R*K*0.7;
+      g.fillStyle(sh(col, 0.45), 1); g.fillEllipse(base.x + rx*0.1, base.y + ry*0.2, rx*2.1, ry*1.6, 14);
+      /* its shade side, its mid, its lit side (a wedge from the apex), the clipped grain */
+      g.fillStyle(sh(col, 0.66), 1); g.fillEllipse(base.x, base.y, rx*2, ry*2, 14); g.fillTriangle(base.x - rx, base.y, top.x, top.y, base.x + rx, base.y);
+      g.fillStyle(col, 1); g.fillTriangle(base.x - rx, base.y, top.x, top.y, base.x + rx*0.2, base.y + ry*0.98);
+      g.fillStyle(col, 1); g.fillEllipse(base.x - rx*0.4, base.y + ry*0.1, rx*1.2, ry*1.75, 14);
+      g.fillStyle(mix(sh(col, 1.2), 0xe8f0a0, 0.12), 1); g.fillTriangle(base.x - rx, base.y, top.x, top.y, base.x - rx*0.35, base.y + ry*0.8);
+      for(let k = 0; k < 14; k++){ const u = rr(), v = rr()*2 - 1, px = top.x + (base.x + v*rx*(1 - 0.2) - top.x)*u, py = top.y + (base.y + ry*0.4*(1 - v*v) - top.y)*u;
+        g.fillStyle(v > 0.2 ? sh(col, 0.58) : sh(col, 1.3), 1); g.fillCircle(px, py, Math.max(0.8, 1.2*K)); }
+      return;
+    }
+    if(sk === "spiral"){
+      const col = 0x3f6e3a, n = 9, ph = rr()*Math.PI*2, items = [];
+      for(let k = 0; k < n; k++){ const t = k/(n - 1), a = ph + t*Math.PI*2*2.2, d = r*(0.36 - t*0.22);
+        items.push({ x: x + Math.cos(a)*d, y: y + Math.sin(a)*d, z: r*(0.36 + t*1.6), rad: r*(0.36 - t*0.18) }); }
+      items.push({ x, y, z: r*2.12, rad: r*0.13 });
+      for(const it of items) it.k = it.x + it.y;
+      const stemK = x + y;
+      const ball = it => { const c = W(it.x, it.y, it.z), R = it.rad*K;
+        g.fillStyle(sh(col, 0.6), 1); g.fillCircle(c.x, c.y, R);
+        g.fillStyle(col, 1); g.fillCircle(c.x - R*0.14, c.y - R*0.14, R*0.82);
+        g.fillStyle(mix(sh(col, 1.2), 0xe8f0a0, 0.12), 1); g.fillCircle(c.x - R*0.34, c.y - R*0.38, R*0.44); };
+      const back = items.filter(it => it.k < stemK).sort((a, b) => a.z - b.z), front = items.filter(it => it.k >= stemK).sort((a, b) => a.z - b.z);
+      g.fillStyle(sh(col, 0.45), 1); g.fillEllipse(foot.x + 2*K, foot.y, r*K*1.1, r*K*0.4, 14);
+      for(const it of back) ball(it);
+      { const b = W(x, y, 0), t = W(x, y, r*2.1); g.lineStyle(Math.max(1.2, 2.2*K), 0x4a3a2a, 1); g.lineBetween(b.x, b.y, t.x, t.y); }
+      for(const it of front) ball(it);
+      return;
+    }
+    if(sk === "grass"){
+      const N = 52, bl = [];
+      for(let k = 0; k < N; k++){ const a = rr()*Math.PI*2, out = (0.3 + rr()*0.8)*r, up = (0.8 + rr()*0.7)*r;
+        bl.push({ a, out, up, k: Math.cos(a)*out + Math.sin(a)*out, plume: rr() < 0.3, green: rr() < 0.72 }); }
+      bl.sort((a, b) => a.k - b.k);
+      { const c = W(x, y, r*0.2); g.fillStyle(0x4e6a38, 1); g.fillEllipse(c.x, c.y, r*K*0.8, r*K*0.5, 14); }
+      for(const b of bl){ const pts = [];
+        for(let i = 0; i <= 4; i++){ const u = i/4, d = b.out*u*u, z = r*0.1 + b.up*Math.sin(u*Math.PI*0.62);
+          pts.push(W(x + Math.cos(b.a)*d, y + Math.sin(b.a)*d, z)); }
+        const dk = shaded(pts[4].x), c = b.green ? (dk ? 0x5e7a44 : 0x8aa860) : dk ? 0x8a8458 : b.k > 0 ? 0xcdc490 : 0xaeae74;
+        g.lineStyle(Math.max(1, 1.5*K), c, 1);
+        for(let i = 0; i < 4; i++) g.lineBetween(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y);
+        if(b.plume){ const t = pts[4], m = pts[3]; g.fillStyle(dk ? 0xc8b88e : 0xf0e4bc, 1);
+          g.fillTriangle(m.x - 1.6*K, m.y, m.x + 1.6*K, m.y, t.x, t.y + 1); g.fillCircle(t.x, t.y, Math.max(1, 1.8*K)); } }
+      return;
+    }
+    if(sk === "bougainvillea"){
+      const P = mound(0x3f6e36, 4, 0.95, 1.08);
+      const bc = p.bloom === 0xe8743c ? 0xf07a3a : p.bloom === 0xb07ad8 ? 0xb43aa6 : 0xd8307a;
+      const cl = (cx, cy, s, sz) => { g.fillStyle(sh(bc, s ? 0.68 : 0.86), 1);
+        for(const [ox, oy] of [[-0.7, 0.3], [0.7, 0.3], [0, -0.4]]) g.fillCircle(cx + ox*sz, cy + oy*sz, sz*0.95);
+        g.fillStyle(s ? bc : mix(bc, 0xffffff, 0.3), 1); g.fillCircle(cx - sz*0.4, cy - sz*0.3, sz*0.6); };
+      for(const q of P){ const n = q.up ? 3 : 2;
+        for(let k = 0; k < n; k++){ const cx = q.x + (rr() - 0.55)*q.R*1.1, cy = q.y - q.R*(rr()*0.6 - 0.1); cl(cx, cy, shaded(cx), Math.max(1.6, 0.075*r*K*(0.9 + rr()*0.5))); } }
+      /* spilling down its near face to the grass */
+      for(const q of P) if(!q.up && rr() < 0.6){ for(let k = 0; k < 2; k++){ const cx = q.x + (rr() - 0.5)*q.R*0.6, cy = q.y + q.R*(0.15 + k*0.28); cl(cx, cy, shaded(cx), Math.max(1.4, 0.06*r*K)); } }
+      return;
+    }
+    return this.drawParkShrub(g, Object.assign({}, p, { sk: null }), rr);
+  }
+  /* PARK BED SCHEMES, SHAPES AND EDGINGS (the parks variety pass, 2026-11-24; see PARK PLANTING VARIETY). The bed's own moves -- an
+     edging with its near face showing, the soil, the planting massed far to near with its lit side left (SP13) -- in more forms, all
+     inside the first pass's oval (len + 10 by 68 along its axis: the space the trail cleared of paths for it):
+       SHAPES  oval (the first pass's), round (one, or two along a long bed), kidney (the oval with its middle drawn in on one side),
+               rect (a raised planter: a rounded box, its walls up 14);
+       EDGINGS stone (set stone by stone), brick (a soldier course, its joints), timber (sleepers: the wall's near faces, a lit board
+               top), steel (a thin rusted band), none (a cut lawn edge: the soil a step down);
+       SCHEMES drift (the first pass's drifts), cottage (a mix -- spires at the back, daisies, mounds of its two colours), succulent
+               (gravel and rocks, rosettes and barrels, an aloe's flower spike), rose (rose bushes in rows, standards down the
+               middle), bulb (tulips in blocks of colour, each a cup on a stem with its leaves), tropical (canna's paddle leaves and
+               flowers, birds of paradise, a low leafy rim).
+     The wall faces are the outline's segments whose outward normal turns toward the eye (asked of W), lit or shaded by which way they
+     face on screen; the tops and the planting go over them. Still one cached image, keyed at its foot. */
+  drawParkBedSp(g, p, rr){
+    const K = this.K, x = p.x, y = p.y, L = p.len, ax = p.ax, ay = p.ay, sh = parkPlantShade, mix = parkPlantMix, W = (a, b, z) => this.W(a, b, z);
+    const at = (u, v) => ({ x: x + ax*u - ay*v, y: y + ay*u + ax*v });
+    const Wuv = (u, v, z) => { const q = at(u, v); return W(q.x, q.y, z); };
+    /* ---- THE SHAPE: its parts, each { cu, l, w, kind }, an outline at an offset d, and e(u, v) (under 1 inside) ---- */
+    const shape = p.shape || "oval", dent = rr() < 0.5 ? 1 : -1;
+    let parts;
+    if(shape === "round") parts = L < 165 ? [{ cu: 0, l: 62, w: 62, kind: "ell" }] : [{ cu: -L*0.55, l: 52, w: 52, kind: "ell" }, { cu: L*0.55, l: 52, w: 52, kind: "ell" }];
+    else if(shape === "rect") parts = [{ cu: 0, l: L*0.72, w: 42, kind: "rect" }];
+    else if(shape === "kidney") parts = [{ cu: 0, l: L, w: 46, kind: "kid" }];
+    else parts = [{ cu: 0, l: L, w: 58, kind: "ell" }];
+    const outline = (pt, d, n) => Array.from({ length: n }, (_, k) => { const t = k/n*Math.PI*2, c = Math.cos(t), s = Math.sin(t), l = pt.l + d, w = pt.w + d;
+      if(pt.kind === "rect") return { u: pt.cu + l*Math.sign(c)*Math.abs(c)**(1/3), v: w*Math.sign(s)*Math.abs(s)**(1/3) };
+      /* a bean: the oval bent round, its middle drawn in on the dent side and out on the other (inside the cleared oval: 46 + 18 < 68) */
+      if(pt.kind === "kid") return { u: pt.cu + l*c, v: w*s*(dent*s > 0 ? 1 - 0.3*s*s : 1) - dent*0.4*pt.w*s*s };
+      return { u: pt.cu + l*c, v: w*s }; });
+    const eOf = (u, v, ins) => { let e = Infinity; for(const pt of parts){ const uu = (u - pt.cu)/(pt.l - ins), vv = v/(pt.w - ins);
+      let q; if(pt.kind === "rect") q = Math.pow(Math.pow(Math.abs(uu), 6) + Math.pow(Math.abs(vv), 6), 1/3);
+      else if(pt.kind === "kid"){ const cc = Math.max(0, 1 - uu*uu), vb = vv + dent*0.4*pt.w/(pt.w - ins)*cc; q = uu*uu + (dent*vb > 0 ? (vb/(1 - 0.3*cc))**2 : vb*vb); }
+      else q = uu*uu + vv*vv; e = Math.min(e, q); } return e; };
+    const poly = (pt, d, z, n) => outline(pt, d, n).map(o => Wuv(o.u, o.v, z));
+    /* ---- THE EDGING ---- */
+    const edge = p.edge || "stone";
+    const E = { stone: { ZE: 5, EO: 12, EI: 3, top: 0xb3ab9a, face: 0x7f776a }, brick: { ZE: 6, EO: 9, EI: 2, top: 0xa8573c, face: 0x7e3e2a },
+      timber: { ZE: shape === "rect" ? 16 : 9, EO: 9, EI: 1, top: 0x9a7a52, face: 0x76583a }, steel: { ZE: 7, EO: 3, EI: 0, top: 0xa8643a, face: 0x7a4428 },
+      none: { ZE: 0, EO: 4, EI: 0, top: 0x3a2a1c, face: 0x3a2a1c } }[edge];
+    const ZE = E.ZE, N = 40;
+    const c0 = W(x, y, 0);
+    for(const pt of parts){
+      const o = outline(pt, E.EO, N), cen = Wuv(pt.cu, 0, 0);
+      if(ZE > 0){
+        /* its wall: each segment whose outward normal turns toward the eye, lit if it faces screen-left, shaded if right */
+        for(let k = 0; k < N; k++){ const a = o[k], b = o[(k + 1) % N], mu = (a.u + b.u)/2, mv = (a.v + b.v)/2;
+          let nu = b.v - a.v, nv = -(b.u - a.u); if(nu*(mu - pt.cu) + nv*mv < 0){ nu = -nu; nv = -nv; }
+          const m0 = Wuv(mu, mv, 0), m1 = Wuv(mu + nu*0.05, mv + nv*0.05, 0);
+          if(m1.y <= m0.y) continue;
+          const tone = m1.x < m0.x - 0.02 ? 1.08 : m1.x > m0.x + 0.02 ? 0.78 : 0.92;
+          this.quadOn(g, [Wuv(a.u, a.v, 0), Wuv(b.u, b.v, 0), Wuv(b.u, b.v, ZE), Wuv(a.u, a.v, ZE)], sh(E.face, tone));
+          if(edge === "brick" || edge === "timber"){ /* a course line along the face */
+            const p0 = Wuv(a.u, a.v, ZE*0.5), p1 = Wuv(b.u, b.v, ZE*0.5); g.lineStyle(Math.max(1, 0.8*K), sh(E.face, tone*0.72), 1); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+        }
+      } else {
+        /* a cut edge: the turf's lip, the soil a step down */
+        this.quadOn(g, poly(pt, E.EO, 0, N), 0x3f6a30);
+      }
+      /* its top, set piece by piece (stone, brick, timber) or one band (steel), then the soil inside */
+      if(edge === "stone" || edge === "brick" || edge === "timber"){
+        const oi = outline(pt, E.EI, N), M = edge === "brick" ? 2 : 1, gap = edge === "timber" ? 0.02 : 0.08;
+        for(let k = 0; k < N; k++) for(let j = 0; j < M; j++){
+          const t0 = (j + gap)/M, t1 = (j + 1 - gap)/M, a = o[k], b = o[(k + 1) % N], ai = oi[k], bi = oi[(k + 1) % N];
+          const lerp = (p, q, t) => ({ u: p.u + (q.u - p.u)*t, v: p.v + (q.v - p.v)*t });
+          const A = lerp(a, b, t0), B = lerp(a, b, t1), Ci = lerp(ai, bi, t1), Di = lerp(ai, bi, t0), m = Wuv((A.u + B.u)/2, (A.v + B.v)/2, ZE);
+          const tone = (edge === "timber" ? 0.97 + rr()*0.06 : 0.92 + rr()*0.16)*(m.x > cen.x + 30*K ? 0.88 : 1.03);
+          this.quadOn(g, [Wuv(A.u, A.v, ZE), Wuv(B.u, B.v, ZE), Wuv(Ci.u, Ci.v, ZE), Wuv(Di.u, Di.v, ZE)], sh(E.top, tone)); }
+      } else if(edge === "steel"){
+        this.quadOn(g, poly(pt, E.EO, ZE, N), E.top);
+      }
+    }
+    /* the soil (or gravel), and its dark rim in the edging's shadow */
+    const ZS = Math.max(0, ZE - (edge === "none" ? 0 : 1.5)) + 0.4, gravel = p.bs === "succulent";
+    for(const pt of parts) this.quadOn(g, poly(pt, E.EI, ZS, N), edge === "none" ? 0x2e2016 : 0x3e2a1c);
+    for(const pt of parts) this.quadOn(g, poly(pt, E.EI - 3, ZS + 0.1, N), gravel ? 0xcbbd9e : 0x5a3d28);
+    const Z = ZS + 0.5;
+    if(gravel){ for(const pt of parts) for(let k = 0; k < (pt.l*pt.w)/75; k++){ const u = pt.cu + (rr()*2 - 1)*pt.l, v = (rr()*2 - 1)*pt.w; if(eOf(u, v, 6) > 1) continue;
+      const s = Wuv(u, v, Z); g.fillStyle(rr() < 0.5 ? 0xa89878 : 0xe2d6bc, 1); g.fillRect(s.x - 1.2*K, s.y - 0.6*K, 2.4*K, 1.2*K); } }
+    else if(p.bs !== "bulb") for(const pt of parts) this.quadOn(g, poly(pt, -9, Z + 2, N), p.bs === "tropical" ? 0x3a5a2e : 0x3d6636);
+    /* ---- THE PLANTING: clumps queued at their own screen depth, painted far to near ---- */
+    const items = [], put = (u, v, fn) => { const q = at(u, v); items.push({ k: W(q.x, q.y, 0).y, q, fn }); };
+    const shd = sx => sx > c0.x + L*K*0.3;
+    const fol = (q, z, rad, c, own) => { const s = W(q.x, q.y, z), R = rad*K;
+      if(own){ g.fillStyle(sh(c, 0.66), 1); g.fillCircle(s.x, s.y, R); }
+      g.fillStyle(c, 1); g.fillCircle(s.x - R*0.22, s.y - R*0.26, R*0.76); return s; };
+    const head = (sx, sy, rad, c, dark, lead) => { const r = rad*K*1.12, w = r*1.08; g.fillStyle(dark ? sh(c, 0.78) : lead ? mix(c, 0xffffff, 0.35) : c, 1);
+      g.fillTriangle(sx - w, sy, sx, sy - r, sx + w, sy); g.fillTriangle(sx - w, sy, sx + w, sy, sx, sy + r*0.8); };
+    /* the bed's back (far from the eye along its across axis): taller planting there */
+    const backV = (Wuv(0, 10, 0).y < Wuv(0, -10, 0).y) ? 1 : -1;
+    const grid = (step, rows, fn) => { for(const pt of parts) for(let u = pt.cu - pt.l; u <= pt.cu + pt.l; u += step) for(const vv of rows){
+      const uu = u + (rr() - 0.5)*step*0.45, v = vv*pt.w + (rr() - 0.5)*6, e = eOf(uu, v, 6); if(e < 0.9) fn(uu, v, e, vv); } };
+    const bs = p.bs || "drift";
+    if(bs === "drift" || bs === "cottage"){
+      const pale = [0xf4f0e2, 0xf6e6ee, 0xfaf0c8][Math.floor(rr()*3)], spireC = rr() < 0.5 ? p.bloom2 : 0x7a5cc8, drifts = [p.bloom, p.bloom2, pale, p.bloom];
+      const nD = 3 + Math.floor(rr()*2), ph = rr()*6.28, cot = bs === "cottage";
+      const spireCols = [0xe07aa8, 0x8a6cd0, 0x6a88d8, 0xf4f0e2];
+      grid(13, [-0.76, -0.46, -0.2, 0.06, 0.32, 0.6], (uu, v, e, vv) => {
+        const rim = Math.abs(vv) > 0.7 || e > 0.6;
+        if(rim){ put(uu, v, q => { const s = fol(q, Z + 4, 6.2 + rr()*1.4, cot ? 0x7aa458 : 0x6f9a50, true);
+          g.fillStyle(cot ? 0xf2f0e6 : 0xf6f4ec, 1); for(let k = 0; k < 2; k++) g.fillCircle(s.x + (rr() - 0.6)*7*K, s.y - rr()*4*K, 1.7*K); }); return; }
+        const back = vv*backV > 0.1;
+        if(cot){
+          const roll = rr();
+          if(back && roll < 0.55){ const sc = spireCols[Math.floor(rr()*spireCols.length)];
+            put(uu, v, q => { const s = fol(q, Z + 6, 6.4, 0x4f7f45), hgt = 30 + rr()*16, d = shd(s.x);
+              for(let z = 10; z < hgt; z += 5.2){ const c = W(q.x, q.y, Z + z), t = (z - 10)/(hgt - 10); head(c.x + Math.sin(z*1.3)*0.8*K, c.y, 3.6 - t*1.5, sc, d, t > 0.6); } }); }
+          else if(roll < 0.75){ put(uu, v, q => { const s = fol(q, Z + 6, 7.4, 0x5a8a48), d = shd(s.x);
+            for(let k = 0; k < 3; k++){ const hx = s.x + (rr() - 0.5)*10*K, hy = s.y - (2 + rr()*6)*K; head(hx, hy, 2.2, 0xf8f6ee, d, false); g.fillStyle(0xe8b830, 1); g.fillRect(hx - 0.8*K, hy - 0.8*K, 1.6*K, 1.6*K); } }); }
+          else { const dc = rr() < 0.5 ? p.bloom : p.bloom2; put(uu, v, q => { const s = fol(q, Z + 7, 7.2, 0x558845), d = shd(s.x);
+            for(let k = 2; k >= 0; k--) head(s.x + (k ? (rr() - 0.4)*7 : -1.8)*K, s.y - (k ? 1 + rr()*3.5 : 4)*K, 3.3 + rr()*0.6, dc, d, k === 0); }); }
+          return;
+        }
+        const d = Math.min(nD - 1, Math.max(0, Math.floor(((uu - parts[0].cu)/L + 1)*nD/2 + Math.sin(v*0.07 + ph)*0.4))), dc = drifts[d], middle = vv === 0.06;
+        if(middle) put(uu, v, q => { const s = fol(q, Z + 6, 6.4, 0x4f7f45), hgt = 22 + rr()*12, dk = shd(s.x);
+          for(let z = 10; z < hgt; z += 4.6){ const c = W(q.x, q.y, Z + z), t = (z - 10)/(hgt - 10); head(c.x + Math.sin(z*1.3)*0.8*K, c.y, 3.3 - t*1.3, spireC, dk, t > 0.6); } });
+        else put(uu, v, q => { const s = fol(q, Z + 7, 7.2, 0x558845), dk = shd(s.x);
+          for(let k = 1; k >= 0; k--) head(s.x + (k ? (rr() - 0.4)*7 : -1.8)*K, s.y - (k ? 1 + rr()*3.5 : 4)*K, 3.3 + rr()*0.6, dc, dk, k === 0); });
+      });
+    } else if(bs === "succulent"){
+      /* rocks first in their places, then rosettes, barrels and an aloe or two, far to near among them */
+      for(let k = 0; k < 4; k++){ const pt = parts[k % parts.length], u = pt.cu + (rr()*2 - 1)*pt.l*0.7, v = (rr()*2 - 1)*pt.w*0.6; if(eOf(u, v, 14) > 0.8) continue;
+        const R = 9 + rr()*8; put(u, v, q => { const c = W(q.x, q.y, Z), r = R*K;
+          this.quadOn(g, [{ x: c.x - r*1.3, y: c.y + r*0.2 }, { x: c.x - r*0.9, y: c.y - r*0.7 }, { x: c.x + r*0.2, y: c.y - r*0.95 }, { x: c.x + r*1.3, y: c.y - r*0.1 }, { x: c.x + r*1.0, y: c.y + r*0.45 }, { x: c.x - r*0.6, y: c.y + r*0.55 }], 0x8a8478);
+          this.quadOn(g, [{ x: c.x - r*1.3, y: c.y + r*0.2 }, { x: c.x - r*0.9, y: c.y - r*0.7 }, { x: c.x + r*0.2, y: c.y - r*0.95 }, { x: c.x + r*0.1, y: c.y - r*0.1 }, { x: c.x - r*0.6, y: c.y + r*0.3 }], 0xb4ae9e); }); }
+      grid(19, [-0.66, -0.33, 0, 0.33, 0.66], (uu, v, e) => { const roll = rr(); if(roll > 0.9) return;
+        if(roll < 0.45) put(uu, v, q => { /* an echeveria: a tight rosette of pale fleshy leaves, pink tipped */
+          const c = W(q.x, q.y, Z + 2), R = (7 + rr()*3)*K, dk = shd(c.x);
+          for(let k = 0; k < 7; k++){ const a = k/7*Math.PI*2, tx = c.x + Math.cos(a)*R, ty = c.y + Math.sin(a)*R*0.55;
+            g.fillStyle(sh(0x9cc0b0, dk ? 0.78 : Math.cos(a) < 0 ? 1.08 : 0.92), 1); g.fillTriangle(c.x - R*0.3, c.y, c.x + R*0.3, c.y, tx, ty);
+            g.fillStyle(0xd88a9a, 1); g.fillCircle(tx, ty, Math.max(0.7, 0.9*K)); }
+          g.fillStyle(0xc8e0d0, 1); g.fillCircle(c.x - R*0.1, c.y - R*0.15, R*0.32); });
+        else if(roll < 0.7) put(uu, v, q => { /* a barrel cactus: a ribbed ball, its lit side, a crown of yellow */
+          const c = W(q.x, q.y, Z + 9), R = (8 + rr()*3)*K, dk = shd(c.x);
+          g.fillStyle(sh(0x4f8a4a, dk ? 0.6 : 0.75), 1); g.fillCircle(c.x, c.y, R);
+          g.fillStyle(sh(0x4f8a4a, dk ? 0.85 : 1.1), 1); g.fillEllipse(c.x - R*0.3, c.y - R*0.1, R*0.9, R*1.6, 14);
+          g.lineStyle(Math.max(1, 0.7*K), 0x2f5a30, 1); g.lineBetween(c.x, c.y - R, c.x, c.y + R*0.9); g.lineBetween(c.x + R*0.5, c.y - R*0.8, c.x + R*0.55, c.y + R*0.7);
+          g.fillStyle(0xf2c84a, 1); g.fillCircle(c.x, c.y - R*0.9, R*0.3); });
+        else put(uu, v, q => { /* a small agave / aloe: spiky leaves, the far ones first; one in three with its flower spike */
+          const c = W(q.x, q.y, Z + 1), R = (13 + rr()*5)*K, rot = rr()*6.28, dk = shd(c.x), lv = [];
+          for(let k = 0; k < 8; k++){ const a = rot + k/8*Math.PI*2, up = k % 2 ? 0.9 : 0.55; lv.push({ a, up, k: Math.sin(a) }); }
+          lv.sort((a, b) => a.k - b.k);
+          for(const l of lv){ const tx = c.x + Math.cos(l.a)*R, ty = c.y + Math.sin(l.a)*R*0.5 - R*l.up, w = R*0.16;
+            g.fillStyle(sh(0x7a9c8c, dk ? 0.72 : Math.cos(l.a) < 0 ? 1.1 : 0.86), 1); g.fillTriangle(c.x - w, c.y, c.x + w, c.y, tx, ty); }
+          if(rr() < 0.34){ const t = { x: c.x + 2*K, y: c.y - R*2.6 }; g.lineStyle(Math.max(1, 1.2*K), 0x7a6a48, 1); g.lineBetween(c.x, c.y - R*0.4, t.x, t.y);
+            g.fillStyle(0xf07a3a, 1); g.fillTriangle(t.x - 2*K, t.y + R*0.6, t.x + 2*K, t.y + R*0.6, t.x, t.y - 1*K); } });
+      });
+    } else if(bs === "rose"){
+      const rc = p.bloom === 0xe86a8a || p.bloom === 0xf2f0e6 || p.bloom === 0xf2c14e ? p.bloom : 0xc8283c, rc2 = p.bloom2 === rc ? 0xf4ecd8 : rc;
+      /* a rose: its cup (two triangles, as the drift's heads) and its dark heart */
+      const rose = (sx, sy, c, dk) => { const R = 3.9*K; g.fillStyle(dk ? sh(c, 0.7) : c, 1); g.fillTriangle(sx - R, sy, sx, sy - R, sx + R, sy); g.fillTriangle(sx - R, sy, sx + R, sy, sx, sy + R*0.8);
+        if(!dk){ g.fillStyle(mix(c, 0xffffff, 0.3), 1); g.fillTriangle(sx - R, sy, sx - R*0.2, sy - R*0.8, sx - R*0.1, sy); }
+        g.fillStyle(sh(c, 0.55), 1); g.fillRect(sx - R*0.25, sy - R*0.3, R*0.45, R*0.45); };
+      const bush = (q, z, rad, c) => { const s = fol(q, z, rad, 0x3f6a36, true), dk = shd(s.x);
+        g.fillStyle(sh(0x3f6a36, 1.18), 1); g.fillCircle(s.x - rad*K*0.4, s.y - rad*K*0.45, rad*K*0.3);
+        for(let k = 0; k < 5; k++) rose(s.x + (rr() - 0.55)*rad*K*1.3, s.y - (rr()*0.9 + 0.05)*rad*K, c, dk && k > 1); return s; };
+      grid(25, [-0.6, -0.2, 0.2, 0.6], (uu, v, e, vv) => put(uu, v, q => bush(q, Z + 8, 10 + rr()*2, Math.abs(vv) > 0.4 ? rc2 : rc)));
+      /* the standards: a rose trained on a single stem down the middle, a ball of bloom on top */
+      for(const pt of parts) for(let u = pt.cu - pt.l*0.6; u <= pt.cu + pt.l*0.6 + 1; u += Math.max(40, pt.l*0.4)) put(u, 0.5, q => {
+        const b = W(q.x, q.y, Z), t = W(q.x, q.y, Z + 40); g.lineStyle(Math.max(1.4, 2.4*K), 0x5e4a32, 1); g.lineBetween(b.x, b.y, t.x, t.y);
+        g.lineStyle(Math.max(1, 1*K), 0x8a7050, 1); g.lineBetween(b.x - 0.8*K, b.y, t.x - 0.8*K, t.y);
+        bush(q, Z + 46, 11, rc); });
+    } else if(bs === "bulb"){
+      /* tulips, in blocks of colour across the bed, row by row */
+      const cols = [p.bloom, 0xd8323a, p.bloom2, 0xf2c84a, 0xf4f0e6], ph = Math.floor(rr()*5);
+      grid(9, [-0.75, -0.55, -0.35, -0.15, 0.05, 0.25, 0.45, 0.65, 0.82], (uu, v) => {
+        const blk = Math.floor((uu - parts[0].cu + L)/52), c = cols[(blk + ph) % cols.length];
+        put(uu, v, q => { const b = W(q.x, q.y, Z), t = W(q.x, q.y, Z + 14 + rr()*4), dk = shd(t.x);
+          g.fillStyle(dk ? 0x3f6a32 : 0x5a8c44, 1); g.fillTriangle(b.x - 3*K, b.y, b.x + 0.5*K, b.y, b.x - 2*K, b.y - 8*K); g.fillTriangle(b.x + 3*K, b.y, b.x - 0.5*K, b.y, b.x + 2.4*K, b.y - 7*K);
+          g.fillStyle(0x4a7a3a, 1); g.fillRect(t.x - 0.45*K, t.y, 0.9*K, b.y - t.y);
+          const w = 2.4*K, hh = 4.2*K; g.fillStyle(sh(c, dk ? 0.66 : 0.84), 1); g.fillRect(t.x - w, t.y - hh, w*2, hh); g.fillTriangle(t.x - w, t.y, t.x + w, t.y, t.x, t.y + w);
+          g.fillStyle(dk ? sh(c, 0.86) : mix(c, 0xffffff, 0.25), 1); g.fillRect(t.x - w, t.y - hh, w*0.9, hh);
+          g.fillStyle(sh(c, 0.6), 1); g.fillTriangle(t.x - w*0.3, t.y - hh, t.x + w*0.3, t.y - hh, t.x, t.y - hh*0.6); }); });
+    } else if(bs === "tropical"){
+      /* a broad leaf as a lens from its base to its tip, its left half lit and its right in shade (its midrib the fold) */
+      const leaf = (bx, by, tx, ty, w, c, dk) => { const mx = bx + (tx - bx)*0.45, my = by + (ty - by)*0.45, l = Math.hypot(tx - bx, ty - by) || 1, nx = -(ty - by)/l*w, ny = (tx - bx)/l*w;
+        const A = { x: mx - Math.abs(nx), y: my - (nx < 0 ? -ny : ny) }, B = { x: mx + Math.abs(nx), y: my + (nx < 0 ? -ny : ny) };
+        g.fillStyle(sh(c, dk ? 0.62 : 0.8), 1); g.fillTriangle(bx, by, B.x, B.y, tx, ty);
+        g.fillStyle(sh(c, dk ? 0.8 : 1.12), 1); g.fillTriangle(bx, by, A.x, A.y, tx, ty); };
+      grid(22, [-0.7, -0.35, 0, 0.35, 0.7], (uu, v, e, vv) => {
+        const rim = e > 0.5, back = vv*backV > -0.2;
+        if(rim){ put(uu, v, q => { /* a low leafy rim: broad leaves fanned out over the soil */ const s = W(q.x, q.y, Z + 2), dk = shd(s.x);
+          for(let k = 0; k < 4; k++){ const a = -Math.PI*0.95 + k*0.62; leaf(s.x, s.y, s.x + Math.cos(a)*10*K, s.y + Math.sin(a)*5*K - 4*K, 3.4*K, 0x5a9a44, dk || Math.cos(a) > 0.3); } }); return; }
+        if(back && rr() < 0.65) put(uu, v, q => { /* a canna: big paddle leaves fanning up (bronze or green), a spike of red or orange flowers on top */
+          const lc = rr() < 0.4 ? 0x8a4c3a : 0x4f8a40, b = W(q.x, q.y, Z), dk = shd(b.x);
+          for(let k = 0; k < 5; k++){ const ang = (k - 2)*0.32 + (rr() - 0.5)*0.15, hgt = (30 + rr()*14)*K; leaf(b.x, b.y, b.x + Math.sin(ang)*hgt*0.6, b.y - hgt*Math.cos(ang), 5.2*K, lc, dk || ang > 0.25); }
+          const fc = rr() < 0.5 ? 0xe03a2a : 0xf2902a, t = W(q.x, q.y, Z + 52);
+          g.lineStyle(Math.max(1, 1*K), 0x4a6a30, 1); g.lineBetween(b.x, b.y - 20*K, t.x, t.y);
+          g.fillStyle(sh(fc, dk ? 0.72 : 0.9), 1); for(let k = 0; k < 4; k++) g.fillCircle(t.x + ((k & 1) ? 2.6 : -2.6)*K, t.y + k*2.4*K, 3*K);
+          g.fillStyle(dk ? fc : mix(fc, 0xffffff, 0.3), 1); g.fillCircle(t.x - 2.6*K, t.y - 0.6*K, 1.8*K); });
+        else put(uu, v, q => { /* a bird of paradise: stiff grey-green paddles on stalks, a beaked orange and blue flower or two */
+          const b = W(q.x, q.y, Z), dk = shd(b.x);
+          for(let k = 0; k < 5; k++){ const ang = (k - 2)*0.42, hgt = (24 + rr()*8)*K, t = { x: b.x + Math.sin(ang)*hgt*0.7, y: b.y - hgt*Math.cos(ang)*0.85 };
+            g.lineStyle(Math.max(1, 1*K), 0x6a8a5a, 1); g.lineBetween(b.x, b.y, t.x, t.y);
+            leaf(t.x, t.y + 3*K, t.x + Math.sin(ang)*6*K, t.y - 11*K, 3.4*K, 0x6f9472, dk || ang > 0.3); }
+          for(let k = 0; k < 1 + (rr() < 0.6 ? 1 : 0); k++){ const f = { x: b.x + (k ? 5 : -4)*K, y: b.y - (30 + k*4)*K };
+            g.fillStyle(0x6a8a5a, 1); g.fillTriangle(f.x - 7*K, f.y + 1.5*K, f.x + 6*K, f.y + 1.5*K, f.x - 8*K, f.y + 4*K);
+            g.fillStyle(dk ? 0xc86a28 : 0xf29a30, 1); g.fillTriangle(f.x - 4*K, f.y, f.x + 2*K, f.y, f.x - 2*K, f.y - 10*K); g.fillTriangle(f.x - 1*K, f.y, f.x + 5*K, f.y, f.x + 3*K, f.y - 9*K);
+            g.fillStyle(0x3a5aa8, 1); g.fillTriangle(f.x, f.y - 1*K, f.x + 6*K, f.y, f.x + 7*K, f.y + 2*K); } });
+      });
+    }
+    items.sort((a, b) => a.k - b.k);
+    for(const it of items) it.fn(it.q);
+  }
   /* A PARK'S PLANTS, each culled on its own and each still one cached (the park trail's: shrubs, beds, trees, benches;
      anything else through drawProp) -- the park kit, also the Costa Palma letters' park's (cplQueuePark) */
   queueParkPlants(vq, list){
@@ -120032,7 +120630,10 @@ class WorldScene extends Phaser.Scene {
           this.drawParkBed(g, p, rr);                         // (PARK PLANTING: drawParkBed)
         } else if(p.kind === "tree"){
           /* no ground shadow (Sir: "lose the shadows under the trees"); the tree itself: drawShadeTree */
-          this.drawShadeTree(g, x, y, p.h || 1, p.col, rr);
+          /* its size class scales the art about its foot (never its collider); a sapling stands between two stakes, tied */
+          const sz = p.sz || "mature", hh = (p.h || 1)*(PARK_TREE_SIZE[sz] || 1);
+          if(sz === "sapling") this.drawTreeStakes(g, x, y, hh);
+          this.drawShadeTree(g, x, y, hh, p.col, rr, p.sp);
         } else if(p.kind === "bench"){
           /* (its sitters: a bench turned away from the eye has its back between them and the camera, so they go down first and the bench over
              them; one turned toward the eye, the bench first and they on it) */
