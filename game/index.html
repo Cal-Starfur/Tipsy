@@ -86719,7 +86719,7 @@ marinaEntry(),
       { const a0 = r.a0 + 440, a1 = r.a0 + 640, b0 = 220, b1 = 270;                                                  // the reading table and its chairs
         runPiece(items, a0, a1, b0, b1, 46.1, (s0, s1) => [solid(s0, s1, b0, b1, 46, 'reading table')], () => { for(const [ea, eb] of [[a0 + 6, b0 + 6], [a1 - 6, b0 + 6], [a0 + 6, b1 - 6], [a1 - 6, b1 - 6]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 38, woodD, woodD, woodD);
           box(a0, a1, b0, b1, 38, 44, woodL, wood, woodD); T(a0 + 3, a1 - 3, b0 + 3, b1 - 3, 44.1, '#e0bf8a');
-          for(const [x, k] of [[a0 + 30, 0], [a0 + 86, 1], [a0 + 150, 2]]){ box(x, x + 22, b0 + 12, b0 + 34, 44, 46, [red, blue, green][k], shade([red, blue, green][k], 0.85), shade([red, blue, green][k], 0.7)); T(x + 1, x + 21, b0 + 13, b0 + 33, 46.1, paper); } }, { run: 50 });   // (in runs: 200 long keyed at its middle, it sorted after the chair at its west end)
+          for(const [x, k] of [[a0 + 30, 0], [a0 + 86, 1], [a0 + 150, 2]]){ box(x, x + 22, b0 + 12, b0 + 34, 44, 46, [red, blue, green][k], shade([red, blue, green][k], 0.85), shade([red, blue, green][k], 0.7)); T(x + 1, x + 21, b0 + 13, b0 + 33, 46.1, paper); } }, { run: 40 });   // (in runs: 200 long keyed at its middle, it sorted after the chair at its west end. Runs of 40, not 50, put each chair at a run's middle: at 50 the reader at a0 + 100 sat on a seam, before the run east of her, which painted its top over her, 2026-11-24)
         for(const x of [a0 + 36, a0 + 100, a0 + 164]){ chair(x, b1 + 24, [blue, teal, '#e8b54a'][(x/10 | 0) % 3]); } }
       /* the librarian's desk by the door (the check-out), a book cart, bean bags in the corner, a globe on a stand */
       { const a0 = r.a0 + 560, a1 = r.a0 + 700, b0 = 340, b1 = 376;
@@ -86737,11 +86737,17 @@ marinaEntry(),
     { const r = R.caf;
       for(const t of r.tables){
         const a0 = t.a - 100, a1 = t.a + 100, b0 = t.b - 22, b1 = t.b + 22;
-        furn(a0, a1, b0, b1, 46, 'table', () => {
+        /* (the table and its two benches, each 200 long, in runs keyed at their own stretches (Sir, 2026-11-24, "fix the other rooms' faults
+           too"): one piece keyed at its middle, the table sorted after the pupil on the south bench at its west half (t.a - 40) and painted its
+           legs and trays over them, and each bench after the pupil sat on its west half. Runs of 40 put each pupil at a run's middle; a bench's
+           runs are keyed at their west ends (keyStart), so the pupil sat on a run comes after it -- keyed at its front, b + 8, the bench sorted
+           after the pupil on it. pad 4: a run's clip stops short of the bench or table beside it) */
+        runPiece(items, a0, a1, b0, b1, 50, (s0, s1) => [solid(s0, s1, b0, b1, 46, 'table')], () => {
           for(const [ea, eb] of [[a0 + 10, b0 + 6], [a1 - 10, b0 + 6], [a0 + 10, b1 - 6], [a1 - 10, b1 - 6]]) box(ea - 2.5, ea + 2.5, eb - 2.5, eb + 2.5, 0, 38, steel, steelD, steelD);
           box(a0, a1, b0, b1, 38, 43, '#f1ead4', '#d9cfb0', '#c4b996'); T(a0 + 2, a1 - 2, b0 + 2, b1 - 2, 43.1, '#faf5e4');
-          for(const x of [a0 + 36, a0 + 100, a0 + 164]) { box(x, x + 26, b0 + 12, b0 + 32, 43, 45, ['#e0674e', blue, yel][(x/26 | 0) % 3], '#b8bec3', '#9aa2a8'); box(x + 4, x + 10, b0 + 18, b0 + 24, 45, 50, '#f4f0e6', '#e4e0d6', '#d4d0c6'); } });
-        for(const sd of [-1, 1]) items.push({ a: t.a, b: t.b + sd*38, z: 0, solids: [solid(a0 + 6, a1 - 6, t.b + sd*38 - 8, t.b + sd*38 + 8, 28, 'bench', true)], draw: () => { for(const ea of [a0 + 20, a1 - 20]) box(ea - 2, ea + 2, t.b + sd*38 - 6, t.b + sd*38 + 6, 0, 24, steel, steelD, steelD); box(a0 + 6, a1 - 6, t.b + sd*38 - 8, t.b + sd*38 + 8, 24, 28, '#d9b98a', wood, woodD); }});
+          for(const x of [a0 + 36, a0 + 100, a0 + 164]) { box(x, x + 26, b0 + 12, b0 + 32, 43, 45, ['#e0674e', blue, yel][(x/26 | 0) % 3], '#b8bec3', '#9aa2a8'); box(x + 4, x + 10, b0 + 18, b0 + 24, 45, 50, '#f4f0e6', '#e4e0d6', '#d4d0c6'); } }, { run: 40, pad: 4 });
+        for(const sd of [-1, 1]){ const bb = t.b + sd*38;
+          runPiece(items, a0 + 6, a1 - 6, bb - 8, bb + 8, 28, (s0, s1) => [solid(s0, s1, bb - 8, bb + 8, 28, 'bench', true)], () => { for(const ea of [a0 + 20, a1 - 20]) box(ea - 2, ea + 2, bb - 6, bb + 6, 0, 24, steel, steelD, steelD); box(a0 + 6, a1 - 6, bb - 8, bb + 8, 24, 28, '#d9b98a', wood, woodD); }, { run: 40, pad: 4, keyStart: true }); }
       }
       /* the serving line along the kitchen's wall: a steel counter with its glass sneeze guard and trays; the milk cooler */
       for(const [s0, s1, first, last] of runs(70, 380, 60)) furn(r.a1 - 62, r.a1 - 4, s0, s1, 100, 'serving counter', () => {
@@ -86886,12 +86892,14 @@ marinaEntry(),
         for(const a of [90, 1410]) furn(a - 12, a + 12, 1488, 1512, 90, 'plant', () => kitPlanter(a - 12, a + 12, 1500 - 12, 1500 + 12, 0, 24, { kind: 'pot', mat: 'terracotta', col: '#c2452e', plant: 'leafy', top: 90, spread: 20, leafR: 7, n: 7, leaf: '#4a8a52' })); }   // (the shared planter: kitPlanter)
       /* ---------- THE COMPUTER LAB ---------- */
       { const r = R2.lab;
-        for(const bn of r.benches) furn(bn.a0, bn.a1, bn.b - 20, bn.b + 20, 50, 'computer bench', () => {
+        /* (in runs, each keyed at its own stretch (2026-11-24): 640 long keyed at its middle, it sorted after the pupils on its west half and
+           painted its legs over them; runs of ~50 put each seat near a run's middle) */
+        for(const bn of r.benches) runPiece(items, bn.a0, bn.a1, bn.b - 20, bn.b + 20, 70, (s0, s1) => [solid(s0, s1, bn.b - 20, bn.b + 20, 50, 'computer bench')], () => {
           for(const [ea, eb] of [[bn.a0 + 6, bn.b - 16], [bn.a1 - 6, bn.b - 16], [bn.a0 + 6, bn.b + 16], [bn.a1 - 6, bn.b + 16]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 38, steel, steelD, steelD);
           box(bn.a0, bn.a1, bn.b - 20, bn.b + 20, 38, 43, '#e9eef0', '#cfd6d9', '#a9b1b5');
           for(let j = 0; j < 6; j++){ const x = bn.a0 + 20 + (bn.a1 - bn.a0 - 40)*(j + 0.5)/6;
             box(x - 14, x + 14, bn.b - 12, bn.b - 6, 43, 70, '#30353b', '#262a2f', '#1f2226'); box(x - 6, x + 6, bn.b - 8, bn.b - 3, 43, 49, '#30353b', '#262a2f', '#1f2226');
-            box(x - 12, x + 12, bn.b + 4, bn.b + 12, 43, 45, '#f4f2ec', '#e4e0d6', '#d4d0c6'); } });
+            box(x - 12, x + 12, bn.b + 4, bn.b + 12, 43, 45, '#f4f2ec', '#e4e0d6', '#d4d0c6'); } }, { run: 50, pad: 4 });
         for(const bn of r.benches) for(let j = 0; j < 6; j++){ const x = bn.a0 + 20 + (bn.a1 - bn.a0 - 40)*(j + 0.5)/6; chair(x, bn.b + 37, [blue, teal, '#e8b54a'][(j + (bn.b/150 | 0)) % 3]); }
         stand(r.a0 + 640, 596, 220);
         furn(r.a1 - 100, r.a1 - 30, 560, 600, 130, 'printer', () => { box(r.a1 - 100, r.a1 - 30, 562, 598, 0, 46, '#cfd6d9', '#aab3b8', '#8a9397'); box(r.a1 - 96, r.a1 - 34, 566, 594, 46, 70, '#e9eef0', '#cfd6d9', '#a9b1b5'); });
@@ -86925,10 +86933,14 @@ marinaEntry(),
         plateCircle(AT, 1250, 0.7, 12, yel); }
       /* ---------- THE GREENHOUSE ROOM (the old gym is a small gym now; this is the garden club's) ---------- */
       { const r = R2.sports;
-        for(const rb of [700, 820, 940, 1060, 1180]) for(const [a0, a1] of [[r.a0 + 80, r.a0 + 600], [r.a0 + 800, r.a1 - 80]]) furn(a0, a1, rb - 22, rb + 22, 56, 'planting bench', () => {
+        /* (the planting benches in runs of 40, each keyed at its own stretch (2026-11-24): 520 and 620 long keyed at their middles, they sorted
+           after the garden club teacher in front of their west ends and painted their legs over her. PLANT_TOP: the seedlings' real top -- the top
+           their draw reaches (w37's clip), the old and new pixels compared: no bloom cut off) */
+        const PLANT_TOP = 60;
+        for(const rb of [700, 820, 940, 1060, 1180]) for(const [a0, a1] of [[r.a0 + 80, r.a0 + 600], [r.a0 + 800, r.a1 - 80]]) runPiece(items, a0, a1, rb - 22, rb + 22, PLANT_TOP, (s0, s1) => [solid(s0, s1, rb - 22, rb + 22, 56, 'planting bench')], () => {
           for(const [ea, eb] of [[a0 + 6, rb - 18], [a1 - 6, rb - 18], [a0 + 6, rb + 18], [a1 - 6, rb + 18]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 36, woodD, woodD, woodD);
           /* its top a tray of seedlings: the shared planter's raised bed on the legs (kitPlanter) */
-          kitPlanter(a0, a1, rb - 22, rb + 22, 36, 8, { kind: 'bed', mat: 'timber', col: woodL, lipO: 1, plant: 'flower', plantH: 18, group: 'greenhouse ' + rb }); });
+          kitPlanter(a0, a1, rb - 22, rb + 22, 36, 8, { kind: 'bed', mat: 'timber', col: woodL, lipO: 1, plant: 'flower', plantH: 18, group: 'greenhouse ' + rb }); }, { run: 40, pad: 4 });
         furn(r.a1 - 90, r.a1 - 30, 1480, 1534, 90, 'sink', () => { box(r.a1 - 90, r.a1 - 30, 1480, 1534, 0, 70, steelL, steel, steelD); cyl(r.a1 - 60, 1507, 70, 72, 16, '#7a8a90', '#aab3b8'); tube(r.a1 - 60, 1488, 72, r.a1 - 60, 1498, 90, 1.6, steelD); });
         for(const [a, b] of [[r.a0 + 60, 1500], [r.a0 + 110, 1500], [r.a0 + 160, 1500]]) items.push({ a, b, z: 0, draw: () => kitPlanter(a - 14, a + 14, b - 14, b + 14, 0, 22, { kind: 'pot', mat: 'terracotta', col: '#c2452e', plant: 'none' }) }); }   // (empty pots: the shared planter's, kitPlanter)
       /* ---------- THE SCIENCE LAB ---------- */
