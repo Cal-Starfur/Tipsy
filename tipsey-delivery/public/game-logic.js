@@ -31182,8 +31182,12 @@ function sfHold(s){
       hull(g, at, box(x - sd*9, x - sd*4, f - 2.6, f + 2.6, h - 3.6, h + 3.6), hd); hull(g, at, box(x - 4, x + 4, f - 0.9, f + 0.9, h - 0.9, h + 0.9), 0xb8bec2);
       hull(g, at, box(x + sd*4, x + sd*9, f - 2.6, f + 2.6, h - 3.6, h + 3.6), hd); },
     /* a kettlebell from the hand: its handle, the bell under it */
+    /* a kettlebell from the hand (Sir, 2026-11-24: "the handle is wrong"): the bell under the fist, then the handle's two posts up out of its
+       shoulders and the grip across the fist between them */
     kb: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
-      hull(g, at, ring(x, f, h - 8.5, 5.6).concat(ring(x, f, h - 3.5, 5.2), ring(x, f, h - 13, 3.6)), 0xe2574c); hull(g, at, box(x - 0.8, x + 0.8, f - 3.4, f + 3.4, h - 3.4, h + 1), 0x2a2e32); },
+      hull(g, at, ring(x, f, h - 10, 5.4).concat(ring(x, f, h - 6, 4.6), ring(x, f, h - 14.5, 3.6)), 0xe2574c);
+      hull(g, at, box(x - 3.6, x - 2.6, f - 0.6, f + 0.6, h - 6.5, h), 0x2a2e32); hull(g, at, box(x + 2.6, x + 3.6, f - 0.6, f + 0.6, h - 6.5, h), 0x2a2e32);
+      hull(g, at, box(x - 3.6, x + 3.6, f - 0.8, f + 0.8, h - 0.4, h + 1.2), 0x2a2e32); },
     /* a bottle of water at their side: the water, its blue cap */
     bottle: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
       hull(g, at, ring(x, f, h - 15, 2.4).concat(ring(x, f, h - 3, 2.4)), 0xbfe0ea, 0.9); hull(g, at, ring(x, f, h - 3, 2.4).concat(ring(x, f, h + 1, 1.2)), 0xe8eef0, 0.8);
@@ -31279,7 +31283,7 @@ function sfPose(s, m, now, P){
     const w = 0.5 + 0.5*Math.sin(now*0.004); P.lift = [0.1, 0.22]; P.bend = [0.2, 0.3 + 1.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (the elbow at the side, the forearm curling)
   if(m.look === 'kb' && !m.path){                                                                                 // (a kettlebell off the rack, once; then swings)
     if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.45*Math.min(1, k*1.6)]; P.bend = [0.2, 0.3]; P.headTilt = 0.3; return; }
-    const w = 0.5 + 0.5*Math.sin(now*0.005); P.lift = [0.15 + 0.85*w, 0.15 + 0.85*w]; P.bend = [0.1, 0.1]; P.headTurn = 0; P.hold = H.kb; P.holdRaised = true; return; }
+    const w = 0.5 + 0.5*Math.sin(now*0.005); P.lift = [0.15 + 0.85*w, 0.15 + 0.85*w]; P.bend = [0.1, 0.1]; P.headTurn = 0; P.hold = H.kb; P.holdRaised = true; P.holdBoth = true; return; }   // (a bell in each hand)
   if(m.look === 'mat' && !m.path){ const ph = ((now + (s.seed & 4095))/6000) % 1, w = Math.sin(ph*Math.PI*2);    // (a stretch: arms up, then across)
     if(ph < 0.5){ P.lift = [1.9 + 0.1*w, 1.9 + 0.1*w]; P.bend = [0.1, 0.1]; } else { P.lift = [0.9, 0.9]; P.bend = [0.2, 1.2]; } P.headTurn = 0; return; }
   if(m.look === 'fridge' && !m.path && Math.hypot(m.a - 66, m.b - 102) < 30){                                   // (reaching into the fridge, once)
@@ -120371,10 +120375,10 @@ class WorldScene extends Phaser.Scene {
            Fitness: "only has the kettle bell at the bottom of the rep". Without it a raised hand holds nothing, as before) */
         if(raised && !pose.holdRaised) return false;
         /* what it holds: over the face when they face the eye (after the head) */
-        if(isCarryArm && pose.hold){
+        if((isCarryArm || pose.holdBoth) && pose.hold){   // (pose.holdBoth: one in each hand -- a pair of kettlebells)
           /* where the hand is, and the mouth (for a microphone held up to it) */
           const hp = G(shoulderAx, Hd[0], Hd[1]), at = { G, a: shoulderAx, hand: Hd, mouth: [build.headR + 1, shoulderH + build.headR*0.6] };
-          if(faceB > 0) heldLate = [hp, at]; else pose.hold(g, hp, this.K, at);
+          if(faceB > 0) (heldLate || (heldLate = [])).push([hp, at]); else pose.hold(g, hp, this.K, at);
         }
         return raised ? false : undefined;
       }
@@ -120751,7 +120755,7 @@ class WorldScene extends Phaser.Scene {
 
     if(pose && pose.part === 'head'){ head(); if(faceB < 0){ hairBack(); veil(); } veilBand(); return; }
     if(onlyArms){ if(pose.part === 'armNear') arm(nearSide, true); else arm(-nearSide, false);
-                  if(heldLate) pose.hold(g, heldLate[0], this.K, heldLate[1]); return; }
+                  if(heldLate) for(const q of heldLate) pose.hold(g, q[0], this.K, q[1]); return; }
     /* A KICK (this._personKick, set by a kicker's draw -- see PED_KICK): the
        near leg hinged at the hip into the forward plane, William's kickLeg */
     const kickAng = this._personKick || 0;
@@ -120875,7 +120879,7 @@ class WorldScene extends Phaser.Scene {
     if(farLate && !noArms){ PT && PT('farArmFront'); arm(-nearSide, false); }
     if(armLate && !noNear){ PT && PT('nearArm'); arm(nearSide, true); }
     PT && PT('held');
-    if(heldLate) pose.hold(g, heldLate[0], this.K, heldLate[1]);
+    if(heldLate) for(const q of heldLate) pose.hold(g, q[0], this.K, q[1]);
 
     if(startleAlpha > 0){
       const hp = G(0, 0, headH + build.headR + 4);
