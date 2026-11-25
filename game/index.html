@@ -52599,46 +52599,204 @@ const PAL = [
    sign geometry, roof kit and kerb props — identity comes
    from the silhouette, not from the facade texture.
    right flank, and the blank front wall the shop then dresses */
+/* THE ROOF PASS, PART 2 (the landmarks and big buildings): their own hand-rolled roofs given the same treatment as the
+   shops' -- flat decks through roofDeck (its `o`: a window for a deck drawn in tiles, a clip for one that is not a
+   rectangle, and its detail scaled by area for the big ones); these for the rest. All seeded off the piece's size and
+   place, drawn into the building cache with what they lie on (no time, no random). */
+/* a sloped face's fill, lit by which way it turns on screen (roofLitFill), its normal and centre worked out from its
+   corners (pts: [a, b, z] each, the face's outline in order; the normal turned up) */
+function roofLitOf(fill, pts){
+  const p = pts[0], q = pts[1], r = pts[pts.length - 1];
+  const u = [q[0] - p[0], q[1] - p[1], q[2] - p[2]], v = [r[0] - p[0], r[1] - p[1], r[2] - p[2]];
+  let n = [u[1]*v[2] - u[2]*v[1], u[2]*v[0] - u[0]*v[2], u[0]*v[1] - u[1]*v[0]];
+  const L = Math.hypot(n[0], n[1], n[2]) || 1, sg = n[2] < 0 ? -1 : 1;
+  n = [n[0]/L*sg, n[1]/L*sg, n[2]/L*sg];
+  const c = [0, 0, 0]; for(const t of pts){ c[0] += t[0]/pts.length; c[1] += t[1]/pts.length; c[2] += t[2]/pts.length; }
+  return roofLitFill(fill, n, c);
+}
+/* a slope's age, as roofTabs lays it on a house (no tabs: a big roof seen from far): dark streaks down from the ridge,
+   moss soft along the eave. p0/q0 the eave's ends, p1/q1 the ridge's over them ([a, b, z]); o.moss / o.streaks scale
+   them (0 for none). Seeded off the face. */
+function roofSlopeAge(p0, p1, q0, q1, o){
+  const A = ROOF_ART.look, mossK = o && o.moss != null ? o.moss : 1, stK = o && o.streaks != null ? o.streaks : 1;
+  const lp = (u, v, t) => [u[0] + (v[0] - u[0])*t, u[1] + (v[1] - u[1])*t, u[2] + (v[2] - u[2])*t];
+  const B = (t, u) => { const p = lp(lp(p0, p1, t), lp(q0, q1, t), u); return P(p[0], p[1], p[2]); };
+  const seed = (Math.round(p0[0])*73856093 ^ Math.round(p0[1])*19349663 ^ Math.round(q0[0] + q0[2])*83492791 ^ 0x5bd1e995) >>> 0;
+  const len = Math.hypot(q0[0] - p0[0], q0[1] - p0[1], q0[2] - p0[2]), ns = Math.max(1, Math.round(len/110));
+  if(stK) for(let i = 0; i < ns; i++){ const h = natHash((seed ^ (i*2246822519 + 3)) >>> 0), h2 = natHash((seed + i*3266489917 + 5) >>> 0);
+    if(h > 0.7) continue;
+    const uc = (i + 0.2 + h2*0.6)/ns, uw = (0.15 + h*0.25)/ns, tl = 0.25 + h2*0.6;
+    for(const f of [1, 0.55]) poly([B(1, uc - uw*f), B(1, uc + uw*f), B(1 - tl*f, uc + uw*f*0.6), B(1 - tl*f, uc - uw*f*0.6)], 'rgba(20,22,20,' + (A.streaks/2*stK) + ')'); }
+  const nm = Math.max(1, Math.round(len/160));
+  if(mossK) for(let i = 0; i < nm; i++){ const h = natHash((seed + i*668265263 + 9) >>> 0), h2 = natHash((seed ^ (i*374761393 + 11)) >>> 0);
+    if(h > 0.55) continue;
+    const uc = (i + 0.5)/nm + (h2 - 0.5)*0.4/nm, uw = (0.25 + h*0.4)/nm;
+    for(const [f, th] of [[1, 0.26], [0.65, 0.18], [0.35, 0.11]]){ const pts = [];
+      for(let k = 0; k <= 8; k++){ const a = k/8*Math.PI; pts.push(B(Math.max(0, th*Math.sin(a)*(0.8 + 0.4*natHash(seed + i + k))), Math.max(0, Math.min(1, uc + uw*f*Math.cos(a))))); }
+      poly(pts, 'rgba(92,110,58,' + (A.moss/3*mossK) + ')'); } }
+}
+/* a soft blot on a level plate: three nested rings, darker to the middle (the courtyards' and the road's stains); col an
+   'r,g,b' string; lim [a0, a1, b0, b1] holds it inside its plate */
+function roofBlot(ca, cb, ra, rb, z, col, al, lim){
+  for(const q of [1, 0.7, 0.42]){ const pts = [];
+    for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2, f = q*(1 + 0.12*Math.sin(3*t + ca));
+      let a = ca + ra*f*Math.cos(t), b = cb + rb*f*Math.sin(t);
+      if(lim){ a = Math.max(lim[0], Math.min(lim[1], a)); b = Math.max(lim[2], Math.min(lim[3], b)); }
+      pts.push(P(a, b, z)); }
+    poly(pts, 'rgba(' + col + ',' + (al/2) + ')'); }
+}
+/* A PARKING DECK'S CONCRETE (the garages' roof decks: Maritime Mall Parking, Marina General's, Marina Parking): worn as
+   the street's road is, not a roof membrane -- the pour's bays a shade apart with their sawn joints, tyre polish down the
+   aisles (o.aisles: [a0, a1, b] each, an aisle along a, its middle b), oil under the stalls (o.stalls: [a, b] each, a
+   stall's middle), patches sealed round, cracks sealed, grime along the parapets, a drain or two. Seeded off its size
+   and height (o.seed to tell two alike apart). */
+const PARK_DECK_OPTS = new Map();                                // (each garage's aisles and stalls, built once: parkDeckOpts)
+function parkDeckOpts(key, build){ let v = PARK_DECK_OPTS.get(key); if(!v){ v = build(); PARK_DECK_OPTS.set(key, v); } return v; }
+function parkDeck(a0, a1, b0, b1, z, base, o){
+  o = o || {};
+  const A0 = Math.min(a0, a1), A1 = Math.max(a0, a1), B0 = Math.min(b0, b1), B1 = Math.max(b0, b1), w = A1 - A0, dd = B1 - B0;
+  const seed = natStrSeed('park' + Math.round(w) + 'x' + Math.round(dd) + '@' + Math.round(z) + (o.seed || ''));
+  const h = i => natHash((seed + Math.imul(i, 2654435761)) >>> 0), lim = [A0 + 4, A1 - 4, B0 + 4, B1 - 4];
+  T(A0, A1, B0, B1, z, base);
+  /* the pour: bays a shade apart, the sawn joints between them */
+  const ja = 280, jb = 300; let i = 0;
+  for(let a = A0; a < A1 - 1; a += ja) for(let b = B0; b < B1 - 1; b += jb, i++){ const v = h(i*3 + 1);
+    if(v < 0.34) T(a, Math.min(A1, a + ja), b, Math.min(B1, b + jb), z, v < 0.17 ? 'rgba(20,20,18,0.035)' : 'rgba(255,255,255,0.05)'); }
+  for(let a = A0 + ja; a < A1 - 10; a += ja) T(a - 0.7, a + 0.7, B0 + 4, B1 - 4, z, shade(base, .88));
+  for(let b = B0 + jb; b < B1 - 10; b += jb) T(A0 + 4, A1 - 4, b - 0.7, b + 0.7, z, shade(base, .88));
+  /* tyre polish down the aisles: a soft lane, the two wheel paths in it darker, broken where the traffic thins */
+  (o.aisles || []).forEach(([x0, x1, bc], k) => {
+    const u0 = Math.max(A0, Math.min(x0, x1)), u1 = Math.min(A1, Math.max(x0, x1));
+    T(u0, u1, bc - 70, bc + 70, z, 'rgba(24,24,26,0.035)');
+    for(const off of [-48, 48]) for(let a = u0 + 20, j = 0; a < u1 - 40; j++){
+      const hv = h(k*977 + j*31 + (off > 0 ? 7 : 3)), L = 160 + hv*360;
+      if(hv > 0.18) T(a, Math.min(u1 - 20, a + L), bc + off - 13, bc + off + 13, z, 'rgba(26,26,30,' + (0.05 + 0.04*hv) + ')');
+      a += L + 30 + 120*h(k*977 + j*31 + 11); } });
+  /* oil under the stalls, where the cars stand longest */
+  (o.stalls || []).forEach(([sa, sb], k) => { const hv = h(4099 + k*13);
+    if(hv < 0.5) roofBlot(sa + (h(4111 + k*13) - 0.5)*40, sb + (h(4127 + k*13) - 0.5)*60, 20 + hv*36, 14 + hv*22, z, '16,16,18', 0.16 + 0.12*h(4133 + k*13), lim); });
+  /* patches, sealed round; sealed cracks; a few ponding stains */
+  const n = Math.max(2, Math.round(w*dd/600000));
+  for(let k = 0; k < n; k++){ const pw = 90 + h(5003 + k)*180, pd = 70 + h(5011 + k)*130, pa = A0 + 30 + h(5021 + k)*(w - pw - 60), pb = B0 + 30 + h(5039 + k)*(dd - pd - 60);
+    T(pa, pa + pw, pb, pb + pd, z, h(5051 + k) < 0.5 ? shade(base, 1.05) : shade(base, .93));
+    const sc = 'rgba(31,32,36,0.42)'; T(pa, pa + pw, pb - 1.2, pb + 1.2, z, sc); T(pa, pa + pw, pb + pd - 1.2, pb + pd + 1.2, z, sc); T(pa - 1.2, pa + 1.2, pb, pb + pd, z, sc); T(pa + pw - 1.2, pa + pw + 1.2, pb, pb + pd, z, sc); }
+  for(let k = 0; k < n*2; k++){ let x = A0 + 40 + h(6007 + k)*(w - 80), y = B0 + 40 + h(6011 + k)*(dd - 80); const along = h(6029 + k) < 0.5;
+    for(let j = 0; j < 7 + h(6037 + k)*9; j++){ const r1 = h(6043 + k*31 + j), r2 = h(6047 + k*37 + j);
+      const x2 = along ? x + 16 + r1*16 : x + (r2 - 0.5)*12, y2 = along ? y + (r2 - 0.5)*12 : y + 16 + r1*16;
+      if(x2 < A0 + 10 || x2 > A1 - 10 || y2 < B0 + 10 || y2 > B1 - 10) break;
+      const l = Math.hypot(x2 - x, y2 - y) || 1, nx = -(y2 - y)/l*1.4, ny = (x2 - x)/l*1.4;
+      poly([P(x + nx, y + ny, z), P(x2 + nx, y2 + ny, z), P(x2 - nx, y2 - ny, z), P(x - nx, y - ny, z)], 'rgba(31,32,36,0.4)');
+      x = x2; y = y2; } }
+  for(let k = 0; k < n; k++) roofBlot(A0 + w*(0.1 + 0.8*h(7001 + k)), B0 + dd*(0.1 + 0.8*h(7013 + k)), 60 + h(7019 + k)*110, 40 + h(7027 + k)*80, z, h(7039 + k) < 0.6 ? '18,20,18' : '255,255,255', 0.06 + 0.04*h(7043 + k), lim);
+  /* grime along the parapets, two drains along the far one */
+  T(A0, A1, B0, B0 + 14, z, 'rgba(18,20,18,0.06)'); T(A0, A1, B1 - 14, B1, z, 'rgba(18,20,18,0.06)');
+  T(A0, A0 + 14, B0 + 14, B1 - 14, z, 'rgba(18,20,18,0.05)'); T(A1 - 14, A1, B0 + 14, B1 - 14, z, 'rgba(18,20,18,0.05)');
+  for(const da of [0.25, 0.75]){ const ca = A0 + w*da, cb = B0 + 30;
+    T(ca - 14, ca + 14, cb - 9, cb + 9, z, shade(base, .7)); for(let x = ca - 10; x < ca + 10; x += 5) T(x, x + 2, cb - 6, cb + 6, z, '#2c2e31'); }
+}
+/* A ROOF TERRACE'S PAVERS (Palmline Tower's podium, Cove Grove's): laid as the courtyards are (courtyardFill's concrete
+   pavers): 92 x 46 in a running bond along a, the joints dark, a tone each, now and then a replaced one; moss in the
+   joints along its edges, soft stains, a drain. o.win: only the part [a0, a1, b0, b1] of it (a terrace drawn in shares:
+   its pieces' joints still meet). The paving's own colour (col) kept. Seeded off the terrace. */
+function roofPavers(a0, a1, b0, b1, z, col, o){
+  o = o || {};
+  if(CUT !== null && z > CUT) return;
+  const A0 = Math.min(a0, a1), A1 = Math.max(a0, a1), B0 = Math.min(b0, b1), B1 = Math.max(b0, b1), w = A1 - A0, dd = B1 - B0;
+  const Wn = o.win ? [Math.max(A0, Math.min(o.win[0], o.win[1])), Math.min(A1, Math.max(o.win[0], o.win[1])), Math.max(B0, Math.min(o.win[2], o.win[3])), Math.min(B1, Math.max(o.win[2], o.win[3]))] : [A0, A1, B0, B1];
+  if(Wn[1] - Wn[0] < 0.5 || Wn[3] - Wn[2] < 0.5) return;
+  const seed = natStrSeed('pave' + Math.round(A0) + ',' + Math.round(B0) + 'x' + Math.round(w) + ',' + Math.round(dd) + '@' + Math.round(z));
+  const h = (p, q, k) => natHash((Math.imul(p, 73856093) ^ Math.imul(q, 19349663) ^ Math.imul(k, 83492791) ^ seed) >>> 0);
+  const R = (x0, x1, y0, y1, c) => { x0 = Math.max(x0, Wn[0]); x1 = Math.min(x1, Wn[1]); y0 = Math.max(y0, Wn[2]); y1 = Math.min(y1, Wn[3]); if(x1 - x0 > 0.3 && y1 - y0 > 0.3) T(x0, x1, y0, y1, z, c); };
+  const PW = 92, PD = 46, c0 = shade(col, 1.04), c1 = shade(col, .98);
+  R(A0, A1, B0, B1, shade(col, .82));                                            // the joints
+  for(let r = Math.max(0, Math.floor((Wn[2] - B0)/PD)); B0 + r*PD < Wn[3]; r++){
+    const y0 = B0 + r*PD; if(!inView(Wn[0], Wn[1], y0, y0 + PD, z, z)) continue;
+    const off = (r & 1)*PW/2;
+    for(let k = Math.floor((Wn[0] - A0 + off)/PW) - 1; A0 - off + k*PW < Wn[1]; k++){
+      const x0 = A0 - off + k*PW, v = h(k, r, 1);
+      let c = shade(v < 0.5 ? c0 : c1, 0.97 + 0.06*h(k, r, 2));
+      if(v > 0.965) c = shade(c, 0.88);                                         // a replaced one, newer and darker
+      R(x0 + 1.2, x0 + PW - 1.2, y0 + 1.2, y0 + PD - 1.2, c);
+      /* moss in the joints near the terrace's edges */
+      const ed = Math.min(x0 - A0, A1 - x0 - PW, y0 - B0, B1 - y0 - PD);
+      if(ed < 70 && h(k, r, 5) < 0.3) R(x0 + PW*0.2*h(k, r, 6), x0 + PW*(0.5 + 0.4*h(k, r, 7)), y0 + PD - 2, y0 + PD + 1.5, 'rgba(92,110,58,0.22)');
+    }
+  }
+  /* soft stains, by its size; a drain or two down its middle */
+  const n = Math.max(2, Math.round(w*dd/250000)), s = k => natHash((seed + Math.imul(k, 2654435761)) >>> 0);
+  for(let k = 0; k < n; k++){ const ca = A0 + w*(0.08 + 0.84*s(k*7 + 1)), cb = B0 + dd*(0.08 + 0.84*s(k*7 + 2)), ra = 50 + s(k*7 + 3)*110, rb = 36 + s(k*7 + 4)*80;
+    if(ca + ra < Wn[0] || ca - ra > Wn[1] || cb + rb < Wn[2] || cb - rb > Wn[3]) continue;
+    roofBlot(ca, cb, ra, rb, z, s(k*7 + 5) < 0.6 ? '26,24,20' : '255,255,255', 0.07 + 0.04*s(k*7 + 6), Wn); }
+  const nd = Math.max(1, Math.round(w/900));
+  for(let k = 0; k < nd; k++){ const ca = A0 + w*(k + 0.5)/nd, cb = B0 + dd*0.5;
+    if(ca < Wn[0] + 16 || ca > Wn[1] - 16 || cb < Wn[2] + 16 || cb > Wn[3] - 16) continue;
+    T(ca - 14, ca + 14, cb - 10, cb + 10, z, shade(col, .66)); for(let x = ca - 10; x < ca + 10; x += 5) T(x, x + 2, cb - 7, cb + 7, z, '#3a3b3d'); }
+}
 /* A FLAT ROOF'S DECK (the roof pass): the plate body() and rearBody() lay, as a roof -- seeded, a pale membrane in
    sheets with its seams or a gravel ballast with its speckle and a paver walk (an entry's own colour kept), aged; a coping line round its edge
    and a dark drain in a corner either way. Seeded off its size and height (one shop, one deck, every frame alike). */
-function roofDeck(a0, a1, b0, b1, z, wall, trim, given){
+function roofDeck(a0, a1, b0, b1, z, wall, trim, given, o){
+  /* (o, the roof pass part 2 -- the landmarks; a call without it is drawn exactly as before: o.win [a0, a1, b0, b1] only the
+     part of the deck in it, every mark cut to it (a deck drawn in tiles: its seams, stains and coping meet across them);
+     o.clip [[a, b], ...] clipped to that convex outline (a rounded corner); o.kind 'membrane' or 'gravel'; and with o its
+     detail by its area -- more patches and stains, the gravel mottled, more cross seams and drains -- so a deck a
+     thousand or more a side does not read bare) */
+  if(o && o.clip && !o.inClip){
+    if(CUT !== null && z > CUT) return;
+    ctx.save(); poly(o.clip.map(q => P(q[0], q[1], z))); ctx.clip();
+    try { roofDeck(a0, a1, b0, b1, z, wall, trim, given, { kind: o.kind, win: o.win, inClip: true }); } finally { ctx.restore(); }
+    return;
+  }
+  if(o){ if(a1 < a0){ const t = a0; a0 = a1; a1 = t; } if(b1 < b0){ const t = b0; b0 = b1; b1 = t; } }   // (a frame whose b runs the other way)
+  const Wn = o && o.win ? [Math.min(o.win[0], o.win[1]), Math.max(o.win[0], o.win[1]), Math.min(o.win[2], o.win[3]), Math.max(o.win[2], o.win[3])] : null;
+  if(Wn && !inView(Wn[0], Wn[1], Wn[2], Wn[3], z, z)) return;
+  const Td = Wn ? (x0, x1, y0, y1, zz, c) => { x0 = Math.max(x0, Wn[0]); x1 = Math.min(x1, Wn[1]); y0 = Math.max(y0, Wn[2]); y1 = Math.min(y1, Wn[3]);
+    if(x1 - x0 > 0.05 && y1 - y0 > 0.05) T(x0, x1, y0, y1, zz, c); } : T;
   const L = ROOF_ART.look, w = a1 - a0, dd = b1 - b0;
   const seed = natStrSeed(Math.round(w) + 'x' + Math.round(dd) + '@' + Math.round(z) + (wall || '') + (given || ''));
-  const kind = natHash(seed + 1) < 0.5 ? 'membrane' : 'gravel';                                             // one deck sheeted, the next ballasted
+  const kind = o && o.kind ? o.kind : natHash(seed + 1) < 0.5 ? 'membrane' : 'gravel';                                             // one deck sheeted, the next ballasted
   const base = given || (kind === 'membrane' ? '#cfcfca' : '#aaa69d');                                       // (an entry's own deck colour kept: given)
-  T(a0, a1, b0, b1, z, base);
+  Td(a0, a1, b0, b1, z, base);
+  const ea0 = Wn ? Math.max(a0 + 4, Wn[0]) : a0 + 4, ea1 = Wn ? Math.min(a1 - 4, Wn[1]) : a1 - 4, eb0 = Wn ? Math.max(b0 + 4, Wn[2]) : b0 + 4, eb1 = Wn ? Math.min(b1 - 4, Wn[3]) : b1 - 4;
+  const E = (ca, cb, ra, rb, col) => { if(Wn && (ca + ra < ea0 || ca - ra > ea1 || cb + rb < eb0 || cb - rb > eb1)) return; const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2, f = 1 + 0.12*Math.sin(3*t + ca);
+    pts.push(P(Math.max(ea0, Math.min(ea1, ca + ra*f*Math.cos(t))), Math.max(eb0, Math.min(eb1, cb + rb*f*Math.sin(t))), z)); } poly(pts, col); };
   if(kind === 'membrane'){
-    for(let a = a0 + 96; a < a1 - 20; a += 96) T(a - 0.8, a + 0.8, b0 + 6, b1 - 6, z, shade(base, .9));     // the sheets' lapped seams
-    T(a0 + 14, a1 - 14, b0 + dd*0.42, b0 + dd*0.42 + 1.4, z, shade(base, .93));                              // a cross seam
+    for(let a = a0 + 96; a < a1 - 20; a += 96) Td(a - 0.8, a + 0.8, b0 + 6, b1 - 6, z, shade(base, .9));     // the sheets' lapped seams
+    Td(a0 + 14, a1 - 14, b0 + dd*0.42, b0 + dd*0.42 + 1.4, z, shade(base, .93));                              // a cross seam
+    if(o) for(let b = b0 + dd*0.42 + 420; b < b1 - 60; b += 420) Td(a0 + 14, a1 - 14, b, b + 1.4, z, shade(base, .93));   // (and on, a big deck)
   } else {
     const n = Math.min(260, Math.round(w*dd/700));
     for(let i = 0; i < n; i++){ const h1 = natHash(seed + i*2654435761), h2 = natHash(seed ^ (i*40503 + 17)), h3 = natHash(seed + i*97);
       const a = a0 + 6 + h1*(w - 12), b = b0 + 6 + h2*(dd - 12), s = 2 + h3*2.5;
-      T(a, a + s, b, b + s*0.8, z, h3 < 0.5 ? shade(base, .82) : shade(base, 1.12)); }
+      Td(a, a + s, b, b + s*0.8, z, h3 < 0.5 ? shade(base, .82) : shade(base, 1.12)); }
     const pw = 34, pa = a0 + w*(0.3 + natHash(seed + 5)*0.4);                                                  // a walkway of pavers to the plant
-    for(let b = b0 + 20; b < b1 - 30; b += pw + 6) T(pa, pa + pw, b, b + pw, z, '#c4c0b6');
+    for(let b = b0 + 20; b < b1 - 30; b += pw + 6) Td(pa, pa + pw, b, b + pw, z, '#c4c0b6');
+    /* (a big deck: its specks too few to read at 260, so the ballast mottled -- soft drifts a shade darker and lighter) */
+    if(o && w*dd/700 > 260){ const m = Math.min(420, Math.round(w*dd/26000));
+      for(let i = 0; i < m; i++){ const h1 = natHash(seed + 9001 + i*7), h2 = natHash(seed + 9011 + i*13), h3 = natHash(seed + 9029 + i*5);
+        const ca = a0 + 20 + h1*(w - 40), cb = b0 + 20 + h2*(dd - 40), r = 24 + h3*50;
+        E(ca, cb, r, r*0.7, h3 < 0.5 ? 'rgba(40,38,32,0.055)' : 'rgba(255,255,250,0.065)'); } }
   }
   /* age: patched sheets sealed round, ponding stains with a dried ring, grime along the coping */
-  const E = (ca, cb, ra, rb, col) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2, f = 1 + 0.12*Math.sin(3*t + ca);
-    pts.push(P(Math.max(a0 + 4, Math.min(a1 - 4, ca + ra*f*Math.cos(t))), Math.max(b0 + 4, Math.min(b1 - 4, cb + rb*f*Math.sin(t))), z)); } poly(pts, col); };
-  const np = w*dd > 60000 ? 2 : 1;
+  const kA = o ? Math.max(1, w*dd/300000) : 1;                                                              // (o: by its area)
+  const np = o ? Math.max(w*dd > 60000 ? 2 : 1, Math.round(kA*0.8)) : w*dd > 60000 ? 2 : 1;
   for(let i = 0; i < np; i++){ const h1 = natHash(seed + 31 + i*7), h2 = natHash(seed + 37 + i*7), h3 = natHash(seed + 41 + i*7);
     if(h3 > 0.75) continue;
     const pw = 50 + h1*Math.min(120, w*0.3), pd = 40 + h2*Math.min(90, dd*0.3), pa = a0 + 12 + h2*(w - pw - 24), pb = b0 + 12 + h1*(dd - pd - 24);
-    T(pa, pa + pw, pb, pb + pd, z, shade(base, h3 < 0.4 ? 0.93 : 1.05));
-    const sc = shade(base, .74); T(pa, pa + pw, pb, pb + 1.4, z, sc); T(pa, pa + pw, pb + pd - 1.4, pb + pd, z, sc); T(pa, pa + 1.4, pb, pb + pd, z, sc); T(pa + pw - 1.4, pa + pw, pb, pb + pd, z, sc); }
-  const nst = 1 + Math.round(natHash(seed + 53)*2);
+    Td(pa, pa + pw, pb, pb + pd, z, shade(base, h3 < 0.4 ? 0.93 : 1.05));
+    const sc = shade(base, .74); Td(pa, pa + pw, pb, pb + 1.4, z, sc); Td(pa, pa + pw, pb + pd - 1.4, pb + pd, z, sc); Td(pa, pa + 1.4, pb, pb + pd, z, sc); Td(pa + pw - 1.4, pa + pw, pb, pb + pd, z, sc); }
+  const nst = 1 + Math.round(natHash(seed + 53)*2) + (o ? Math.round((kA - 1)*0.5) : 0);
   for(let i = 0; i < nst; i++){ const ca = a0 + w*(0.15 + 0.7*natHash(seed + 61 + i)), cb = b0 + dd*(0.15 + 0.7*natHash(seed + 67 + i)), r = 30 + natHash(seed + 71 + i)*Math.min(70, w*0.15);
     E(ca, cb, r*1.08, r*0.78, 'rgba(255,255,255,' + L.stain*0.7 + ')');                                    // the dried ring
     for(const f of [1, 0.7, 0.4]) E(ca, cb, r*f, r*0.7*f, 'rgba(18,20,18,' + L.stain/2 + ')'); }
-  T(a0 + 6, a1, b1 - 18, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.8 + ')'); T(a0 + 6.5, a0 + 18, b0, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.6 + ')');
-  T(a0 + 6, a1, b0, b0 + 12, z, 'rgba(18,20,18,' + L.stain*0.7 + ')'); T(a1 - 12, a1, b0, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.6 + ')');
+  Td(a0 + 6, a1, b1 - 18, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.8 + ')'); Td(a0 + 6.5, a0 + 18, b0, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.6 + ')');
+  Td(a0 + 6, a1, b0, b0 + 12, z, 'rgba(18,20,18,' + L.stain*0.7 + ')'); Td(a1 - 12, a1, b0, b1 - 6.5, z, 'rgba(18,20,18,' + L.stain*0.6 + ')');
   /* the coping: a lit lip along the edges (light on the near and left sides), a dark joint inside it */
-  T(a0, a1, b1 - 5, b1, z, shade(base, 1.1)); T(a0, a0 + 5, b0, b1, z, shade(base, 1.08));
-  T(a0 + 5, a1, b1 - 6.5, b1 - 5, z, shade(base, .82)); T(a0 + 5, a0 + 6.5, b0, b1 - 5, z, shade(base, .84));
+  Td(a0, a1, b1 - 5, b1, z, shade(base, 1.1)); Td(a0, a0 + 5, b0, b1, z, shade(base, 1.08));
+  Td(a0 + 5, a1, b1 - 6.5, b1 - 5, z, shade(base, .82)); Td(a0 + 5, a0 + 6.5, b0, b1 - 5, z, shade(base, .84));
   const ca = natHash(seed + 11) < 0.5 ? a0 + 26 : a1 - 34;                                                     // a drain
-  T(ca, ca + 8, b0 + 24, b0 + 30, z, shade(base, .55));
+  Td(ca, ca + 8, b0 + 24, b0 + 30, z, shade(base, .55));
+  if(o && kA > 3) for(let da = a0 + 700; da < a1 - 300; da += 800) for(let db = b0 + 400; db < b1 - 300; db += 800) Td(da, da + 8, db, db + 6, z, shade(base, .55));   // (a big deck's drains, on a grid)
 }
 function body(wall, trim, H, wid, dep){
   const w = wid===undefined ? W : wid, d = dep===undefined ? D : dep;
@@ -54956,7 +55114,7 @@ function houseCanopy(fn){
             Tw([bx, bx + 1656, by, by + 1656], 0.4, pave); }
           /* the podium deck, less the ways up */
           for(const r0 of C.podium){ const r = clipR(r0); if(!okR(r)) continue;
-            for(const q of minus([r], holes)) Tw(q, H, deck); }
+            for(const q of minus([r], holes)) roofPavers(A(r0[0]), A(r0[1]), B(r0[3]), B(r0[2]), H, deck, { win: [A(q[0]), A(q[1]), B(q[3]), B(q[2])] }); }   // (the roof pass: paved and aged, one lay over the whole deck)
           /* the walk across it: its arms, their joints (none in the corner
              square), the edging round the L, the inlay at the corner */
           for(const w0 of C.walk){ const w = clipR(w0); if(!okR(w)) continue;
@@ -55621,7 +55779,9 @@ function houseCanopy(fn){
                volume reads too. WHILE HE IS UP HERE (HOOD_DECK_DRAW) the cars
                and the near parapets are pieces of their own, ordered with
                him by the deck's own order (see queueParkBlock) */
-            T(ax0, ax1, bS, bN, ROOF, '#b7b2a8');
+            parkDeck(ax0, ax1, bS, bN, ROOF, '#b7b2a8', parkDeckOpts('hosp garage ' + Math.round(LX(0)) + ',' + Math.round(LY(0)), () => ({ seed: 'hosp garage',   // the deck: worn concrete (the roof pass)
+              aisles: [[ax0, ax1, LY((rf.rows[0] + rf.rows[1])/2)], [ax0, ax1, LY((rf.rows[1] + rf.rows[2])/2)]],
+              stalls: rf.rows.flatMap(rb => rf.stalls.map(la => [LX(la), LY(rb)])) })));
             for(const rb of rf.rows) for(const la of rf.stalls){ const a = LX(la) - 70;
               T(a, a + 3, LY(rb + 120), LY(rb - 120), ROOF + 0.3, '#f2ecd8'); }
             { const z = ROOF + 0.4, y = gold, a0 = LX(GP.CAR0), a1 = LX(GP.CAR1), b0 = LY(GP.BF - 12), b1 = LY(GP.BF - 150);   // the lift bay, as the mall's
@@ -55765,7 +55925,7 @@ function houseCanopy(fn){
               if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, CROWN + 200)) return;
               /* the roof FIRST: the signs stand up off its front edge, and
                  laid after them it painted over everything above the line */
-              T(A(tx0), A(tx1), B(ty1), B(ty0), PD.top, '#b9bcbb');
+              roofDeck(A(PD.x0), A(PD.x1), B(PD.y1), B(PD.y0), PD.top, null, null, '#b9bcbb', { win: [A(tx0), A(tx1), B(ty1), B(ty0)] });   // (the roof pass: the podium's one deck, this tile's share)
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               /* the podium's south front */
               if(r === m - 1){
@@ -55878,7 +56038,7 @@ function houseCanopy(fn){
               /* the tower, where it stands over this tile */
               const ax0 = Math.max(tx0, TW.x0), ax1 = Math.min(tx1, TW.x1), ay0 = Math.max(ty0, TW.y0), ay1 = Math.min(ty1, TW.y1);
               if(ax1 > ax0 && ay1 > ay0){
-                T(A(ax0), A(ax1), B(ay1), B(ay0), TOP, '#b9bcbb');
+                roofDeck(A(TW.x0), A(TW.x1), B(TW.y1), B(TW.y0), TOP, null, null, '#b9bcbb', { win: [A(ax0), A(ax1), B(ay1), B(ay0)] });   // (the roof pass: the tower's one deck, this tile's share)
                 CLIPA = [A(ax0), A(ax1)]; CLIPB = [B(ay1), B(ay0)];
                 if(ay1 === TW.y1){
                   fq(tS, A(TW.x0), A(TW.x1), PD.top, TOP, wall, 0);
@@ -56173,7 +56333,9 @@ function houseCanopy(fn){
               fq(f, u0, u1, z0 - 12, z0 + 34, conc, 0.6); fq(f, u0, u1, z0 - 12, z0 - 8, concD, 0.9); fq(f, u0, u1, z0 + 30, z0 + 34, concL, 0.9); }
           }
           /* the roof deck: its stall lines, its aisles' arrows, the lift bay, the far parapets */
-          T(ax0, ax1, bS, bN, ROOF, '#b7b2a8');
+          parkDeck(ax0, ax1, bS, bN, ROOF, '#b7b2a8', parkDeckOpts('marina garage ' + Math.round(LX(0)) + ',' + Math.round(LY(0)), () => ({ seed: 'marina garage',   // the deck: worn concrete (the roof pass)
+            aisles: [[ax0, ax1, LY((rf.rows[0] + rf.rows[1])/2)], [ax0, ax1, LY((rf.rows[2] + rf.rows[3])/2)]],
+            stalls: rf.rows.flatMap((rb, row) => rf.stalls.filter(la => !(row === 3 && la > GP.CORE0 - 90 && la < GP.CORE1 + 90)).map(la => [LX(la), LY(rb)])) })));
           for(const rb of rf.rows) for(const la of rf.stalls){ const a = LX(la) - 70;
             T(a, a + 3, LY(rb + 112), LY(rb - 112), ROOF + 0.3, '#f2ecd8'); }
           for(const [rb, dir] of [[(rf.rows[0] + rf.rows[1])/2, 1], [(rf.rows[2] + rf.rows[3])/2, -1]])
@@ -56658,7 +56820,7 @@ function houseCanopy(fn){
             if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
             items.push({ a: A(tx1), b: B(ty0), z: 0, shell: true, draw: () => {      // (shell: a walk-in's -- the terminal, TERM_IN -- fades round him as he goes in)
               if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, TOP + 20)) return;
-              T(A(tx0), A(tx1), B(ty1), B(ty0), TOP, '#c4c6c4');
+              roofDeck(A(TM.x0), A(TM.x1), B(TM.y1), B(TM.y0), TOP, null, null, '#c4c6c4', { win: [A(tx0), A(tx1), B(ty1), B(ty0)] });   // (the roof pass: the terminal's one deck, this tile's share)
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               if(r === ny - 1){
                 fq(tS, A(TM.x0), A(TM.x1), 0, TOP, wall, 0);
@@ -56718,7 +56880,7 @@ function houseCanopy(fn){
             if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
             items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
               if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, TOP + 20)) return;
-              T(A(tx0), A(tx1), B(ty1), B(ty0), TOP, '#c4c6c4');
+              roofDeck(A(FS.x0), A(FS.x1), B(FS.y1), B(FS.y0), TOP, null, null, '#c4c6c4', { win: [A(tx0), A(tx1), B(ty1), B(ty0)] });   // (the roof pass: the fire station's one deck, this tile's share)
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               if(r === ny - 1){
                 fq(fS, A(FS.x0), A(FS.x1), 0, TOP, '#e9e4da', 0);
@@ -57017,8 +57179,12 @@ function houseCanopy(fn){
               if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, W + HL.rise + 10)) return;
               for(let t2 = 0; t2 < HL.teeth; t2++){ const ya = HL.y0 + t2*tooth, yb = ya + tooth, y0 = Math.max(ya, ty0), y1 = Math.min(yb, ty1); if(y1 <= y0) continue;
                 const z0 = W + HL.rise*(1 - (y0 - ya)/tooth), z1 = W + HL.rise*(1 - (y1 - ya)/tooth);
-                poly([P(A(tx0), B(y0), z0), P(A(tx1), B(y0), z0), P(A(tx1), B(y1), z1), P(A(tx0), B(y1), z1)], shade(roofC, 1.06));
-                for(let x = HL.x0 + 70; x < HL.x1; x += 70) if(x > tx0 && x < tx1) tube(A(x), B(y0), z0 + 0.4, A(x), B(y1), z1 + 0.4, 1, shade(roofC, .86));
+                /* (the roof pass: the slope lit by which way it turns on screen -- SP13, asked of P -- and, where this piece holds
+                   the tooth's ridge, streaked down from it) */
+                const q = [[A(tx0), B(y0), z0], [A(tx1), B(y0), z0], [A(tx1), B(y1), z1], [A(tx0), B(y1), z1]], rl = roofLitOf(shade(roofC, 1.06), q);
+                poly(q.map(t => P(t[0], t[1], t[2])), rl);
+                if(y0 === ya) roofSlopeAge(q[3], q[0], q[2], q[1], { moss: 0 });
+                for(let x = HL.x0 + 70; x < HL.x1; x += 70) if(x > tx0 && x < tx1) tube(A(x), B(y0), z0 + 0.4, A(x), B(y1), z1 + 0.4, 1, shade(rl, .86/1.06));
                 if(y0 === ya && ya > HL.y0) tube(A(tx0), B(ya), W + HL.rise, A(tx1), B(ya), W + HL.rise, 1.6, shade(roofC, .7)); }
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               if(r === ny - 1){
@@ -81360,6 +81526,7 @@ function houseCanopy(fn){
     F(BA0, BA1, 0, 24, shade(wall,.78), null, 0, FB+0.4);
     T(BA0, BA1, BB, FB, H+0.4, '#3d2a1a');
     slab(BA0-6, BA1+6, H, H+16, FB+6, BB-6, shade(wall,.7));           // cornice
+    roofDeck(BA0, BA1, BB, FB, H+16, null, null, shade(wall,.7), {});   // the roof inside the cornice's lip (the roof pass: its deck, aged)
 
     /* ---- the tap room, on the b -40 face ---- */
     slab(BA0, BA1, 0, 150, FB+6, FB, shade(wall,1.2), null, trim);
@@ -84194,7 +84361,7 @@ function houseCanopy(fn){
       F(a0 - e0, a1 + e1, 0, 10, wallD, null, 0, M.N.b1 + 0.2);                                  // its plinth
       F(a0 - e0, a1 + e1, GZ - 4, GZ + 8, wallS, null, 0, M.N.b1 + 0.2);                         // the floor line
       if(last){ S(a1, M.N.b0, M.N.b1, 0, RZ, wallS); S(a1 + 0.2, M.N.b0, M.N.b1, 0, 10, wallD); }   // its east end
-      T(a0 - e0, a1 + e1, M.N.b0, M.N.b1, RZ, roofc);                                            // the roof
+      roofDeck(M.N.a0, M.N.a1, M.N.b0, M.N.b1, RZ, null, null, roofc, { win: [a0 - e0, a1 + e1, M.N.b0, M.N.b1] });   // the roof (the roof pass: the wing's one deck, this tile's share)
       const N = M.bayN[2], bw = (M.bayN[1] - M.bayN[0])/N;
       for(let k = 0; k < N; k++){ const u0 = M.bayN[0] + bw*k, u1 = u0 + bw; if(u0 < a0 - 0.5 || u1 > a1 + 0.5) continue; room(true, u0, u1, k, 0); room(true, u0, u1, k + 1, GZ + 8); }
       /* the parapet: a turquoise band along the front, a rim on the roof's other edges */
@@ -84227,7 +84394,7 @@ function houseCanopy(fn){
       if(last){ F(M.W.a0, M.W.a1, 0, RZ, wall, null, 0, b1); F(M.W.a0, M.W.a1, 0, 10, wallD, null, 0, b1 + 0.2);
         for(const z0 of [0, GZ + 8]) { F(110, 230, z0 + 30, z0 + 86, shade(wall, 0.84), null, 0, b1 + 0.4); F(116, 224, z0 + 34, z0 + 82, '#4d6872', null, 0, b1 + 0.6);
           F(116, 224, z0 + 34, z0 + 82, 'rgba(170,206,220,.35)', null, 0, b1 + 0.8); } }        // its south end, a window a floor
-      T(M.W.a0, M.W.a1, b0 - e0, b1 + e1, RZ, roofc);
+      roofDeck(M.W.a0, M.W.a1, M.W.b0, M.W.b1, RZ, null, null, roofc, { win: [M.W.a0, M.W.a1, b0 - e0, b1 + e1] });   // (the roof pass: the wing's one deck, this tile's share)
       const N = M.bayW[2], bw = (M.bayW[1] - M.bayW[0])/N;
       for(let k = 0; k < N; k++){ const u0 = M.bayW[0] + bw*k, u1 = u0 + bw; if(u0 < b0 - 0.5 || u1 > b1 + 0.5) continue; room(false, u0, u1, k + 3, 0); room(false, u0, u1, k + 4, GZ + 8); }
       /* (back to front and meeting face to face -- W37: the back rim first, stopping at the south end's rim; the south rim up to
@@ -84323,7 +84490,9 @@ function houseCanopy(fn){
       F(Os.a0, Os.a1, H, rz(Os.b1), '#bcd6dc', null, 0, Os.b1 + 0.2);                                // the clerestory, south
       for(let x = Os.a0 + 40; x < Os.a1; x += 52) F(x - 2, x + 2, H, rz(Os.b1), shade(trim, 1.1), null, 0, Os.b1 + 0.4);
       poly([P(Os.a1 + 0.2, Os.b0, H), P(Os.a1 + 0.2, Os.b1, H), P(Os.a1 + 0.2, Os.b1, rz(Os.b1)), P(Os.a1 + 0.2, Os.b0, rz(Os.b0))], '#a9c7ce');   // ...and east
-      poly([P(RA0, RB1, O.roof + 5), P(RA1, RB1, O.roof + 5), P(RA1, RB0, H + 5), P(RA0, RB0, H + 5)], shade(roofc, 1.05));   // the top (its underside never faces the eye)
+      { const q = [[RA0, RB1, O.roof + 5], [RA1, RB1, O.roof + 5], [RA1, RB0, H + 5], [RA0, RB0, H + 5]];
+        poly(q.map(t => P(t[0], t[1], t[2])), roofLitOf(shade(roofc, 1.05), q));                // the top (its underside never faces the eye; lit as it turns, SP13)
+        roofSlopeAge(q[3], q[0], q[2], q[1], { moss: 0.6 }); }   // (its eave the low back edge, the front swept up)
       F(RA0, RA1, O.roof - 3, O.roof + 9, trim, null, 0, RB1);                                   // the fascia
       poly([P(RA1, RB0, H - 3), P(RA1, RB1, O.roof - 3), P(RA1, RB1, O.roof + 9), P(RA1, RB0, H + 9)], trimD);
       blockWordIn('OFFICE', 300, 470, O.roof - 2, O.roof + 8, RB1 + 0.5, '#ffffff', null, 6);
@@ -84447,7 +84616,7 @@ function houseCanopy(fn){
       band(0, 12, shade(wall, 0.8), 0.3, B.a0, B.b0);                                   // the plinth
       band(GZ - 3, GZ + 5, shade(wall, 0.9), 0.4, B.a0, B.b0);                          // the floor line
       /* the roof, the parapet */
-      poly(ktdeOutline(10).map(([a, b]) => P(a, b, RZ)), roofc);
+      roofDeck(B.a0, B.a1, B.b0, B.b1, RZ, null, null, roofc, { clip: ktdeOutline(10) });   // (the roof pass: its deck, clipped round the corner)
       if(state.roof) for(const [ra, rb] of [[1000, -1200], [1150, -1250], [400, -1300], [1200, -600]]) box(ra - 30, ra + 30, rb - 20, rb + 20, RZ, RZ + 24, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
       /* the west rim and the back rim: one run round their corner (pathRun -- the corner rule) */
       pathRun([[B.a0 + 4, B.b1], [B.a0 + 4, B.b0 + 4], [B.a1, B.b0 + 4]], 4, RZ, PZ, shade(wall, 1.04), wallS, wallS);
@@ -85584,12 +85753,15 @@ function houseCanopy(fn){
          corner and nothing drawn twice. The ribs follow the same taper,
          because a rib on a hipped slope converges with it. */
       const NR = Math.round(L/58);
-      poly([Q(fr,0,0,H+18), Q(fr,L,0,H+18), Q(fr,L-HIP,MN,MZ), Q(fr,HIP,MN,MZ)], slate);
+      /* (the roof pass: each slope lit by which way it turns on screen -- SP13, asked of P -- its ribs with it, and aged) */
+      const mq = [fr.P(0,0,H+18), fr.P(L,0,H+18), fr.P(L-HIP,MN,MZ), fr.P(HIP,MN,MZ)], slateL = roofLitOf(slate, mq);
+      poly(mq.map(c => P(c[0],c[1],c[2])), slateL);
       for(let k=1;k<NR;k++){
         const t = k/NR, u0 = L*t, u1 = HIP + (L-2*HIP)*t;
         poly([Q(fr,u0-2,0,H+18), Q(fr,u0+2,0,H+18),
-              Q(fr,u1+2,MN,MZ), Q(fr,u1-2,MN,MZ)], shade(slate,1.12));
+              Q(fr,u1+2,MN,MZ), Q(fr,u1-2,MN,MZ)], shade(slateL,1.12));
       }
+      roofSlopeAge(mq[0], mq[3], mq[1], mq[2], { moss: 0.4 });
       /* A DORMER STANDS ON THE SLOPE. The first cut drew these at n 0,
          which is the wall plane -- the mansard only touches that at its
          very foot (z H+18), so every dormer floated in front of the
@@ -85627,7 +85799,7 @@ function houseCanopy(fn){
        the tops of its own roof and the far slopes stood above nothing. A
        mansard's deck is the plane the four slopes meet at: inset by the
        lean, at the height they reach. */
-    T(HIP, WW-HIP, -DD+HIP, -HIP, MZ, shade(slate,1.06));
+    roofDeck(HIP, WW-HIP, -DD+HIP, -HIP, MZ, null, null, shade(slate,1.06), {});   // (the roof pass: the deck, aged)
     elevation(NEAR);
     elevation(FR_FRONT);
 
@@ -86721,7 +86893,7 @@ marinaEntry(),
     };
     items.push({ a:(SA0+SA1)/2, b:(SB0+BB1)/2, z:0, shell: true, draw:() => {
       elevation(FR_BACK); elevation(FAR);
-      T(SA0, SA1, SB0, BB1, H, shade(wall,1.02));
+      roofDeck(SA0, SA1, SB0, BB1, H, null, null, shade(wall,1.02), {});   // the roof (the roof pass: its deck, aged)
       S((NEAR === FR_RIGHT) ? SA1 : SA0, SB0, BB1, 0, H, shade(wall,.78));
       F(SA0, SA1, 0, H, wall, null, 0, BB1);
       elevation(NEAR); elevation(FR_FRONT);
@@ -87840,9 +88012,14 @@ marinaEntry(),
     const roof = (R, x0, x1, zb, rise, ends, over) => {
       const { L, vN, vF, vm, vs } = R, ov = over === undefined ? 12 : over;
       const half = Math.abs(vN - vm), drop = rise*ov/half, vo = vN + vs*ov, vfo = vF - vs*ov;
-      /* the far slope, then the near one; the eaves a little proud of the wall */
-      poly([L(x0, vfo, zb - drop), L(x1, vfo, zb - drop), L(x1, vm, zb + rise), L(x0, vm, zb + rise)], shade(roofc, .8));
-      poly([L(x0, vo, zb - drop), L(x1, vo, zb - drop), L(x1, vm, zb + rise), L(x0, vm, zb + rise)], shade(roofc, 1.06));
+      /* the far slope, then the near one; the eaves a little proud of the wall. (The roof pass: each lit by which way it
+         turns on screen -- SP13, asked of P -- and aged, streaks down from the ridge and moss along the eave) */
+      const Lq = (u, v, z) => R.axis === 'a' ? [u, v, z] : [v, u, z];
+      for(const [vv, f] of [[vfo, .8], [vo, 1.06]]){
+        const q = [Lq(x0, vv, zb - drop), Lq(x1, vv, zb - drop), Lq(x1, vm, zb + rise), Lq(x0, vm, zb + rise)];
+        poly(q.map(t => P(t[0], t[1], t[2])), roofLitOf(shade(roofc, f), q));
+        roofSlopeAge(q[0], q[3], q[1], q[2], { moss: 0.7 });
+      }
       /* its slates: courses on the near slope */
       for(let k = 1; k < 5; k++){ const f = k/5, vv = vo + (vm - vo)*f, zz = zb - drop + (rise + drop)*f;
         const p0 = L(x0, vv, zz), p1 = L(x1, vv, zz); ctx.strokeStyle = 'rgba(40,52,58,.28)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); }
@@ -88358,6 +88535,7 @@ marinaEntry(),
       /* plinth and eaves */
       F(a0, a1, 0, 26, shade(col,.66), null, 0, SF1+0.4);
       slab(a0-8, a1+8, h, h+16, SF1+8, SF0-8, shade(col,.72), null, shade(col,1.1));
+      roofDeck(a0, a1, SF0, SF1, h+16, null, null, shade(col,1.1), {});   // its flat roof inside the eaves' lip (the roof pass: the deck, aged)
     };
     /* one window on the front, in a stone surround: its reveal, the panes, the mullions and transom bar, a sill */
     const winOne = (w0, w1, z0, z1, col) => {
@@ -89323,6 +89501,7 @@ marinaEntry(),
       /* the coping: its top, its front, its end (only at the anchor's own end, not at a strip's) */
       if(!low){ const cc = shade(col, .9);
         Tc(a0 - 6, a1 + 6, BB - 6, BF + 8, HA + 18, shade(cc, 1.12)); Fc(a0 - 6, a1 + 6, HA, HA + 18, cc, null, 0, BF + 8);
+        roofDeck(a0, a1, BB, BF, HA + 18, null, null, shade(cc, 1.12), { win: [Math.max(a0, c0), Math.min(a1, c1), BB, BF] });   // its roof, this strip's share (the roof pass)
         if(c1 >= a1) S(a1 + 6, BB - 6, BF + 8, HA, HA + 18, shade(cc, .72)); }
       if(state.roof && !low) for(let rb = -760; rb > BB + 200; rb -= 940)                   // its roof's plant (roofKit), each in its strip
         for(let a = a0 + 200; a < a1 - 260; a += 620) if(a >= c0 && a < c1){
@@ -89393,6 +89572,7 @@ marinaEntry(),
       const BF = MALL_PLAN.CF;
       if(!inView(a0 - 10, a1 + 10, bbOf(a0, a1) - 10, BF + 10, 0, HC + 60)) return;
       massHoled(a0, a1, HC, '#ece6da', '#cfc7b8', BF, bayHoles(wing));
+      roofDeck(a0, a1, bbOf(a0, a1), BF, HC + 18, null, null, shade('#cfc7b8', 1.12), {});   // its roof, inside the coping's lip (the roof pass: the deck, aged)
       roofKit(a0, a1, HC);
       if(state.roof) for(let sb = -460; sb - 300 > bbOf(a0, a1) + 100; sb -= 470)
         for(let a = a0 + 120; a < a1 - 120; a += 360) T(a, a + 200, sb - 300, sb, HC + 1, 'rgba(150,196,214,.75)', '#8fa6b0', 1);  // skylights
@@ -89900,7 +90080,9 @@ marinaEntry(),
        drawn among them; otherwise they paint in this order, as before. */
     const GP = GARAGE_PLAN, deckDraw = GARAGE_DECK_DRAW, deckItems = [], rf = garageRoof();
     const later = (a, b, draw) => deckDraw ? deckItems.push({ a, b, draw }) : draw();
-    T(0, LEN, BB, BF, ROOF, '#b7b2a8');
+    parkDeck(0, LEN, BB, BF, ROOF, '#b7b2a8', parkDeckOpts('mall garage', () => ({ seed: 'mall garage',   // the deck: worn concrete (the roof pass)
+      aisles: [[0, LEN, (rf.RB0 + rf.RB1)/2]],
+      stalls: rf.stalls.filter(a => !(a > GP.CORE0 - 70 && a < GP.CORE1 + 70)).flatMap(a => [[a, rf.RB0 + 120], [a, rf.RB1 - 120]]) })));
     const RB0 = rf.RB0, RB1 = rf.RB1;                               // the two rows, nose to the aisle
     for(const a of rf.stalls){
       T(a - 70, a - 67, RB0, RB0 + 240, ROOF + 0.3, '#f2ecd8');
@@ -90099,7 +90281,7 @@ marinaEntry(),
     [[PA0, LOB0, { ghost: true, share: 'W' }], [LOB0, LOB1, { shell: true, share: 'L' }], [LOB1, PA1, { ghost: true, share: 'E' }]].forEach(([r0, r1, o], k) =>
     items.push(Object.assign({ a: PA0 + k*0.01, b: PB, view: true, fpLab: { a0: r0, a1: r1, b0: PB, b1: PF, z1: PH + 60 }, draw: () => {
     if(inView(r0, r1, PB, PF, 0, PH + 30)){
-      T(r0, r1, PB, PF, PH, '#bdb6a8');
+      roofPavers(PA0, PA1, PB, PF, PH, '#bdb6a8', { win: [r0, r1, PB, PF] });   // the terrace, paved and aged (the roof pass: this share of it)
       if(FLANK_RIGHT && r1 === PA1){ S(PA1, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA1 + 0.4, PB, PF, z, z + 8, stoneL); }
       if(!FLANK_RIGHT && r0 === PA0){ S(PA0, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA0 - 0.4, PB, PF, z, z + 8, stoneL); }
       /* the roof's planting, in boxes either side of the tower */
@@ -90159,7 +90341,7 @@ marinaEntry(),
       const pA0 = TA0 + 120, pA1 = TA1 - 120, pB0 = TB + 60, pB1 = TF - 50;            // the plant room
       const grey = '#c9cbc6', greyS = '#b0b3ad', greyD = '#9a9d97', steel = '#8c959a', vent = '#3d4448';
       T(TA0, TA1, TB, TF, TOP, '#a9a397');
-      T(TA0 + 14, TA1 - 14, TB + 14, TF - 14, TOP + 0.4, '#b3ada1');  // its membrane inside the upstand
+      roofDeck(TA0 + 14, TA1 - 14, TB + 14, TF - 14, TOP + 0.4, null, null, '#b3ada1', { kind: 'membrane' });  // its membrane inside the upstand (the roof pass: seamed, aged)
       /* THE PLANT ROOM: louvred all round, the name on its face */
       box(pA0, pA1, pB0, pB1, TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
       for(let a = pA0 + 30; a < pA1 - 20; a += 36) F(a, a + 18, TOP + 14, CROWN - 14, '#a69f91', null, 0, pB1 + 0.5);   // its louvres
