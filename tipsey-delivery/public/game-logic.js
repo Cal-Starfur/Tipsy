@@ -116712,11 +116712,11 @@ class WorldScene extends Phaser.Scene {
     /* THE PALMA RIVER: its coping, water and channel down its corridor (riverPieces), over the backstop's paving (its quays),
        under the streets (the bridges paint over it) */
     if(WORLDGEN_COAST){ const span = (this.vpW() + this.vpH())/this.K*1.2;
-      for(const [pts, col] of riverPieces(r.grid)){
-        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for(const pc of riverPieces(r.grid)){
+        const pts = pc.pts; let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
         for(const q of pts){ if(q.x < x0) x0 = q.x; if(q.x > x1) x1 = q.x; if(q.y < y0) y0 = q.y; if(q.y > y1) y1 = q.y; }
         if(x1 < this.camX - span || x0 > this.camX + span || y1 < this.camY - span || y0 > this.camY + span) continue;
-        this.quadOn(g, pts.map(q => this.W(q.x, q.y, 0)), col === 'pave' ? mixC(this.d.pave, this.d.paveB, 0.5) : col); } }
+        this.quadOn(g, pts.map(q => this.W(q.x, q.y, q.z)), pc.col === 'pave' ? mixC(this.d.pave, this.d.paveB, 0.5) : pc.col, pc.al); } }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
        every seam as a hairline at low zoom; a single quad has none). */
@@ -118262,6 +118262,7 @@ class WorldScene extends Phaser.Scene {
     scootQueue(this, t, queuePerson, layerFor);          // SCOOTERS the humanoid has set down
     semiQueue(this, t, queuePerson);                     // TRAILERS the semi has dropped
     amrLoadQueue(this, t, queuePerson);                  // LOADS the warehouse robot has set down
+    riverQueue(this, queuePerson);                       // THE PALMA RIVER's bridges' parapets (THE CHANNEL AND ITS BRIDGES)
     msQueue(this, t, queuePerson, keyQueue, layerFor);   // MINDING THE SHOP: Gideon on the street, Tipsey parked while the humanoid has his shop
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     cwDogQueue(this, t, queuePerson);                    // KICKSTAND SCOOTER CO.' security dog round the hall's south and east walls
@@ -155718,7 +155719,7 @@ function mapCoastBands(grid, dateStr, cband, cring, cpoly){
     cpoly(coastBeachPoly(grid, 0), "#f0e2ae");
     for(const I of NC_ISLES){ cpoly(ncIsleRing(I, 0), "#f0e2ae"); cpoly(ncIsleRing(I, -BLOCK*0.24), "#8fbf7a"); }
     cpoly(ncLagoonRing(grid), "#86bfd3");
-    for(const [pts, col] of riverPieces(grid)) if(col !== 'pave') cpoly(pts, "#" + col.toString(16).padStart(6, "0"));   // THE PALMA RIVER
+    for(const pc of riverPieces(grid)) if(pc.map) cpoly(pc.pts, "#" + pc.col.toString(16).padStart(6, "0"));   // THE PALMA RIVER
   } else {
     cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");           // west beach — Sunset Shore
     cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");   // south beach — Driftwood Beach
@@ -156594,16 +156595,20 @@ function riverRuns(grid){
   if(!grid || !grid.river) return null;
   if(grid._riverRuns) return grid._riverRuns;
   const SW = ROAD_HALF + SIDEWALK_W, WH = ROAD_HALF + CURB_W, B = BLOCK, runs = [];
-  const perp = (n, f) => f === 0 ? (n.conn[1] || n.conn[3]) : (n.conn[0] || n.conn[2]);
-  for(const e of grid.river.edges)
-    runs.push({ x: e.a.x, y: e.a.y, f: e.f, len: B, s0: perp(e.a, e.f) ? SW : -WH, s1: B - (perp(e.b, e.f) ? SW : -WH), qa: perp(e.a, e.f) ? SW : -SW, qb: B - (perp(e.b, e.f) ? SW : -SW) });
+  const perp = (n, f) => n.conn[0] || n.conn[1] || n.conn[2] || n.conn[3];   // (any street that reaches the node stands over the water there: a crossing, a corner or a street's end)
+  for(const e of grid.river.edges){ const na = !!perp(e.a, e.f), nb = !!perp(e.b, e.f);
+    runs.push({ x: e.a.x, y: e.a.y, f: e.f, len: B, s0: na ? SW : -WH, s1: B - (nb ? SW : -WH), qa: na ? SW : -SW, qb: B - (nb ? SW : -SW),
+                na, nb, w0: -WH, w1: B + WH, lo: na ? SW : -WH, hi: nb ? B - SW : B + WH }); }
   const [iN, jN] = RIVER_NODES[0], [iS, jS] = RIVER_NODES[RIVER_NODES.length - 1], nN = grid.nodeAt(iN, jN), nS = grid.nodeAt(iS, jS);
   /* north: from the hills' first riser down over the bench and the rim to the top street */
-  if(nN){ const yT = riverToeY(nN.x); runs.push({ x: nN.x, y: yT, f: 1, len: nN.y - yT, s0: -WH, s1: nN.y - yT - (nN.conn[0] || nN.conn[2] ? SW : -WH), qa: 0, qb: nN.y - yT - SW, north: true }); }
+  if(nN){ const yT = riverToeY(nN.x), L = nN.y - yT, nb = !!(nN.conn[0] || nN.conn[2]);
+    runs.push({ x: nN.x, y: yT, f: 1, len: L, s0: 0, s1: L - (nb ? SW : -WH), qa: 0, qb: L - (nb ? SW : -SW), north: true,
+                na: false, nb, w0: 0, w1: L + WH, lo: 0, hi: nb ? L - SW : L + WH }); }
   /* south: from the bottom street out through the rim to the boardwalk (which bridges it), then over the sand into the sea */
   if(nS){ const C = WG_COAST, yB = nS.y + C.EXT*B, yS = yB + C.BOARD*B, yE = (typeof coastSeaY === "function" ? coastSeaY(grid, nS.x) : yS + C.SANDW*B) + 0.5*B;
-    runs.push({ x: nS.x, y: nS.y, f: 1, len: yB - nS.y, s0: (nS.conn[0] || nS.conn[2]) ? SW : -WH, s1: yB - nS.y, qa: SW, qb: yB - nS.y });
-    runs.push({ x: nS.x, y: yS, f: 1, len: yE - yS, s0: 0, s1: yE - yS, qa: 0, qb: 0, sand: true }); }
+    const na = !!(nS.conn[0] || nS.conn[2]), L = yB - nS.y;
+    runs.push({ x: nS.x, y: nS.y, f: 1, len: L, s0: na ? SW : -WH, s1: L, qa: na ? SW : -SW, qb: L, na, nb: 'board', w0: -WH, w1: yS - nS.y, lo: na ? SW : -WH, hi: L });
+    runs.push({ x: nS.x, y: yS, f: 1, len: yE - yS, s0: 0, s1: yE - yS, qa: 0, qb: 0, sand: true, na: 'board', nb: false, w0: 0, w1: yE - yS, lo: 0, hi: yE - yS }); }
   const idx = new Map();
   for(const r of runs){ const ex = r.x + (r.f === 0 ? r.len : 0), ey = r.y + (r.f === 1 ? r.len : 0);
     for(let i = Math.floor(Math.min(r.x, ex)/B) - 1; i <= Math.floor(Math.max(r.x, ex)/B) + 1; i++)
@@ -156635,21 +156640,91 @@ function riverHillClaims(x, y, m){
   for(const p of ncCreekLine(0)) if(Math.abs(p.x - x) < 420 + m && Math.abs(p.y - y) < 420 + m) return true;
   return false;
 }
-/* the water's pieces for the ground pass: [[pts], col] per run -- the coping's stone, the water, a darker channel */
+/* THE CHANNEL AND ITS BRIDGES (Sir, 2026-11-25: "lets learn first how to elevate road ways over water"). The river does not
+   lie flat in the street: it runs RIVER.depth below the town in a stone channel, so every street over it is a bridge standing
+   above the water -- its deck at the street's own height (he drives it as the street, nothing about the collision changes),
+   the deck's edge face (RIVER.deck thick) and its shadow on the water below, and a parapet along each edge over the water.
+   Only the faces the eye sees: the channel's west wall on a north-south reach, its north wall on an east-west one; a deck's
+   south or east edge (a bridge at the start of a reach, looking down it). The boardwalk crosses the mouth the same way, in
+   its timber. Painted in the ground pass in this order: the water, the shadows, the walls, the deck edges, then the quays
+   and the coping and the bridges' sidewalks over the water (at street height they lie over the lowered water south and east
+   of them, as they should), then the streets' own pass lays the roads; the parapets stand in the world queue (riverQueue). */
+Object.assign(RIVER, { depth: 160, deck: 90, ph: 78, pt: 34, piece: 60 });
 function riverPieces(grid){
   const RR = riverRuns(grid); if(!RR) return [];
   if(grid._riverPieces) return grid._riverPieces;
-  const out = [], C = RIVER.coping;
-  const rect = (r, a0, a1, h) => r.f === 0 ? [{ x: r.x + a0, y: r.y - h }, { x: r.x + a1, y: r.y - h }, { x: r.x + a1, y: r.y + h }, { x: r.x + a0, y: r.y + h }]
-                                          : [{ x: r.x - h, y: r.y + a0 }, { x: r.x + h, y: r.y + a0 }, { x: r.x + h, y: r.y + a1 }, { x: r.x - h, y: r.y + a1 }];
-  for(const r of RR.runs) if(!r.north && !r.sand) out.push([rect(r, r.qa > 0 ? ROAD_HALF : r.qa, r.qb < r.len ? r.len - ROAD_HALF : r.qb, RR.SW), 'pave']);   // the quays' paving under it all
-  for(const r of RR.runs) if(!r.north) out.push([rect(r, r.s0 - (r.s0 > 0 ? C : 0), r.s1 + (r.s1 < r.len ? C : 0), RR.WH + C), r.sand ? 0xc9b98a : 0xb8b2a4]);
-  for(const r of RR.runs) if(!r.north) out.push([rect(r, r.s0, r.s1, RR.WH), 0x5f9fbf]);
-  for(const r of RR.runs) if(!r.north) out.push([rect(r, r.s0 + (r.s0 > 0 ? 60 : 0), r.s1 - (r.s1 < r.len ? 60 : 0), RR.WH*0.55), 0x5590b2]);
-  for(const r of RR.runs) if(r.north) for(const [h, col] of [[RR.WH + C, 0x9c9479], [RR.WH, 0x6aa6c4]]) out.push([rect(r, r.s0, r.s1, h), col]);
+  const out = [], C = RIVER.coping, D = RIVER.depth, F = RIVER.deck, WH = RR.WH, SW = RR.SW, RH = ROAD_HALF;
+  /* a point of run r at (along a, across p, height z) */
+  const P = (r, a, p, z) => r.f === 0 ? { x: r.x + a, y: r.y + p, z } : { x: r.x + p, y: r.y + a, z };
+  const quad = (r, a0, a1, p0, p1, z0, z1) => [P(r, a0, p0, z0), P(r, a1, p0, z1), P(r, a1, p1, z1), P(r, a0, p1, z0)];   // flat or sloped along
+  const zW = (r, a) => r.sand ? -D*(1 - Math.min(1, Math.max(0, a/r.len))) : -D;                 // (the mouth rises to the sea over the sand)
+  const add = (pts, col, al, map) => out.push({ pts, col, al: al == null ? 1 : al, map: !!map });
+  for(const r of RR.runs){
+    const w0 = r.w0, w1 = r.w1, lo = r.lo, hi = r.hi, n = r.sand ? 10 : 1;
+    /* the water, a darker channel down its middle */
+    for(let k = 0; k < n; k++){ const a0 = w0 + (w1 - w0)*k/n, a1 = w0 + (w1 - w0)*(k + 1)/n;
+      add(quad(r, a0, a1, -WH, WH, zW(r, a0), zW(r, a1)), 0x5f9fbf, 1, true);
+      add(quad(r, a0, a1, -WH*0.55, WH*0.55, zW(r, a0), zW(r, a1)), 0x5590b2, 1, true); }
+    /* the shadow a deck throws on it, at the start of the reach */
+    if(r.na) add(quad(r, lo, lo + 240, -WH, WH, zW(r, lo), zW(r, lo + 240)), 0x1c3a4a, 0.28);
+    /* the wall the eye sees (west on a north-south reach, north on an east-west one), down to the water */
+    const wl0 = r.na === true ? w0 : lo, wl1 = r.nb === true ? w1 : hi;            // (on under a deck: it hides what it covers, and no sky shows at its foot)
+    for(let k = 0; k < n; k++){ const a0 = wl0 + (wl1 - wl0)*k/n, a1 = wl0 + (wl1 - wl0)*(k + 1)/n;
+      add([P(r, a0, -WH, 0), P(r, a1, -WH, 0), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], r.sand ? 0xb7a77a : 0x9d968a);
+      add([P(r, a0, -WH, zW(r, a0) + 26), P(r, a1, -WH, zW(r, a1) + 26), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], 0x6f7a74); }   // (the wet line at its foot)
+    /* the falls into it, where it comes down off the hills' bench */
+    if(r.north) add([P(r, 0, -WH, 0), P(r, 0, WH, 0), P(r, 0, WH, -D), P(r, 0, -WH, -D)], 0xe8f4f8);
+    /* a deck's edge over the water, where a bridge starts the reach (the boardwalk's in timber) */
+    if(r.na) add([P(r, lo, -WH - C, 0), P(r, lo, WH + C, 0), P(r, lo, WH + C, -F), P(r, lo, -WH - C, -F)], r.na === 'board' ? 0x7d5a3c : 0xa29b8e);
+    /* the quays either side, and the coping along the water */
+    if(!r.sand) for(const sd of [-1, 1]){ add(quad(r, r.qa, r.qb, sd*WH, sd*SW, 0, 0), 'pave'); add(quad(r, lo, hi, sd*WH, sd*(WH + C), 0, 0), 0xc9c2b4); }
+    else { add(quad(r, lo, hi, WH, WH + D + 60, 0, 0), 0xf0e2ae);                     // (the east bank's sand over the sunk water's edge)
+      for(const sd of [-1, 1]) add(quad(r, lo, hi, sd*WH, sd*(WH + C), 0, 0), 0xd8c690); }
+    /* the bridges' sidewalks over the water (the road between them is the cross street's own) */
+    if(r.na === true) add(quad(r, RH, SW, -WH - C, WH + C, 0, 0), 'pave');
+    if(r.nb === true) add(quad(r, r.len - SW, r.len - RH, -WH - C, WH + C, 0, 0), 'pave');
+    if(r.nb === 'board') add(quad(r, r.len, r.len + WG_COAST.BOARD*BLOCK, -WH - C, WH + C, 0, 0), 0xb98a5e);   // the boardwalk over the mouth
+  }
+  /* each bridge's deck square at its node, under the streets' own pass (the corner a turn leaves outside its L included) */
+  const seen = new Set();
+  for(const r of RR.runs) for(const [on, a] of [[r.na === true, 0], [r.nb === true, r.len]]){
+    if(!on) continue; const c = P(r, a, 0, 0), k = Math.round(c.x) + ',' + Math.round(c.y); if(seen.has(k)) continue; seen.add(k);
+    add([{ x: c.x - SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y + SW, z: 0 }, { x: c.x - SW, y: c.y + SW, z: 0 }], 'pave'); }
   return (grid._riverPieces = out);
 }
-
+/* the parapets: one along each deck edge over the water, as boxes of RIVER.piece along (W37: a long piece is never one item) */
+function riverParapets(grid){
+  const RR = riverRuns(grid); if(!RR) return [];
+  if(grid._riverPar) return grid._riverPar;
+  const out = [], C = RIVER.coping, WH = RR.WH, SW = RR.SW, T = RIVER.pt, L = RIVER.piece, H = WG_COAST.BOARD*BLOCK;
+  const wall = (r, at, inward, wood) => {          // across the water at `at` along the reach, its thickness toward `inward`
+    const a0 = inward > 0 ? at : at - T, a1 = inward > 0 ? at + T : at;
+    for(let p = -WH - C; p < WH + C - 1; p += L){ const p1 = Math.min(WH + C, p + L);
+      const b = r.f === 0 ? { x0: r.x + a0, x1: r.x + a1, y0: r.y + p, y1: r.y + p1 } : { x0: r.x + p, x1: r.x + p1, y0: r.y + a0, y1: r.y + a1 };
+      out.push(Object.assign(b, { wood })); } };
+  for(const r of RR.runs){
+    if(r.na === true) wall(r, SW, -1, false);
+    if(r.nb === true) wall(r, r.len - SW, 1, false);
+    if(r.na === 'board') wall(r, 0, -1, true);
+    if(r.nb === 'board'){ wall(r, r.len, 1, true); }
+  }
+  return (grid._riverPar = out);
+}
+/* queue them (the world queue, each at its own middle), cached as still pieces */
+function riverQueue(scene, queuePerson){
+  const grid = scene.route && scene.route.grid; if(!WORLDGEN_COAST || !grid || !grid.river) return;
+  const span = (scene.vpW() + scene.vpH())/scene.K*1.1, H = RIVER.ph;
+  for(const b of riverParapets(grid)){
+    const cx = (b.x0 + b.x1)/2, cy = (b.y0 + b.y1)/2;
+    if(Math.abs(cx - scene.camX) > span || Math.abs(cy - scene.camY) > span) continue;
+    queuePerson(cx, cy, g => scene.bcDraw(g, "rvpar|" + Math.round(b.x0) + "," + Math.round(b.y0), cx, cy, gg => {
+      const W = (x, y, z) => scene.W(x, y, z), top = b.wood ? 0xa77c55 : 0xddd7ca, s = b.wood ? 0x8a6644 : 0xc4bdb0, e = b.wood ? 0x6f5236 : 0xaaa396;
+      scene.quadOn(gg, [W(b.x0, b.y1, 0), W(b.x1, b.y1, 0), W(b.x1, b.y1, H), W(b.x0, b.y1, H)], s);   // south face
+      scene.quadOn(gg, [W(b.x1, b.y0, 0), W(b.x1, b.y1, 0), W(b.x1, b.y1, H), W(b.x1, b.y0, H)], e);   // east face
+      scene.quadOn(gg, [W(b.x0, b.y0, H), W(b.x1, b.y0, H), W(b.x1, b.y1, H), W(b.x0, b.y1, H)], top); // its top
+    }));
+  }
+}
 /* ==================== THE NATURAL COAST (Sir, 2026-11-25) ====================
    "make it feel more natural ... even the road systems have to bend and move with the features of this map's topography" --
    the natural survey (docs/costa-palma-natural.html), step 1, the land. The waterline was a ruler line down Sunset Shore and
