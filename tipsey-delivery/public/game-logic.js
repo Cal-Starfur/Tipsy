@@ -33004,7 +33004,7 @@ const PE_FAMILY = (() => {
 /* A CUSTOMER'S VISIT (as Cove Pottery's: reach ONCE, then do something with it): they look a display over -- the tanks, the food shelves,
    the toy gondola, the dog beds -- and most take something: a fish bagged at the tanks, a bag of food, a toy, a dog bed; some stop by the
    birds, the small animals or the cats with it in hand, and most pay at the till and go out of the door carrying it; the rest go */
-const PE_SHOW = ['tanks', 'food', 'toys', 'beds', 'hutches', 'birds', 'cats'];
+const PE_SHOW = ['tanks', 'food', 'toys', 'beds', 'hutches', 'birds', 'cats', 'pups'];
 const PE_TAKE = { tanks: ['fish'], food: ['bag', 'bag', 'tin'], toys: ['ball', 'rope'], beds: ['bed'] };
 const PE_PACK = [0x3c7fa0, 0xd0342c, 0x3fa85c, 0xe07a2a, 0x8a5aa8, 0xf2c230];
 function peSeed(s){ return ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0; }
@@ -33056,7 +33056,7 @@ function peBrowseNext(R, s, m, now, bot){
   m.n = (m.n || 0) + 1;
   if(m.n === 1){ const id = ['tanks', 'food', 'food', 'toys', 'beds'][Math.floor(rnd()*5)];
     if(rnd() < 0.85 && look(id)){ const T = PE_TAKE[id]; m.item = rnd() < 0.75 ? T[Math.floor(rnd()*T.length)] : null; m.dwell = 6000 + rnd()*5000; return true; } return false; }   // (or the kit's pick)
-  if(m.got && !m.watched){ m.watched = true; if(rnd() < 0.45 && look(['birds', 'hutches', 'cats'][Math.floor(rnd()*3)])){ m.dwell = 5000 + rnd()*5000; return true; } }   // (the animals, it in hand)
+  if(m.got && !m.watched){ m.watched = true; if(rnd() < 0.5 && look(['birds', 'hutches', 'cats', 'pups'][Math.floor(rnd()*4)])){ m.dwell = 5000 + rnd()*5000; return true; } }   // (the animals, it in hand)
   if(m.got){ if(rnd() < 0.8 && look('till')){ m.atTill = true; m.dwell = 5000 + rnd()*3000; return true; } return leave(); }   // (bought -- or put back)
   if(m.n <= 3) return false;
   return leave();
@@ -33083,7 +33083,7 @@ function pePose(s, m, now, P){
     if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, (low ? 0.3 : 0.55) + 0.4*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = low ? 0.35 : 0.05; return; }
     peCarry(P, H, m.item); P.headTilt = 0.2; return; }
   if(m.got && !m.paid){ peCarry(P, H, m.item); P.headTilt = 0.2; P.headTurn = 0; return; }
-  if(m.look && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = m.look === 'beds' || m.look === 'hutches' ? 0.32 : 0.15; P.headTurn = 0; return; }
+  if(m.look && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = m.look === 'beds' || m.look === 'hutches' || m.look === 'pups' ? 0.32 : 0.15; P.headTurn = 0; return; }
   P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];
 }
 function peDrawState(s, m, now, q){
@@ -33107,7 +33107,8 @@ walkinLife(PE_IN.name, { keep: [[0, 2000, 376, 448]], looks: [
   { id: 'hutches', spots: [[92, 140, Math.PI], [92, 300, Math.PI]] },
   { id: 'birds', spots: [[300, 294, -Math.PI/2], [440, 290, -Math.PI/2]] },
   { id: 'food', spots: [[92, 520, Math.PI], [92, 650, Math.PI], [92, 740, Math.PI]] },
-  { id: 'toys', spots: [[220, 640, -Math.PI/2], [360, 640, -Math.PI/2], [290, 522, Math.PI/2]] },
+  { id: 'toys', spots: [[220, 640, -Math.PI/2], [360, 640, -Math.PI/2]] },
+  { id: 'pups', spots: [[234, 336, -2.68], [116, 262, 0.56]] },
   { id: 'beds', spots: [[200, 702, Math.PI/2], [380, 702, Math.PI/2]] },
   { id: 'cats', spots: [[596, 654, 1.17]] },
   { id: 'till', spots: [[520, 602, -Math.PI/2], [600, 602, -Math.PI/2]] },
@@ -64928,6 +64929,9 @@ function houseCanopy(fn){
     for(let b = 100; b < D; b += 100) T(0, W, b - 0.4, b + 0.4, 0.1, '#d6d0c2');
     T(W - 66, W - 4, door.at - 42, door.at + 42, 0.3, seaD); T(W - 60, W - 10, door.at - 36, door.at + 36, 0.35, sea);
     for(const [pa, pb] of [[W - 48, door.at - 14], [W - 30, door.at + 4], [W - 46, door.at + 22]]){ T(pa - 4, pa + 4, pb - 3, pb + 3, 0.4, seaL); for(let k = 0; k < 4; k++) T(pa + 5, pa + 7, pb - 5 + k*3.2, pb - 3.6 + k*3.2, 0.4, seaL); }
+    /* A TRAIL OF PAW PRINTS down the lane from the mat to the west wall, left and right in turn, each a pad and four toes */
+    for(let a = W - 90, k = 0; a > 30; a -= 34, k++){ const pb = door.at + (k % 2 ? 9 : -9), c = 'rgba(60,127,160,.28)';
+      T(a - 4, a + 4, pb - 3.4, pb + 3.4, 0.2, c); for(const [ta, tb] of [[-6.5, -4.6], [-7.6, -1.5], [-7.6, 1.5], [-6.5, 4.6]]) T(a + ta - 1.4, a + ta + 1.4, pb + tb - 1.2, pb + tb + 1.2, 0.2, c); }
     items.push({ a: W - 6, b: door.at, z: 0, solids: [], draw: () => { T(W - 10, W + 40, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#d4cec2');
       T(W - 2, W + 2, door.at - door.half, door.at + door.half, 0.6, '#b9bec2'); } });
 
@@ -64946,6 +64950,12 @@ function houseCanopy(fn){
         S(0, -30, D + 30, 0, H, shade(plas, 0.95));
         S(0.15, -30, D + 30, 0, 96, shade(sea, 0.9)); S(0.2, -30, D + 30, 94, 100, shade(seaL, 0.9));
         S(0.3, -30, D + 30, H - 10, H, shade(seaD, 0.9));
+        /* PORTRAITS OF THE SHOP'S REGULARS over the hutches: four frames, a dog's or cat's head in each (its face, ears, eyes, nose) */
+        [[86, '#e8c870', 'dog', '#a8743a'], [160, '#9ad0e4', 'cat', '#3a3a3e'], [234, '#f4b0c0', 'dog', '#f2ece4'], [308, '#b4e09c', 'cat', '#d0883a']].forEach(([fb, bg, k, fc]) => {
+          S(0.4, fb - 26, fb + 26, 186, 242, woodF); S(0.45, fb - 22, fb + 22, 190, 238, bg);
+          if(k === 'cat'){ poly([P(0.5, fb - 12, 222), P(0.5, fb - 4, 226), P(0.5, fb - 11, 234)], fc); poly([P(0.5, fb + 12, 222), P(0.5, fb + 4, 226), P(0.5, fb + 11, 234)], fc); }
+          else { discS(0.5, fb - 11, 214, 5.4, shade(fc, 0.82)); discS(0.5, fb + 11, 214, 5.4, shade(fc, 0.82)); }
+          discS(0.55, fb, 214, 12, fc); discS(0.6, fb, 208, 6, shade(fc, 1.15)); discS(0.65, fb - 4.4, 217, 1.5, '#1c1a18'); discS(0.65, fb + 4.4, 217, 1.5, '#1c1a18'); discS(0.7, fb, 210, 1.6, '#3a2a2a'); });
         /* THE PAW PRINTS at the lane's end: a trail of them up the wall, each a pad and four toes */
         [[388, 112], [430, 140], [394, 170], [436, 198]].forEach(([pb, pz], i) => { const c = i % 2 ? '#f2a830' : white;
           discS(0.5, pb, pz, 7, c); for(const [tb, tz] of [[-7, 8], [-2.4, 11], [2.4, 11], [7, 8]]) discS(0.55, pb + tb, pz + tz, 2.6, c); });
@@ -65093,6 +65103,38 @@ function houseCanopy(fn){
         }, { alongB: true, pad: 3, keyStart: true });
       } }
 
+    /* ---- THE PUPPY PEN in the middle, north of the lane between the hutches and the bird cage (where nothing tall stands before it): a round wire pen on a mat, in two pieces round its pups (the game's own dogs, a
+       chihuahua and a corgi) -- its far half (the mat, the bars and rails behind them, a water bowl, a toy), the pups, its near half (the bars
+       and rails before them, its sign) ---- */
+    { const ca = 172, cb = 300, R = 34, H2 = 36, wire = '#9aa0a6';
+      const bars = (front) => { for(let k = 0; k < 24; k++){ const t = k/24*Math.PI*2, fr = Math.cos(t) + Math.sin(t) >= 0; if(fr !== front) continue;
+        tube(ca + Math.cos(t)*R, cb + Math.sin(t)*R, 0, ca + Math.cos(t)*R, cb + Math.sin(t)*R, H2, 0.55, wire); }
+        for(const z of [2, H2/2, H2]) arc(ca, cb, R, z, front ? FRONT[0] : BACK[0], front ? FRONT[1] : BACK[1], 0.7, front ? '#b0b6bc' : wire); };
+      items.push({ a: ca - 4, b: cb - R + 2, z: 0, solids: [{ name: 'puppy pen', c: [ca, cb], r: R + 2, h: H2 }], draw: () => {
+        plateCircle(ca, cb, 0.3, R + 3, '#8fc0d8', '#6a9ab4', 0.8); plateCircle(ca, cb, 0.35, R - 6, '#a8d0e2');
+        bars(false);
+        cyl(ca - 14, cb - 18, 0.4, 4, 6, '#c8ccd0', '#5ab4e0'); tube(ca + 10, cb - 20, 2, ca + 18, cb - 14, 2, 1.6, '#e8dcc0'); discF(ca + 10, cb - 20, 2, 2.4, '#d0342c'); } });
+      items.push({ a: ca - 12, b: cb - 14, z: 0, draw: () => {}, fx: { dog: { a: ca - 12, b: cb - 14, z: 0.5, seed: 0x9e7d11, th: 0.75, sit: 1, breed: 0 } } });
+      items.push({ a: ca + 14, b: cb + 6, z: 0, draw: () => {}, fx: { dog: { a: ca + 14, b: cb + 6, z: 0.5, seed: 0x9e7d12, th: 0.8, sit: 1, breed: 5 } } });
+      items.push({ a: ca + 4, b: cb + R + 1, z: 0, solids: [], draw: () => {
+        bars(true);
+        box(ca - 30, ca - 14, cb + 23, cb + 25, 14, 26, '#f2c230', '#d8a820', '#c89a18'); blockWordIn('PUPS', ca - 28, ca - 16, 16, 24, cb + 25.1, sea, null, 3); } }); }
+
+    /* ---- FISH SUPPLIES in the north-east corner, past the aquarium wall: a white rack against the north wall -- boxed filters, bags of
+       gravel laid flat, nets on hooks under its top -- in runs of 40 keyed at their start ---- */
+    { const A0 = 612, A1 = 692, B0 = 0, B1 = 34, zTop = 150, SH = [14, 58, 102];
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'fish supplies')], () => {
+        box(A0, A1, B0, B1, 0, 10, sea, seaD, shade(seaD, 0.85));
+        box(A0, A0 + 3, B0, B1, 10, zTop - 4, white, whiteF, whiteS);
+        SH.forEach((z, r) => { box(A0 + 3, A1 - 3, B0, B1, z - 3, z, white, whiteF, whiteS);
+          if(r === 0) for(let i = 0; i < 3; i++){ const c = ['#c8b48a', '#3a3a3e', '#d8d0c0'][i]; for(let h = 0; h < 3; h++) box(A0 + 8 + i*24, A0 + 28 + i*24, 6, 30, z + h*5, z + h*5 + 4.4, shade(c, 1.1), c, shade(c, 0.86)); }
+          else if(r === 1) for(let i = 0; i < 3; i++){ const c = PACK[(i*2) % PACK.length]; box(A0 + 8 + i*24, A0 + 28 + i*24, 8, 28, z, z + 24, white, whiteF, whiteS); F(A0 + 8 + i*24, A0 + 28 + i*24, z + 4, z + 18, c, null, 0, 28.1); fishF(A0 + 18 + i*24, 28.2, z + 11, white, 1, 0.9); }
+          else for(let i = 0; i < 4; i++){ const na = A0 + 14 + i*18, c = PACK[(i + 2) % PACK.length]; tube(na, 22, z + 36, na, 22, z + 14, 0.7, c); poly(Array.from({ length: 12 }, (_, t) => P(na + Math.cos(t/12*Math.PI*2)*6, 22, z + 9 + Math.sin(t/12*Math.PI*2)*5)), 'rgba(160,200,190,.45)', shade(c, 0.8), 1); } });
+        box(A1 - 3, A1, B0, B1, 10, zTop - 4, white, whiteF, whiteS);
+        box(A0 - 1, A1 + 1, B0, B1 + 1, zTop - 4, zTop, sea, seaD, shade(seaD, 0.85));
+      }, { pad: 3, keyStart: true, run: 40 });
+    }
+
     /* ---- THE BIRD CAGE on its stand: the base, the pole, the tray; the cage's far bars and the far halves of its hoops, the perches and the
        budgies on them (far ones first), the near bars and hoops, the dome's ribs to the ring on top. Keyed a little toward the back ---- */
     items.push({ a: 294, b: 230, z: 0, solids: [{ name: 'bird cage', c: [300, 236], r: 28, h: 200 }], draw: () => {
@@ -65118,22 +65160,48 @@ function houseCanopy(fn){
       tube(420, 226, 112, 460, 226, 112, 1.8, woodS); cyl(424, 226, 113, 118, 4.4, '#c8ccd0', '#d8c088');
       critter(444, 226, 113.8, 'parrot', '#d8342c', 3.6); } });
 
-    /* ---- THE TOY GONDOLA: a sea-blue base, a white spine, on its south face (the north face is the far one: not painted -- W37) leashes,
-       balls in their nets, rope toys and collars on pegs, a yellow cap; in runs of 36 keyed down its middle line ---- */
-    { const A0 = 160, A1 = 420, B0 = 560, B1 = 600, zT = 120;
+    /* ---- THE TOY GONDOLA: a sea-blue base, a white pegboard spine, on its south face (the north face is the far one: not painted -- W37)
+       three rows of stock on pegs -- coiled leads, balls in their nets, knotted rope toys, collars, plush bones, tubes of tennis balls -- a
+       yellow cap; in runs of 36 keyed down its middle line. Its sign stood on the cap its own piece ---- */
+    { const A0 = 160, A1 = 420, B0 = 560, B1 = 600, zT = 120, f = 588;
       runPiece(items, A0, A1, B0, B1, zT + 4, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'gondola')], () => {
         box(A0, A1, B0, B1, 0, 10, sea, seaD, shade(seaD, 0.85));
         box(A0 + 4, A1 - 4, 577, 583, 10, zT, white, whiteF, whiteS);
-        for(const [r, z] of [[0, 86], [1, 52], [2, 18]]) for(let i = 0; i < 9; i++){ const pa = A0 + 15 + i*28.5, c = PACK[(i*2 + r) % PACK.length], f = 588, kind = (i + r*2) % 4;
-          box(pa - 0.5, pa + 0.5, 583, f + 2, z + 28, z + 29, '#9a9a9e', '#9a9a9e', '#8a8a8e');
-          if(kind === 0){ for(let q = 0; q < 2; q++){ const o = q*2.4; tube(pa - 5 + o, f + 1 + q, z + 28, pa - 6 + o, f + 1 + q, z + 4, 1, c); tube(pa - 6 + o, f + 1 + q, z + 4, pa + 6 + o, f + 1 + q, z + 4, 1, c); tube(pa + 6 + o, f + 1 + q, z + 4, pa + 5 + o, f + 1 + q, z + 28, 1, c); }
-            box(pa - 1.6, pa + 1.6, f, f + 3, z + 2, z + 6, '#c8ccd0', '#b8bcc0', '#a8acb0'); }                                    // (a leash, looped, its clip)
-          else if(kind === 1){ F(pa - 8, pa + 8, z + 2, z + 26, 'rgba(240,240,236,.35)', null, 0, f + 0.2); for(const [ba, bz] of [[-4, 8], [4, 8], [0, 17]]) discF(pa + ba, f + 0.4, z + bz, 4.6, (ba + bz) % 3 ? '#e8e04a' : '#e05a3a'); F(pa - 3, pa + 3, z + 23, z + 27, c, null, 0, f + 0.5); }   // (balls in a net)
-          else if(kind === 2){ tube(pa, f + 1, z + 26, pa, f + 1, z + 4, 1.6, '#e8dcc0'); for(const kz of [z + 4, z + 26]) discF(pa, f + 1.6, kz, 3.4, c); }   // (a rope toy, knotted)
-          else { for(let q = 0; q < 3; q++){ const pts = []; for(let t = 0; t < 14; t++){ const u = t/14*Math.PI*2; pts.push(P(pa + Math.cos(u)*5.4, f + 0.4 + q*0.3, z + 18 - q*7 + Math.sin(u)*4.4)); } poly(pts, null, PACK[(i + q) % PACK.length], 1.6); } }   // (collars on a peg)
+        for(let a = A0 + 10; a < A1 - 6; a += 8) for(let z = 16; z < zT - 4; z += 8) F(a - 0.5, a + 0.5, z - 0.5, z + 0.5, '#c8c6c0', null, 0, 583.1);   // (the pegboard's holes)
+        for(const [r, z] of [[0, 86], [1, 52], [2, 18]]) for(let i = 0; i < 9; i++){ const pa = A0 + 15 + i*28.5, c = PACK[(i*2 + r) % PACK.length], kind = (i + r*2) % 6;
+          box(pa - 0.6, pa + 0.6, 583, f + 2, z + 28, z + 29.2, '#9a9a9e', '#9a9a9e', '#8a8a8e');
+          if(kind === 0){ /* (a lead, coiled: its loops, the handle's loop over the peg, the clip hanging below) */
+            for(let q = 0; q < 3; q++){ const pts = []; for(let t = 0; t <= 16; t++){ const u = t/16*Math.PI*2; pts.push(P(pa + Math.cos(u)*(7 - q*0.6), f + 0.6 + q*0.3, z + 14 + Math.sin(u)*(9 - q*0.8))); } poly(pts, null, shade(c, 1 - q*0.08), 2.2); }
+            poly(Array.from({ length: 12 }, (_, t) => P(pa + Math.cos(t/12*Math.PI*2)*2.6, f + 1.6, z + 26 + Math.sin(t/12*Math.PI*2)*2.4)), null, shade(c, 0.8), 2);
+            box(pa - 1.6, pa + 1.6, f + 1, f + 3.4, z + 1, z + 5, '#c8ccd0', '#b8bcc0', '#a8acb0'); }
+          else if(kind === 1){ /* (balls in a net: the net behind, the balls, the net's strings over them, its tag) */
+            F(pa - 9, pa + 9, z + 1, z + 26, 'rgba(240,240,236,.3)', null, 0, f + 0.2);
+            for(const [ba, bz, bc] of [[-4.5, 7, '#e8e04a'], [4.5, 7, '#e05a3a'], [0, 17, '#4fb0e0']]){ discF(pa + ba, f + 0.6, z + bz, 5, bc); discF(pa + ba - 1.4, f + 0.7, z + bz + 1.6, 1.4, 'rgba(255,255,255,.55)'); }
+            for(let q = -2; q <= 2; q++) poly([P(pa + q*4, f + 0.9, z + 1), P(pa + q*2, f + 0.9, z + 27)], null, 'rgba(90,90,96,.5)', 0.6);
+            F(pa - 4, pa + 4, z + 23, z + 28, c, null, 0, f + 1); }
+          else if(kind === 2){ /* (a rope toy: the rope, two knots, its frayed ends) */
+            tube(pa - 1, f + 1, z + 25, pa + 1, f + 1, z + 5, 2.4, '#e8dcc0'); for(let q = 0; q < 5; q++) tube(pa - 0.6, f + 1.4, z + 23 - q*4, pa + 0.6, f + 1.4, z + 21 - q*4, 1.2, c);
+            for(const kz of [z + 5, z + 25]) discF(pa, f + 1.8, kz, 4.2, shade(c, 0.9));
+            for(let q = -2; q <= 2; q++) tube(pa + q*1.2, f + 1.6, z + 1.5, pa + q*1.8, f + 1.6, z - 2, 0.6, '#e8dcc0'); }
+          else if(kind === 3){ /* (collars on the peg, one over another, a tag on the front one) */
+            for(let q = 0; q < 3; q++){ const pts = []; for(let t = 0; t <= 16; t++){ const u = t/16*Math.PI*2; pts.push(P(pa + Math.cos(u)*6, f + 0.4 + q*0.3, z + 18 - q*6 + Math.sin(u)*4.6)); } poly(pts, null, PACK[(i + q) % PACK.length], 2.2); }
+            discF(pa, f + 1.4, z + 2.4, 1.8, '#d8c070'); }
+          else if(kind === 4){ /* (a plush bone on a card: the card, the bone -- its shaft and four lobes -- its stitching) */
+            F(pa - 9, pa + 9, z + 16, z + 28, white, null, 0, f + 0.2); F(pa - 9, pa + 9, z + 24, z + 28, c, null, 0, f + 0.3);
+            const bc = PACK[(i + 3) % PACK.length]; F(pa - 7, pa + 7, z + 8, z + 14, bc, null, 0, f + 0.5);
+            for(const [ba, bz] of [[-7, 9], [-7, 13], [7, 9], [7, 13]]) discF(pa + ba, f + 0.6, z + bz, 3.2, bc);
+            F(pa - 6, pa + 6, z + 10.8, z + 11.2, shade(bc, 0.7), null, 0, f + 0.7); }
+          else { /* (a tube of tennis balls: the clear tube, the three balls in it, its cap and the hang tab) */
+            F(pa - 5, pa + 5, z + 26, z + 29, c, null, 0, f + 0.3);
+            for(let q = 0; q < 3; q++){ discF(pa, f + 0.4, z + 5 + q*7.4, 4.4, '#dce84a'); poly(Array.from({ length: 6 }, (_, t) => P(pa - 3 + t*1.2, f + 0.5, z + 5 + q*7.4 + Math.sin(t)*1.4)), null, '#f4f8e0', 0.6); }
+            F(pa - 5, pa + 5, z + 1, z + 26, 'rgba(230,240,246,.32)', null, 0, f + 0.6); F(pa - 5, pa + 5, z + 23, z + 26, '#e8e8e4', null, 0, f + 0.7); F(pa - 4, pa - 2.6, z + 3, z + 22, 'rgba(255,255,255,.5)', null, 0, f + 0.75); }
         }
         box(A0, A1, B0, B1, zT, zT + 4, '#f2c230', '#d8a820', '#d8a820');
       }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
+      /* ITS SIGN on the cap, its own piece: a sea-blue board on two legs, TOYS in white */
+      items.push({ a: 290, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 36, 240, 340, 290), fpLab: { a0: 240, a1: 340, b0: 578, b1: 582, z1: zT + 30 }, solids: [], draw: () => {
+        for(const la of [252, 326]) box(la, la + 3, 579, 581, zT + 4, zT + 10, '#9aa0a6', '#8a9096', '#7a8086');
+        box(240, 340, 578, 582, zT + 10, zT + 30, seaL, sea, seaD); blockWordIn('TOYS', 256, 324, zT + 13, zT + 27, 582.2, white, null, 4); } });
     }
 
     /* ---- THE TILL COUNTER: sand to the floor, a sea-blue front with a frieze of fish, a wood top; Marta behind it. In runs of 36, keyed down
@@ -65175,13 +65243,18 @@ function houseCanopy(fn){
       items.push({ a: 390.5, b: VB + 0.5, z: 0, draw: () => {}, fx: { dog: { a: 390, b: VB - 2, z: zT + 4.5, seed: 0x9e7d01, th: 0.9, sit: 1, breed: 2 } } });   // (the shop's dog, sat in its bed: the game's own dog)
     }
 
-    /* ---- THE CAT TREE in the south-east corner (the animal shelter's): its base, the post, two carpeted shelves; a cat on the top one and a
-       kitten on the lower, the game's own cats ---- */
-    items.push({ a: 630, b: 720, z: 0, solids: [solid(608, 652, 698, 742, 150, 'cat tree')], draw: () => {
-      box(608, 652, 698, 742, 0, 10, '#a89270', '#8f7b5a', '#7c6a4d');
-      cyl(630, 720, 10, 150, 5, '#c9a874'); for(let z = 20; z < 140; z += 8) band(630, 720, 5.2, z, z + 2, '#b8975d');
-      box(612, 648, 702, 738, 62, 70, '#c0a47a', '#a98e66', '#8f7a56'); box(608, 652, 698, 742, 112, 120, '#c0a47a', '#a98e66', '#8f7a56');
-      tube(640, 738, 62, 640, 738, 44, 0.5, '#d8c8a0'); ball(640, 738, 42, 2.6, '#e05a3a'); } });
+    /* ---- THE CAT TREE in the south-east corner (the animal shelter's, rounded): its carpeted base with a cubby in it (the hole on the faces the
+       eye sees), the sisal post up to the top (its rope bands rings), the lower platform round it, a toy hung from its rim, the top platform
+       with its padded edge; a cat on the top one and a kitten on the lower, the game's own cats ---- */
+    items.push({ a: 630, b: 720, z: 0, solids: [solid(608, 652, 698, 742, 126, 'cat tree')], draw: () => {
+      const cp = '#c0a47a', cpF = '#a98e66', cpS = '#8f7a56', ca = 630, cb = 720;
+      box(608, 652, 698, 742, 0, 34, cp, cpF, cpS);
+      discF(630, 742.1, 15, 9, '#4a3a2c'); discF(630, 742.15, 15, 7.6, '#2e241c'); discS(652.1, 716, 15, 7, '#4a3a2c');
+      cyl(ca, cb, 34, 62, 5, '#c9a874'); for(let z = 38; z < 60; z += 6) band(ca, cb, 5.2, z, z + 2, '#b8975d');
+      cyl(ca, cb, 62, 70, 19, cpF, cp);
+      tube(ca + 13, cb + 13, 62, ca + 13, cb + 13, 46, 0.5, '#d8c8a0'); ball(ca + 13, cb + 13, 44, 2.8, '#e05a3a'); for(const t of [-1, 1]) tube(ca + 13, cb + 13, 45, ca + 13 + t*2, cb + 13, 41, 0.6, '#f2c230');
+      cyl(ca, cb, 70, 112, 5, '#c9a874'); for(let z = 74; z < 110; z += 6) band(ca, cb, 5.2, z, z + 2, '#b8975d');
+      cyl(ca, cb, 112, 120, 23, cpF, cp); band(ca, cb, 23.2, 120, 124, shade(cp, 1.08)); } });
     items.push({ a: 630.5, b: 720.5, z: 0, draw: () => {}, fx: { dog: { cat: true, a: 634, b: 724, z: 120, seed: 0xca7e01, th: 2.0, sit: 1 } } });
     items.push({ a: 630.2, b: 720.2, z: 0, draw: () => {}, fx: { dog: { cat: 'kitten', a: 626, b: 726, z: 70, seed: 0xca7e02, th: 1.4, sit: 1 } } });
 
