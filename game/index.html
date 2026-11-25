@@ -108952,7 +108952,8 @@ CITY_PEOPLE.add({ name: 'shoppers', where: 'the shopping streets', solid: false,
       const m = shopperAt(p, t);
       if(!m) continue;
       fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: m.ride ? 'rider' : 'shopper',
-                         lookFn: () => p._cpLook || (p._cpLook = cpKnockLook(p.seed ^ 0x5b0b, !!p.dog, p.dog ? 'dog' : undefined, p.who)), ref: p, hold: dt => { p.t0 += dt; } }));
+                         lookFn: () => p.L0 || p._cpLook || (p._cpLook = cpKnockLook(p.seed ^ 0x5b0b, !!p.dog, p.dog ? 'dog' : undefined, p.who)), ref: p,   /* (p.L0: the body a shop's room gave them, as they are drawn walking -- crowdLook; one out of a room fell as a stranger and got up as herself, Sir, 2026-11-25) */
+                         hold: dt => { p.t0 += dt; } }));
     }
   } });
 /* the food trucks' customers (VEND_CUST): as the shoppers, in their own look */
@@ -108974,7 +108975,7 @@ CITY_PEOPLE.add({ name: 'seekers', where: 'the streets', solid: false,
       const m = shopperAt(p, t);
       if(!m) continue;
       fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: m.ride ? 'rider' : 'seeker', ride: !!m.ride,
-                         lookFn: () => p._cpLook || (p._cpLook = cpKnockLook(p.seed ^ 0x5c007, true, 'none', p.who)), ref: p, hold: dt => { p.t0 += dt; } }));
+                         lookFn: () => p.L0 || p._cpLook || (p._cpLook = cpKnockLook(p.seed ^ 0x5c007, true, 'none', p.who)), ref: p, hold: dt => { p.t0 += dt; } }));
     }
   } });
 /* a driver out of a parked car on an errand (HOSP_ERRANDS) */
