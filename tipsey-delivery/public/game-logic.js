@@ -65006,9 +65006,9 @@ function houseCanopy(fn){
     /* ---- THE FEATURE TANK behind the window, in its sightline (a point a, b, z shows through the front wall at b + (W - a), z + (W - a)):
        a long glass tank on a low cabinet (under the valance's shadow on the glass), along b, open-topped, SEEN THROUGH (Sir, 2026-11-25: "make the
        fish feature tank more see through"). The cabinet in runs shorter than it is deep, keyed down its middle line; the glass and all in it
-       ONE piece after them (translucent panes laid by overlapping runs would double where their clips overlap) -- back to front: the far
+       TWO pieces after them, the fish between (translucent panes laid by overlapping runs would double where their clips overlap) -- back to front: the far
        frame posts, the far panes (the west one, the north end), the gravel bed, the rock arch and the plants stood in it (far ones first), the
-       water's surface, the near panes (the east, the south end) and their gleam, the bubbles, the near post and the rim; then its fish ---- */
+       water's surface; its fish; then the near panes (the east, the south end) and their gleam, the bubbles, the near post and the rim ---- */
     { const A0 = 612, A1 = 652, B0 = 110, B1 = 270, mid = (A0 + A1)/2, n = 4, ga = A1 - 1.8, z0 = 28, z1 = 118;
       const pane = 'rgba(150,212,224,.16)', paneN = 'rgba(120,196,212,.2)', rim = '#2a2e34';
       for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
@@ -65028,7 +65028,10 @@ function houseCanopy(fn){
         poly([P(ra + 0.1, 188, z0 + 7), P(ra + 0.1, 202, z0 + 7), P(ra + 0.1, 200, z0 + 18), P(ra + 0.1, 190, z0 + 18)], '#3a4a48');
         [[622, 124, 52, '#3f8f4a'], [640, 146, 34, '#5aa85c'], [620, 232, 60, '#3f8f4a'], [642, 252, 40, '#6aa86c'], [636, 162, 26, '#c86a4a'], [624, 210, 30, '#5aa85c']]
           .sort((p, q) => (p[0] + p[1]) - (q[0] + q[1])).forEach(([pa, pb, h, c]) => plantS(pa, pb, z0 + 7, h, c));
-        T(A0 + 2, A1 - 2, B0 + 2, B1 - 2, z1 - 10, 'rgba(160,220,230,.22)');
+        T(A0 + 2, A1 - 2, B0 + 2, B1 - 2, z1 - 10, 'rgba(160,220,230,.22)'); } });
+      /* (THE NEAR HALF, after its fish: the near panes and their gleam, the bubbles, the near post and the rim -- what is in front of the fish) */
+      items.push({ a: mid, b: B1 - 19.2, z: 0, solids: [], fpLab: { a0: A0, a1: A1, b0: B0, b1: B1, z1 }, draw: () => {
+        const post = (a, b) => box(a, a + 2, b, b + 2, z0, z1, rim, rim, '#1c2024');
         S(A1 - 2, B0 + 2, B1 - 2, z0, z1, paneN); F(A0 + 2, A1 - 2, z0, z1, paneN, null, 0, B1 - 2);
         S(A1 - 1.9, B0 + 6, B0 + 30, z0 + 20, z1 - 16, 'rgba(255,255,255,.14)'); S(A1 - 1.9, B0 + 36, B0 + 44, z0 + 30, z1 - 24, 'rgba(255,255,255,.12)');
         for(let i = 0; i < 5; i++) discS(ga + 0.14, 244 + (i % 2)*2, z0 + 20 + i*14, 1 + i*0.25, 'rgba(255,255,255,.55)');
@@ -65038,8 +65041,8 @@ function houseCanopy(fn){
         for(let i = 0; i < 4; i++){ const j = (i + 1) % 4; poly([P(R0[i][0], R0[i][1], z1), P(R0[j][0], R0[j][1], z1), P(R1[j][0], R1[j][1], z1), P(R1[i][0], R1[i][1], z1)], rim); }
         F(A0, A1, z1 - 2, z1, rim, null, 0, B1); S(A1, B0, B1, z1 - 2, z1, '#1c2024');
         S(A1 + 0.1, B0 + 3, B1 - 3, z1 - 2, z1 - 1, '#f8f2c8'); } });
-      /* (ITS FISH SWIM, the live part as the wall's: along the tank's length at their own depths in it, keyed just after the glass, clipped to
-         the water's outline) */
+      /* (ITS FISH SWIM, the live part as the wall's: along the tank's length at their own depths in it, keyed between the glass's far half and
+         its near half, clipped to the water's outline) */
       const FS = [[0, 66, 0.5], [1, 88, 0.36], [2, 58, 0.62], [3, 94, 0.44], [5, 100, 0.3], [4, 72, 0.55], [1, 48, 0.4]].map(([ci, fz, v], i) =>
         ({ at: (B0 + B1)/2 + (hsh(i*31) - 0.5)*30, amp: 40 + hsh(i*7)*28, z: fz, v, ph: hsh(i*13)*6.28, c: FISH[ci], s: 1.3, a: A0 + 8 + hsh(i*19)*(A1 - A0 - 16) }));
       FS.sort((p, q) => p.a - q.a);
