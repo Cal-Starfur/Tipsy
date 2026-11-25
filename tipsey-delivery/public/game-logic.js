@@ -156718,8 +156718,8 @@ function riverPieces(grid){
   const P = (r, a, p, z) => r.f === 0 ? { x: r.x + a, y: r.y + p, z } : { x: r.x + p, y: r.y + a, z };
   const quad = (r, a0, a1, p0, p1, z0, z1) => [P(r, a0, p0, z0), P(r, a1, p0, z1), P(r, a1, p1, z1), P(r, a0, p1, z0)];
   const zW = (r, a) => r.sand ? -D*(1 - Math.min(1, Math.max(0, a/r.len))) : -D;
-  /* five layers, laid in this order across the whole river (THE BRIDGE RULES: what stands at street height is laid after the
-     sunk water it hides, and a deck after every bank, so no ground-level piece ever paints over a deck's edge) */
+  /* five layers, laid in this order across the whole river (THE BRIDGE RULES, B7): the water; the shadows and walls; each deck's
+     edge face (below the street, so every bank in front of it hides its end); every bank at street height; every deck */
   const L = [[], [], [], [], []], add = (k, pts, col, al, map) => L[k].push({ pts, col, al: al == null ? 1 : al, map: !!map });
   for(const r of RR.runs){
     const n = r.sand ? 10 : 1, wl0 = r.na === true || r.na === 'board' ? r.w0 : r.lo, wl1 = r.nb ? r.w1 : r.hi;
@@ -156735,25 +156735,25 @@ function riverPieces(grid){
       add(1, [P(r, a0, -WH, zW(r, a0) + 26), P(r, a1, -WH, zW(r, a1) + 26), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], 0x6f7a74); }
     if(r.north) add(1, [P(r, 0, -WH, 0), P(r, 0, WH, 0), P(r, 0, WH, -D), P(r, 0, -WH, -D)], 0xe8f4f8);
     /* 2: the banks at street height -- the quays' paving (tiled over in the finish: riverFinish) and the coping; the sand's east bank */
-    if(!r.sand) for(const sd of [-1, 1]){ add(2, quad(r, r.qa, r.qb, sd*WH, sd*SW, 0, 0), 'pave'); add(2, quad(r, wl0 === r.w0 ? r.lo : wl0, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xc9c2b4); }
+    if(!r.sand) for(const sd of [-1, 1]){ add(3, quad(r, r.qa, r.qb, sd*WH, sd*SW, 0, 0), 'pave'); add(3, quad(r, wl0 === r.w0 ? r.lo : wl0, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xc9c2b4); }
     /* (the sunk water shows through to street height RIVER.depth east and south of it: the boardwalk running on east of the mouth is
        a bank too, laid again over it with its seams -- B7) */
     if(r.nb === 'board'){ const b0 = r.len, b1 = r.len + WG_COAST.BOARD*BLOCK, x0 = r.x + WH + C, x1 = r.x + WH + D + 80;
-      add(2, [{ x: x0, y: r.y + b0, z: 0 }, { x: x1, y: r.y + b0, z: 0 }, { x: x1, y: r.y + b1, z: 0 }, { x: x0, y: r.y + b1, z: 0 }], 0xb98a5e);
-      for(let x = Math.ceil(x0/52)*52; x <= x1; x += 52) add(2, [{ x: x - 1.5, y: r.y + b0, z: 0 }, { x: x + 1.5, y: r.y + b0, z: 0 }, { x: x + 1.5, y: r.y + b1, z: 0 }, { x: x - 1.5, y: r.y + b1, z: 0 }], 0x8a6644, 0.55); }
-    if(r.sand){ add(2, quad(r, r.lo, r.hi, WH, WH + D + 60, 0, 0), 0xf0e2ae);
-      for(const sd of [-1, 1]) add(2, quad(r, r.lo, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xd8c690); }
+      add(3, [{ x: x0, y: r.y + b0, z: 0 }, { x: x1, y: r.y + b0, z: 0 }, { x: x1, y: r.y + b1, z: 0 }, { x: x0, y: r.y + b1, z: 0 }], 0xb98a5e);
+      for(let x = Math.ceil(x0/52)*52; x <= x1; x += 52) add(3, [{ x: x - 1.5, y: r.y + b0, z: 0 }, { x: x + 1.5, y: r.y + b0, z: 0 }, { x: x + 1.5, y: r.y + b1, z: 0 }, { x: x - 1.5, y: r.y + b1, z: 0 }], 0x8a6644, 0.55); }
+    if(r.sand){ add(3, quad(r, r.lo, r.hi, WH, WH + D + 60, 0, 0), 0xf0e2ae);
+      for(const sd of [-1, 1]) add(3, quad(r, r.lo, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xd8c690); }
     /* 3: the decks -- a street's square at its node (tiled and kerbed in the finish), the boardwalk's timber with its seams, the
        footbridge's timber under the promenade's own walk */
     for(const d of r.decks){
       if(d.kind === 'street'){ const c = P(r, (d.a0 + d.a1)/2, 0, 0);
-        add(3, [{ x: c.x - SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y + SW, z: 0 }, { x: c.x - SW, y: c.y + SW, z: 0 }], 'pave'); }
-      else { add(3, quad(r, d.a0, d.a1, -WH - C, WH + C, 0, 0), 0xb98a5e);
-        for(let p = -WH - C + 26; p < WH + C; p += 52) add(3, quad(r, d.a0, d.a1, p - 1.5, p + 1.5, 0, 0), 0x8a6644, 0.55); }
+        add(4, [{ x: c.x - SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y + SW, z: 0 }, { x: c.x - SW, y: c.y + SW, z: 0 }], 'pave'); }
+      else { add(4, quad(r, d.a0, d.a1, -WH - C, WH + C, 0, 0), 0xb98a5e);
+        for(let p = -WH - C + 26; p < WH + C; p += 52) add(4, quad(r, d.a0, d.a1, p - 1.5, p + 1.5, 0, 0), 0x8a6644, 0.55); }
     }
-    /* 4: each deck's edge face over the water, where the eye looks down the reach past it */
+    /* 2: each deck's edge face over the water (laid before the banks: the east bank stands in front of its end), where the eye looks down the reach past it */
     for(const d of r.decks) if(d.a1 < r.w1 - 10 || d.kind === 'board'){ const K = RIVER.kinds[d.kind];
-      add(4, [P(r, d.a1, -WH, 0), P(r, d.a1, WH, 0), P(r, d.a1, WH, -K.F), P(r, d.a1, -WH, -K.F)], K.fascia); }
+      add(2, [P(r, d.a1, -WH, 0), P(r, d.a1, WH, 0), P(r, d.a1, WH, -K.F), P(r, d.a1, -WH, -K.F)], K.fascia); }
   }
   return (grid._riverPieces = [].concat(...L));
 }
