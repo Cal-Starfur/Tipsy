@@ -5622,7 +5622,7 @@ function flatSpanOf(cx, cy, w, h, K, camZ){
   const ax = Math.max(cx, w - cx) / K;
   const by = 2 * Math.max(Math.abs(cy / K + camZ), Math.abs((h - cy) / K - camZ));
   const span = Math.max(ax, by);
-  return span * (1 + FLAT_CULL_LEAD) + FLAT_CULL_PAD;
+  return span * (1 + FLAT_CULL_LEAD) + FLAT_CULL_PAD + (BEND.on ? BEND.amp*BLOCK*1.5 : 0);   // (THE BEND: a point drawn up to its reach from where it is)
 }
 
 /* ================= REDUNDANT STYLE ELISION =================
@@ -109900,6 +109900,7 @@ class WorldScene extends Phaser.Scene {
     this.drawAngle = hdg0;   // position teleports on route load — rotation teleports with it
     this.slide = null; this.slipYaw = 0;
     this.camX = this.botX; this.camY = this.botY; this.camZ = this.botZ;
+    if(BEND.on){ const b = bendXY(this.botX, this.botY); this.camX = b.x; this.camY = b.y; }   // (THE BEND: on him where he is drawn)
     this.speed = 0; this.tilt = 0; this.damage = 0; this.runT = 0;
     /* A fresh route is a fresh standing start: re-arm the opening hold
        and drop any smoke the last run left in the air. Armed HERE rather
@@ -110154,6 +110155,9 @@ class WorldScene extends Phaser.Scene {
   }
   /* world-space projection (camera tracks the bot on both iso axes + height) */
   W(x, y, z){
+    if(BEND.on){ const x0 = x, y0 = y, b = bendXY(x, y); x = b.x; y = b.y;   // THE BEND (preview): each point at its bent place, fixed to the world
+      const xr = x - this.camX, yr = y - this.camY;                         // (so the caches' painted chunks line up); the camera follows his bent place
+      return { x:(xr - yr)*this.K + this.cx, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy, _wx: x0, _wy: y0, _wz: z || 0 }; }   // (its world point kept: quadOn lays a big piece in small ones)
     const xr = x - this.camX, yr = y - this.camY;
     return { x:(xr - yr)*this.K + this.cx,
              y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
@@ -112499,6 +112503,24 @@ class WorldScene extends Phaser.Scene {
     Qg([[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55]], 0xa84e34);
   }
   quadOn(g, pts, color, alpha=1){
+    /* THE BEND (preview): a piece big in the world is laid in small triangles, each corner at its own bent place, so a block's
+       ground, a lawn, a long wall follows the curve instead of cutting across it */
+    if(BEND.on && !this._bendSub && pts.length >= 3 && pts[0]._wx !== undefined){
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, ok = true;
+      for(const p of pts){ if(p._wx === undefined){ ok = false; break; } if(p._wx < x0) x0 = p._wx; if(p._wx > x1) x1 = p._wx; if(p._wy < y0) y0 = p._wy; if(p._wy > y1) y1 = p._wy; }
+      if(ok && Math.max(x1 - x0, y1 - y0) > 420 && bendMask(((x0 + x1)/2)/BLOCK, ((y0 + y1)/2)/BLOCK) + bendMask(x0/BLOCK, y0/BLOCK) + bendMask(x1/BLOCK, y1/BLOCK) > 0){
+        const Wp = p => [p._wx, p._wy, p._wz], tri = (a, b, c) => {
+          const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]), ab = d(a, b), bc = d(b, c), ca = d(c, a), m = Math.max(ab, bc, ca);
+          if(m > 380){ const mid = (p, q) => [(p[0] + q[0])/2, (p[1] + q[1])/2, (p[2] + q[2])/2];
+            if(m === ab){ const k = mid(a, b); tri(a, k, c); tri(k, b, c); } else if(m === bc){ const k = mid(b, c); tri(a, b, k); tri(a, k, c); } else { const k = mid(c, a); tri(a, b, k); tri(k, b, c); }
+            return; }
+          this.quadOn(g, [this.W(a[0], a[1], a[2]), this.W(b[0], b[1], b[2]), this.W(c[0], c[1], c[2])], color, alpha); };
+        this._bendSub = true;
+        try { const P = pts.map(Wp); for(let k = 1; k < P.length - 1; k++) tri(P[0], P[k], P[k + 1]); }
+        finally { this._bendSub = false; }
+        return;
+      }
+    }
     if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) return; }
     g.fillStyle(color, alpha);
     g.fillPoints(pts, false, false);
@@ -116370,7 +116392,7 @@ class WorldScene extends Phaser.Scene {
 
   drawGroundPass(g){
     const d = this.d, r = this.route;
-        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000;
+        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000 + (BEND.on ? BEND.amp*BLOCK*1.5 : 0);
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
     /* flat ground only -- see FLAT_CULL_PAD above */
     const flatSpan = flatSpanOf(this.cx, this.cy, this.vpW(),
@@ -116606,7 +116628,7 @@ class WorldScene extends Phaser.Scene {
        actually rendered THIS frame) -- and onScreen() still rejects any
        tile the projection puts outside the viewport regardless. */
     {
-      const bsRadius = (this.vpW() / this.K) * 0.55 + T2*3;
+      const bsRadius = (this.vpW() / this.K) * 0.55 + T2*3 + (BEND.on ? BEND.amp*BLOCK*1.5 : 0);
       const gEndBase = { x:(r.grid.cols-1)*BLOCK, y:(r.grid.rows-1)*BLOCK };
       /* THE EXT RING (2026-08-14, Sir on-device: "there is a blue gap
          between the boardwalk and the old build"). The blue sampled off
@@ -116731,12 +116753,14 @@ class WorldScene extends Phaser.Scene {
       const oA = edge.a.svGate ? 0 : OVERSHOOT, oB = edge.b.svGate ? 0 : OVERSHOOT;
       const ax = edge.a.x - dv.x*oA, ay = edge.a.y - dv.y*oA;
       const bx = edge.b.x + dv.x*oB, by = edge.b.y + dv.y*oB;
-      this.quadOn(g, [
-        this.W(ax - rv.x*ROAD_HALF, ay - rv.y*ROAD_HALF, 0),
-        this.W(bx - rv.x*ROAD_HALF, by - rv.y*ROAD_HALF, 0),
-        this.W(bx + rv.x*ROAD_HALF, by + rv.y*ROAD_HALF, 0),
-        this.W(ax + rv.x*ROAD_HALF, ay + rv.y*ROAD_HALF, 0)
-      ], d.road);
+      const nS = BEND.on ? 12 : 1;                 // (THE BEND: in lengths, so the street follows the curve)
+      for(let k = 0; k < nS; k++){ const f0 = k/nS, f1 = (k + 1)/nS, x0 = ax + (bx - ax)*f0, y0 = ay + (by - ay)*f0, x1 = ax + (bx - ax)*f1, y1 = ay + (by - ay)*f1;
+        this.quadOn(g, [
+          this.W(x0 - rv.x*ROAD_HALF, y0 - rv.y*ROAD_HALF, 0),
+          this.W(x1 - rv.x*ROAD_HALF, y1 - rv.y*ROAD_HALF, 0),
+          this.W(x1 + rv.x*ROAD_HALF, y1 + rv.y*ROAD_HALF, 0),
+          this.W(x0 + rv.x*ROAD_HALF, y0 + rv.y*ROAD_HALF, 0)
+        ], d.road); }
     }
     /* THE STREET'S ASPHALT (road pass): each street's mid run laid and lived on, then each junction's box */
     for(const edge of r.grid.edges){
@@ -117711,7 +117735,7 @@ class WorldScene extends Phaser.Scene {
     if(_nl > 0 && MALL_VIEW){ const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl); this.mallNightFacade(this.gNightIn, (ch(16) << 16) | (ch(8) << 8) | ch(0)); }
     this.roomDimDraw();
 
-        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000;
+        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000 + (BEND.on ? BEND.amp*BLOCK*1.5 : 0);
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
     /* flat ground only -- see FLAT_CULL_PAD above */
     const flatSpan = flatSpanOf(this.cx, this.cy, this.vpW(),
@@ -142150,6 +142174,7 @@ class WorldScene extends Phaser.Scene {
        the follow a few pixels short whenever 8% of the gap rounds away */
     const ce = this._camEx, cex = (ce && ce.qx === this.camX && ce.qy === this.camY) ? ce.x : this.camX,
           cey = (ce && ce.qx === this.camX && ce.qy === this.camY) ? ce.y : this.camY;
+    if(BEND.on){ const b0 = { x: this.botX, y: this.botY }, b = bendXY(b0.x, b0.y); camTargetX += b.x - b0.x; camTargetY += b.y - b0.y; }   // (THE BEND: the camera on him where he is drawn)
     this._camNext = {
       x: Phaser.Math.Linear(cex, camTargetX, camA(0.08 * camVmul)),
       y: Phaser.Math.Linear(cey, camTargetY, camA(0.06 * camVmul)),
@@ -156624,6 +156649,35 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
      deck; these are built to 782 x 640 for margin. Real piers widen at the
      landward end anyway. */
   FLARE_LEN: 0.29, FLARE_HALF: 0.216 };
+/* ==================== THE BEND (Sir, 2026-11-25: step 3 of the natural survey, "even the road systems have to bend and move
+   with the features of this map's topography") ====================
+   STAGE 1, A PREVIEW BEHIND A SWITCH (?bend=1; off by default, so the live game is unchanged). The world stays the grid
+   underneath -- the lattice, the routes, the collision, the addresses, every mission's spot -- and is BENT ON DISPLAY: W lays
+   each world point at its bent place (bendXY), the camera at its own, so everything drawn bends together and he drives the
+   same streets he always did, round their curves. One smooth fold-free field (a slope well under 1), masked to the hoods it is
+   tried in and eased to nothing at their border streets, so a hood's edge meets its neighbours where it always did. Old Town
+   first (district 2,0: columns 18-27, rows 0-9). Long pieces drawn as one quad (a street's asphalt) are laid in short lengths
+   while it is on, so they follow the curve. */
+const BEND = { on: new URLSearchParams(location.search).get("bend") === "1", amp: 0.2, lamX: 6.6, lamY: 5.4,
+  hoods: [{ i0: 18, i1: 27, j0: 0, j1: 9, ease: 1.6 }] };
+function bendMask(u, v){
+  let m = 0;
+  for(const H of BEND.hoods){ if(u <= H.i0 || u >= H.i1 || v <= H.j0 || v >= H.j1) continue;
+    const e = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
+    m = Math.max(m, e(H.i0, H.i0 + H.ease, u)*e(H.i1, H.i1 - H.ease, u)*e(H.j0, H.j0 + H.ease, v)*e(H.j1, H.j1 - H.ease, v)); }
+  return m;
+}
+/* the bent place of world (x, y): out = {x, y} reused */
+const _bendOut = { x: 0, y: 0 };
+function bendXY(x, y){
+  const B = BLOCK, u = x/B, v = y/B; _bendOut.x = x; _bendOut.y = y;
+  const m = bendMask(u, v); if(m <= 0) return _bendOut;
+  const A = BEND.amp*B*m, TAU = Math.PI*2;
+  _bendOut.x = x + A*(0.7*Math.sin(TAU*v/BEND.lamY + 0.9) + 0.3*Math.sin(TAU*(u + v)/9.1 + 2.1));
+  _bendOut.y = y + A*(0.7*Math.sin(TAU*u/BEND.lamX + 0.4) + 0.3*Math.sin(TAU*(u - v)/8.3 + 1.3));
+  return _bendOut;
+}
+
 /* ==================== THE PALMA RIVER (Sir, 2026-11-25: "that river is nice but the bridges need to connect and we dont want to
    add more parks along it we would like the houses and shops to still hug it") ====================
    The natural survey's step 2 (docs/costa-palma-natural.html). The river comes down off the north hills from Lake Palma -- over
