@@ -66862,7 +66862,11 @@ function houseCanopy(fn){
             /* (its water bottle on the glass, the glass, the frame round it) */
             S(A1 - 1.6, s0 + 3, s1 - 3, z0, z1, 'rgba(200,228,236,.22)');
             cyl(A1 - 4, s0 + 12, z1 - 28, z1 - 10, 2.6, 'rgba(200,228,236,.7)', '#3fa85c'); tube(A1 - 4, s0 + 12, z1 - 28, A1 - 5, s0 + 12, z1 - 33, 0.5, '#9aa0a6');
-            S(A1 - 1.5, s0 + 3, s1 - 3, z1 - 3, z1, whiteF); S(A1 - 1.5, s0 + 3, s0 + 5, z0, z1, whiteF); });
+            S(A1 - 1.5, s0 + 3, s1 - 3, z1 - 3, z1, whiteF); S(A1 - 1.5, s0 + 3, s0 + 5, z0, z1, whiteF);
+            /* (the run's south end, the last bay's: its own wire mesh end, seen -- open, Sir, 2026-11-25: "missing the cage end here on this end") */
+            if(k === n - 1){ F(A0 + 2, A1 - 5, z0, z1, 'rgba(236,230,214,.28)', null, 0, s1 - 3); for(let a = A0 + 8; a < A1 - 5; a += 6) F(a - 0.3, a + 0.3, z0, z1, 'rgba(160,164,168,.5)', null, 0, s1 - 2.95);
+              for(let z = z0 + 6; z < z1; z += 6) F(A0 + 2, A1 - 5, z - 0.3, z + 0.3, 'rgba(160,164,168,.5)', null, 0, s1 - 2.95); F(A0 + 2, A1 - 5, z1 - 3, z1, whiteF, null, 0, s1 - 2.9); } });
+          if(k === n - 1) box(A0, A0 + 4, s1 - 3, s1, 16, zTop - 6, white, whiteF, whiteS);                         // (the end's back post, by the wall)
           box(A1 - 5, A1, s1 - 3, s1, 16, zTop - 6, white, whiteF, whiteS);                              // (its near post)
           box(A0, A1 + 2, s0, s1, zTop - 6, zTop, sea, seaD, shade(seaD, 0.85));
         }, { alongB: true, pad: 3, keyStart: true, run: 80 });
