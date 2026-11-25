@@ -12004,6 +12004,7 @@ function owInstall(scene){
      stick under a button. */
   ow.onDown = e => {
     for(const t of (e.changedTouches || [e])){
+      if(typeof hornTap === 'function' && hornTap(scene, t.clientX, t.clientY)) continue;   // (a tap on his topper: the horn, not the stick)
       if(ow.stick.active) continue;
       ow.stick.active = true; ow.stick.id = t.identifier !== undefined ? t.identifier : 'mouse';
       ow.stick.ox = t.clientX; ow.stick.oy = t.clientY; ow.stick.dx = 0; ow.stick.dy = 0;
@@ -101891,6 +101892,19 @@ function hornTop(sc){ const ow = sc && sc.ow; if(!ow || !ow.on) return null;
   if(typeof fleetCur === 'function' && fleetCur()) return null;
   return typeof SKIN !== 'undefined' ? (SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : (SKIN.jolly ? 'pirate' : null)) : null; }
 const HORN = { t: -1e9, holdMs: 3000 };   // (sounded at HORN.t: people step aside for holdMs)
+/* THE TOPPER IS THE HORN (Sir, 2026-11-25: no button; tap the topper itself). Each frame the topper is drawn, hornMark keeps
+   where it sits in the world (a little up the pole from its tip); a touch that lands on it sounds the horn instead of
+   starting the stick (ow.onDown). */
+function hornMark(sc, p, dx, dy, ks){ const k = 1.7*ks; sc._hornAt = { x: p.x + dx*13*k, y: p.y + dy*13*k, r: 14*k, t: sc.time ? sc.time.now : 0 }; }
+function hornTap(sc, cx, cy){
+  const h = sc && sc._hornAt, top = hornTop(sc);
+  if(!h || !top || sc.state !== "play" || sc._garage || sc.attract || !sc.time || sc.time.now - h.t > 200) return false;
+  const cv = sc.game.canvas, rc = cv.getBoundingClientRect(), gs = sc.scale.gameSize, cam = sc.cameras.main;
+  const gx = (cx - rc.left)*gs.width/rc.width, gy = (cy - rc.top)*gs.height/rc.height, w = cam.getWorldPoint(gx, gy);
+  const r = Math.max(h.r, 24/(cam.zoom*rc.width/gs.width));   // (at least a fingertip across, however far out he is zoomed)
+  if(Math.hypot(w.x - h.x, w.y - h.y) > r) return false;
+  sfxHorn(top, 1); HORN.t = performance.now(); return true;
+}
 function knockFast(sc){ const u = gscUp(sc); return !!(sc && sc.speed > STREET_RIDER.knockV) && !(u && u.bell) && !tpBellOn(sc) && !(performance.now() - HORN.t < HORN.holdMs); }
 /* the ones he has set down stay where they are, through a reload */
 function scootSave(){ try { localStorage.setItem(SCOOTR_KEY, JSON.stringify(SCOOTR.down.slice(-12))); } catch(e){} }
@@ -132674,6 +132688,7 @@ class WorldScene extends Phaser.Scene {
       const cloth = top === 'pirate' || top === 'square' || top === 'swallow' || top === 'checker';
       if(cloth) this.drawFlagCloth(top, p, dx, dy, ks); else this.drawTopper(top, p, dx, dy, ks);
     } finally { this.g = g0; }
+    hornMark(this, p, dx, dy, ks);   // (the topper is the horn: where a tap on it lands)
     return true;
   }
   /* TIPSEY'S HULL ON A SIBLING (Sir, 2026-10-24: "the fleet never got the lid expansion for lidded or the chamfered
@@ -146736,6 +146751,7 @@ class WorldScene extends Phaser.Scene {
       ghostR = 8; }
     else if(cloth) pen = this.drawFlagCloth(top || 'pennant', p, dx, dy, ks);
     else ghostR = this.drawTopper(top, p, dx, dy, ks);
+    if(top) hornMark(this, p, dx, dy, ks);   // (the topper is the horn: where a tap on it lands)
 
     /* X-RAY: the pole is a strokePath and the pennant a fill -- neither goes
        through quadOn, so the silhouette wrap in drawWorld's flush never saw
