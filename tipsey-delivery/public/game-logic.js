@@ -50916,54 +50916,96 @@ function roofBlot(ca, cb, ra, rb, z, col, al, lim){
       pts.push(P(a, b, z)); }
     poly(pts, 'rgba(' + col + ',' + (al/2) + ')'); }
 }
-/* A PARKING DECK'S CONCRETE (the garages' roof decks: Maritime Mall Parking, Marina General's, Marina Parking): worn as
+/* THE GARAGES' LOWER LEVELS (the garage pass, Sir 2026-11-25: "what about the floor of all the parking garages levels they
+   could use a pass"): every level under the roof laid as its roof deck is (parkDeck), seeded off its own height, but only
+   where it shows -- between the floor's edge and the dark inside drawn behind it (parkDeck's win); the stall paint, the
+   cars, the columns and the parapets drawn over it as before. Their aisles and stalls are built once (parkDeckOpts). */
+/* the mall garage's level k (0 the ground floor, mallGarageGround's stalls), the 250 strip behind its front edge */
+function mallLevelDeck(k){
+  const G = GARAGE_PLAN;
+  const o = parkDeckOpts('mall garage level ' + k, () => {
+    if(!k){ const MG = mallGarageGround(); return { seed: 'mall garage ground', aisles: [[0, G.LEN, MG.aisleB]], stalls: MG.stalls.map(st => [st.a, st.b]) }; }
+    const stalls = [];                                             // (the draw's own front row: a 140 bay, clear of the core and, on level 2, the way out to the skybridge)
+    for(let a = 90; a < G.LEN - 70; a += 140) if(!(a > G.CORE0 - 70 && a < G.CORE1 + 70) && !(k === 1 && a > G.CORE1 + 70)) stalls.push([a, G.BF - 128]);
+    return { seed: 'mall garage level ' + k, stalls };
+  });
+  parkDeck(0, G.LEN, G.BB, G.BF, k*G.LH + 0.5, k ? '#8e8a82' : '#8a867f', o, [0, G.LEN, G.BF - 250, G.BF]);
+}
+/* a hood garage's level k (Marina General's, Marina Parking: the entry's own a, b, bS < bN, the south and east faces the
+   seen ones): the L the two seen faces leave, IN deep. ground() (level 0): its aisles and stalls, from the ground floor's plan */
+function hoodLevelDeck(key, k, z, ax0, ax1, bS, bN, IN, ground){
+  const o = parkDeckOpts(key + ' level ' + k, () => {
+    if(!k) return Object.assign({ seed: key + ' ground' }, ground());
+    const stalls = [];                                             // (the draw's own outer rows: along the south face and down the east)
+    for(let a = ax0 + 140; a < ax1 - IN - 60; a += 250) stalls.push([a, bS + 128]);
+    for(let b = bS + IN + 70; b < bN - 60; b += 140) stalls.push([ax1 - 128, b]);
+    return { seed: key + ' level ' + k, stalls };
+  });
+  parkDeck(ax0, ax1, bS, bN, z, k ? '#8e8a82' : '#8a867f', o, [[ax0, ax1, bS, bS + IN], [ax1 - IN, ax1, bS + IN, bN]]);
+}
+/* A PARKING DECK'S CONCRETE (the garages' decks, every level: Maritime Mall Parking, Marina General's, Marina Parking): worn as
    the street's road is, not a roof membrane -- the pour's bays a shade apart with their sawn joints, tyre polish down the
    aisles (o.aisles: [a0, a1, b] each, an aisle along a, its middle b), oil under the stalls (o.stalls: [a, b] each, a
    stall's middle), patches sealed round, cracks sealed, grime along the parapets, a drain or two. Seeded off its size
-   and height (o.seed to tell two alike apart). */
+   and height (o.seed to tell two alike apart).
+   win (the garage pass, Sir 2026-11-25: "the floor of all the parking garages levels"): a lower level seen only in part,
+   between its parapet and the dark inside behind it -- [a0, a1, b0, b1], or a list of them (an L round two seen faces).
+   Given, the deck is laid only there: its plate and every mark cut to the windows, a stain or a crack only where it
+   starts inside one, and the rest -- the same seeded deck, joints and all -- is never drawn. A call without it is drawn
+   exactly as before. */
 const PARK_DECK_OPTS = new Map();                                // (each garage's aisles and stalls, built once: parkDeckOpts)
 function parkDeckOpts(key, build){ let v = PARK_DECK_OPTS.get(key); if(!v){ v = build(); PARK_DECK_OPTS.set(key, v); } return v; }
-function parkDeck(a0, a1, b0, b1, z, base, o){
+function parkDeck(a0, a1, b0, b1, z, base, o, win){
   o = o || {};
   const A0 = Math.min(a0, a1), A1 = Math.max(a0, a1), B0 = Math.min(b0, b1), B1 = Math.max(b0, b1), w = A1 - A0, dd = B1 - B0;
   const seed = natStrSeed('park' + Math.round(w) + 'x' + Math.round(dd) + '@' + Math.round(z) + (o.seed || ''));
-  const h = i => natHash((seed + Math.imul(i, 2654435761)) >>> 0), lim = [A0 + 4, A1 - 4, B0 + 4, B1 - 4];
-  T(A0, A1, B0, B1, z, base);
+  const h = i => natHash((seed + Math.imul(i, 2654435761)) >>> 0), lim0 = [A0 + 4, A1 - 4, B0 + 4, B1 - 4];
+  const Wn = win ? (typeof win[0] === 'number' ? [win] : win).map(r => [Math.max(A0, Math.min(r[0], r[1])), Math.min(A1, Math.max(r[0], r[1])), Math.max(B0, Math.min(r[2], r[3])), Math.min(B1, Math.max(r[2], r[3]))])
+    .filter(r => r[1] - r[0] > 0.5 && r[3] - r[2] > 0.5) : null;
+  if(Wn && !Wn.length) return;
+  const Tz = !Wn ? (x0, x1, y0, y1, c) => T(x0, x1, y0, y1, z, c)
+    : (x0, x1, y0, y1, c) => { for(const r of Wn){ const u0 = Math.max(x0, r[0]), u1 = Math.min(x1, r[1]), v0 = Math.max(y0, r[2]), v1 = Math.min(y1, r[3]);
+        if(u1 - u0 > 0.05 && v1 - v0 > 0.05) T(u0, u1, v0, v1, z, c); } };
+  const winAt = (a, b) => { if(!Wn) return lim0; for(const r of Wn) if(a >= r[0] && a <= r[1] && b >= r[2] && b <= r[3]) return [Math.max(lim0[0], r[0]), Math.min(lim0[1], r[1]), Math.max(lim0[2], r[2]), Math.min(lim0[3], r[3])]; return null; };
+  const blot = (ca, cb, ra, rb, col, al) => { const lim = winAt(ca, cb); if(lim) roofBlot(ca, cb, ra, rb, z, col, al, lim); };
+  Tz(A0, A1, B0, B1, base);
   /* the pour: bays a shade apart, the sawn joints between them */
   const ja = 280, jb = 300; let i = 0;
   for(let a = A0; a < A1 - 1; a += ja) for(let b = B0; b < B1 - 1; b += jb, i++){ const v = h(i*3 + 1);
-    if(v < 0.34) T(a, Math.min(A1, a + ja), b, Math.min(B1, b + jb), z, v < 0.17 ? 'rgba(20,20,18,0.035)' : 'rgba(255,255,255,0.05)'); }
-  for(let a = A0 + ja; a < A1 - 10; a += ja) T(a - 0.7, a + 0.7, B0 + 4, B1 - 4, z, shade(base, .88));
-  for(let b = B0 + jb; b < B1 - 10; b += jb) T(A0 + 4, A1 - 4, b - 0.7, b + 0.7, z, shade(base, .88));
+    if(v < 0.34) Tz(a, Math.min(A1, a + ja), b, Math.min(B1, b + jb), v < 0.17 ? 'rgba(20,20,18,0.035)' : 'rgba(255,255,255,0.05)'); }
+  for(let a = A0 + ja; a < A1 - 10; a += ja) Tz(a - 0.7, a + 0.7, B0 + 4, B1 - 4, shade(base, .88));
+  for(let b = B0 + jb; b < B1 - 10; b += jb) Tz(A0 + 4, A1 - 4, b - 0.7, b + 0.7, shade(base, .88));
   /* tyre polish down the aisles: a soft lane, the two wheel paths in it darker, broken where the traffic thins */
   (o.aisles || []).forEach(([x0, x1, bc], k) => {
     const u0 = Math.max(A0, Math.min(x0, x1)), u1 = Math.min(A1, Math.max(x0, x1));
-    T(u0, u1, bc - 70, bc + 70, z, 'rgba(24,24,26,0.035)');
+    Tz(u0, u1, bc - 70, bc + 70, 'rgba(24,24,26,0.035)');
     for(const off of [-48, 48]) for(let a = u0 + 20, j = 0; a < u1 - 40; j++){
       const hv = h(k*977 + j*31 + (off > 0 ? 7 : 3)), L = 160 + hv*360;
-      if(hv > 0.18) T(a, Math.min(u1 - 20, a + L), bc + off - 13, bc + off + 13, z, 'rgba(26,26,30,' + (0.05 + 0.04*hv) + ')');
+      if(hv > 0.18) Tz(a, Math.min(u1 - 20, a + L), bc + off - 13, bc + off + 13, 'rgba(26,26,30,' + (0.05 + 0.04*hv) + ')');
       a += L + 30 + 120*h(k*977 + j*31 + 11); } });
   /* oil under the stalls, where the cars stand longest */
   (o.stalls || []).forEach(([sa, sb], k) => { const hv = h(4099 + k*13);
-    if(hv < 0.5) roofBlot(sa + (h(4111 + k*13) - 0.5)*40, sb + (h(4127 + k*13) - 0.5)*60, 20 + hv*36, 14 + hv*22, z, '16,16,18', 0.16 + 0.12*h(4133 + k*13), lim); });
+    if(hv < 0.5) blot(sa + (h(4111 + k*13) - 0.5)*40, sb + (h(4127 + k*13) - 0.5)*60, 20 + hv*36, 14 + hv*22, '16,16,18', 0.16 + 0.12*h(4133 + k*13)); });
   /* patches, sealed round; sealed cracks; a few ponding stains */
   const n = Math.max(2, Math.round(w*dd/600000));
   for(let k = 0; k < n; k++){ const pw = 90 + h(5003 + k)*180, pd = 70 + h(5011 + k)*130, pa = A0 + 30 + h(5021 + k)*(w - pw - 60), pb = B0 + 30 + h(5039 + k)*(dd - pd - 60);
-    T(pa, pa + pw, pb, pb + pd, z, h(5051 + k) < 0.5 ? shade(base, 1.05) : shade(base, .93));
-    const sc = 'rgba(31,32,36,0.42)'; T(pa, pa + pw, pb - 1.2, pb + 1.2, z, sc); T(pa, pa + pw, pb + pd - 1.2, pb + pd + 1.2, z, sc); T(pa - 1.2, pa + 1.2, pb, pb + pd, z, sc); T(pa + pw - 1.2, pa + pw + 1.2, pb, pb + pd, z, sc); }
-  for(let k = 0; k < n*2; k++){ let x = A0 + 40 + h(6007 + k)*(w - 80), y = B0 + 40 + h(6011 + k)*(dd - 80); const along = h(6029 + k) < 0.5;
+    Tz(pa, pa + pw, pb, pb + pd, h(5051 + k) < 0.5 ? shade(base, 1.05) : shade(base, .93));
+    const sc = 'rgba(31,32,36,0.42)'; Tz(pa, pa + pw, pb - 1.2, pb + 1.2, sc); Tz(pa, pa + pw, pb + pd - 1.2, pb + pd + 1.2, sc); Tz(pa - 1.2, pa + 1.2, pb, pb + pd, sc); Tz(pa + pw - 1.2, pa + pw + 1.2, pb, pb + pd, sc); }
+  for(let k = 0; k < n*2; k++){ let x = A0 + 40 + h(6007 + k)*(w - 80), y = B0 + 40 + h(6011 + k)*(dd - 80); const along = h(6029 + k) < 0.5, L = winAt(x, y);
+    if(!L) continue;
     for(let j = 0; j < 7 + h(6037 + k)*9; j++){ const r1 = h(6043 + k*31 + j), r2 = h(6047 + k*37 + j);
       const x2 = along ? x + 16 + r1*16 : x + (r2 - 0.5)*12, y2 = along ? y + (r2 - 0.5)*12 : y + 16 + r1*16;
       if(x2 < A0 + 10 || x2 > A1 - 10 || y2 < B0 + 10 || y2 > B1 - 10) break;
+      if(Wn && (x2 < L[0] || x2 > L[1] || y2 < L[2] || y2 > L[3])) break;   // (a windowed deck: the crack stops at its window's edge)
       const l = Math.hypot(x2 - x, y2 - y) || 1, nx = -(y2 - y)/l*1.4, ny = (x2 - x)/l*1.4;
       poly([P(x + nx, y + ny, z), P(x2 + nx, y2 + ny, z), P(x2 - nx, y2 - ny, z), P(x - nx, y - ny, z)], 'rgba(31,32,36,0.4)');
       x = x2; y = y2; } }
-  for(let k = 0; k < n; k++) roofBlot(A0 + w*(0.1 + 0.8*h(7001 + k)), B0 + dd*(0.1 + 0.8*h(7013 + k)), 60 + h(7019 + k)*110, 40 + h(7027 + k)*80, z, h(7039 + k) < 0.6 ? '18,20,18' : '255,255,255', 0.06 + 0.04*h(7043 + k), lim);
+  for(let k = 0; k < n; k++) blot(A0 + w*(0.1 + 0.8*h(7001 + k)), B0 + dd*(0.1 + 0.8*h(7013 + k)), 60 + h(7019 + k)*110, 40 + h(7027 + k)*80, h(7039 + k) < 0.6 ? '18,20,18' : '255,255,255', 0.06 + 0.04*h(7043 + k));
   /* grime along the parapets, two drains along the far one */
-  T(A0, A1, B0, B0 + 14, z, 'rgba(18,20,18,0.06)'); T(A0, A1, B1 - 14, B1, z, 'rgba(18,20,18,0.06)');
-  T(A0, A0 + 14, B0 + 14, B1 - 14, z, 'rgba(18,20,18,0.05)'); T(A1 - 14, A1, B0 + 14, B1 - 14, z, 'rgba(18,20,18,0.05)');
+  Tz(A0, A1, B0, B0 + 14, 'rgba(18,20,18,0.06)'); Tz(A0, A1, B1 - 14, B1, 'rgba(18,20,18,0.06)');
+  Tz(A0, A0 + 14, B0 + 14, B1 - 14, 'rgba(18,20,18,0.05)'); Tz(A1 - 14, A1, B0 + 14, B1 - 14, 'rgba(18,20,18,0.05)');
   for(const da of [0.25, 0.75]){ const ca = A0 + w*da, cb = B0 + 30;
-    T(ca - 14, ca + 14, cb - 9, cb + 9, z, shade(base, .7)); for(let x = ca - 10; x < ca + 10; x += 5) T(x, x + 2, cb - 6, cb + 6, z, '#2c2e31'); }
+    Tz(ca - 14, ca + 14, cb - 9, cb + 9, shade(base, .7)); for(let x = ca - 10; x < ca + 10; x += 5) Tz(x, x + 2, cb - 6, cb + 6, '#2c2e31'); }
 }
 /* A ROOF TERRACE'S PAVERS (Palmline Tower's podium, Cove Grove's): laid as the courtyards are (courtyardFill's concrete
    pavers): 92 x 46 in a running bond along a, the joints dark, a tone each, now and then a replaced one; moss in the
@@ -54021,6 +54063,8 @@ function houseCanopy(fn){
             items.push({ a: ax1, b: bN, z: 0, depth: hospGroundDepth(G_.x0, G_.y0) - 1, draw: () => {
               if(!inView(ax0, ax1, bS, bN, 0, LH)) return;
               T(ax0, ax1, bS, bN, 0.5, '#8a867f');
+              hoodLevelDeck('hosp garage ' + Math.round(ax0) + ',' + Math.round(bS), 0, 0.5, ax0, ax1, bS, bN, IN,   // worn where it shows (the garage pass)
+                () => ({ aisles: [[ax0, ax1, B(GG.aisleY)]], stalls: GG.stalls.map(st => [A(st.x), B(st.y)]) }));
               for(const y of [GG.aisleY - 2]) T(A(G_.x0 + 40), A(G_.x1 - 40), B(y + 4), B(y), 0.7, '#e8e2d0');   // the aisle's centre line
               fq(iE, bS + IN, bN, 0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
               fq(iS, ax0, ax1 - IN, 0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
@@ -54056,6 +54100,7 @@ function houseCanopy(fn){
               const z0 = k*LH, z1 = z0 + LH;
               /* the deck, the dark inside seen through the gap, its soffit */
               T(ax0, ax1, bS, bN, z0 + 0.5, '#8e8a82');
+              hoodLevelDeck('hosp garage ' + Math.round(ax0) + ',' + Math.round(bS), k, z0 + 0.5, ax0, ax1, bS, bN, IN);   // worn where it shows (the garage pass)
               fq(iE, bS + IN, bN, z0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
               fq(iS, ax0, ax1 - IN, z0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
               /* the outer row of stalls on each seen side, far ones first */
@@ -54585,6 +54630,8 @@ function houseCanopy(fn){
           items.push({ a: ax1, b: bN, z: 0, depth: marinaGroundDepth(G_.x0, G_.y0) - 1, draw: () => {
             if(!inView(ax0, ax1, bS, bN, 0, LH)) return;
             T(ax0, ax1, bS, bN, 0.5, '#8a867f');
+            hoodLevelDeck('marina garage ' + Math.round(ax0) + ',' + Math.round(bS), 0, 0.5, ax0, ax1, bS, bN, IN,   // worn where it shows (the garage pass)
+              () => ({ aisles: [[ax0, ax1, B(GG.aisleY)]], stalls: GG.stalls.map(st => [A(st.x), B(st.y)]) }));
             T(A(G_.x0 + 40), A(G_.x1 - 40), B(GG.aisleY + 2), B(GG.aisleY - 2), 0.7, '#e8e2d0');   // the aisle's centre line
             fq(iE, bS + IN, bN, 0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
             fq(iS, ax0, ax1 - IN, 0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
@@ -54617,6 +54664,7 @@ function houseCanopy(fn){
           for(let k = 1; k < NL; k++){
             const z0 = k*LH, z1 = z0 + LH;
             T(ax0, ax1, bS, bN, z0 + 0.5, '#8e8a82');
+            hoodLevelDeck('marina garage ' + Math.round(ax0) + ',' + Math.round(bS), k, z0 + 0.5, ax0, ax1, bS, bN, IN);   // worn where it shows (the garage pass)
             fq(iE, bS + IN, bN, z0, z1, dark, 0); fq(iE, bS + IN, bN, z1 - 16, z1, '#2e3136', 0.1);
             fq(iS, ax0, ax1 - IN, z0, z1, dark, 0); fq(iS, ax0, ax1 - IN, z1 - 16, z1, '#2e3136', 0.1);
             /* the outer row of stalls on each seen side, far ones first */
@@ -88388,6 +88436,7 @@ marinaEntry(),
     if(PASS === 'ground'){
       const MG = mallGarageGround();
       T(0, LEN, BB, BF, 0.5, '#8a867f');
+      mallLevelDeck(0);                                              // (worn where it shows: the garage pass)
       T(40, LEN - 40, MG.aisleB - 2, MG.aisleB + 2, 0.7, '#e8e2d0');
       F(0, LEN, 0, LH, dark, null, 0, BF - 250);
       F(0, LEN, LH - 16, LH, '#2e3136', null, 0, BF - 249);
@@ -88401,7 +88450,7 @@ marinaEntry(),
       const z0 = k*LH, z1 = z0 + LH;
       F(0, LEN, z0, z1, dark, null, 0, BF - 250);                  // the dark inside, seen through the gap
       F(0, LEN, z1 - 16, z1, '#2e3136', null, 0, BF - 249);         // the soffit's shadow
-      T(0, LEN, BF - 250, BF, z0 + 0.5, k ? '#8e8a82' : '#8a867f');  // the deck the cars stand on, seen over the parapet
+      mallLevelDeck(k);                                             // the deck the cars stand on, seen over the parapet: worn concrete (the garage pass)
       /* the front row of stalls, nose to the parapet, which hides their bumpers */
       stalls.forEach((a, i) => {
         if(k === 0 && a > LANE0 - 70 && a < LANE1 + 70) return;   // the lanes
