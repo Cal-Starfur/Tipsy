@@ -20722,6 +20722,7 @@ function oceanWaterAt(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
   if(y <= G.yTop) return false;                       // the harbor's own water (harborWaterAt)
+  if(ncLagoonWet(grid, x, y) || ncLakeAt(x, y)) return true;  // (Driftwood Lagoon, the east range's lakes)
   if(!seaPast(grid, x, y) || ncIsleAt(x, y)) return false;   // (the natural waterline and the islands: THE NATURAL COAST)
   return !beachOnPier(grid, x, y);
 }
@@ -20729,7 +20730,7 @@ function oceanWaterAt(grid, x, y){
 function beachSandAt(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
-  if(y <= G.yTop || seaPast(grid, x, y)) return false;
+  if(y <= G.yTop || seaPast(grid, x, y) || ncLagoonWet(grid, x, y)) return false;
   if(x <= G.xIn) return true;
   return y > G.yBoardS + BLOCK*WG_COAST.BOARD && x <= G.xEast;
 }
@@ -118173,7 +118174,14 @@ class WorldScene extends Phaser.Scene {
           const c = this.W(ix, iy, 0);
           for(const [out, col] of [[110, 0x9fcfdc], [0, 0xf0e2ae], [-BLOCK*0.24, 0x8fbf7a], [-BLOCK*0.5, 0x7aad69]]){
             const ring = ncIsleRing(I, out).map(p => this.W(p.x, p.y, 0));
-            for(let k = 0; k < ring.length; k++) this.quadOn(g, [c, ring[k], ring[(k + 1) % ring.length]], col); } } }
+            for(let k = 0; k < ring.length; k++) this.quadOn(g, [c, ring[k], ring[(k + 1) % ring.length]], col); } }
+        /* Driftwood Lagoon: its wet sand, its water, its still middle */
+        if(Math.abs(this.camY - ncGeo(r.grid).yIn) < span + BLOCK && this.camX > NC_LAGOON.x0*BLOCK - span && this.camX < NC_LAGOON.x1*BLOCK + span)
+          for(const [out, col] of [[70, 0xd8c690], [0, 0x86bfd3], [-BLOCK*0.08, 0x74b2cb]])
+            for(const q of ncLagoonStrips(r.grid, out)){
+              if(q[0].x > this.camX + span || q[1].x < this.camX - span) continue;
+              if(q[3].y < q[0].y + 1) continue;
+              this.quadOn(g, q.map(p => this.W(p.x, p.y, 0)), col); } }
       /* the boardwalk: a different kind of sidewalk between the town and
          the sand. Base bands always; plank seams only when the camera is
          actually near a boardwalk, clamped to a window around it, so the
@@ -118252,7 +118260,15 @@ class WorldScene extends Phaser.Scene {
         hillTurfLay(this, g, { x0: X0, x1: eastTurfX(EG), y0: Y0 - BLOCK*WG_HILLS.SV_TOE, y1: Y0 }, { toe: toeN,
           skip: (x0, y0, x1, y1) => sierraInside(x0 + 1, y0 + 1) && sierraInside(x1 - 1, y1 - 1),
           out: (wx, wy) => Math.max(Y0 - wy, wx - X1), dry: (wx, wy) => wx > X1 ? eastDryAt(EG, wx, wy) : 0, wash: true });
-        eastGround(this, g, onScreen); }   // THE EAST EDGE: its lawn, the drying washed over it, the trail (eastGround)
+        eastGround(this, g, onScreen);
+        /* THE EAST RANGE'S LAKES (NC_LAKES): a stony shore, the water, a darker middle -- fans from each middle */
+        { const span = (this.vpW() + this.vpH())/this.K*1.2;
+          for(const L of NC_LAKES){ const lx = L[0]*BLOCK, ly = L[1]*BLOCK, rr = L[2]*BLOCK*1.5;
+            if(lx + rr < this.camX - span || lx - rr > this.camX + span || ly + rr < this.camY - span || ly - rr > this.camY + span) continue;
+            const c = this.W(lx, ly, 0);
+            for(const [out, col] of [[90, 0xb3a98c], [0, 0x7fb6cf], [-BLOCK*0.18, 0x6aa6c4]]){
+              const ring = ncLakeRing(L, out).map(p => this.W(p.x, p.y, 0));
+              for(let k = 0; k < ring.length; k++) this.quadOn(g, [c, ring[k], ring[(k + 1) % ring.length]], col); } } } }   // THE EAST EDGE: its lawn, the drying washed over it, the trail (eastGround)
       /* THE NORTH HILLS climb on top of the flat north range, which stays
          as the floor under them. See northHillPolys for the shape and why
          only the north side rises. cy carries camZ so the pure function
@@ -157417,6 +157433,7 @@ function mapCoastBands(grid, dateStr, cband, cring, cpoly){
     cband(cX0 - BOARD - SANDW, cY1 + BOARD + SANDW - BLOCK*NCOAST.cornerR, cX0 - BOARD - SANDW + BLOCK*NCOAST.cornerR, cY1 + BOARD + SANDW, "#6fa8c4");
     cpoly(coastBeachPoly(grid, 0), "#f0e2ae");
     for(const I of NC_ISLES){ cpoly(ncIsleRing(I, 0), "#f0e2ae"); cpoly(ncIsleRing(I, -BLOCK*0.24), "#8fbf7a"); }
+    cpoly(ncLagoonRing(grid), "#86bfd3");
   } else {
     cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");           // west beach — Sunset Shore
     cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");   // south beach — Driftwood Beach
@@ -157474,6 +157491,7 @@ function mapCoastBands(grid, dateStr, cband, cring, cpoly){
   cband(cX1, cY0, cX1 + FOOTW, cY1 + BOARD + SANDW, "#cfc69b");                       // east foothills
   cband(cX0, cY0 - FOOTW - FAR, cX1 + FOOTW + FAR, cY0 - FOOTW, "#a89b82");           // north range — Sierra Palma
   cband(cX1 + FOOTW, cY0 - FOOTW, cX1 + FOOTW + FAR, cY1 + BOARD + SANDW, "#a89b82"); // east range — Mirador Hills
+  if(cpoly) for(const L of NC_LAKES) cpoly(ncLakeRing(L, 0), "#7fb6cf");          // its lakes (THE NATURAL COAST: NC_LAKES)
 }
 function tpMiniDraw(scene){
   const wrap = document.getElementById("miniMap");
@@ -158281,7 +158299,7 @@ function coastOffS(grid, x){
   const G = ncGeo(grid), B = G.B, N = NCOAST;
   let k = ncSmooth(G.xSea + (NCOAST.cornerR + 0.1)*B, G.xSea + (NCOAST.cornerR + 1.4)*B, x);
   k *= 1 - ncSmooth(G.xEast - N.eastEase*B, G.xEast - 0.3*B, x);
-  return k <= 0 ? 0 : B*N.amp*k*(0.5 + 0.5*ncWave(x/(4.6*B) + 0.71, 823));
+  return k <= 0 ? 0 : B*N.amp*k*(0.5 + 0.5*ncWave(x/(4.6*B) + 0.71, 823)) + B*NC_LAGOON.bar*ncLagoonK(x)*k;
 }
 function coastSeaX(grid, y){ return ncGeo(grid).xSea - coastOffW(grid, y); }
 function coastSeaY(grid, x){ return ncGeo(grid).ySea + coastOffS(grid, x); }
@@ -158291,6 +158309,47 @@ function seaPast(grid, x, y, out = 0){
   if(x < cx && y > cy && Math.hypot(x - cx, y - cy) > R) return true;
   return x < coastSeaX(grid, y) - out || y > coastSeaY(grid, x) + out;
 }
+/* DRIFTWOOD LAGOON: a long still lagoon in the sand behind Driftwood Beach, east of the town's middle, the beach running out
+   past it as a barrier bar (the waterline swells out over its length: coastOffS). The sand there carried nothing (no dune, no
+   tower), and he splashes into it as into the sea (oceanWaterAt). In blocks: its span, how far its middle sits out from the
+   boardwalk, its half width and the bar's swell. */
+const NC_LAGOON = { x0: 21.6, x1: 33.0, ease: 1.3, mid: 0.66, half: 0.2, bar: 0.8, name: 'Driftwood Lagoon' };
+function ncLagoonK(x){ const L = NC_LAGOON, B = BLOCK; return ncSmooth(L.x0*B, (L.x0 + L.ease)*B, x)*(1 - ncSmooth((L.x1 - L.ease)*B, L.x1*B, x)); }
+/* its middle line and half width at x (world), or null off its span */
+function ncLagoonAt(grid, x){
+  const L = NC_LAGOON, B = BLOCK, k = ncLagoonK(x); if(k <= 0.02 || !WORLDGEN_COAST || !grid) return null;
+  const G = ncGeo(grid);
+  return { y: G.yIn + B*(L.mid + 0.1*ncWave(x/(3.1*B), 861)), h: B*L.half*Math.sqrt(k)*(1 + 0.3*ncWave(x/(1.3*B), 863)) };
+}
+function ncLagoonWet(grid, x, y, out = 0){ const L = ncLagoonAt(grid, x); return !!L && Math.abs(y - L.y) <= L.h + out; }
+/* its pieces (strips; out widens it: the wet sand round it) and its ring for the maps */
+function ncLagoonStrips(grid, out = 0){
+  const L = NC_LAGOON, B = BLOCK, st = 0.15*B, list = [];
+  for(let x = L.x0*B; x < L.x1*B; x += st){ const x2 = Math.min(L.x1*B, x + st), a = ncLagoonAt(grid, x), b = ncLagoonAt(grid, x2);
+    if(!a || !b) continue;
+    list.push([{ x, y: a.y - a.h - out }, { x: x2, y: b.y - b.h - out }, { x: x2, y: b.y + b.h + out }, { x, y: a.y + a.h + out }]); }
+  return list;
+}
+function ncLagoonRing(grid){ const top = [], bot = []; for(const q of ncLagoonStrips(grid)){ top.push(q[0], q[1]); bot.push(q[3], q[2]); } return top.concat(bot.reverse()); }
+/* THE EAST RANGE'S LAKES: Mirador Lake under the hills and two tarns further down the range, out on its flat rock past the
+   planting's reach. [x, y, rx, ry, rot] in blocks; their shores wobble. Water to him (oceanWaterAt) where he can get to them. */
+const NC_LAKES = [[39.6, 6.5, 0.95, 0.55, 0.35, 'Mirador Lake'], [40.3, 16.0, 0.55, 0.4, 1.1, ''], [39.8, 23.0, 0.7, 0.42, -0.5, '']];
+function ncLakeRing(L, out, n = 36){
+  const B = BLOCK, pts = [];
+  for(let k = 0; k < n; k++){ const a = k/n*Math.PI*2, w = 1 + 0.2*ncWave(k/n*3 + L[0]*0.17, 871 + Math.round(L[1]*7));
+    const ex = Math.cos(a)*(L[2]*B*w + out), ey = Math.sin(a)*(L[3]*B*w + out), c = Math.cos(L[4]), s = Math.sin(L[4]);
+    pts.push({ x: L[0]*B + ex*c - ey*s, y: L[1]*B + ex*s + ey*c }); }
+  return pts;
+}
+function ncLakeAt(x, y){
+  if(!WORLDGEN_COAST) return null;
+  for(const L of NC_LAKES){ const B = BLOCK; if(Math.abs(x - L[0]*B) > L[2]*B*1.4 || Math.abs(y - L[1]*B) > L[2]*B*1.4) continue;
+    if(ncInRing(ncLakeRing(L, 0, 36), x, y)) return L; }
+  return null;
+}
+function ncInRing(P, x, y){ let c = false; for(let i = 0, j = P.length - 1; i < P.length; j = i++){ const a = P[i], b = P[j];
+  if((a.y > y) !== (b.y > y) && x < (b.x - a.x)*(y - a.y)/(b.y - a.y) + a.x) c = !c; } return c; }
+
 /* THE ISLANDS (the natural survey's keys offshore): a sandy rim round a grassy crown, out in the bay where nothing he can reach
    goes, clear of the pier, the aquarium and the harbor. [x, y, r] in blocks from the city's corner node; the rim wobbles. Land for
    the collision and the index (oceanWaterAt is false on one), scenery for everything else. */
