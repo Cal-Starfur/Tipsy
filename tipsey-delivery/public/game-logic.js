@@ -156770,11 +156770,12 @@ function riverParapets(grid){
   const seen = new Set();
   for(const r of RR.runs) for(const d of r.decks){
     for(const [at, inw] of [[d.a0, 1], [d.a1, -1]]){
-      if(at < r.w0 + 5 && inw > 0 && d.kind === 'street') {}   // (a deck edge with no water beyond it still gets its wall where the reach meets it)
       const c = r.f === 0 ? (r.x + at) + ',' + r.y : r.x + ',' + (r.y + at), k = c + '|' + inw + '|' + r.f;
-      if(seen.has(k)) continue; seen.add(k);
-      /* only where water lies beyond that edge along this reach */
+      /* only where water lies beyond that edge along this reach -- asked BEFORE the edge is counted as done: a node's deck edge is
+         seen from both reaches that meet there, and the one with no water past it must not use it up (the bottom street's south
+         parapet over the mouth was lost so: B10) */
       if(d.kind !== 'board' && (inw > 0 ? at <= r.w0 + 1 : at >= r.w1 - 1)) continue;   // (the boardwalk's south edge has the mouth beyond it, on the next reach)
+      if(seen.has(k)) continue; seen.add(k);
       wall(r, at, inw, d.kind);
     }
   }
