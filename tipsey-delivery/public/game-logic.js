@@ -6402,6 +6402,7 @@ function owBuildWorld(route){
        west boardwalk (see PELICAN HARBOR), the one place they overlap, and
        read as boardwalk there the kerb rule stopped him leaving the road */
     if(bx || by) return kerbK(bx || by);
+    { const rs = riverSurface(g2, x, y); if(rs) return rs; }  // THE PALMA RIVER: its water, its quays (the bridges are the streets above)
     { const fs = fmSurface(x, y); if(fs) return fs; }       // THE PELICAN FISH MARKET's paving, its yard on the toe strip
     const wf = waterfrontAt(x, y);
     if(wf) return wf;
@@ -13863,7 +13864,7 @@ function buildExteriorLots(grid, seed){
        from the street it fronts. cx/cy stay on the full block so the lot's
        type, seed and park name are unchanged. */
     const kOut = DIRV.indexOf(outward);
-    const t0 = e.a.conn[kOut] ? inset : 0, t1 = e.b.conn[kOut] ? inset : 0;
+    const t0 = (e.a.conn[kOut] || e.a.riverOut === kOut) ? inset : 0, t1 = (e.b.conn[kOut] || e.b.riverOut === kOut) ? inset : 0;   // (the river leaving the lattice holds them back as a street does)
     lots.push({ ox: ox + dv.x*t0, oy: oy + dv.y*t0, dv, rv:outward, len:BLOCK - t0 - t1, cx, cy, type });
   }
   return lots;
@@ -13928,6 +13929,11 @@ function buildGrid(cols, rows, seed=0, opts){
       for(const n of nodes) n.shape = nodeShape(n);
     }
   }
+  /* THE PALMA RIVER takes its line of streets (see THE PALMA RIVER): out of the lattice, here, before anything derives from it,
+     as the park swallow does -- so the walk, the traffic, the pavement, the kerbs, the signals and the GPS all lose those
+     streets at once and the cross streets stay, crossing it as bridges. Out of _allEdges too, so worldgenReconcile never
+     gives one back. */
+  if(WORLDGEN_COAST && !classic) riverCarve(grid, nodes, edges);
   /* SIERRA VISTA'S ROAD IS A STREET, not paint (Sir: "we need them to be a
      part of the same system"). One node at the gate, one edge down to the
      top street -- HERE, before anything derives from the lattice, so the
@@ -18984,7 +18990,7 @@ function oceanWaterAt(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
   if(y <= G.yTop) return false;                       // the harbor's own water (harborWaterAt)
-  if(ncLagoonWet(grid, x, y) || ncLakeAt(x, y)) return true;  // (Driftwood Lagoon, the east range's lakes)
+  if(ncLagoonWet(grid, x, y) || ncLakeAt(x, y) || riverWaterAt(grid, x, y)) return true;  // (Driftwood Lagoon, the east range's lakes, THE PALMA RIVER)
   if(!seaPast(grid, x, y) || ncIsleAt(x, y)) return false;   // (the natural waterline and the islands: THE NATURAL COAST)
   return !beachOnPier(grid, x, y);
 }
@@ -19002,6 +19008,8 @@ function beachSandAt(grid, x, y){
 function beachBlocks(ow, grid, x, y, R){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
+  { const r = R*0.6;                                                              // THE PALMA RIVER's water: a kerb, as the sea's
+    if(riverWaterAt(grid, x + r, y) || riverWaterAt(grid, x - r, y) || riverWaterAt(grid, x, y + r) || riverWaterAt(grid, x, y - r)) return true; }
   if(x > G.xIn + R && y < G.yBoardS + BLOCK*WG_COAST.BOARD - R) return false;   // town
   if(y <= G.yTop) return false;                                                   // the harbor's rules
   const curPier = beachOnPier(grid, ow.px, ow.py);
@@ -116701,6 +116709,14 @@ class WorldScene extends Phaser.Scene {
       if(rg) for(let k = 0; k < rg.length; k += 7)
         this.turfGrain(g, rg[k], rg[k + 1], (rg[k] + 0.5)*T2, (rg[k + 1] + 0.5)*T2, rg[k + 2], 0, rg[k + 3], rg[k + 4], rg[k + 5], rg[k + 6]);
     }
+    /* THE PALMA RIVER: its coping, water and channel down its corridor (riverPieces), over the backstop's paving (its quays),
+       under the streets (the bridges paint over it) */
+    if(WORLDGEN_COAST){ const span = (this.vpW() + this.vpH())/this.K*1.2;
+      for(const [pts, col] of riverPieces(r.grid)){
+        let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        for(const q of pts){ if(q.x < x0) x0 = q.x; if(q.x > x1) x1 = q.x; if(q.y < y0) y0 = q.y; if(q.y > y1) y1 = q.y; }
+        if(x1 < this.camX - span || x0 > this.camX + span || y1 < this.camY - span || y0 > this.camY + span) continue;
+        this.quadOn(g, pts.map(q => this.W(q.x, q.y, 0)), col === 'pave' ? mixC(this.d.pave, this.d.paveB, 0.5) : col); } }
     /* roads: ONE quad per street, full length — no internal tile seams
        (a uniformly-colored surface built from many small quads shows
        every seam as a hairline at low zoom; a single quad has none). */
@@ -124241,6 +124257,7 @@ class WorldScene extends Phaser.Scene {
     const G = flyHillsGeo(), S = sierraGeo(), P = SP_PLAN;
     if(x < G.X0 + m || x > this.hillXMax() - m || y > G.Y0 - 40 - m) return true;
     if(this.route && this.route.grid && miradorClaims(this.route.grid, x, y, m)) return true;   // MIRADOR HEIGHTS: its road, drives, pads and houses
+    if(WORLDGEN_COAST && riverHillClaims(x, y, m)) return true;                                // THE PALMA RIVER's falls, Lake Palma and its creek
     if(x < S.xe + 600 + m && y < S.wallY + 150 + m && y > S.e[4] - 400 - m) return true;
     if(x < S.xw + 200 + m && y > G.toe(x) - 200 - m) return true;   // the harbour seam's verge, west of the estate's wall (queueHarborSeam's)
     if(Math.hypot(x - S.round.x, y - S.round.y) < S.round.out + 150 + m) return true;
@@ -124503,7 +124520,8 @@ class WorldScene extends Phaser.Scene {
                fr: s => (55 + 25*Math.sin(s/530*TAU + p[3]))*tp(s) };
     };
     const RW = run('w', yN, gy + EXT, (s, u) => ({ x: -IN - u, y: s }), (x, y) => y, (x, y) => -IN - x, walks, 0);
-    const RS = run('s', -EXT, gx + EXT, (s, u) => ({ x: s, y: gy + IN + u }), (x, y) => x, (x, y) => y - gy - IN, [], gx + EXT - 100);
+    const rvCut = grid.river ? (() => { const n = RIVER_NODES[RIVER_NODES.length - 1], x = n[0]*B, h = ROAD_HALF + SIDEWALK_W + 120; return [[x - h, x + h]]; })() : [];   // (THE PALMA RIVER's mouth)
+    const RS = run('s', -EXT, gx + EXT, (s, u) => ({ x: s, y: gy + IN + u }), (x, y) => x, (x, y) => y - gy - IN, rvCut, gx + EXT - 100);
     V.runs = [RW, RS];
     const inCut = (R, s, pad) => R.cuts.some(([a, b]) => s > a - pad && s < b + pad);
     /* the cross walks: the west strip's at every fourth cross street between the access walks, and the pier's (it lands on the
@@ -155700,6 +155718,7 @@ function mapCoastBands(grid, dateStr, cband, cring, cpoly){
     cpoly(coastBeachPoly(grid, 0), "#f0e2ae");
     for(const I of NC_ISLES){ cpoly(ncIsleRing(I, 0), "#f0e2ae"); cpoly(ncIsleRing(I, -BLOCK*0.24), "#8fbf7a"); }
     cpoly(ncLagoonRing(grid), "#86bfd3");
+    for(const [pts, col] of riverPieces(grid)) if(col !== 'pave') cpoly(pts, "#" + col.toString(16).padStart(6, "0"));   // THE PALMA RIVER
   } else {
     cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");           // west beach — Sunset Shore
     cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");   // south beach — Driftwood Beach
@@ -156528,6 +156547,109 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
      deck; these are built to 782 x 640 for margin. Real piers widen at the
      landward end anyway. */
   FLARE_LEN: 0.29, FLARE_HALF: 0.216 };
+/* ==================== THE PALMA RIVER (Sir, 2026-11-25: "that river is nice but the bridges need to connect and we dont want to
+   add more parks along it we would like the houses and shops to still hug it") ====================
+   The natural survey's step 2 (docs/costa-palma-natural.html). The river comes down off the north hills from Lake Palma -- over
+   a dam, down the terraces' shelves and risers in falls -- into the town at column 24, and winds south through it to Driftwood
+   Beach and the sea. In the town it TAKES A LINE OF STREETS: each river edge leaves the lattice in buildGrid (riverCarve), so
+   nothing drives, walks, parks or signals there, and the corridor that street had is the river: water where its road was, a
+   quay where its sidewalks were. The blocks either side are untouched -- every house and shop still stands where it stood and
+   now fronts the water. Every street that met it still meets it: where it crossed, it crosses on a bridge (the cross street's
+   own pavement runs on over the water: it is still a lattice street); where the river turns at a corner the corner is a bridge
+   over the bend. Its line keeps out of The Flats and off the hoods' border streets (columns 9, 18, 27; rows 9, 18), so the
+   hood lock's lines are where they were. When the streets bend (step 3) it bends with them. In nodes, its turns. */
+const RIVER_NODES = [[24, 0], [24, 4], [22, 4], [22, 7], [21, 7], [21, 12], [20, 12], [20, 16], [19, 16], [19, 20], [20, 20], [20, 26]];
+const RIVER = { coping: 30 };
+function riverCarve(grid, nodes, edges){
+  const byKey = new Map(), rv = [];
+  for(const e of edges) byKey.set(e.a.i + ',' + e.a.j + ',' + e.f, e);
+  for(let k = 0; k < RIVER_NODES.length - 1; k++){
+    let [i0, j0] = RIVER_NODES[k]; const [i1, j1] = RIVER_NODES[k + 1];
+    while(i0 !== i1 || j0 !== j1){
+      const di = Math.sign(i1 - i0), dj = di ? 0 : Math.sign(j1 - j0), ni = i0 + di, nj = j0 + dj;
+      const e = byKey.get(Math.min(i0, ni) + ',' + Math.min(j0, nj) + ',' + (di ? 0 : 1));
+      if(e && !rv.includes(e)) rv.push(e);
+      i0 = ni; j0 = nj;
+    }
+  }
+  const gone = new Set(rv);
+  grid.edges = grid.edges.filter(e => !gone.has(e));
+  if(grid._allEdges) grid._allEdges = grid._allEdges.filter(e => !gone.has(e));
+  for(const e of rv){
+    e.river = true;
+    if(e.f === 0){ e.a.conn[0] = false; e.b.conn[2] = false; } else { e.a.conn[1] = false; e.b.conn[3] = false; }
+  }
+  for(const n of nodes) n.shape = nodeShape(n);
+  /* where it leaves the lattice: north into the hills, south to the beach (the perimeter lots stand back there) */
+  const at = (i, j) => nodes.find(n => n.i === i && n.j === j);
+  const nN = at(...RIVER_NODES[0]), nS = at(...RIVER_NODES[RIVER_NODES.length - 1]);
+  if(nN) nN.riverOut = 3; if(nS) nS.riverOut = 1;
+  grid.river = { edges: rv };
+}
+/* the river's water as straight runs: each lattice edge's, and the two that leave the lattice. A run is its start point, its
+   direction (f: 0 along x, 1 along y), its length, and where its water starts and stops along it (s0, s1): at a node a street
+   crosses, the water stops short of the cross street's sidewalk (that is the bridge); at one none does, it runs on over the
+   node. Built once per grid. */
+function riverRuns(grid){
+  if(!grid || !grid.river) return null;
+  if(grid._riverRuns) return grid._riverRuns;
+  const SW = ROAD_HALF + SIDEWALK_W, WH = ROAD_HALF + CURB_W, B = BLOCK, runs = [];
+  const perp = (n, f) => f === 0 ? (n.conn[1] || n.conn[3]) : (n.conn[0] || n.conn[2]);
+  for(const e of grid.river.edges)
+    runs.push({ x: e.a.x, y: e.a.y, f: e.f, len: B, s0: perp(e.a, e.f) ? SW : -WH, s1: B - (perp(e.b, e.f) ? SW : -WH), qa: perp(e.a, e.f) ? SW : -SW, qb: B - (perp(e.b, e.f) ? SW : -SW) });
+  const [iN, jN] = RIVER_NODES[0], [iS, jS] = RIVER_NODES[RIVER_NODES.length - 1], nN = grid.nodeAt(iN, jN), nS = grid.nodeAt(iS, jS);
+  /* north: from the hills' first riser down over the bench and the rim to the top street */
+  if(nN){ const yT = riverToeY(nN.x); runs.push({ x: nN.x, y: yT, f: 1, len: nN.y - yT, s0: -WH, s1: nN.y - yT - (nN.conn[0] || nN.conn[2] ? SW : -WH), qa: 0, qb: nN.y - yT - SW, north: true }); }
+  /* south: from the bottom street out through the rim to the boardwalk (which bridges it), then over the sand into the sea */
+  if(nS){ const C = WG_COAST, yB = nS.y + C.EXT*B, yS = yB + C.BOARD*B, yE = (typeof coastSeaY === "function" ? coastSeaY(grid, nS.x) : yS + C.SANDW*B) + 0.5*B;
+    runs.push({ x: nS.x, y: nS.y, f: 1, len: yB - nS.y, s0: (nS.conn[0] || nS.conn[2]) ? SW : -WH, s1: yB - nS.y, qa: SW, qb: yB - nS.y });
+    runs.push({ x: nS.x, y: yS, f: 1, len: yE - yS, s0: 0, s1: yE - yS, qa: 0, qb: 0, sand: true }); }
+  const idx = new Map();
+  for(const r of runs){ const ex = r.x + (r.f === 0 ? r.len : 0), ey = r.y + (r.f === 1 ? r.len : 0);
+    for(let i = Math.floor(Math.min(r.x, ex)/B) - 1; i <= Math.floor(Math.max(r.x, ex)/B) + 1; i++)
+      for(let j = Math.floor(Math.min(r.y, ey)/B) - 1; j <= Math.floor(Math.max(r.y, ey)/B) + 1; j++){
+        const k = i + ',' + j; if(!idx.has(k)) idx.set(k, []); idx.get(k).push(r); } }
+  return (grid._riverRuns = { runs, idx, WH, SW });
+}
+/* the foot of the hills' first riser at x (where the river's falls end and its bench run begins) */
+function riverToeY(x){ try { return mirEdge(0, x); } catch(e){ return -WG_COAST.EXT*BLOCK - WG_COAST.FOOTW*BLOCK; } }
+/* 'water' where its water is, 'sidewalk' on its quays, else null */
+function riverSurface(grid, x, y){
+  const RR = riverRuns(grid); if(!RR) return null;
+  const list = RR.idx.get(Math.floor(x/BLOCK) + ',' + Math.floor(y/BLOCK)); if(!list) return null;
+  let quay = false;
+  for(const r of list){
+    const a = r.f === 0 ? x - r.x : y - r.y, p = Math.abs(r.f === 0 ? y - r.y : x - r.x);
+    if(p <= RR.WH && a >= r.s0 && a <= r.s1) return 'water';
+    if(p <= RR.SW && a >= r.qa && a <= r.qb && !r.sand) quay = true;
+  }
+  return quay ? 'sidewalk' : null;
+}
+function riverWaterAt(grid, x, y){ return riverSurface(grid, x, y) === 'water'; }
+/* the hills' ground the river, Lake Palma and its creek take (the planting keeps off it) */
+function riverHillClaims(x, y, m){
+  const B = BLOCK, rx = RIVER_NODES[0][0]*B, w = ROAD_HALF + CURB_W + RIVER.coping + 260 + m;
+  if(Math.abs(x - rx) < w && y < 0 && y > (NC_PALMA.y + NC_PALMA.ry)*B - 300) return true;
+  const L = NC_PALMA, ex = (x - L.x*B)/(L.rx*B*1.25 + 300 + m), ey = (y - L.y*B)/(L.ry*B*1.25 + 300 + m);
+  if(ex*ex + ey*ey < 1) return true;
+  for(const p of ncCreekLine(0)) if(Math.abs(p.x - x) < 420 + m && Math.abs(p.y - y) < 420 + m) return true;
+  return false;
+}
+/* the water's pieces for the ground pass: [[pts], col] per run -- the coping's stone, the water, a darker channel */
+function riverPieces(grid){
+  const RR = riverRuns(grid); if(!RR) return [];
+  if(grid._riverPieces) return grid._riverPieces;
+  const out = [], C = RIVER.coping;
+  const rect = (r, a0, a1, h) => r.f === 0 ? [{ x: r.x + a0, y: r.y - h }, { x: r.x + a1, y: r.y - h }, { x: r.x + a1, y: r.y + h }, { x: r.x + a0, y: r.y + h }]
+                                          : [{ x: r.x - h, y: r.y + a0 }, { x: r.x + h, y: r.y + a0 }, { x: r.x + h, y: r.y + a1 }, { x: r.x - h, y: r.y + a1 }];
+  for(const r of RR.runs) if(!r.north && !r.sand) out.push([rect(r, r.qa > 0 ? ROAD_HALF : r.qa, r.qb < r.len ? r.len - ROAD_HALF : r.qb, RR.SW), 'pave']);   // the quays' paving under it all
+  for(const r of RR.runs) if(!r.north) out.push([rect(r, r.s0 - (r.s0 > 0 ? C : 0), r.s1 + (r.s1 < r.len ? C : 0), RR.WH + C), r.sand ? 0xc9b98a : 0xb8b2a4]);
+  for(const r of RR.runs) if(!r.north) out.push([rect(r, r.s0, r.s1, RR.WH), 0x5f9fbf]);
+  for(const r of RR.runs) if(!r.north) out.push([rect(r, r.s0 + (r.s0 > 0 ? 60 : 0), r.s1 - (r.s1 < r.len ? 60 : 0), RR.WH*0.55), 0x5590b2]);
+  for(const r of RR.runs) if(r.north) for(const [h, col] of [[RR.WH + C, 0x9c9479], [RR.WH, 0x6aa6c4]]) out.push([rect(r, r.s0, r.s1, h), col]);
+  return (grid._riverPieces = out);
+}
+
 /* ==================== THE NATURAL COAST (Sir, 2026-11-25) ====================
    "make it feel more natural ... even the road systems have to bend and move with the features of this map's topography" --
    the natural survey (docs/costa-palma-natural.html), step 1, the land. The waterline was a ruler line down Sunset Shore and
@@ -158686,8 +158808,27 @@ function northHillPolys(o){
   }
 
   /* ---- terraces, top down: shelf, then its riser and crest ---- */
+  /* THE PALMA RIVER down the terraces from Lake Palma (RIVER_NODES' first column): on each shelf a run of water at the shelf's
+     height, its falls down each riser's slope, the dam across it below the lake -- each pushed just after its own shelf */
+  const rvX = RIVER_NODES[0][0]*B, rvW = ROAD_HALF + CURB_W, rvC = RIVER.coping;
+  const riverK = k => {
+    if(!WORLDGEN_COAST || o.xe < rvX - 2*B || o.xw > rvX + 2*B) return;
+    const z1 = hgt[k + 1], yLip = lipY(k, rvX), yFar = k < n - 1 ? edgeY(k + 1, rvX) : (NC_PALMA.y + NC_PALMA.ry*0.6)*B;
+    for(const [h, col] of [[rvW + rvC, 0x9c9479], [rvW, 0x6aa6c4]])
+      P([[rvX - h, yFar, z1], [rvX + h, yFar, z1], [rvX + h, yLip, z1], [rvX - h, yLip, z1]], col);          // the run along the shelf
+    const yFoot = edgeY(k, rvX), z0 = hgt[k];
+    P([[rvX - rvW, yLip, z1], [rvX + rvW, yLip, z1], [rvX + rvW, yFoot, z0], [rvX - rvW, yFoot, z0]], 0xa9d3e4);   // the fall down the riser
+    P([[rvX - rvW*0.5, yLip, z1], [rvX + rvW*0.3, yLip, z1], [rvX + rvW*0.1, yFoot, z0], [rvX - rvW*0.7, yFoot, z0]], 0xe8f4f8);   // its white water
+    if(k === n - 1){                                                    // the dam across it, below the lake: its top and south face
+      const yD = (NC_PALMA.y + NC_PALMA.ry*0.75)*B, hD = 140, t = 110, hw = rvW + rvC + 160;
+      P([[rvX - hw, yD + t, z1], [rvX + hw, yD + t, z1], [rvX + hw, yD + t, z1 + hD], [rvX - hw, yD + t, z1 + hD]], 0xb7b2a6);
+      P([[rvX - hw, yD, z1 + hD], [rvX + hw, yD, z1 + hD], [rvX + hw, yD + t, z1 + hD], [rvX - hw, yD + t, z1 + hD]], 0xd6d1c4);
+      P([[rvX + hw, yD, z1], [rvX + hw, yD + t, z1], [rvX + hw, yD + t, z1 + hD], [rvX + hw, yD, z1 + hD]], 0x9e998d);
+    }
+  };
   for(let k = n - 1; k >= 0; k--){
-    if(k === n - 2) palma();                     // (Lake Palma lies on the top shelf: after it, before the nearer shelves)
+    if(k === n - 2){ palma(); riverK(n - 1); }   // (Lake Palma lies on the top shelf: after it, before the nearer shelves; then the river's top run)
+    else if(k < n - 2) riverK(k + 1);
     const z0 = hgt[k], z1 = hgt[k+1], col = H.steps[k][2];
     const farY = k < n - 1 ? (x => edgeY(k+1, x)) : (() => yP);
     const riserLit0 = hillShade(col, 0.74), riserMid0 = hillShade(col, 0.65), riserSh0 = hillShade(col, 0.56);
@@ -158737,6 +158878,7 @@ function northHillPolys(o){
       }
     }
   }
+  riverK(0);                                   // (the river's run on the lowest shelf and its last fall, onto the bench)
   return out;
 }
 
