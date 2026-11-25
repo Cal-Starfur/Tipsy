@@ -29348,7 +29348,9 @@ function walkinStep(R, s, dt, now, bot){
     return;
   }
   if(m.away){ m.away = false; m.until = now + 3000; }
-  const V = PEOPLE_WALK_V*(s.pace || 1), turnMax = Math.PI/MEET.turnMs*dt;
+  /* (a customer of the street's, out past the door: at the street's pace, so the shopper the street hands them to or from walks on as
+     they did -- one out of the door changed speed on the step, Sir, 2026-11-25) */
+  const V = (s.look === 'visitor' && m.trip && walkinBeyond(R, m.a, m.b) > 0 && walkinFedDoor(R) ? SHOPPERS.walkV : PEOPLE_WALK_V)*(s.pace || 1), turnMax = Math.PI/MEET.turnMs*dt;
   const turnTo = th => { const d = walkinAng(th - m.th), st = Math.sign(d)*Math.min(Math.abs(d), turnMax, Math.max(0.0016*dt, Math.abs(d)*dt/160)); m.th = walkinAng(m.th + st); return Math.abs(d - st); };
   /* (him only on their side of the door: in the room while he is in it, on the street while he is out there) */
   bot = walkinBotFor(R, m, bot);
@@ -29816,6 +29818,18 @@ function walkinShopRelease(p, now){
   const io = shopperInOut(p); if(!io) return;
   const ins = p.pts[p._hi], out = p.pts[p._hi + 1] || ins;
   p._dly = now - (io[1] + Math.hypot(out.x - ins.x, out.y - ins.y)/(out.v || SHOPPERS.walkV));
+}
+/* the street takes its shopper back while the room has stopped living (nobody near to see it, Tipsey not out, a stalled frame): the room's
+   customer goes with them, never left in it as a second of them. On their way out they go out of the door as ever, with what they bought
+   (walkinGoneHome: WALKIN_STREET); still in, they are gone (the street has them, empty-handed) -- the street had them at the door with
+   nothing in hand and at its pace, and the room's copy walked out after with the purchase, Sir, 2026-11-25 */
+function walkinShopLetGo(p, now){
+  const s = p._held, R = s && s._R;
+  if(R && s._shop === p && !s._gone){
+    if(!(s._m && s._m.trip === 'leave')){ s._shop = null; s._shopLook = null; s._wear = null; }
+    walkinGoneHome(R, s, now);
+  }
+  if(p._held) walkinShopRelease(p, now);
 }
 /* where a leaving customer steps out to, in the room's frame: their shopper's step, or the door's */
 function walkinStreetStep(R, s){
@@ -148057,7 +148071,7 @@ class WorldScene extends Phaser.Scene {
        no one. A party he has left -- all of it far off and off the screen --
        is let go, its car (still parked) free for the next. */
     /* (one of them in a shop's room: held there while its customer is, let go once not -- WALKIN_STREET) */
-    for(const p of list.concat(this._seekers || [])) if(p._held){ const s = p._held, R = s._R; if(s._shop !== p || s._gone || !R || t - (R.t || 0) > 1500) walkinShopRelease(p, t); }
+    for(const p of list.concat(this._seekers || [])) if(p._held){ const s = p._held, R = s._R; if(s._shop !== p || s._gone || !R || t - (R.t || 0) > 1500) walkinShopLetGo(p, t); }
     { const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800, rf = this.crowdRef();
       const gone = p => { if(p.knock || p._held) return false; const m = shopperAt(p, t); if(!m) return true;
         if(p.vkey && Math.hypot(p.door.x - rf.x, p.door.y - rf.y) < SH.R + 300) return false;   // (a scheduled visit at a door he is near stays: it would only be made again)
