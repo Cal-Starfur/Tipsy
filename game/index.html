@@ -10119,7 +10119,7 @@ function navTick(scene, t){
 function owLeanCompose(scene, ow){
   const D = OW_D;
   const s = Math.max(-D.leanMax, Math.min(D.leanMax, ow.leanS || 0));
-  scene.tilt = s + (ow.leanI || 0);
+  scene.tilt = s + (ow.leanI || 0) + (ow.slopeLean || 0);   // (slopeLean: standing on a ramp's flare, owRampFeel)
 }
 
 /* ---------- DROPPING OFF THE KERB (2026-09-22, Sir: "i dont see much
@@ -10681,10 +10681,29 @@ function sfxSplash(power){
        well short of trouble on its own.
    All in OW_RAMP. ---------- */
 const OW_RAMP = {
-  grade:  8 / 92,     // the kerb's height over one slope tile
+  grade:  8 / 92,     // the kerb's height over the pad's run (and over each flare, both ways)
   jitter: 0.1,        // pad rumble: roll in (-jitter/2, +jitter/2), the rail's number
-  flare:  0.0005,     // lean per ms on a flared side, fully across its fall line (settles ~0.24 against tiltDecay)
+  /* THE SIDE SLOPES TIP HIM (Sir, 2026-11-25: "give these side angles some tippyness back", after the ramp redesign).
+     The redesign moved the slope: no slope tile behind the pad any more (that is flat walk now), the PAD is the run,
+     falling from the walk (u = 0) to the gutter (u = 92), and the flares are a triangle each side of it, (0, hw) ->
+     (92, hw) -> (92, crossHalf), each the plane through walk / road / walk, falling toward the kerb AND the pad. The
+     old feel leaned him over a whole box (|v| 46..138, u -92..92, flat walk included) and pitched him on the tile
+     that is gone. Now he stands on the real planes: the ground's uphill gradient there, read against his heading,
+     ROLLS him by how squarely the slope is across him (held while he is on it, moving or not, eased in) and PITCHES
+     him by how squarely it is along him. Exaggerated past the true 5 degrees so it reads, and the roll rides on
+     scene.tilt with every other lean, so a hard turn on a flare can take him over. */
+  roll:   3.6,        // roll per unit of cross-slope (the pad or a flare dead across him: 0.087 -> ~0.31)
+  pitch:  1.6,        // pitch per unit of slope along his nose
+  easeMs: 110,        // how fast the roll follows the ground under him
 };
+/* the ground's uphill gradient (dz/du, dz/dv) at u, v in a ramp's frame: the pad and its two flares; 0 elsewhere */
+function owRampGrad(u, v){
+  const g = OW_RAMP.grade, hw = T2/2, av = Math.abs(v), sg = Math.sign(v) || 1;
+  if(u < 0 || u > T2) return null;
+  if(av <= hw) return { du: -g, dv: 0, pad: true };                                  // the run: falls toward the street
+  if(av <= hw + u && av <= WORLD_RAMP.baseCross) return { du: -g, dv: g*sg, pad: false };   // a flare: to the kerb and the pad
+  return null;
+}
 function owNearestCrossing(W, x, y){
   let best = null, bd = Infinity;
   const consider = (r, z) => {
@@ -10704,30 +10723,23 @@ function owNearestCrossing(W, x, y){
 }
 function owRampFeel(scene, ow, W, dt){
   ow.rampPitch = 0; ow.padJitter = 0;
+  let target = 0;
   const c = owNearestCrossing(W, ow.px, ow.py);
-  if(!c) return;
-  const dv = DIRV[c.r.f], rv = DIRV[(c.r.f + 1) % 4];
-  const dx = ow.px - c.r.x, dy = ow.py - c.r.y;
-  const u = dx*dv.x + dy*dv.y, v = dx*rv.x + dy*rv.y;
-  if(u < -T2 || u > T2 || Math.abs(v) > 1.5*T2) return;
-  const dir = Math.sign(ow.vel) || 1, hx = Math.cos(ow.yaw)*dir, hy = Math.sin(ow.yaw)*dir;
-  const moving = Math.abs(ow.vel) > 0.01;
-  if(Math.abs(v) <= T2/2){
-    if(u < 0){
-      /* the slope tile: the ground falls toward +u, so going that way is downhill */
-      const along = hx*dv.x + hy*dv.y;
-      ow.rampPitch = Math.atan(-OW_RAMP.grade * along);
-    } else if(moving){
-      ow.padJitter = (Math.random() - 0.5) * OW_RAMP.jitter;
+  if(c){
+    const dv = DIRV[c.r.f], rv = DIRV[(c.r.f + 1) % 4];
+    const dx = ow.px - c.r.x, dy = ow.py - c.r.y;
+    const G = owRampGrad(dx*dv.x + dy*dv.y, dx*rv.x + dy*rv.y);
+    if(G){
+      const gx = G.du*dv.x + G.dv*rv.x, gy = G.du*dv.y + G.dv*rv.y;   // uphill, in the world
+      const cs = Math.cos(ow.yaw), sn = Math.sin(ow.yaw);
+      ow.rampPitch = Math.atan(OW_RAMP.pitch * (cs*gx + sn*gy));       // nose up facing uphill
+      target = -OW_RAMP.roll * (cs*gy - sn*gx);                        // lean to the low side
+      if(G.pad && Math.abs(ow.vel) > 0.01) ow.padJitter = (Math.random() - 0.5) * OW_RAMP.jitter;
     }
-  } else if(moving){
-    /* a flared side: the ground falls toward the ramp (v -> 0). Uphill is
-       away from it; lean toward the low side, as dropping off does -- by
-       how squarely he is moving across that fall line. */
-    const up = { x:rv.x*Math.sign(v), y:rv.y*Math.sign(v) };
-    const across = Math.cos(ow.yaw)*up.y - Math.sin(ow.yaw)*up.x;
-    owLeanKick(scene, ow, -across * OW_RAMP.flare * dt * Math.min(1, Math.abs(ow.vel) / 0.05));
   }
+  ow.slopeLean = (ow.slopeLean || 0) + (target - (ow.slopeLean || 0)) * Math.min(1, dt / OW_RAMP.easeMs);
+  if(Math.abs(ow.slopeLean) < 1e-4 && !target) ow.slopeLean = 0;
+  owLeanCompose(scene, ow);
 }
 
 /* An impact. Lands in the impact channel and recomposes at once, so a
@@ -11895,7 +11907,8 @@ function owStep(scene, dt){
     ow.sfcCommit = sfcK;
   }
   if(sfcK === 'sidewalk' || sfcK === 'curb' || sfcK === 'kerb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement (or stone) he stood on
-  if(!FP.fly){ owDropTick(scene, ow, dt); owRampFeel(scene, ow, W, dt); owJumpTick(scene, ow, dt); }
+  if(!FP.fly){ owDropTick(scene, ow, dt); if(FP.step){ ow.slopeLean = 0; ow.rampPitch = 0; ow.padJitter = 0; } else owRampFeel(scene, ow, W, dt); owJumpTick(scene, ow, dt); }
+  else { ow.slopeLean = 0; ow.rampPitch = 0; ow.padJitter = 0; }
   /* the jolt rides on the screen centre layout() set */
   if(scene._cyBase === undefined) scene._cyBase = scene.cy;
   scene.cy = scene._cyBase + (ow.dropJolt || 0);
@@ -13422,7 +13435,7 @@ function owStandUpAt(scene, x, y, yaw){
   if(ow.scoot && typeof scootDrop === "function") scootDrop(scene);   // (a teleport, a handed-back loan: the scooter stands where he was)
   ow.px = x; ow.py = y; ow.yaw = yaw; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
-  ow.leanS = 0; ow.leanI = 0;   // stand him up on both channels
+  ow.leanS = 0; ow.leanI = 0; ow.slopeLean = 0;   // stand him up on every channel
   ow.sfcCommit = null;          // respawn must not charge a phantom crossing
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
