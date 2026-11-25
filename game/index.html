@@ -158394,17 +158394,19 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
    underneath -- the lattice, the routes, the collision, the addresses, every mission's spot -- and is BENT ON DISPLAY: W lays
    each world point at its bent place (bendXY), the camera at its own, so everything drawn bends together and he drives the
    same streets he always did, round their curves. One smooth fold-free field (a slope well under 1), masked to the hoods it is
-   tried in and eased to nothing at their border streets, so a hood's edge meets its neighbours where it always did. Old Town
-   first (district 2,0: columns 18-27, rows 0-9). Long pieces drawn as one quad (a street's asphalt) are laid in short lengths
+   tried in (stage 1-2: Old Town; stage 3: the whole city, The Flats lightly, eased to nothing at the city's perimeter). Long pieces drawn as one quad (a street's asphalt) are laid in short lengths
    while it is on, so they follow the curve. */
 const BEND = { on: new URLSearchParams(location.search).get("bend") === "1", amp: 0.2, lamX: 6.6, lamY: 5.4,
-  hoods: [{ i0: 18, i1: 27, j0: 0, j1: 9, ease: 1.6 }] };
+  /* STAGE 3: the whole city. Full bend everywhere inside it, eased to nothing over `edge` blocks at its perimeter (the coast,
+     the harbor, Sierra Vista, the hills and Mirador Heights meet it there and keep their places); THE FLATS (district 0,0) takes
+     only `flats` of it, eased up to full over `flatsEase` blocks past its border streets (Sir: built, keep it close to as it is) */
+  cols: 35, rows: 26, edge: 1.6, flats: 0.3, flatsBox: [0, 9, 0, 9], flatsEase: 1.5 };
 function bendMask(u, v){
-  let m = 0;
-  for(const H of BEND.hoods){ if(u <= H.i0 || u >= H.i1 || v <= H.j0 || v >= H.j1) continue;
-    const e = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
-    m = Math.max(m, e(H.i0, H.i0 + H.ease, u)*e(H.i1, H.i1 - H.ease, u)*e(H.j0, H.j0 + H.ease, v)*e(H.j1, H.j1 - H.ease, v)); }
-  return m;
+  const e = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
+  const P = e(0, BEND.edge, u)*e(BEND.cols, BEND.cols - BEND.edge, u)*e(0, BEND.edge, v)*e(BEND.rows, BEND.rows - BEND.edge, v);
+  if(P <= 0) return 0;
+  const [i0, i1, j0, j1] = BEND.flatsBox, dx = Math.max(i0 - u, 0, u - i1), dy = Math.max(j0 - v, 0, v - j1);
+  return P*(BEND.flats + (1 - BEND.flats)*e(0, BEND.flatsEase, Math.hypot(dx, dy)));
 }
 /* the bent place of world (x, y): out = {x, y} reused */
 const _bendOut = { x: 0, y: 0 };
