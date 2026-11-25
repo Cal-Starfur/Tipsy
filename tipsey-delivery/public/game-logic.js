@@ -115671,7 +115671,11 @@ class WorldScene extends Phaser.Scene {
        is (drawGroundPass), so the headland does not end at nothing */
     rect({ x0: HARBOR.COAST_X - 1200, x1: HARBOR.COAST_X, y0: hg.head.y0 - 40*B, y1: hg.head.y0 }, 0, WATER);   // the sea, up to the coast
     rect({ x0: HARBOR.COAST_X, x1: hg.X0, y0: hg.head.y0 - 40*B, y1: hg.head.y0 }, 0, 0xa89b82);
-    rect(hg.head, 0, 0xcfc69b);
+    /* the headland is the city's lawn (ONE GROUND: hillTurfLay), as the foothills over the city are, up to the first riser */
+    const T0 = hg.Y0 - WG_HILLS.SV_TOE*B, xa = HARBOR.BACK_PATH_X1, xb = hg.X0;
+    const toe = x => x <= xa ? T0 - 100 : x >= xb ? T0 : T0 - 100*(1 - (x - xa)/(xb - xa));
+    rect(hg.head, 0, WG_HILLS.bench);
+    hillTurfLay(this, g, hg.head, { toe, out: (wx, wy) => Math.min(hg.head.y1 - wy, wx - hg.head.x0) });
     /* the sea wall's footing, under its boulders (see harborGeo's rocks) */
     rect({ x0: hg.head.x0 - 20, x1: hg.head.x0 + 240, y0: hg.head.y0 - 20, y1: hg.head.y1 }, 0.2, ROCK);
     rect({ x0: hg.head.x0 - 20, x1: hg.arm.x0, y0: hg.head.y1 - 240, y1: hg.head.y1 + 20 }, 0.2, ROCK);   // ...and round the corner to the arm
@@ -115691,19 +115695,12 @@ class WorldScene extends Phaser.Scene {
        otherwise cover the first riser's foot (its toe is inside the head). */
     { const span = (this.vpW() + this.vpH()) / this.K;
       if(this.camX < hg.X0 + span && this.camY < hg.head.y0 + span + 2*B){
-        /* the toe: the city strip's at X0, so they meet; 100 further back
-           along the park, so the first riser's foot clears its back path
-           (which ends at x -2100), eased between */
-        const T0 = hg.Y0 - WG_HILLS.SV_TOE*B, xa = HARBOR.BACK_PATH_X1, xb = hg.X0;
-        const toe = x => x <= xa ? T0 - 100 : x >= xb ? T0 : T0 - 100*(1 - (x - xa)/(xb - xa));
+        /* the toe (T0, toe above): the city strip's at X0, so they meet; 100
+           further back along the park, so the first riser's foot clears its
+           back path (which ends at x -2100), eased between */
         const hp = northHillPolys({ xw: HARBOR.COAST_X + 240, xe: hg.X0, y0: hg.Y0, toe, toeSV: T0, far: 40*B,
           camX: this.camX, camY: this.camY, K: this.K, cx: this.cx, cy: this.cy + this.camZ*this.K, w: this.vpW(), h: this.vpH() });
-        for(const it of hp){
-          if(it.p){ Q(it.p.map(q => this.W(q[0], q[1], q[2])), it.c); continue; }
-          const a = this.W(it.l[0][0], it.l[0][1], it.l[0][2]), b2 = this.W(it.l[1][0], it.l[1][1], it.l[1][2]);
-          if(!onScreen([a, b2])) continue;
-          g.lineStyle(it.w, it.c, 1); g.lineBetween(a.x, a.y, b2.x, b2.y);
-        }
+        hillPaint(this, g, onScreen, hp);
       }
     }
     /* the basin: deeper toward the mouth */
@@ -115970,13 +115967,22 @@ class WorldScene extends Phaser.Scene {
           }
         }
       }
-      band(X0, Y0 - FOOTW, X1 + FOOTW, Y0, 0xcfc69b);                              // north foothills
-      band(X1, Y0, X1 + FOOTW, Y1 + BOARD + SANDW, 0xcfc69b);                      // east foothills
+      band(X0, Y0 - FOOTW, X1 + FOOTW, Y0, WG_HILLS.bench);                         // north foothills (the lawn's base: its turf below)
+      band(X1, Y0, X1 + FOOTW, Y1 + BOARD + SANDW, WG_HILLS.bench);                // east foothills
       band(X0, Y0 - FOOTW - FAR, X1 + FOOTW + FAR, Y0 - FOOTW, 0xa89b82);          // north range
       band(X1 + FOOTW, Y0 - FOOTW, X1 + FOOTW + FAR, Y1 + BOARD + SANDW, 0xa89b82); // east range
       /* the bench under Sierra Vista: the notch the hills leave for it is
          foothill ground, same as the band the rest of the estate sits on */
       band(X0, Y0 - BLOCK*WG_HILLS.SV_TOE, X0 + BLOCK*(WG_HILLS.SV_X + WG_HILLS.SV_EASE), Y0 - FOOTW, WG_HILLS.bench);
+      /* ONE GROUND: the foothills are the city's lawn, laid as the ring lawn is (hillTurfLay), so it runs on past the city's
+         edge with no seam -- the north band up to the first riser (and the bench under Sierra Vista, round its walls), the
+         east band drying across its width to the range's rock. Only what is on screen. */
+      { const toeN = northHillToeFn({ xw: X0, y0: Y0 }).toe;
+        const dryE = wx => (wx - X1)/FOOTW;
+        hillTurfLay(this, g, { x0: X0, x1: X1 + FOOTW, y0: Y0 - BLOCK*WG_HILLS.SV_TOE, y1: Y0 }, { toe: toeN,
+          skip: (x0, y0, x1, y1) => sierraInside(x0 + 1, y0 + 1) && sierraInside(x1 - 1, y1 - 1),
+          out: (wx, wy) => Math.max(Y0 - wy, wx - X1), dry: wx => wx > X1 ? dryE(wx) : 0 });
+        hillTurfLay(this, g, { x0: X1, x1: X1 + FOOTW, y0: Y0, y1: Y1 + BOARD + SANDW }, { out: wx => wx - X1, dry: dryE }); }
       /* THE NORTH HILLS climb on top of the flat north range, which stays
          as the floor under them. See northHillPolys for the shape and why
          only the north side rises. cy carries camZ so the pure function
@@ -115986,18 +115992,7 @@ class WorldScene extends Phaser.Scene {
         const hp = northHillPolys({ xw: X0, xe: X1 + FOOTW + FAR, y0: Y0, far: FAR,
           camX: this.camX, camY: this.camY, K: this.K,
           cx: this.cx, cy: this.cy + this.camZ*this.K, w: gW, h: gH });
-        for(const it of hp){
-          if(it.p){
-            const pts = it.p.map(q => this.W(q[0], q[1], q[2]));
-            if(!onScreen(pts)) continue;
-            this.quadOn(g, pts, it.c);
-          } else {
-            const a = this.W(it.l[0][0], it.l[0][1], it.l[0][2]), b2 = this.W(it.l[1][0], it.l[1][1], it.l[1][2]);
-            if(!onScreen([a, b2])) continue;
-            g.lineStyle(it.w, it.c, 1);
-            g.lineBetween(a.x, a.y, b2.x, b2.y);
-          }
-        }
+        hillPaint(this, g, onScreen, hp);
       }
       /* upscale housing in the hills: Sierra Vista Estates on the shoulder
          east of the marina, Mirador Heights terraced into the eastern
@@ -155409,18 +155404,23 @@ const WG_HILLS = {
      the lot's back line instead, easing back to the plain toe over
      MALL_EASE either side of the run */
   MALL_EASE: 0.5,
-  /* [depth in blocks, rise, shelf colour] -- riser shades derive from it */
+  /* [depth in blocks, rise, shelf colour] -- riser shades derive from it.
+     ONE GROUND (Sir, 2026-11-24: "we added stuff in the hills and the harbor but they don't read as part of the map"): the
+     shelves were tan bands past a green city. They are the city's own grass now (GRASS / TURF's family), drying a shelf at a
+     time up the hill -- lush, then summer grass, then olive, then dry-gold scrub -- to the rocky top the plateau and the
+     peaks keep. Each shelf drifts toward the next one's colour as it climbs and takes the city's turf field (HILL_TURF), so
+     no shelf is one flat colour. */
   steps: [
-    [0.28, 150, 0xc9bf94],
-    [0.30, 190, 0xbdb289],
-    [0.34, 240, 0xb2a683],
-    [0.38, 300, 0xa89b7f],
+    [0.28, 150, 0x5e9a4c],
+    [0.30, 190, 0x6f9b4d],
+    [0.34, 240, 0x8a9e54],
+    [0.38, 300, 0xa59c62],
     [0.44, 360, 0x9e9179],
   ],
   run: 0.30,             // riser slope: horizontal run, fraction of that shelf's depth
   wob: 0.16,             // edge wobble, fraction of that shelf's depth
   foot: 0.14,            // shade strip at a riser's foot, fraction of the shelf below's depth
-  bench: 0xcfc69b,       // the foothill band the first riser stands on (drawWorld's own band)
+  bench: 0x55974c,       // the foothill band the first riser stands on: the city's lawn (laid as turf, hillTurfLay)
   seg: 420,              // strip segment length along x
   peaksBack: 0.6,        // blocks between the deepest last shelf and the near peak row
   peaks: [               // far row first; the near row paints over it
@@ -156332,6 +156332,161 @@ function northHillsTopY(toeSV){
   for(let k = 0; k < n - 1; k++) cum = cum + H.steps[k][0]*B;
   return toeSV - cum - H.run*H.steps[n-1][0]*B - H.wob*(H.steps[n-1][0]*B);
 }
+/* ---- ONE GROUND (Sir, 2026-11-24: "we added stuff in the hills and the harbor but they don't read as part of the map"). The
+   city's lawns were turf and, a step past its north edge, the foothills were flat tan bands on a ruler line. The hills are the
+   city's own grass now, in the ground pass (so the ground cache paints them once), drying as they climb:
+     the foothills  the band between the city and the first riser, the bench under Sierra Vista, the east foothills and the
+                    harbor's headland are laid as the ring lawn is -- the same turf tone on the same world lattice
+                    (turfTone(GRASS)), so where the ring lawn ends nothing changes colour: no seam. Out from the city's edge
+                    the grass grows rough (its grain taller), and the east foothills dry across their width, through dry gold,
+                    to the range's own rock, on a wandering line (hillTurfLay);
+     the shelves    WG_HILLS.steps' colours run lush to dry-gold scrub up the terraces, the rocky top and the peaks kept;
+                    each shelf is laid in patches (HILL_TURF.rows deep, a strip segment wide), each patch its own tone off
+                    the city's turf field and drifting toward the next shelf's colour at its back (hillShelfTone), and the
+                    grassy shelves carry the blade grain at views 1 and 2, as Sierra Vista's do (hillGrain).
+   All of it a pure function of world position: never time, the camera or a random roll. ---- */
+const HILL_TURF = {
+  rows: 3,                  // a shelf's patches, front to back
+  climb: 0.45,              // how far toward the next shelf's colour a shelf has drifted at its back
+  grassTo: 2,               // shelves 0..grassTo pull toward TURF's dry and lush; above, toward straw and scrub
+  straw: 0xc4b57c, scrub: 0x8b8a5b, dryK: 0.35,
+  grain: [[0.35, 0.55], [0.6, 0.5], [0.85, 0.45], [1, 0.3], null],   // [rough, density] a shelf's grain takes; none on the rocky top
+  gold: 0xb7a66a, range: 0xa89b82,   // the east foothills dry to the range: the lawn, dry gold, then the range's own rock
+  dry: [0.3, 0.72],         // ...gold over this stretch of their width (wandering), the range's rock over the rest
+  roughIn: [2, 9],          // tiles out from the city's edge over which the foothill grass grows from mown to rough
+  footSh: 0x2d5a2e, footA: 0.22,   // the first riser's foot shade, laid over whatever turf is under it
+};
+/* value noise and the city's turf field (as the scene's turfVN / turfField, out here for the pure hill builder) */
+function hillVN(x, y, cell, salt){
+  const fx = x/cell, fy = y/cell, ix = Math.floor(fx), iy = Math.floor(fy);
+  let u = fx - ix, v = fy - iy; u = u*u*(3 - 2*u); v = v*v*(3 - 2*v);
+  const a = paveRoll(ix, iy, salt), b = paveRoll(ix + 1, iy, salt), c = paveRoll(ix, iy + 1, salt), d = paveRoll(ix + 1, iy + 1, salt);
+  return (a + (b - a)*u + (c - a)*v + (a - b - c + d)*u*v)*2 - 1;
+}
+function hillField(x, y){ const f = (0.62*hillVN(x, y, 1700, 31) + 0.38*hillVN(x, y, 640, 37))*TURF.amp; return f > 1 ? 1 : f < -1 ? -1 : f; }
+function hillMix(a, b, t){
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const r = ((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255))*t), gg = ((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255))*t),
+        bb = (a & 255) + (((b & 255) - (a & 255))*t);
+  return (Math.round(r) << 16) | (Math.round(gg) << 8) | Math.round(bb);
+}
+function hillEase(a, b, t){ t = (t - a)/(b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t*t*(3 - 2*t); }
+/* shelf k's ground at (x, y), t of the way from its lip (0) to its back (1) */
+function hillShelfTone(k, t, x, y){
+  const H = WG_HILLS, HT = HILL_TURF, n = H.steps.length;
+  const base = hillMix(H.steps[k][2], H.steps[Math.min(n - 1, k + 1)][2], t*HT.climb), f = hillField(x, y);
+  if(k <= HT.grassTo) return f > 0 ? hillMix(base, TURF.dry, f*TURF.dryK) : hillMix(base, TURF.lush, -f*TURF.lushK);
+  return f > 0 ? hillMix(base, HT.straw, f*HT.dryK) : hillMix(base, HT.scrub, -f*HT.dryK);
+}
+/* the foothill ground at (wx, wy): the city's lawn tone there (turfTone(GRASS), the ring lawn's own), dried by `dry` (0..1:
+   0 the lawn, 0.5 dry gold, 1 the range's rock) */
+function hillGroundTone(S, bi, bj, wx, wy, dry){
+  const c = S.turfTone(GRASS, bi, bj, wx, wy, true), HT = HILL_TURF;
+  if(dry <= 0) return c;
+  return dry < 0.5 ? hillMix(c, HT.gold, dry*2) : hillMix(HT.gold, HT.range, (dry - 0.5)*2);
+}
+/* THE TOE: where the first riser stands, as a function of x -- the plain toe, the Sierra Vista notch eased out over SV_EASE,
+   the mall's and the school's notches (hillNotchToe); or o.toe given (Pelican Harbor's strip). Shared by northHillPolys and
+   the foothills' turf (hillTurfLay skips what the shelves will cover). */
+function northHillToeFn(o){
+  const B = BLOCK, H = WG_HILLS;
+  const toePlain = o.y0 - H.TOE_GAP*B, toeSV = o.toe ? o.toeSV : o.y0 - H.SV_TOE*B;
+  const svX1 = o.xw + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
+  const mE = H.MALL_EASE*B;
+  const mallToe = x => hillNotchToe(x, toePlain, B, H.TOE_GAP, mE);
+  const toe = x => {
+    if(o.toe) return o.toe(x);
+    if(x <= svX1) return toeSV;
+    const m = mallToe(x);
+    if(x >= svX2) return m;
+    const t = (x - svX1)/(svX2 - svX1), e = t*t*(3 - 2*t);
+    return Math.min(m, toeSV + (toePlain - toeSV)*e);
+  };
+  return { toe, toePlain, toeSV };
+}
+/* FOOTHILL TURF over the world rect R, in the ground pass, only what is on screen: tiles on the world lattice (T2 at views 1
+   and 2, where they take the blade grain; coarser further out, where a tile is a few pixels and the field is smooth across
+   it). o: toe (skip what lies wholly under the shelves: north of the first riser's foot), skip (x0, y0, x1, y1 -> true:
+   covered by something else's ground, e.g. inside Sierra Vista's walls), out (wx, wy -> world units out from the city's
+   edge: the grass grows rough over HILL_TURF.roughIn), dry (wx, wy -> 0..1, how far across the drying stretch; wanders). */
+function hillTurfLay(S, g, R, o){
+  const K = S.K, HT = HILL_TURF, st = K >= 0.6 ? T2 : K >= 0.28 ? T2*2 : T2*4;
+  const det = st === T2 && S.grainOn();
+  const span = flatSpanOf(S.cx, S.cy, S.vpW(), S.vpH(), K, S.camZ) + st*2;
+  const x0 = Math.max(R.x0, S.camX - span), x1 = Math.min(R.x1, S.camX + span);
+  const y0 = Math.max(R.y0, S.camY - span), y1 = Math.min(R.y1, S.camY + span);
+  if(x0 >= x1 || y0 >= y1) return;
+  const Q = S._hillQ || (S._hillQ = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]);
+  const vis = S._hillVis || (S._hillVis = []); vis.length = 0;
+  const reach = WG_HILLS.wob*WG_HILLS.steps[0][0]*BLOCK + T2;   // (the first riser's foot wobbles this far south of the toe)
+  /* columns along x: a lattice tile wide (T2) wherever the ground is drying (o.dry between the lawn and the rock: a coarse
+     tile there would step the colour in bands), `st` elsewhere */
+  const fineAt = x => o.dry && (d => d > HT.dry[0] - 0.12 && d < 1)(o.dry(x, 0));
+  for(let cx = Math.floor(x0/T2)*T2; cx < x1; ){
+    const cs = st === T2 || fineAt(cx) || fineAt(cx + st) ? T2 : st - (cx % st + st) % st;   // (a coarse column ends on the st lattice)
+    const tx0 = Math.max(x0, cx), tx1 = Math.min(x1, cx + cs), bi = Math.floor(cx/T2), wx = cx + cs/2, fine = cs === T2;
+    cx += cs;
+    if(tx1 - tx0 < 0.5) continue;
+    let ya = y0;
+    if(o.toe) ya = Math.max(ya, Math.min(o.toe(tx0), o.toe(tx1)) - reach);
+    const rs = fine ? T2 : st, jE = Math.ceil(y1/rs) - 1;
+    for(let bj = Math.floor(ya/rs); bj <= jE; bj++){
+      const ty0 = Math.max(ya, bj*rs), ty1 = Math.min(y1, (bj + 1)*rs);
+      if(ty1 - ty0 < 0.5) continue;
+      if(o.skip && o.skip(tx0, ty0, tx1, ty1)) continue;
+      S.turfPt(Q[0], tx0, ty0); S.turfPt(Q[1], tx1, ty0); S.turfPt(Q[2], tx1, ty1); S.turfPt(Q[3], tx0, ty1);
+      if(!S.ptsOnScreen(Q)) continue;
+      const wy = (bj + 0.5)*rs;
+      /* drying: its line wanders (two octaves, seeded off the world) and a tile its own touch either way, so it dries in
+         patches, not stripes -- reaching the range's rock exactly at the far side */
+      let dry = 0;
+      if(o.dry){
+        const d0 = o.dry(wx, wy), w = 1 - Math.min(1, Math.max(0, d0));
+        const d = d0 + (0.7*hillVN(wx, wy, 1400, 57) + 0.3*hillVN(wx, wy, 430, 59))*0.16*w + (paveRoll(bi, bj, 61) - 0.5)*0.06*w;
+        dry = d <= HT.dry[0] ? 0 : d >= 1 ? 1 : d < HT.dry[1] ? 0.5*hillEase(HT.dry[0], HT.dry[1], d) : 0.5 + 0.5*hillEase(HT.dry[1], 1, d);
+      }
+      const col = hillGroundTone(S, bi, bj, wx, wy, dry);
+      S.quadOn(g, Q, col);
+      if(det && fine && dry < 0.75){
+        const out = o.out ? o.out(wx, wy) : 0;
+        const rough = Math.min(1, hillEase(HT.roughIn[0]*T2, HT.roughIn[1]*T2, out + hillVN(wx, wy, 520, 91)*T2*1.5) + dry);
+        vis.push(bi, bj, col, rough, tx0, tx1, ty0, ty1);
+      }
+    }
+  }
+  /* the blade grain, over every tile (a blade may lean over a tile's edge) */
+  for(let k = 0; k < vis.length; k += 8)
+    S.turfGrain(g, vis[k], vis[k + 1], (vis[k] + 0.5)*T2, (vis[k + 1] + 0.5)*T2, vis[k + 2], vis[k + 3], vis[k + 4], vis[k + 5], vis[k + 6], vis[k + 7]);
+}
+/* a grassy shelf's blade grain (northHillPolys' `gr` item: x xa..xb, y yFar..yNear, at z, shelf k), tile by tile on the
+   lattice, only the tiles on screen -- as turfGrainRect lays Sierra Vista's */
+function hillGrain(S, g, gr){
+  if(!S.grainOn()) return;
+  const [xa, xb, yFar, yNear, z, k] = gr, spec = HILL_TURF.grain[k];
+  if(!spec || yNear - yFar < T2*0.5) return;
+  const K = S.K, gw = S.vpW(), gh = S.vpH(), m = T2*K, P = S._turfS || (S._turfS = { x: 0, y: 0 });
+  for(let bj = Math.floor(yFar/T2); bj*T2 < yNear; bj++) for(let bi = Math.floor(xa/T2); bi*T2 < xb; bi++){
+    const wx = (bi + 0.5)*T2, wy = (bj + 0.5)*T2;
+    S.turfPt(P, wx, wy, z);
+    if(P.x < -m || P.x > gw + m || P.y < -m || P.y > gh + m) continue;
+    const col = hillShelfTone(k, (yNear - wy)/(yNear - yFar), wx, wy);
+    S.turfGrain(g, bi, bj, wx, wy, col, spec[0], Math.max(xa, bi*T2), Math.min(xb, (bi + 1)*T2), Math.max(yFar, bj*T2), Math.min(yNear, (bj + 1)*T2), z, 0.8, spec[1]);
+  }
+}
+/* lay northHillPolys' list: polygons (alpha a, when given), lines, and the shelves' grain */
+function hillPaint(S, g, onScreen, hp){
+  for(const it of hp){
+    if(it.p){
+      const pts = it.p.map(q => S.W(q[0], q[1], q[2]));
+      if(onScreen(pts)) S.quadOn(g, pts, it.c, it.a == null ? 1 : it.a);
+    } else if(it.gr) hillGrain(S, g, it.gr);
+    else {
+      const a = S.W(it.l[0][0], it.l[0][1], it.l[0][2]), b2 = S.W(it.l[1][0], it.l[1][1], it.l[1][2]);
+      if(!onScreen([a, b2])) continue;
+      g.lineStyle(it.w, it.c, 1); g.lineBetween(a.x, a.y, b2.x, b2.y);
+    }
+  }
+}
 function northHillPolys(o){
   const B = BLOCK, H = WG_HILLS, out = [];
   const n = H.steps.length;
@@ -156346,18 +156501,7 @@ function northHillPolys(o){
   /* o.toe: the toe as a function of x, instead of the city's plain-and-
      notch rule (Pelican Harbor's strip, see drawHarborGround). o.toeSV is
      then its southernmost value, which the plateau is laid back from. */
-  const toePlain = o.y0 - H.TOE_GAP*B, toeSV = o.toe ? o.toeSV : o.y0 - H.SV_TOE*B;
-  const svX1 = o.xw + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
-  const mE = H.MALL_EASE*B;
-  const mallToe = x => hillNotchToe(x, toePlain, B, H.TOE_GAP, mE);
-  const toe = x => {
-    if(o.toe) return o.toe(x);
-    if(x <= svX1) return toeSV;
-    const m = mallToe(x);
-    if(x >= svX2) return m;
-    const t = (x - svX1)/(svX2 - svX1), e = t*t*(3 - 2*t);
-    return Math.min(m, toeSV + (toePlain - toeSV)*e);
-  };
+  const { toe, toePlain, toeSV } = northHillToeFn(o);
   const f1 = Math.PI*2/(2.6*B), f2 = Math.PI*2/(0.9*B);
   const wob = (k, x) => amp[k]*(0.62*Math.sin(x*f1 + ph[k][0]) + 0.38*Math.sin(x*f2 + ph[k][1]));
   const runOf = k => H.run*H.steps[k][0]*B;
@@ -156443,8 +156587,16 @@ function northHillPolys(o){
       if(xb <= xa) continue;
       /* shelf: from this shelf's lip north to the next riser's foot, the
          last footW of it in the shade that riser casts -- what sets each
-         step down ON the one below instead of stacking flat stripes */
-      P([[xa, lipY(k, xa), z1], [xb, lipY(k, xb), z1], [xb, farY(xb) + footW, z1], [xa, farY(xa) + footW, z1]], col);
+         step down ON the one below instead of stacking flat stripes.
+         Laid in patches front to back, each its own turf tone (ONE
+         GROUND: hillShelfTone), then the grassy shelves' blade grain */
+      { const R = HILL_TURF.rows, la = lipY(k, xa), lb = lipY(k, xb), fa = farY(xa) + footW, fb = farY(xb) + footW;
+        for(let r = 0; r < R; r++){
+          const t0 = r/R, t1 = (r + 1)/R, tm = (r + 0.5)/R;
+          P([[xa, la + (fa - la)*t0, z1], [xb, lb + (fb - lb)*t0, z1], [xb, lb + (fb - lb)*t1, z1], [xa, la + (fa - la)*t1, z1]],
+            hillShelfTone(k, tm, (xa + xb)/2, (la + lb)/2 + ((fa + fb) - (la + lb))/2*tm));
+        }
+        if(HILL_TURF.grain[k]) out.push({ gr: [xa, xb, Math.max(fa, fb), Math.min(la, lb), z1, k] }); }
       if(footW) P([[xa, farY(xa) + footW, z1], [xb, farY(xb) + footW, z1], [xb, farY(xb), z1], [xa, farY(xa), z1]], footC);
       /* riser, shaded by where its face points. An edge run along +x has
          normal (-dy, dx); light comes from +y and a touch of -x, the side
@@ -156458,7 +156610,7 @@ function northHillPolys(o){
       /* the first riser's foot shade lands on the bench, not a shelf */
       if(k === 0){
         const fw = H.foot*H.steps[0][0]*B;
-        P([[xa, edgeY(0, xa) + fw, 0], [xb, edgeY(0, xb) + fw, 0], [xb, edgeY(0, xb), 0], [xa, edgeY(0, xa), 0]], hillShade(H.bench, 0.9));
+        out.push({ p: [[xa, edgeY(0, xa) + fw, 0], [xb, edgeY(0, xb) + fw, 0], [xb, edgeY(0, xb), 0], [xa, edgeY(0, xa), 0]], c: HILL_TURF.footSh, a: HILL_TURF.footA });   // (over the turf, whatever its tone)
       }
     }
   }
