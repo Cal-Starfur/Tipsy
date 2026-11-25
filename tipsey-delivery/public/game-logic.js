@@ -29984,6 +29984,7 @@ const WALKIN_SHOP_BAN = (() => {
     'Sandpiper Shoes Interior':     { by: ['counter', 'fitter', 'stock'], who: 'Dana', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     'Sandcastle Toys Interior':     { by: ['counter', 'demo', 'stock'], who: 'Ingrid', say: "You've knocked a customer over. Out you go, and don't come back in." },
     'Cove Pottery Interior':        { by: ['counter', 'kiln', 'thrower', 'potter'], who: 'Rosa', say: "You've knocked a customer over. Out you go, and don't come back in." },
+    'Pelican Pets Interior':        { by: ['counter', 'stock', 'fish'], who: 'Marta', say: "You've knocked a customer over. Out you go, and don't come back in." },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -32953,6 +32954,155 @@ walkinLife(CP_IN.name, { keep: [[0, 2000, 166, 242]], looks: [
   { id: 'wheel', spots: [[436, 320, Math.PI], [404, 266, 2.12], [292, 404, -Math.PI*0.25]] },   // (round its sides, never between it and the camera)
   { id: 'till', spots: [[530, 410, -Math.PI/2], [600, 410, -Math.PI/2]] },
 ], browseNext: cpBrowseNext, pose: cpPose, drawState: cpDrawState });
+/* ==================== PELICAN PETS, WALK-IN (wi-pelican-pets; the room: the LIB entry 'Pelican Pets Interior') ====================
+   The Flats' pet shop at the south end of block 3,1's EAST edge, south of Cove Pottery (its front faces east, to the camera). Built by the
+   shop recipe (docs/kits/walkin-shop-recipe.md, W33), Sandcastle Toys' and Cove Pottery's way (the same edge): the exterior unchanged but for
+   its door -- its volume with the doorway open through its front wall (vol.opens), the door kit's single leaf 80 across ('french'), the
+   window narrowed for it; its window a hole onto the room (revealOpen), the room's own feature tank seen through it; he is taken in in the
+   doorway (glass < 0). The valance's stretch over the doorway is its own piece after the door's leaf (signOverDoor).
+   BIGGER INSIDE THAN OUT (W31): the room runs back west from the shop's front into the block, over the backs of the south edge's shops, and
+   north along its own frontage over the gap and Cove Pottery's south end -- 700 x 800; its south wall stands on the south pavement's line
+   (no strip of yard), its south-east corner on the street corner (cornerLow), as Marina Optical's.
+   Lab frame (the shop's): a south along the frontage from its north end, b east (0 the wall, negative into the block). Room frame a east,
+   b south, world units: the front (east) wall a 700; the door b 360..464 in it; the window b 185..349 */
+const PE_IN = { name: 'Pelican Pets Interior', x0: 1040000, y0: 400000, WALL: 30/1.3, ROOM_A0: 506 - 860/1.3, ROOM_A1: 506, ROOM_BACK: -760/1.3, H: 300, LH: 66,
+  DOOR: [145, 225], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [10, 136], WZ: [20, 108] };   // (the shop's door and window, lab a; the window's sill and head, lab z)
+PE_IN.ra = la => (la - PE_IN.ROOM_A0 - PE_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's b
+const PE_PLAN = walkinDefine({ name: PE_IN.name, from: 'Pelican Pets', x0: PE_IN.x0, y0: PE_IN.y0,
+  lab: [PE_IN.ROOM_A0 + PE_IN.WALL, PE_IN.ROOM_A1 - PE_IN.WALL, PE_IN.ROOM_BACK + PE_IN.WALL, -PE_IN.WALL], body: [[0, 230, -276, 0]],
+  door: { a: (PE_IN.DOOR[0] + PE_IN.DOOR[1])/2, b: 0, half: (PE_IN.DOOR[1] - PE_IN.DOOR[0])/2*1.3 }, H: PE_IN.H, LH: PE_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out onto the east pavement, along it either way) */
+  street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
+  /* (seen through, W11: the open doorway and the window) */
+  openings: [{ lab: [[PE_IN.DOOR[0], 0], [PE_IN.DOOR[1], 0]], z: [0, PE_IN.DZ] }, { lab: [[PE_IN.WIN[0], 0], [PE_IN.WIN[1], 0]], z: PE_IN.WZ, glass: true }] });
+/* (W31: what it covers -- the gap north of it and Cove Pottery's south end, the backs of Cove Creamery, Palmline Bikes and Pelican Photo on the
+   south edge -- and what stands over it on screen: Cove Pottery up its frontage) */
+POCKETS[POCKETS.length - 1].ghosts = ['Cove Pottery', 'Cove Creamery', 'Palmline Bikes', 'Pelican Photo'];
+POCKETS[POCKETS.length - 1].displace = true;
+POCKETS[POCKETS.length - 1].cornerLow = true;   // (its south-east corner on the street corner: walkinRoom's cornerLow, and the dim's outline)
+/* THE NOVAKS, WHO KEEP IT: their own looks, set by hand (lookFn) -- the shop's sea-blue polo over sand trousers. Marta at the till, the
+   keyholder (auburn hair in a bun); her husband Pavel at the tanks with his net (a crop, a beard, a sea-green apron); their daughter Kasia
+   with the small animals, the birds and the food shelves, a sack of feed in her arms between them (a blonde ponytail). The customers are the
+   street's own (look: 'visitor') */
+const PE_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), shirt = C(0x3c7fa0), pants = C(0xcbb48a), shoe = { c: 0x4a3a2c, dk: 0x36281e };
+  return {
+    marta: { build: PEOPLE_BUILD[1], skin: { c: 0xf0cdb2, dk: 0xcca88c }, hair: H(0x9a4a2a, 'bun'), shirt, pants, shoe, uniform: {} },
+    pavel: { build: PEOPLE_BUILD[0], skin: { c: 0xeac2a4, dk: 0xc69e80 }, hair: H(0x5a4636, 'crop'), shirt, pants, shoe, uniform: { beard: 0x5a4636, vest: C(0x4f9a86) } },
+    kasia: { build: PEOPLE_BUILD[1], skin: { c: 0xf2d2b8, dk: 0xceae94 }, hair: H(0xd8b878, 'pony'), shirt, pants, shoe, uniform: {} },
+  };
+})();
+/* A CUSTOMER'S VISIT (as Cove Pottery's: reach ONCE, then do something with it): they look a display over -- the tanks, the food shelves,
+   the toy gondola, the dog beds -- and most take something: a fish bagged at the tanks, a bag of food, a toy, a dog bed; some stop by the
+   birds, the small animals or the cats with it in hand, and most pay at the till and go out of the door carrying it; the rest go */
+const PE_SHOW = ['tanks', 'food', 'toys', 'beds', 'hutches', 'birds', 'cats'];
+const PE_TAKE = { tanks: ['fish'], food: ['bag', 'bag', 'tin'], toys: ['ball', 'rope'], beds: ['bed'] };
+const PE_PACK = [0x3c7fa0, 0xd0342c, 0x3fa85c, 0xe07a2a, 0x8a5aa8, 0xf2c230];
+function peSeed(s){ return ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0; }
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a fish in its bag of water,
+   a bag of food, a tin, a ball or a rope toy, a round dog bed in their arms; Pavel's net; Kasia's sack of feed */
+function peHold(s){
+  if(s._peH && s._peH.v === s.visit) return s._peH;
+  const hull = (g, at, pts, c, al) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, al == null ? 1 : al); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  const ring = (x, f, h, r) => { const o = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; o.push([x + Math.cos(t)*r, f + Math.sin(t)*r, h]); } return o; };
+  const ballP = (x, f, h, r) => ring(x, f, h - r*0.7, r*0.7).concat(ring(x, f, h, r), ring(x, f, h + r*0.7, r*0.7));
+  const seed = peSeed(s), pc = PE_PACK[(seed >>> 5) % PE_PACK.length];
+  return (s._peH = { v: s.visit,
+    /* a fish in its bag: the bag's water, the fish in it, the knot and its twist of plastic up into the hand */
+    fish: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1] - 16;
+      hull(g, at, ballP(0, f, h + 5, 6), 0x9ccfe0, 0.85); hull(g, at, box(-2.6, 2.2, f - 1, f + 1, h + 3.6, h + 6.4), 0xe8822a); hull(g, at, box(2.2, 3.8, f - 0.6, f + 0.6, h + 3, h + 7), 0xd06a1a);
+      hull(g, at, ring(0, f, h + 10.6, 3.6).concat(ring(0, f, h + 13, 1.2)), 0xd8ecf2, 0.9); hull(g, at, box(-0.7, 0.7, f - 0.7, f + 0.7, h + 13, h + 16), 0xe8f2f6); },
+    /* a bag of food before them in both hands: the bag, its printed band, the folded top */
+    bag: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 4, h = at.hand[1] - 6;
+      hull(g, at, box(-8, 8, f - 4, f + 4, h, h + 22), pc); hull(g, at, box(-8.2, 8.2, f + 4, f + 4.3, h + 8, h + 15), 0xf2f0ec); hull(g, at, box(-7, 7, f - 3, f + 3, h + 22, h + 25), _pdk(pc, 0.8)); },
+    tin: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1] - 3;
+      hull(g, at, ring(0, f, h, 3.6).concat(ring(0, f, h + 6, 3.6)), 0xc8ccd0); hull(g, at, ring(0, f, h + 2, 3.7).concat(ring(0, f, h + 4.6, 3.7)), pc); },
+    ball: (g, p, K, at) => { if(!at) return; hull(g, at, ballP(0, at.hand[0] + 3, at.hand[1] + 1, 3.6), pc); },
+    rope: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1] - 2;
+      hull(g, at, box(-7, 7, f - 1.4, f + 1.4, h - 1.4, h + 1.4), 0xe8dcc0); hull(g, at, box(-9, -6, f - 2.4, f + 2.4, h - 2.4, h + 2.4), pc); hull(g, at, box(6, 9, f - 2.4, f + 2.4, h - 2.4, h + 2.4), pc); },
+    /* a round dog bed in their arms: its outer roll, the cushion in it */
+    bed: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 10, h = at.hand[1] - 6;
+      hull(g, at, ring(0, f, h, 15).concat(ring(0, f, h + 8, 15)), pc); hull(g, at, ring(0, f, h + 8, 11), 0xe8dcc8); },
+    /* Pavel's net: its long handle up from the hand, the hoop and its mesh */
+    net: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2, h = at.hand[1];
+      hull(g, at, ballP(0, f, h, 0.9).concat(ballP(0, f + 24, h + 20, 0.9)), 0x3a6a5a); hull(g, at, ring(0, f + 27, h + 22, 6), 0x2a4a40); hull(g, at, ring(0, f + 27, h + 22, 5), 0x9cc8bc, 0.6); },
+    /* Kasia's sack of feed in her arms */
+    sack: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 6, h = at.hand[1] - 8;
+      hull(g, at, box(-10, 10, f - 6, f + 6, h, h + 24), 0xd8c49a); hull(g, at, box(-10.2, 10.2, f + 6, f + 6.3, h + 8, h + 16), 0x3fa85c); } });
+}
+function peBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  if(m.atTill){ m.atTill = false; m.paid = true; return leave(); }                                                 // (paid: out with it)
+  if(m.look && PE_TAKE[m.look] && m.item && !m.got) m.got = true;                                                // (in their hands)
+  m.n = (m.n || 0) + 1;
+  if(m.n === 1){ const id = ['tanks', 'food', 'food', 'toys', 'beds'][Math.floor(rnd()*5)];
+    if(rnd() < 0.85 && look(id)){ const T = PE_TAKE[id]; m.item = rnd() < 0.75 ? T[Math.floor(rnd()*T.length)] : null; m.dwell = 6000 + rnd()*5000; return true; } return false; }   // (or the kit's pick)
+  if(m.got && !m.watched){ m.watched = true; if(rnd() < 0.45 && look(['birds', 'hutches', 'cats'][Math.floor(rnd()*3)])){ m.dwell = 5000 + rnd()*5000; return true; } }   // (the animals, it in hand)
+  if(m.got){ if(rnd() < 0.8 && look('till')){ m.atTill = true; m.dwell = 5000 + rnd()*3000; return true; } return leave(); }   // (bought -- or put back)
+  if(m.n <= 3) return false;
+  return leave();
+}
+/* (held before them in both hands, as Cove Pottery's ware; the fish bag up in one hand) */
+const PE_CARRY = { lift: [0.22, 0.22], bend: [1.1, 1.15] }, PE_FISH = { lift: [0.1, 0.36], bend: [0.25, 1.2] };
+function peCarry(P, H, it){ Object.assign(P, it === 'fish' ? PE_FISH : PE_CARRY); P.hold = H[it]; }
+function pePose(s, m, now, P){
+  const H = peHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.id === 'counter'){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                // (Marta at the till: both hands on the counter)
+    /* Pavel: at a tank the net up to it, dipping now and then; walking, the net carried */
+    if(s.id === 'fish'){ if(m.work && !m.path){ const w = 0.5 + 0.5*Math.sin(now*0.0025 + (s.seed & 63)); P.lift = [0.1, 0.55 + 0.25*w]; P.bend = [0.25, 0.7]; P.headTilt = 0.1; P.hold = H.net; return; }
+      P.lift = [0.08, 0.3]; P.bend = [0.25, 0.9]; P.hold = H.net; return; }
+    /* Kasia: at the shelves a bag up onto them, once; with the animals a hand in to them; the sack in her arms walking */
+    if(m.work && !m.path){ if(m.task == null && since > 1000 && since < 3800){ const k = Math.sin(Math.PI*(since - 1000)/2800); P.lift = [0.24 + 0.45*k, 0.24 + 0.45*k]; P.bend = [1.1 - 0.6*k, 1.15 - 0.6*k]; P.hold = H.sack; return; }
+      if(m.task != null){ const w = 0.5 + 0.5*Math.sin(now*0.004 + (s.seed & 63)); P.lift = [0.1, 0.45 + 0.15*w]; P.bend = [0.25, 0.5]; P.headTilt = 0.25; return; } }
+    if(m.task == null){ P.lift = [0.24, 0.24]; P.bend = [1.1, 1.15]; P.hold = H.sack; return; }
+    P.lift = [0.08, 0.1]; P.bend = [0.25, 0.3]; return;
+  }
+  const take = m.look && PE_TAKE[m.look];
+  if(take && !m.path && m.item && !m.got){                                                                       // (taken down, once)
+    const low = m.look === 'beds';
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, (low ? 0.3 : 0.55) + 0.4*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = low ? 0.35 : 0.05; return; }
+    peCarry(P, H, m.item); P.headTilt = 0.2; return; }
+  if(m.got && !m.paid){ peCarry(P, H, m.item); P.headTilt = 0.2; P.headTurn = 0; return; }
+  if(m.look && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = m.look === 'beds' || m.look === 'hutches' ? 0.32 : 0.15; P.headTurn = 0; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];
+}
+function peDrawState(s, m, now, q){
+  if(m.moving){ const H = peHold(s);
+    /* (out of the door with what they paid for; what they took carried about the shop, never out of it) */
+    if(s.look === 'visitor'){ if(m.got && m.item && (m.paid || s._day !== 'leaving')){ const P = {}; peCarry(P, H, m.item); q.pose = P; } }
+    else if(s.id === 'fish') q.pose = { lift: [0.08, 0.3], bend: [0.25, 0.9], hold: H.net };
+    else if(s.id === 'stock') q.pose = { lift: [0.24, 0.24], bend: [1.1, 1.15], hold: H.sack }; }
+}
+walkinStaff(PE_IN.name, [
+  { id: 'counter', role: 'shopkeeper', seed: 0x0e701, lookFn: () => PE_FAMILY.marta, fixed: true, keys: true, posts: [[550, 492, Math.PI/2, 9000, true], [610, 492, Math.PI/2, 4000, true]] },
+  { id: 'fish', role: 'aquarist', seed: 0x0e702, lookFn: () => PE_FAMILY.pavel, posts: [[300, 92, -Math.PI/2, 9000, true], [140, 92, -Math.PI/2, 6000, true], [566, 250, 0, 6000, true]] },
+  { id: 'stock', role: 'shop assistant', seed: 0x0e703, lookFn: () => PE_FAMILY.kasia, posts: [[92, 580, Math.PI, 8000, true], [92, 214, Math.PI, 6000, true], [244, 236, 0, 5000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x0e711, look: 'visitor', life: 'browse', only: PE_SHOW },
+  { id: 'customer-2', role: 'customer', seed: 0x0e712, look: 'visitor', life: 'browse', only: PE_SHOW },
+  { id: 'customer-3', role: 'customer', seed: 0x0e713, look: 'visitor', life: 'browse', only: PE_SHOW },
+  { id: 'customer-4', role: 'customer', seed: 0x0e714, look: 'visitor', life: 'browse', only: PE_SHOW },
+]);
+walkinLife(PE_IN.name, { keep: [[0, 2000, 376, 448]], looks: [
+  { id: 'tanks', spots: [[210, 92, -Math.PI/2], [440, 92, -Math.PI/2], [566, 160, 0]] },
+  { id: 'hutches', spots: [[92, 140, Math.PI], [92, 300, Math.PI]] },
+  { id: 'birds', spots: [[300, 294, -Math.PI/2], [440, 290, -Math.PI/2]] },
+  { id: 'food', spots: [[92, 520, Math.PI], [92, 650, Math.PI], [92, 740, Math.PI]] },
+  { id: 'toys', spots: [[220, 640, -Math.PI/2], [360, 640, -Math.PI/2], [290, 522, Math.PI/2]] },
+  { id: 'beds', spots: [[200, 702, Math.PI/2], [380, 702, Math.PI/2]] },
+  { id: 'cats', spots: [[596, 654, 1.17]] },
+  { id: 'till', spots: [[520, 602, -Math.PI/2], [600, 602, -Math.PI/2]] },
+], browseNext: peBrowseNext, pose: pePose, drawState: peDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -64493,6 +64643,310 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE PELICAN PETS (PE_IN; the walk-in kit's walls, walkinRoom, its door in the east wall; the room runs back west into the block over the
+     south edge's backs and north over the gap and Cove Pottery's south end, which are taken off while he is inside -- pk.displace). Frame a
+     east, b south, z up, world units. Built by the shop recipe (W33), in zones for its size:
+       the north wall   THE AQUARIUM WALL (a 40..600): three tiers of lit tanks on a black cabinet, fish, plants, gravel, bubbles; the name over it
+       by the window    THE FEATURE TANK (a 612..652, b 110..270) on its stand, its glass to the window (the street sees it through the glass)
+       the west wall    THE HUTCHES (b 60..350): two tiers of glass-fronted enclosures, rabbits, guinea pigs, a hamster and its wheel;
+                        THE FOOD SHELVES (b 480..790): bags and tins on five shelves
+       b 376..448       the door's lane, door to west wall, clear; a mural of paw prints on the west wall at its end
+       the middle       THE BIRD CAGE (300, 236) of budgies on its stand; THE PARROT STAND (440, 226); THE TOY GONDOLA (a 160..420, b 560..600)
+       the shop         THE TILL COUNTER (a 470..640, b 520..560, 75), Marta behind it: the till, a jar of biscuits and a rack of fish food each
+                        their own piece on top; THE DOG BEDS on a low plinth stood off the south wall, the shop's dog sat in one; THE CAT
+                        TREE in the south-east corner, a cat on top and a kitten below
+     Every long fixture a run of pieces (runPiece, W28); what stands on them its own piece. Heights (docs/kits/library.md): the counter 75. */
+  name:'Pelican Pets Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 700, dd: 800,
+  head:'Inside Pelican Pets: an aquarium wall, a feature tank in the window, hutches, a bird cage and a parrot, food shelves, a toy gondola, dog beds, a cat tree, the till counter',
+  tags:['interior','pocket','pet shop','aquarium','fish','rabbits','birds','cats','dog'],
+  desc:'The Flats\' pet shop: sand walls over a sea-blue dado, a pale floor; an aquarium wall of three tiers of lit tanks along the north wall, a feature tank on its stand behind the window, glass-fronted hutches of rabbits, guinea pigs and a hamster down the west wall, a domed cage of budgies and a parrot on its stand, food shelves of bags and tins, a toy gondola of leashes, balls and rope toys, dog beds on a low plinth with the shop\'s dog sat in one, a cat tree with a cat and a kitten, and the till counter in sand and sea blue.',
+  draw(p){
+    const pl = (typeof PE_PLAN !== 'undefined' && PE_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 700, D = (pl && pl.D) || 800, H = PE_IN.H, LH = PE_IN.LH, DZ = PE_IN.DOORZ, ra = PE_IN.ra;
+    const door = (pl && pl.door) || { side: 'e', at: 412, half: 52 };
+    const plas = '#efe6d2', sea = '#3c7fa0', seaD = '#2c6280', seaL = '#5aa0c0', sand = '#e0d3b8', blk = '#2a2e34', blkF = '#22262a', blkS = '#1c2024';
+    const white = '#f4f2ee', whiteF = '#e4e2dc', whiteS = '#d0cdc4', wood = '#c8a676', woodF = '#b8945f', woodS = '#a07e4e', woodL = '#dcbc8c';
+    const FISH = ['#e8822a', '#f2c230', '#d0342c', '#4fb0e0', '#f4f2ee', '#8a5aa8'], WATER = ['#4fa8a0', '#5ab4c8', '#3f9a8a', '#62b8b0'], PACK = ['#3c7fa0', '#d0342c', '#3fa85c', '#e07a2a', '#8a5aa8', '#f2c230'];
+    const extW = '#e0d3b8', extT = '#3c7fa0';                                                          // (the shop's own walls, outside: W4)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const hsh = i => { let x = Math.imul((i | 0) ^ 0x9e3779b9, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0)/4294967296; };
+    const hull2 = pts => { pts.sort((p, q) => p.x - q.x || p.y - q.y); const cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+      for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      lo.pop(); hi.pop(); return lo.concat(hi); };
+    const turn = (a, b, rings, c, st) => { const pts = []; for(const [z, r] of rings) for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, z)); }
+      poly(hull2(pts), c, st === undefined ? shade(c, 0.74) : st, 0.8); };
+    const discF = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; pts.push(P(a + Math.cos(t)*r, b, z + Math.sin(t)*r*0.82)); } poly(pts, c); };
+    const discS = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; pts.push(P(a, b + Math.cos(t)*r, z + Math.sin(t)*r*0.82)); } poly(pts, c); };
+    /* a ring's front half (a band round a turned body, a cage's hoop -- the faces toward the eye) and its back half */
+    const arc = (a, b, r, z, t0, t1, w, c) => { for(let k = 0; k < 8; k++){ const u0 = t0 + (t1 - t0)*k/8, u1 = t0 + (t1 - t0)*(k + 1)/8; tube(a + Math.cos(u0)*r, b + Math.sin(u0)*r, z, a + Math.cos(u1)*r, b + Math.sin(u1)*r, z, w, c); } };
+    const FRONT = [-Math.PI/4, Math.PI*0.75], BACK = [Math.PI*0.75, Math.PI*1.75];
+    /* A BAND round a turned body (a ring: only its front half, the faces toward the eye -- Cove Pottery's) */
+    const band = (a, b, r, z0, z1, c) => { const pts = []; for(let k = 0; k <= 10; k++){ const t = FRONT[0] + k/10*Math.PI; pts.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, z0)); }
+      for(let k = 10; k >= 0; k--){ const t = FRONT[0] + k/10*Math.PI; pts.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, z1)); } poly(pts, c); };
+    /* A FISH on a pane: its tail, the body, a fin, the eye -- on a face toward +b (fishF) or toward +a (fishS), dir the way it swims */
+    const fishF = (fa, bb, fz, c, dir, s) => { s = s || 1; poly([P(fa - dir*3.6*s, bb, fz), P(fa - dir*7.4*s, bb, fz + 2.6*s), P(fa - dir*7.4*s, bb, fz - 2.6*s)], shade(c, 0.85));
+      const pts = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; pts.push(P(fa + Math.cos(t)*4.4*s, bb, fz + Math.sin(t)*2.3*s)); } poly(pts, c);
+      poly([P(fa - dir*0.5*s, bb + 0.02, fz + 1.8*s), P(fa + dir*1.5*s, bb + 0.02, fz + 1.8*s), P(fa - dir*1.5*s, bb + 0.02, fz + 4*s)], shade(c, 0.88)); discF(fa + dir*2.4*s, bb + 0.04, fz + 0.5*s, 0.55*s, '#1c1c1e'); };
+    const fishS = (aa, fb, fz, c, dir, s) => { s = s || 1; poly([P(aa, fb - dir*3.6*s, fz), P(aa, fb - dir*7.4*s, fz + 2.6*s), P(aa, fb - dir*7.4*s, fz - 2.6*s)], shade(c, 0.85));
+      const pts = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; pts.push(P(aa, fb + Math.cos(t)*4.4*s, fz + Math.sin(t)*2.3*s)); } poly(pts, c);
+      poly([P(aa + 0.02, fb - dir*0.5*s, fz + 1.8*s), P(aa + 0.02, fb + dir*1.5*s, fz + 1.8*s), P(aa + 0.02, fb - dir*1.5*s, fz + 4*s)], shade(c, 0.88)); discS(aa + 0.04, fb + dir*2.4*s, fz + 0.5*s, 0.55*s, '#1c1c1e'); };
+    /* a water plant on a pane: blades up from the gravel, each a thin leaf leaning (on a face toward +b: plantF; toward +a: plantS) */
+    const plantF = (pa, bb, z0, h, c) => { for(let k = -2; k <= 2; k++){ const lean = k*2.2, tip = h*(0.7 + 0.3*Math.cos(k)); poly([P(pa + k*1.2 - 0.9, bb, z0), P(pa + k*1.2 + 0.9, bb, z0), P(pa + k*1.2 + lean, bb, z0 + tip)], k % 2 ? c : shade(c, 1.15)); } };
+    const plantS = (aa, pb, z0, h, c) => { for(let k = -2; k <= 2; k++){ const lean = k*2.2, tip = h*(0.7 + 0.3*Math.cos(k)); poly([P(aa, pb + k*1.2 - 0.9, z0), P(aa, pb + k*1.2 + 0.9, z0), P(aa, pb + k*1.2 + lean, z0 + tip)], k % 2 ? c : shade(c, 1.15)); } };
+    /* A SMALL ANIMAL sat facing the camera on the diagonal (a + b -- lesson: its face to the eye), in its own frame (f forward, sd across, u
+       up), back to front: its tail, the body, the head, the ears, the eyes and nose set ON the head (0.8 of its radius out, never the full) */
+    const critter = (pa, pb, z, kind, c, s) => { s = s || 1; const C = Math.SQRT1_2, cl = shade(c, 1.15), cd = shade(c, 0.82), eye = '#1c1a18', pink = '#e8a0a8';
+      const L = (f, sd, u) => [pa + (f - sd)*C*s, pb + (f + sd)*C*s, z + u*s], X = (f, sd, u, r, col) => { const q = L(f, sd, u); ball(q[0], q[1], q[2], r*s, col); };
+      const TB = (f0, s0, u0, f1, s1, u1, r, col) => { const p0 = L(f0, s0, u0), p1 = L(f1, s1, u1); tube(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], r*s, col); };
+      if(kind === 'rabbit'){ X(-8.6, 0, 8, 2.6, '#f4f2ee'); X(-3.6, 0, 7, 7.2, c); X(1.2, 0, 8, 6.2, c); X(5.2, -2.4, 2.6, 2, cl); X(5.2, 2.4, 2.6, 2, cl);
+        X(6.6, 0, 13, 4.8, c); TB(5.4, -1.8, 16.6, 3.8, -2.8, 26, 1.5, c); TB(5.4, 1.8, 16.6, 3.8, 2.8, 26, 1.5, c); TB(5.8, -1.8, 17.4, 4.4, -2.6, 24.6, 0.7, pink); TB(5.8, 1.8, 17.4, 4.4, 2.6, 24.6, 0.7, pink);
+        X(10.2, -2, 14, 0.9, eye); X(10.2, 2, 14, 0.9, eye); X(10.6, 0, 11.8, 0.8, pink); return; }
+      if(kind === 'guinea'){ X(-3, 0, 6, 6.2, c); X(1, 0, 6.4, 5.8, c); X(-1.6, 2.4, 8.2, 3, '#f4f2ee'); X(5.4, 0, 7.4, 4.4, c);
+        X(4.4, -3.2, 10.8, 1.4, cd); X(4.4, 3.2, 10.8, 1.4, cd); X(8.8, -1.8, 8.4, 0.75, eye); X(8.8, 1.8, 8.4, 0.75, eye); X(9.2, 0, 6.6, 0.6, pink); return; }
+      if(kind === 'hamster'){ X(0, 0, 4.2, 4.4, c); X(1.4, 0, 3.4, 2.6, '#f4ece0'); X(3.4, 0, 6, 3.3, c); X(2.6, -2, 8.6, 1.1, pink); X(2.6, 2, 8.6, 1.1, pink);
+        X(6, -1.3, 6.6, 0.55, eye); X(6, 1.3, 6.6, 0.55, eye); X(6.5, 0, 5.4, 0.45, pink); return; }
+      /* a bird on its perch: the tail down behind, the body, the wing, the head, the beak and eyes on it */
+      const c2 = kind === 'parrot' ? '#3f7fd0' : '#f2e45a';
+      TB(-1.6, 0, 3, -6.4, 0, -6, 0.9, kind === 'parrot' ? '#3f7fd0' : cd); X(0, 0, 3.6, 2.8, c); X(-0.4, -1.4, 4, 1.7, kind === 'parrot' ? '#3f7fd0' : cd); X(-0.4, 1.4, 4, 1.7, kind === 'parrot' ? '#3f7fd0' : cd);
+      X(1.2, 0, 7.2, 2.1, kind === 'parrot' ? c : c2); X(2.9, 0, 6.6, 0.7, kind === 'parrot' ? '#e8e0c8' : '#e8b860'); X(2.4, -0.9, 7.8, 0.4, eye); X(2.4, 0.9, 7.8, 0.4, eye); };
+
+    /* ---- THE FLOOR: pale vinyl in big squares, a sea-blue border round the shop's side; the door's mat, the threshold in the doorway ---- */
+    T(0, W, 0, D, 0, '#e6e1d4');
+    for(let a = 100; a < W; a += 100) T(a - 0.4, a + 0.4, 0, D, 0.1, '#d6d0c2');
+    for(let b = 100; b < D; b += 100) T(0, W, b - 0.4, b + 0.4, 0.1, '#d6d0c2');
+    T(W - 66, W - 4, door.at - 42, door.at + 42, 0.3, seaD); T(W - 60, W - 10, door.at - 36, door.at + 36, 0.35, sea);
+    for(const [pa, pb] of [[W - 48, door.at - 14], [W - 30, door.at + 4], [W - 46, door.at + 22]]){ T(pa - 4, pa + 4, pb - 3, pb + 3, 0.4, seaL); for(let k = 0; k < 4; k++) T(pa + 5, pa + 7, pb - 5 + k*3.2, pb - 3.6 + k*3.2, 0.4, seaL); }
+    items.push({ a: W - 6, b: door.at, z: 0, solids: [], draw: () => { T(W - 10, W + 40, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#d4cec2');
+      T(W - 2, W + 2, door.at - door.half, door.at + door.half, 0.6, '#b9bec2'); } });
+
+    /* ---- THE WALLS (the kit's) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ, cornerLow: true,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 96, sea, null, 0, 0.15); F(-30, W + 30, 94, 100, seaL, null, 0, 0.2);
+        for(let a = -20, k = 0; a < W + 30; a += 24, k++){ const z = 108 + (k % 2)*3; F(a, a + 14, z, z + 2, seaL, null, 0, 0.2); }
+        F(-30, W + 30, H - 10, H, seaD, null, 0, 0.3);
+        /* the name over the tanks: a sea-blue board, white letters, a pelican's beak either end */
+        F(170, 470, 214, 252, sea, null, 0, 0.4); F(170, 470, 214, 218, '#f2c230', null, 0, 0.45); blockWordIn('PELICAN PETS', 182, 458, 222, 246, 0.6, white, null, 4);
+        for(const ba of [150, 490]){ poly([P(ba - 12, 0.5, 236), P(ba + 12, 0.5, 236), P(ba, 0.5, 224)], '#f2a830'); discF(ba, 0.55, 242, 7, white); discF(ba + 2, 0.6, 243, 1.3, blk); }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.15, -30, D + 30, 0, 96, shade(sea, 0.9)); S(0.2, -30, D + 30, 94, 100, shade(seaL, 0.9));
+        S(0.3, -30, D + 30, H - 10, H, shade(seaD, 0.9));
+        /* THE PAW PRINTS at the lane's end: a trail of them up the wall, each a pad and four toes */
+        [[388, 112], [430, 140], [394, 170], [436, 198]].forEach(([pb, pz], i) => { const c = i % 2 ? '#f2a830' : white;
+          discS(0.5, pb, pz, 7, c); for(const [tb, tz] of [[-7, 8], [-2.4, 11], [2.4, 11], [7, 8]]) discS(0.55, pb + tb, pz + tz, 2.6, c); });
+      },
+      /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's sand and its sea-blue trim -- the near walls' outer faces are the building's
+         own; its window cut in at its own sill (the exterior's: lab a 10..136, z 20, x1.95 -- 39, under the low wall's 66) */
+      winE: [[ra(PE_IN.WIN[0]), ra(PE_IN.WIN[1]), PE_IN.WZ[0]*1.95]],
+      glass: 'rgba(143,184,160,.30)', frame: shade(extW, 0.7),
+      low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#e8e0cc' });
+
+    /* ---- THE AQUARIUM WALL along the north wall: a black cabinet, three tiers of tanks over it -- each its rail, the water (a colour a tank),
+       on its glass the gravel, plants, fish and bubbles, then its hood with the light under it; a sea-blue fascia over the top. In runs of 50
+       keyed at each stretch's start (against the wall); bay by bay, west to east, bottom up ---- */
+    { const A0 = 40, A1 = 600, B0 = 0, B1 = 46, zTop = 198, TIER = [[58, 100], [104, 146], [150, 192]], COL = 10, cw = (A1 - A0)/COL, gb = B1 - 1.8;
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'aquarium wall')], () => {
+        for(let c = 0; c < COL; c++){ const c0 = A0 + cw*c, c1 = c0 + cw;
+          box(c0, c1, B0, B1, 0, 54, blk, blkF, blkS); F(c0 + 4, c1 - 4, 8, 48, '#33383e', null, 0, B1 + 0.2);
+          if(c) box(c0 - 0.8, c0 + 0.8, B0, B1 - 2, 54, TIER[2][1] - 6, blk, blkF, blkS);                             // (the divider on its west side, before its tanks) F((c0 + c1)/2 - 0.5, (c0 + c1)/2 + 0.5, 8, 48, blkS, null, 0, B1 + 0.3);
+          TIER.forEach(([z0, z1], r) => { const k = c*3 + r, wc = WATER[k % WATER.length];
+            box(c0, c1, B0, B1, z0 - 4, z0, '#3a3e44', '#33373c', '#2a2e33');
+            box(c0 + 1.5, c1 - 1.5, B0 + 4, B1 - 2, z0, z1 - 6, shade(wc, 1.1), wc, shade(wc, 0.85));
+            F(c0 + 1.5, c1 - 1.5, z0, z0 + 5, '#c8b48a', null, 0, gb); for(let i = 0; i < 6; i++) F(c0 + 4 + i*8, c0 + 6 + i*8, z0 + 1, z0 + 3, '#a8946a', null, 0, gb + 0.02);
+            plantF(c0 + 9 + hsh(k)*8, gb + 0.05, z0 + 4, 20 + hsh(k + 3)*10, '#3f8f4a'); plantF(c1 - 10 - hsh(k + 5)*6, gb + 0.05, z0 + 4, 14 + hsh(k + 7)*8, '#5aa85c');
+            if(k % 3 === 1){ const rx = (c0 + c1)/2 + 6; poly([P(rx - 7, gb + 0.06, z0 + 4), P(rx + 7, gb + 0.06, z0 + 4), P(rx + 4, gb + 0.06, z0 + 11), P(rx - 3, gb + 0.06, z0 + 12)], '#8a8680'); }
+            const nf = 2 + Math.floor(hsh(k*7)*3);
+            for(let i = 0; i < nf; i++){ const fa = c0 + 10 + (cw - 20)*hsh(k*11 + i), fz = z0 + 12 + (z1 - z0 - 26)*hsh(k*13 + i*3), dir = hsh(k + i*5) < 0.5 ? -1 : 1;
+              fishF(fa, gb + 0.1, fz, FISH[(k + i*2) % FISH.length], dir, k % 4 === 0 ? 0.7 : 1); }
+            for(let i = 0; i < 3; i++) discF(c1 - 8, gb + 0.12, z0 + 10 + i*8, 0.9 + i*0.2, 'rgba(255,255,255,.55)');
+            F(c0 + 1.5, c1 - 1.5, z1 - 12, z1 - 6, 'rgba(255,255,240,.18)', null, 0, gb + 0.14);
+            box(c0 + 0.5, c1 - 0.5, B0 + 2, B1 - 1, z1 - 6, z1, blk, blkF, blkS); F(c0 + 3, c1 - 3, z1 - 6, z1 - 4.6, '#f8f2c8', null, 0, B1 - 0.9); });
+        }
+        box(A0 - 2, A1 + 2, B0, B1 + 2, zTop - 6, zTop, sea, seaD, shade(seaD, 0.85));
+      }, { pad: 3, keyStart: true, run: 50 });
+    }
+
+    /* ---- THE FEATURE TANK behind the window, in its sightline (a point a, b, z shows through the front wall at b + (W - a), z + (W - a)):
+       a long tank on a low cabinet (under the valance's shadow on the glass), along b, its glass to the east (the window, and the eye) -- the cabinet, the water, on its glass the gravel,
+       a rock arch, the plants, the fish, bubbles; the hood and its light. In runs shorter than it is deep, keyed down its middle line ---- */
+    { const A0 = 612, A1 = 652, B0 = 110, B1 = 270, zTop = 126, mid = (A0 + A1)/2, n = 4, ga = A1 - 1.8, z0 = 28, z1 = 126;
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
+        runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'feature tank')], () => {
+          box(A0, A1, B0, B1, 0, 24, blk, blkF, blkS); for(let i = 0; i < 3; i++){ const d0 = B0 + 6 + i*50; S(A1 + 0.2, d0, d0 + 46, 4, 20, '#33383e'); S(A1 + 0.3, d0 + 40, d0 + 42, 10, 14, '#9aa0a6'); }
+          box(A0, A1, B0, B1, 24, z0, '#3a3e44', '#33373c', '#2a2e33');
+          box(A0 + 2, A1 - 1.5, B0 + 2, B1 - 2, z0, z1 - 8, '#62b8c4', '#4fa8b4', '#5ab4c0');
+          S(ga, B0 + 2, B1 - 2, z0, z0 + 8, '#d8c49a'); for(let i = 0; i < 18; i++) S(ga + 0.02, B0 + 6 + i*8.6, B0 + 8 + i*8.6, z0 + 2, z0 + 4, '#b8a47a');
+          /* (a rock arch on the gravel, its opening dark) */
+          poly([P(ga + 0.05, 176, z0 + 6), P(ga + 0.05, 214, z0 + 6), P(ga + 0.05, 210, z0 + 30), P(ga + 0.05, 196, z0 + 38), P(ga + 0.05, 180, z0 + 28)], '#8a8680');
+          poly([P(ga + 0.08, 188, z0 + 6), P(ga + 0.08, 202, z0 + 6), P(ga + 0.08, 200, z0 + 18), P(ga + 0.08, 190, z0 + 18)], '#3a4a48');
+          for(const [pb, h, c] of [[124, 52, '#3f8f4a'], [146, 34, '#5aa85c'], [232, 60, '#3f8f4a'], [252, 40, '#6aa86c'], [162, 26, '#c86a4a']]) plantS(ga + 0.1, pb, z0 + 6, h, c);
+          [[138, 66, 0, 1], [168, 88, 1, -1], [206, 58, 2, 1], [226, 94, 3, -1], [190, 104, 5, 1], [250, 72, 4, -1], [154, 48, 1, 1]].forEach(([fb, fz, ci, dir]) => fishS(ga + 0.12, fb, fz, FISH[ci], dir, 1.3));
+          for(let i = 0; i < 5; i++) discS(ga + 0.14, 244 + (i % 2)*2, z0 + 20 + i*14, 1 + i*0.25, 'rgba(255,255,255,.55)');
+          S(ga + 0.16, B0 + 2, B1 - 2, z1 - 16, z1 - 8, 'rgba(255,255,240,.18)');
+          box(A0, A1, B0, B1, z1 - 8, z1, blk, blkF, blkS); S(A1 + 0.2, B0 + 3, B1 - 3, z1 - 8, z1 - 6.4, '#f8f2c8');
+        }, { alongB: true, run: 40, extra: { a: mid } });
+      } }
+
+    /* ---- THE HUTCHES down the west wall, north of the lane: two tiers of glass-fronted enclosures on a white frame, wire mesh between them, a piece a bay along b, keyed
+       at its start (against the wall). Bay by bay north to south: the far upright; in each tier the floor of shavings, the far side's inside,
+       what lives there (a rabbit, guinea pigs, a hamster on its wheel) and its things, the glass front; the near upright; the top ---- */
+    { const A0 = 0, A1 = 50, B0 = 60, B1 = 350, TIERS = [[22, 82], [90, 150]], zTop = 160, n = 4;
+      const LIVE = [[['rabbit', '#c8a078'], ['hamster', '#e0b070']], [['guinea', '#8a5a3a'], ['rabbit', '#f2ece4']], [['rabbit', '#6a6a6e'], ['guinea', '#e8c890']], [['guinea', '#c87a3a'], ['hamster', '#f4ece0']]];
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
+        runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'hutches')], () => {
+          box(A0, A1, s0, s1, 0, 16, white, whiteF, whiteS);
+          box(A1 - 5, A1, s0, s0 + 3, 16, zTop - 6, white, whiteF, whiteS);                              // (its far post: the frame's front)
+          TIERS.forEach(([z0, z1], r) => { const [kind, c] = LIVE[k][r], mb = (s0 + s1)/2;
+            box(A0, A1, s0 + 3, s1 - 3, z0 - 6, z0, white, whiteF, whiteS);
+            T(A0 + 2, A1 - 2, s0 + 3, s1 - 3, z0 + 0.1, '#ead8a0'); for(let i = 0; i < 9; i++) T(A0 + 4 + hsh(k*40 + r*9 + i)*40, A0 + 6 + hsh(k*40 + r*9 + i)*40, s0 + 6 + hsh(k*17 + i)*(s1 - s0 - 14), s0 + 8 + hsh(k*17 + i)*(s1 - s0 - 14), z0 + 0.2, '#d8c088');
+            /* (the partition on its north side: wire mesh, seen through -- a solid board the hutch's depth hid its inside from the eye) */
+            F(A0 + 2, A1 - 5, z0, z1, 'rgba(236,230,214,.28)', null, 0, s0 + 3.1); for(let a = A0 + 8; a < A1 - 5; a += 6) F(a - 0.3, a + 0.3, z0, z1, 'rgba(160,164,168,.5)', null, 0, s0 + 3.15);
+            for(let z = z0 + 6; z < z1; z += 6) F(A0 + 2, A1 - 5, z - 0.3, z + 0.3, 'rgba(160,164,168,.5)', null, 0, s0 + 3.15);
+            /* (its house in the back north corner, its bowl; what lives there forward by the glass, where the eye reaches past the posts) */
+            if(kind === 'hamster'){ box(6, 20, s0 + 5, s0 + 19, z0, z0 + 10, '#e07a2a', '#c8682a', '#b05a22'); F(9, 17, z0, z0 + 6, '#5a3a22', null, 0, s0 + 19.1);
+              for(let t = 0; t < 8; t++){ const u0 = t/8*Math.PI*2, u1 = (t + 1)/8*Math.PI*2; if(Math.cos(u0) + Math.cos(u1) > 0) continue; tube(32, s0 + 34 + Math.cos(u0)*10, z0 + 12 + Math.sin(u0)*10, 32, s0 + 34 + Math.cos(u1)*10, z0 + 12 + Math.sin(u1)*10, 0.7, '#b0b6bc'); }
+              box(30, 34, s0 + 32, s0 + 36, z0, z0 + 12, '#9aa0a6', '#8a9096', '#7a8086'); critter(34, s0 + 34, z0 + 2.4, 'hamster', c, 1.5);
+              for(let t = 0; t < 8; t++){ const u0 = t/8*Math.PI*2, u1 = (t + 1)/8*Math.PI*2; if(Math.cos(u0) + Math.cos(u1) <= 0) continue; tube(32, s0 + 34 + Math.cos(u0)*10, z0 + 12 + Math.sin(u0)*10, 32, s0 + 34 + Math.cos(u1)*10, z0 + 12 + Math.sin(u1)*10, 0.7, '#b0b6bc'); }
+              cyl(42, s0 + 14, z0, z0 + 3, 4.6, '#e8e4dc', '#c8a060'); }
+            else { box(6, 22, s0 + 5, s0 + 20, z0, z0 + 12, woodL, wood, woodF); F(10, 18, z0, z0 + 8, '#5a3a22', null, 0, s0 + 20.1);   // (its house)
+              cyl(42, s0 + 14, z0, z0 + 3, 5, '#e8e4dc', '#c8a060');                                                                    // (its bowl)
+              if(kind === 'guinea'){ critter(34, s0 + 26, z0, 'guinea', c, 1.3); critter(22, s0 + 44, z0, 'guinea', shade(c, 1.3), 1.15); }
+              else critter(34, s0 + 32, z0, 'rabbit', c, 1.4); }
+            /* (its water bottle on the glass, the glass, the frame round it) */
+            S(A1 - 1.6, s0 + 3, s1 - 3, z0, z1, 'rgba(200,228,236,.22)');
+            cyl(A1 - 4, s0 + 12, z1 - 28, z1 - 10, 2.6, 'rgba(200,228,236,.7)', '#3fa85c'); tube(A1 - 4, s0 + 12, z1 - 28, A1 - 5, s0 + 12, z1 - 33, 0.5, '#9aa0a6');
+            S(A1 - 1.5, s0 + 3, s1 - 3, z1 - 3, z1, whiteF); S(A1 - 1.5, s0 + 3, s0 + 5, z0, z1, whiteF); });
+          box(A1 - 5, A1, s1 - 3, s1, 16, zTop - 6, white, whiteF, whiteS);                              // (its near post)
+          box(A0, A1 + 2, s0, s1, zTop - 6, zTop, sea, seaD, shade(seaD, 0.85));
+        }, { alongB: true, pad: 3, keyStart: true, run: 80 });
+      } }
+
+    /* ---- THE FOOD SHELVES down the west wall, south of the lane: white shelves of bags of food stood up (each its print band and paw), tins
+       in stacks, boxes of treats; a bay a piece along b, keyed at its start. North to south: far upright, the shelves and what is on them,
+       the near upright, the header ---- */
+    { const A0 = 0, A1 = 44, B0 = 480, B1 = 790, ZS = [16, 52, 88, 124, 160], zTop = 196, n = 5;
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
+        runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'food shelves')], () => {
+          box(A0, A1, s0, s1, 0, 12, seaD, seaD, shade(seaD, 0.85));
+          box(A0, A1, s0, s0 + 3, 12, zTop - 8, white, whiteF, whiteS);
+          ZS.forEach((z, r) => { box(A0, A1 - 2, s0 + 3, s1 - 3, z - 3, z, white, whiteF, whiteS);
+            const j = k*5 + r, mode = (j*7) % 3;
+            if(mode === 2){ /* (tins in stacks of two, far ones first) */
+              for(let i = 0; i < 4; i++) for(let h = 0; h < 2; h++){ const tb = s0 + 10 + i*12.5, c = PACK[(j + i) % PACK.length]; cyl(24, tb, z + h*7, z + h*7 + 6.6, 4.6, '#c8ccd0', '#dcdfe2'); band(24, tb, 4.7, z + h*7 + 1.6, z + h*7 + 5, c); } }
+            else { let b = s0 + 5; for(let i = 0; b < s1 - 14; i++){ const bw = mode ? 13 : 16, bh = mode ? 22 : 28, c = PACK[(j*2 + i) % PACK.length]; if(b + bw > s1 - 4) break;
+              box(10, 36, b, b + bw, z, z + bh, shade(c, 1.1), shade(c, 0.9), c); S(36.1, b + 1.5, b + bw - 1.5, z + bh*0.4, z + bh*0.7, white);
+              discS(36.2, b + bw/2, z + bh*0.55, 2.2, c); for(const [tb, tz] of [[-2.4, 2.6], [0, 3.4], [2.4, 2.6]]) discS(36.25, b + bw/2 + tb, z + bh*0.55 + tz, 0.8, c);
+              if(!mode) box(10, 36, b + 1, b + bw - 1, z + bh, z + bh + 2.4, shade(c, 0.8), shade(c, 0.7), shade(c, 0.75));
+              b += bw + 2; } } });
+          box(A0, A1, s1 - 3, s1, 12, zTop - 8, white, whiteF, whiteS);
+          box(A0, A1 + 2, s0, s1, zTop - 8, zTop, sea, seaD, shade(seaD, 0.85)); S(A1 + 2.1, s0, s1, zTop - 5, zTop - 3, '#f2c230');
+        }, { alongB: true, pad: 3, keyStart: true });
+      } }
+
+    /* ---- THE BIRD CAGE on its stand: the base, the pole, the tray; the cage's far bars and the far halves of its hoops, the perches and the
+       budgies on them (far ones first), the near bars and hoops, the dome's ribs to the ring on top. Keyed a little toward the back ---- */
+    items.push({ a: 294, b: 230, z: 0, solids: [{ name: 'bird cage', c: [300, 236], r: 28, h: 200 }], draw: () => {
+      const ca = 300, cb = 236, R = 24, zB = 96, zT = 170, gold = '#d8c070', goldD = '#b8a050';
+      cyl(ca, cb, 0, 4, 16, white, whiteF); tube(ca, cb, 4, ca, cb, zB, 2, whiteS);
+      cyl(ca, cb, zB - 6, zB, R + 2, white, '#e8e2d0');
+      const bars = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; bars.push(t); }
+      const far = t => Math.cos(t) + Math.sin(t) < 0, bar = t => { tube(ca + Math.cos(t)*R, cb + Math.sin(t)*R, zB, ca + Math.cos(t)*R, cb + Math.sin(t)*R, zT, 0.55, gold);
+        tube(ca + Math.cos(t)*R, cb + Math.sin(t)*R, zT, ca + Math.cos(t)*R*0.45, cb + Math.sin(t)*R*0.45, zT + 22, 0.55, gold); tube(ca + Math.cos(t)*R*0.45, cb + Math.sin(t)*R*0.45, zT + 22, ca, cb, zT + 26, 0.55, gold); };
+      for(const t of bars) if(far(t)) bar(t);
+      for(const z of [zB + 2, zB + 40, zT]) arc(ca, cb, R, z, BACK[0], BACK[1], 0.7, goldD);
+      tube(ca - 16, cb - 4, zB + 30, ca + 14, cb + 6, zB + 30, 0.9, '#a8743a'); tube(ca - 10, cb + 8, zB + 56, ca + 12, cb - 10, zB + 56, 0.9, '#a8743a');
+      cyl(ca + 12, cb + 12, zB, zB + 4, 4, '#3fa85c', '#e8d8a0');
+      [[ca - 6, cb - 1, zB + 31, '#5ac85a'], [ca + 6, cb + 3, zB + 31, '#4fa8e0'], [ca - 2, cb + 4, zB + 57, '#f2e45a'], [ca + 6, cb - 6, zB + 57, '#5ac85a']].sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]))
+        .forEach(([ba, bb, bz, c]) => critter(ba, bb, bz, 'budgie', c, 1.4));
+      for(const t of bars) if(!far(t)) bar(t);
+      for(const z of [zB + 2, zB + 40, zT]) arc(ca, cb, R, z, FRONT[0], FRONT[1], 0.8, gold);
+      arc(ca, cb, 3, zT + 30, 0, Math.PI*2, 0.7, gold); } });
+
+    /* ---- THE PARROT STAND: its base, the pole, the T perch and its seed cup, the parrot on it facing the room ---- */
+    items.push({ a: 436, b: 222, z: 0, solids: [{ name: 'parrot stand', c: [440, 226], r: 22, h: 160 }], draw: () => {
+      cyl(440, 226, 0, 5, 18, woodF, wood); tube(440, 226, 5, 440, 226, 112, 2.2, woodS);
+      tube(420, 226, 112, 460, 226, 112, 1.8, woodS); cyl(424, 226, 113, 118, 4.4, '#c8ccd0', '#d8c088');
+      critter(444, 226, 113.8, 'parrot', '#d8342c', 3.6); } });
+
+    /* ---- THE TOY GONDOLA: a sea-blue base, a white spine, on its south face (the north face is the far one: not painted -- W37) leashes,
+       balls in their nets, rope toys and collars on pegs, a yellow cap; in runs of 36 keyed down its middle line ---- */
+    { const A0 = 160, A1 = 420, B0 = 560, B1 = 600, zT = 120;
+      runPiece(items, A0, A1, B0, B1, zT + 4, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'gondola')], () => {
+        box(A0, A1, B0, B1, 0, 10, sea, seaD, shade(seaD, 0.85));
+        box(A0 + 4, A1 - 4, 577, 583, 10, zT, white, whiteF, whiteS);
+        for(const [r, z] of [[0, 86], [1, 52], [2, 18]]) for(let i = 0; i < 9; i++){ const pa = A0 + 15 + i*28.5, c = PACK[(i*2 + r) % PACK.length], f = 588, kind = (i + r*2) % 4;
+          box(pa - 0.5, pa + 0.5, 583, f + 2, z + 28, z + 29, '#9a9a9e', '#9a9a9e', '#8a8a8e');
+          if(kind === 0){ for(let q = 0; q < 2; q++){ const o = q*2.4; tube(pa - 5 + o, f + 1 + q, z + 28, pa - 6 + o, f + 1 + q, z + 4, 1, c); tube(pa - 6 + o, f + 1 + q, z + 4, pa + 6 + o, f + 1 + q, z + 4, 1, c); tube(pa + 6 + o, f + 1 + q, z + 4, pa + 5 + o, f + 1 + q, z + 28, 1, c); }
+            box(pa - 1.6, pa + 1.6, f, f + 3, z + 2, z + 6, '#c8ccd0', '#b8bcc0', '#a8acb0'); }                                    // (a leash, looped, its clip)
+          else if(kind === 1){ F(pa - 8, pa + 8, z + 2, z + 26, 'rgba(240,240,236,.35)', null, 0, f + 0.2); for(const [ba, bz] of [[-4, 8], [4, 8], [0, 17]]) discF(pa + ba, f + 0.4, z + bz, 4.6, (ba + bz) % 3 ? '#e8e04a' : '#e05a3a'); F(pa - 3, pa + 3, z + 23, z + 27, c, null, 0, f + 0.5); }   // (balls in a net)
+          else if(kind === 2){ tube(pa, f + 1, z + 26, pa, f + 1, z + 4, 1.6, '#e8dcc0'); for(const kz of [z + 4, z + 26]) discF(pa, f + 1.6, kz, 3.4, c); }   // (a rope toy, knotted)
+          else { for(let q = 0; q < 3; q++){ const pts = []; for(let t = 0; t < 14; t++){ const u = t/14*Math.PI*2; pts.push(P(pa + Math.cos(u)*5.4, f + 0.4 + q*0.3, z + 18 - q*7 + Math.sin(u)*4.4)); } poly(pts, null, PACK[(i + q) % PACK.length], 1.6); } }   // (collars on a peg)
+        }
+        box(A0, A1, B0, B1, zT, zT + 4, '#f2c230', '#d8a820', '#d8a820');
+      }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
+    }
+
+    /* ---- THE TILL COUNTER: sand to the floor, a sea-blue front with a frieze of fish, a wood top; Marta behind it. In runs of 36, keyed down
+       its middle line; what stands on it its own piece ---- */
+    { const A0 = 470, A1 = 640, B0 = 520, B1 = 560, zT = 75;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'counter')], () => {
+        box(A0, A1, B0, B1, 0, zT - 4, sand, sand, shade(sand, 0.86));
+        F(A0, A1, 0, 6, seaD, null, 0, B1 + 0.2); F(A0 + 6, A1 - 6, 12, zT - 12, sea, null, 0, B1 + 0.2);
+        for(let i = 0; i < 6; i++) fishF(A0 + 24 + i*25, B1 + 0.3, 40 + (i % 2)*8, FISH[i % FISH.length], i % 2 ? -1 : 1, 1.5);
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, woodL, wood, woodF);
+      }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 36, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* the till (its screen on the far face, Marta's: not painted -- W37) */
+      on(512, [500, 524, 526, 546, 104], () => { box(504, 520, 530, 542, zT, zT + 3, blk, blk, blkS); tube(512, 536, zT + 3, 512, 534, zT + 14, 1.4, '#6a6662');
+        box(500, 524, 526, 530, zT + 12, zT + 29, '#3a3634', blk, blkS); });
+      /* a jar of dog biscuits: the jar, the bone biscuits in it (far ones first), its lid by it */
+      on(588, [578, 598, 530, 550, 102], () => { cyl(588, 540, zT, zT + 20, 9, 'rgba(214,234,242,.5)', 'rgba(230,242,246,.55)');
+        for(const [ba, bb, bz] of [[584, 536, 6], [592, 538, 9], [586, 544, 13], [590, 542, 4]]){ tube(ba - 3, bb, zT + bz, ba + 3, bb, zT + bz, 1.4, '#c89a5a'); ball(ba - 3.4, bb, zT + bz, 1.6, '#c89a5a'); ball(ba + 3.4, bb, zT + bz, 1.6, '#c89a5a'); }
+        cyl(588, 540, zT + 20, zT + 23, 9.6, sea, seaL); });
+      /* a rack of fish food: its little stand, the tubs in two rows (far row first) */
+      on(624, [612, 636, 528, 552, 98], () => { box(612, 636, 528, 552, zT, zT + 4, white, whiteF, whiteS);
+        for(const [bb, h] of [[534, 10], [546, 4]]) for(let i = 0; i < 3; i++){ const c = PACK[(i*2 + (h > 4 ? 1 : 0)) % PACK.length]; cyl(616 + i*8, bb, zT + h, zT + h + 9, 3.2, '#f4f2ee', c); band(616 + i*8, bb, 3.3, zT + h + 3, zT + h + 6, c); } }); }
+
+    /* ---- THE DOG BEDS on a low plinth along the south wall, stood off it (the low wall hides what stands near it below 66 less its distance):
+       the plinth in runs of 36 keyed down its middle line; each bed its own piece -- its outer roll (far half, the cushion, the near half),
+       a bone stitched on the cushion -- and the shop's dog sat in the big one ---- */
+    { const A0 = 110, A1 = 470, B0 = 728, B1 = 768, zT = 18, VB = (B0 + B1)/2;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'bed plinth')], () => {
+        box(A0, A1, B0, B1, 0, zT - 3, white, whiteF, whiteS); F(A0, A1, 0, 4, seaD, null, 0, B1 + 0.2);
+        box(A0 - 2, A1 + 2, B0 - 2, B1 + 2, zT - 3, zT, wood, woodF, woodS);
+      }, { pad: 5, run: 36, extra: { b: (B0 + B1)/2 } });
+      [[150, 16, PACK[0]], [222, 18, PACK[1]], [300, 20, '#8a7a6a'], [390, 24, PACK[2]]].forEach(([ba, r, c]) => {
+        items.push({ a: ba, b: VB, z: lcOnZ(A0, A1, 36, ba - r, ba + r, ba), fpLab: { a0: ba - r, a1: ba + r, b0: VB - r, b1: VB + r, z1: zT + 10 }, solids: [], draw: () => {
+          cyl(ba, VB, zT, zT + 3, r, shade(c, 0.85), shade(c, 0.9));
+          for(let k = 0; k < 10; k++){ const u0 = BACK[0] + (BACK[1] - BACK[0])*k/10, u1 = BACK[0] + (BACK[1] - BACK[0])*(k + 1)/10; tube(ba + Math.cos(u0)*(r - 3), VB + Math.sin(u0)*(r - 3), zT + 7, ba + Math.cos(u1)*(r - 3), VB + Math.sin(u1)*(r - 3), zT + 7, 3.6, c); }
+          plateCircle(ba, VB, zT + 4, r - 5, '#efe6d4', shade('#efe6d4', 0.8), 0.6);
+          tube(ba - 4, VB + 2, zT + 4.2, ba + 4, VB + 2, zT + 4.2, 0.9, shade(c, 1.2)); ball(ba - 4.6, VB + 2, zT + 4.2, 1.1, shade(c, 1.2)); ball(ba + 4.6, VB + 2, zT + 4.2, 1.1, shade(c, 1.2));
+          for(let k = 0; k < 10; k++){ const u0 = FRONT[0] + (FRONT[1] - FRONT[0])*k/10, u1 = FRONT[0] + (FRONT[1] - FRONT[0])*(k + 1)/10; tube(ba + Math.cos(u0)*(r - 3), VB + Math.sin(u0)*(r - 3), zT + 7, ba + Math.cos(u1)*(r - 3), VB + Math.sin(u1)*(r - 3), zT + 7, 3.6, c); } } }); });
+      items.push({ a: 390.5, b: VB + 0.5, z: 0, draw: () => {}, fx: { dog: { a: 390, b: VB - 2, z: zT + 4.5, seed: 0x9e7d01, th: 0.9, sit: 1, breed: 2 } } });   // (the shop's dog, sat in its bed: the game's own dog)
+    }
+
+    /* ---- THE CAT TREE in the south-east corner (the animal shelter's): its base, the post, two carpeted shelves; a cat on the top one and a
+       kitten on the lower, the game's own cats ---- */
+    items.push({ a: 630, b: 720, z: 0, solids: [solid(608, 652, 698, 742, 150, 'cat tree')], draw: () => {
+      box(608, 652, 698, 742, 0, 10, '#a89270', '#8f7b5a', '#7c6a4d');
+      cyl(630, 720, 10, 150, 5, '#c9a874'); for(let z = 20; z < 140; z += 8) band(630, 720, 5.2, z, z + 2, '#b8975d');
+      box(612, 648, 702, 738, 62, 70, '#c0a47a', '#a98e66', '#8f7a56'); box(608, 652, 698, 742, 112, 120, '#c0a47a', '#a98e66', '#8f7a56');
+      tube(640, 738, 62, 640, 738, 44, 0.5, '#d8c8a0'); ball(640, 738, 42, 2.6, '#e05a3a'); } });
+    items.push({ a: 630.5, b: 720.5, z: 0, draw: () => {}, fx: { dog: { cat: true, a: 634, b: 724, z: 120, seed: 0xca7e01, th: 2.0, sit: 1 } } });
+    items.push({ a: 630.2, b: 720.2, z: 0, draw: () => {}, fx: { dog: { cat: 'kitten', a: 626, b: 726, z: 70, seed: 0xca7e02, th: 1.4, sit: 1 } } });
+
+    walkinStaffSolids(items, PE_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -72271,6 +72725,11 @@ function houseCanopy(fn){
 },
 {
   name:'Pelican Pets', xh: 154, base:'Pet shop', hood:'The Flats', edited:true, sc:1.3, head:'Lit tanks, scalloped valance, glowing glass',
+  signOverDoor: { a0: 137.2, a1: 226, b: 32 },   // (the valance's stretch over the doorway queued on its own after the door's leaf: part 'sign')
+  see: true,   // (a walk-in: its doorway and its window show the pet shop's room, PE_IN -- W11)
+  /* THE DOORWAY OPEN through the front wall: he drives into it, and is taken into the room only once he is in it (PE_IN's glass < 0, W32) */
+  vol: { foot: volRect(0, 230, -276, 0), h: 154,
+         opens: [{ name: 'doorway', poly: volRect(145, 225, -90, 2), walk: true }] },
   tags:['aquarium glow','scalloped valance','warm interior','no pavement props'],
   desc:'The tanks have a lit front edge so the glow reads as coming out of the glass rather than being painted on it, and the fish are spheres set behind the pane at their own depth. The valance is a folded canopy with scalloped ends, not a stripe on the wall.',
   draw(p){
@@ -72280,12 +72739,31 @@ function houseCanopy(fn){
        after the bikes.
        Geometry untouched: every edit is a colour. */
     const wall = '#e0d3b8', trim = '#3c7fa0', H = 154;
+    const out = 32;
+    /* (THE VALANCE IN TWO: its stretch over the doorway, scallops 6..9, is its own piece in the game, queued after the door's live leaf
+       (signOverDoor, part 'sign'); the shop's image (part 'body') has the rest. Drawn whole where there are no parts: the labs) */
+    const VS = 4 + (W-8)*6/10;
+    const valance = (va0, va1, i0, i1, endW, endE) => {
+    poly([P(va0,0,128),P(va1,0,128),P(va1,out,112),P(va0,out,112)], trim);
+    poly([P(va0,0,120),P(va1,0,120),P(va1,out,104),P(va0,out,104)], shade(trim,.7));
+    if(endW) poly([P(4,0,128),P(4,out,112),P(4,out,104),P(4,0,120)], shade(trim,.6));
+    if(endE) poly([P(W-4,0,128),P(W-4,out,112),P(W-4,out,104),P(W-4,0,120)], shade(trim,.6));
+    for(let i=i0;i<i1;i++){
+      const x0=4+(W-8)*i/10, x1=4+(W-8)*(i+1)/10;
+      const l=P(x0,out,112), r=P(x1,out,112), m=P((x0+x1)/2,out,100);
+      ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.quadraticCurveTo(m.x,m.y+6,r.x,r.y); ctx.closePath();
+      ctx.fillStyle = i%2 ? shade(trim,1.35) : '#f0e8d4'; ctx.fill();
+    } };
+    if(state.part === 'sign'){ valance(VS - 0.8, W-4, 6, 10, false, true); return; }   // (a hair over the body's stretch: no seam between them)
     body(wall, trim, H);
     roofDeck(0, W, -D, 0, H+0.4, null, null, '#a9b1ab');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+10, -1, -12, trim);
-    F(10,W*0.64, 20, 108, '#2a3a34', shade(wall,.6), 3);   // see the door note below
-    for(let r=0;r<3;r++) for(let c=0;c<3;c++){
-      const x0 = 16+(W*0.60-16)*(c+0.06)/3, x1 = 16+(W*0.60-16)*(c+0.94)/3, z0 = 26+r*28;
+    /* (a walk-in's window, W11: narrowed to 10..136 for the door kit's 80-wide leaf, and a hole onto the room -- its feature tank seen
+       through it; the painted tanks only where no room is drawn under it) */
+    if(SEE){ revealOpen(10, 136, 20, 108, 6, '#2a3a34'); glaze(10, 136, 20, 108, shade(wall,.6), WALKIN_PANE); }
+    else F(10, 136, 20, 108, '#2a3a34', shade(wall,.6), 3);   // see the door note below
+    if(!SEE) for(let r=0;r<3;r++) for(let c=0;c<3;c++){
+      const x0 = 16+(128-16)*(c+0.06)/3, x1 = 16+(128-16)*(c+0.94)/3, z0 = 26+r*28;
       F(x0,x1, z0, z0+22, ['#4fb0a0','#5ab8c8','#3f9f86'][(r+c)%3], null,0,-1);
       F(x0,x1, z0+20, z0+22, '#d8f0e8', null,0,-1.5);
       F(x0,x1, z0, z0+2, 'rgba(216,240,232,.55)', null,0,-1.5);
@@ -72331,18 +72809,11 @@ function houseCanopy(fn){
        stops covering it. Butcher, Pawn shop and now here: any shop
        carrying the copied window is likely to have a bare shopDoor call
        hiding behind it too. */
-    shopDoor(W*0.83, wall, trim, 'rgba(143,184,160,.55)');
-    const out = 32;
-    poly([P(4,0,128),P(W-4,0,128),P(W-4,out,112),P(4,out,112)], trim);
-    poly([P(4,0,120),P(W-4,0,120),P(W-4,out,104),P(4,out,104)], shade(trim,.7));
-    poly([P(4,0,128),P(4,out,112),P(4,out,104),P(4,0,120)], shade(trim,.6));
-    poly([P(W-4,0,128),P(W-4,out,112),P(W-4,out,104),P(W-4,0,120)], shade(trim,.6));
-    for(let i=0;i<10;i++){
-      const x0=4+(W-8)*i/10, x1=4+(W-8)*(i+1)/10;
-      const l=P(x0,out,112), r=P(x1,out,112), m=P((x0+x1)/2,out,100);
-      ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.quadraticCurveTo(m.x,m.y+6,r.x,r.y); ctx.closePath();
-      ctx.fillStyle = i%2 ? shade(trim,1.35) : '#f0e8d4'; ctx.fill();
-    }
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the sea blue, 80 across (a 145..225), its face 'french', two tall lights over a
+       low panel (its neighbour Cove Pottery's is 'panel'); a walk-in's (see), its opening a hole onto the pet shop's room, its leaf live */
+    shopDoor(185, wall, trim, 'rgba(143,184,160,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,200,.72)', look: 'french' });
+    if(state.part === 'body') valance(4, VS, 0, 6, true, false);
+    else valance(4, W-4, 0, 10, true, true);
     /* MARGIN 0 AGAINST A RECESS OF 8 -- this shop's fTodo. It landed
        screen-a 1..238, eight past the far return. Margin 10 puts it on
        11..228. */
