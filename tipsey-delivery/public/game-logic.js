@@ -6308,10 +6308,10 @@ function owBuildWorld(route){
      stone's road face, and the stone itself answers 'kerb'. Everything else answers exactly as surfaceAt does. */
   const surfaceK = (x, y, kerb) => {
     if(pocketAt(x, y)) return 'sidewalk';                        // an interior's floor (see POCKETS)
+    { const ms = miradorSurface(g2, x, y); if(ms) return ms; }   // MIRADOR HEIGHTS' road up the hills, its drives and pads (miradorSurface)
     /* (asked as the wall, these three answer as the city's street does: their stone 'kerb', their road ending at its face) */
     { const sr = sierraRoundSurface(x, y, kerb); if(sr) return sr; }   // the estate's gate round, which straddles the wall
     { const hr = harborRoundSurface(x, y, kerb); if(hr) return hr; }   // PELICAN HARBOR's turning circle, at the road's end
-    { const mr = miradorRoundSurface(g2, x, y, kerb); if(mr) return mr; }   // MIRADOR HEIGHTS' turning circle, at its street's end
     { const sv = sierraSurface(x, y, kerb); if(sv) return sv; }   // the estate's streets, city-standard
     const nx = Math.round(x / BLOCK) * BLOCK, ny = Math.round(y / BLOCK) * BLOCK;
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
@@ -13680,7 +13680,7 @@ function buildWorldCurbRamps(grid){
      at the nodes: a kerb run's cut only reads ramps along its own
      length. Each side is kept only where the pavement says sidewalk. */
   for(const e of grid.edges){
-    if(!(e.harbor || e.mirador) || e.f !== 1) continue;   // (and Mirador Heights' drive, as Harbor Road)
+    if(!e.harbor || e.f !== 1) continue;
     const rv = DIRV[(e.f+1)%4], mx = (e.a.x + e.b.x)/2, my = (e.a.y + e.b.y)/2;
     for(const side of [-1, 1]){
       const px = mx + rv.x*side*along, py = my + rv.y*side*along;
@@ -13831,18 +13831,12 @@ function lotRect(ox, oy, dv, rv, len, depth){
   return { x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys) };
 }
 
-/* MIRADOR HEIGHTS' street on the lattice (buildGrid): off the j=10 row's east end a block east to its corner, then north up
-   column 36 to its end at J_END (the turning circle, miradorPlan) */
-const MIRADOR = { J: 10, J_END: 7 };
-/* the daily walk's conn: a street the walk never takes (Mirador Heights' arm off node (35, 10)) is not there for it, so every
-   route, frozen course and traffic loop rolls exactly as it did before the street was built */
-function walkConn(n, d){ return n.conn[d] && n.mirArm !== d; }
 function buildExteriorLots(grid, seed){
   const { cols, rows, edges } = grid;
   const inset = ROAD_HALF + SIDEWALK_W;
   const lots = [];
   for(const e of edges){
-    if(e.harbor || e.mirador) continue;   // the harbor road runs between the basin and the apron, not lots (Mirador's lots are its own: miradorPlan)
+    if(e.harbor) continue;   // the harbor road runs between the basin and the apron, not lots
     let outward = null;
     if(e.f === 0){
       if(e.a.j === 0) outward = DIRV[3];
@@ -13989,35 +13983,6 @@ function buildGrid(cols, rows, seed=0, opts){
       for(const n of nodes) n.shape = nodeShape(n);
     }
   }
-  /* MIRADOR HEIGHTS' STREET (Sir, 2026-11-25: "I want to build houses there that resemble the beach houses"): the j=10 row
-     carried on east off the city's edge a block, to a corner at (36, 10), and up the foothills north three blocks along
-     column 36 to a turning circle at (36, 7) -- lattice-length edges, as Harbor Road's, so the city lays its asphalt,
-     pavements, kerbs, crossings and junction, surfaceAt reads it and the GPS walks it. The houses line it (miradorPlan).
-     Kept off the daily walk (buildWalk's walkConn: node (35, 10)'s east arm is `mirArm`), so no player route, frozen
-     course or traffic loop changes; exterior lots never lie along it (it is not a perimeter edge). */
-  if(WORLDGEN_COAST && !classic && cols === 36 && rows === 27){
-    const n35 = nodeAt(cols - 1, MIRADOR.J);
-    if(n35 && !n35.conn[0]){
-      const mn = new Map();
-      const add = (e) => { e.mirador = true; grid.edges.push(e); if(grid._allEdges && grid._allEdges !== grid.edges) grid._allEdges.push(e); };
-      for(let j = MIRADOR.J; j >= MIRADOR.J_END; j--){
-        const n = { i: cols, j, x: cols*BLOCK, y: j*BLOCK, conn: [false, false, false, false], mirador: true };
-        mn.set(j, n); nodes.push(n);
-      }
-      const corner = mn.get(MIRADOR.J);
-      n35.conn[0] = true; corner.conn[2] = true; n35.mirArm = 0;
-      add({ a: n35, b: corner, f: 0 });
-      for(let j = MIRADOR.J - 1; j >= MIRADOR.J_END; j--){
-        const a = mn.get(j), b = mn.get(j + 1);
-        a.conn[1] = true; b.conn[3] = true;                         // f = 1 runs +y, north node -> south
-        add({ a, b, f: 1 });
-      }
-      mn.get(MIRADOR.J_END).miradorEnd = true;
-      const prevAt = grid.nodeAt || nodeAt;
-      grid.nodeAt = (i, j) => (i === cols && mn.has(j)) ? mn.get(j) : prevAt(i, j);
-      for(const n of nodes) n.shape = nodeShape(n);
-    }
-  }
   grid.classify = (x, y) => classifyAt(grid.edges, x, y);
   const sw = buildSidewalkGeometry(grid);
   grid.sidewalkRuns = sw.runs;
@@ -14113,7 +14078,7 @@ function gpsWalkGraph(grid){
      corners after the grid's own, and the walk runs up Harbor Road like any
      street. (Sierra Vista's gate node is still not on the walk: its street
      is crossed, never walked -- unchanged.) */
-  const extra = grid.nodes.filter(n => n.harbor || n.mirador);   // (and MIRADOR HEIGHTS' street's, column 36)
+  const extra = grid.nodes.filter(n => n.harbor);
   const extraBase = new Map(extra.map((n, k) => [n, cols * rows * 4 + k*4]));
   /* SUNSET SHORE's walk (see gpsBeachNet) goes on after everything else */
   const beach = gpsBeachNet(grid, C), beachBase = cols * rows * 4 + extra.length * 4;
@@ -18411,7 +18376,7 @@ function nssGardensOf(grid){
   return _nssGardens;
 }
 function nssBlocked(grid, x, y, R){
-  if(WORLDGEN_COAST && grid && x > 0 && miradorBlocked(grid, x, y, R)) return true;   // (and MIRADOR HEIGHTS' houses, the same family: miradorBlocked)
+  if(WORLDGEN_COAST && grid && y < 0 && miradorBlocked(grid, x, y, R)) return true;   // (and MIRADOR HEIGHTS' houses up the hills: miradorBlocked)
   if(!WORLDGEN_COAST || !grid || x > -ROAD_HALF - SIDEWALK_W + R + 4) return false;
   /* THE GARDEN IS DRIVABLE (Sir, 2026-10-25: "tipsy should also be able to
      drive through the garden"): it was solid wall to wall but for the front
@@ -19537,22 +19502,12 @@ function hoodDrivewaysOf(grid){
                    e: row.e, al0: u.start + m0*SC, al1: u.start + m1*SC });
       }
     }
-  /* ...and MIRADOR HEIGHTS' (miradorPlan), its rows laid as North Sunset Shore's: row.e is the lot's street edge */
-  if(typeof miradorPlan === "function")
-    for(const row of miradorPlan(grid).rows) for(const u of row.units){
-      const sh = LIB.get(u.shop.lib);
-      if(!sh || !sh.drive) continue;
-      const SC = sh.sc || 1, mir = (row.e.dv.x + row.e.dv.y) <= 0 && sh.mirror !== false;
-      for(const dr of sh.drive) if(dr.side === "front")
-        out.push({ col: dr.col, lines: !!dr.lines, arrows: dr.arrows || "in", blockKey: "mir" + row.side, edge: -1,
-                   e: row.e, al0: u.start + (mir ? sh.ww - dr.to : dr.from)*SC, al1: u.start + (mir ? sh.ww - dr.from : dr.to)*SC });
-    }
   /* ...and a landmark's drive declared in the world (Marina General's ER,
      off the grassed strip between two cells, where no block edge is): its
      frame runs east along the site's south line, out (+y) to the kerb;
      and Sun Deck Airfield's apron gate (AIR.drives), the same way; and the
      garages' (the mall's, Marina Parking's: MARINA.drives) */
-  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()], ["marina", MARINA.drives], ["fishmkt", WORLDGEN_COAST ? [FM_PLAN.DRIVE] : []]])
+  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()], ["marina", MARINA.drives], ["fishmkt", WORLDGEN_COAST ? [FM_PLAN.DRIVE] : []], ["mirador", typeof miradorDrives === "function" ? miradorDrives() : []]])
     for(const dw of list)
       out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, wings: dw.wings !== false, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
@@ -43368,7 +43323,7 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, start
      never has to search when startDir is given -- it's here purely as
      the same safety net the random-dir path already relied on. */
   let dir = startDir != null ? startDir : Math.floor(rng()*4);
-  while(!walkConn(cur, dir)) dir = (dir+1)%4;
+  while(!cur.conn[dir]) dir = (dir+1)%4;
   let turnSign = rng() < 0.5 ? 1 : -1;
   /* the turn loop below alternates between exactly two headings (dir
      and dir+turnSign) for the whole route unless a grid boundary
@@ -43400,7 +43355,7 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, start
     const maxBlocks = 1 + Math.floor(rng()*2);   // 1-2 blocks/leg — narrowed further (was 1-3, originally 3-6) to bring the worst case under a 3mi max, same turn character
     let blocks = 0;
     for(let b=0; b<maxBlocks; b++){
-      if(!walkConn(cur, dir)) break;
+      if(!cur.conn[dir]) break;
       const d = DIRV[dir];
       const nxt = nodeAt(cur.i + d.x, cur.j + d.y);
       if(!nxt) break;
@@ -43410,15 +43365,15 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, start
     if(blocks > 0){
       legDescs.push({ f:dir, blocks });
     } else if(legDescs.length === 0){
-      let alt = 0; while(alt<4 && !walkConn(cur, alt)) alt++;
+      let alt = 0; while(alt<4 && !cur.conn[alt]) alt++;
       if(alt === 4) break;
       dir = alt; leg--; continue;
     }
     if(leg < nTurns){
       let attemptSign = turnSign;
       let nd = ((dir + attemptSign) % 4 + 4) % 4;
-      if(!walkConn(cur, nd)){ attemptSign = -attemptSign; nd = ((dir + attemptSign) % 4 + 4) % 4; }
-      if(!walkConn(cur, nd)) break;
+      if(!cur.conn[nd]){ attemptSign = -attemptSign; nd = ((dir + attemptSign) % 4 + 4) % 4; }
+      if(!cur.conn[nd]) break;
       dir = nd;
       turnSign = -attemptSign;   // alternate from the sign ACTUALLY used, not the original
                                   // intended one — the old code flipped once for the fallback
@@ -44233,7 +44188,7 @@ function laneTownCycle(grid, E, ok){ return latticeCycle(grid, E, [0,1,2,3], ok,
 function buildOuterTrafficWalks(grid){
   const out = [];
   if(!WORLDGEN_COAST || grid.classic) return out;
-  const ok = n => !n.harbor && !n.svGate && !n.mirador;
+  const ok = n => !n.harbor && !n.svGate;
   const R = TRAFFIC_TURN_R, C = TRAF_LANE;
   const lollipop = (E, spur, zAt, name) => {
     const town = laneTownCycle(grid, E, ok);
@@ -44363,7 +44318,7 @@ function buildCityTraffic(grid){
     }
     loops.push({ walk, cars: mine });
   };
-  const offLattice = n => n.harbor || n.svGate || n.mirador;
+  const offLattice = n => n.harbor || n.svGate;
   const stats = [];
   for(let d = 0; d < DISTRICT_COLS*DISTRICT_ROWS; d++){
     const cellOf = n => hoodCellAt(n.x, n.y).idx;
@@ -52863,6 +52818,37 @@ function beachRailEnd(aE, bf, bb, z0, h){
 }
 /* a thin flat roof slab: its top, its front edge and its seen end */
 function beachSlab(a0, a1, bf, bb, z, t, col){ box(a0, a1, bb, bf, z, z + t, col, shade(col,.9), shade(col,.78)); }
+/* ---- THE MOUNTAIN MODERN HOUSE's kit (Mirador Heights, Sir 2026-11-25: "less beach and more mountain style") ----
+   the beach house's massings, re-dressed for the hills: a stone ground floor, cedar above, a dark SHED roof sloping down
+   to the view with its eaves overhanging, a stone chimney through it. Faces the eye sees only, back to front. */
+/* a shed roof over a0..a1 x bb..bf: zf its height at the front (bf), zb at the back (bb), t thick. gb (or null): the mass
+   under it -- { a0, a1, bf, bb, z, wall } -- whose seen flank (FLANK_RIGHT: a1, else a0) is carried up to the roof's
+   underside as a gable; then the roof's fascia to the view, its seen edge, its top (the top last), its standing seams */
+function mtnShed(a0, a1, bf, bb, zf, zb, t, col, gb){
+  const av = FLANK_RIGHT ? a1 : a0;
+  const under = b => zf + (zb - zf)*(bf - b)/(bf - bb) - t;
+  if(gb){
+    const ag = FLANK_RIGHT ? gb.a1 : gb.a0;
+    poly([P(ag, gb.bf, gb.z), P(ag, gb.bb, gb.z), P(ag, gb.bb, under(gb.bb)), P(ag, gb.bf, under(gb.bf))], shade(gb.wall,.8));
+  }
+  poly([P(a0, bf, zf - t), P(a1, bf, zf - t), P(a1, bf, zf), P(a0, bf, zf)], shade(col,.72));          // the fascia, to the view
+  poly([P(av, bf, zf - t), P(av, bb, zb - t), P(av, bb, zb), P(av, bf, zf)], shade(col,.82));          // its seen edge
+  poly([P(a0, bf, zf), P(a1, bf, zf), P(a1, bb, zb), P(a0, bb, zb)], col);                            // the roof
+  for(let a = a0 + 30; a < a1 - 10; a += 46) poly([P(a, bf, zf + 0.3), P(a, bb, zb + 0.3)], null, shade(col,.86), 0.8);   // its standing seams
+}
+/* the shed roof's height at b (for what stands on it) */
+function mtnShedZ(bf, bb, zf, zb, b){ return zf + (zb - zf)*(bf - b)/(bf - bb); }
+/* a stone chimney standing on the roof at a0..a1 x b1..b0 (b0 the nearer), from zr (the roof there) up to zt */
+function mtnChimney(a0, a1, b0, b1, zr, zt, stone){
+  box(a0, a1, b1, b0, zr, zt, shade(stone,1.06), stone, shade(stone,.8));
+  for(let z = zr + 14; z < zt - 4; z += 14) F(a0, a1, z, z + 1.2, shade(stone,.76), null, 0, b0 + 0.3);   // its courses
+  box(a0 - 4, a1 + 4, b1 - 4, b0 + 4, zt, zt + 6, '#5b5650', '#4e4a45', '#45413c');                     // the cap
+}
+/* stone courses over the face of a stone ground floor, on the plane b */
+function mtnCourses(a0, a1, z0, z1, b, stone, d){
+  const dd = d || 1;
+  for(let z = z0 + 16; z < z1 - 4; z += 16) F(a0, a1, z, z + 1.2, shade(stone,.78), null, 0, b + 0.35*dd);
+}
 /* the footprint of the Streamline Moderne: a rectangle whose street-side
    seen corner is rounded, radius 70, in six facets */
 const MODERNE_FOOT = (() => {
@@ -93275,6 +93261,174 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     this.ground(c, -1); this.upper(c, -1);
   }
 },
+/* ---- THE MOUNTAIN MODERN HOUSE (Sir, 2026-11-25, of Mirador Heights: "less beach and more mountain style"). The modern
+   beach house's three massings, their part order kept, re-dressed for the hills: a stone ground floor with its courses,
+   cedar above and dark timber slats, big glass to the view (where the beach house had its garage), a dark shed roof
+   sloping down to the view with overhanging eaves, a stone chimney through it. No palms. Its own entries, so North
+   Sunset Shore's are unchanged; Mirador Heights sets them on the hill with their decks and stilts (miradorDrawDeck). ---- */
+{
+  name:'Mountain Modern Cantilever', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Mountain modern house: stone ground floor, cedar upper box cantilevered over the entry under a shed roof, stone chimney',
+  desc:'A mountain modern house: a stone ground floor with a wall of glass to the view and a timber-slatted entry, a cedar upper box cantilevered forward over the door with a long glass band and a slatted screen under a dark shed roof with deep eaves, a stone chimney through it, and a timber terrace on the living room roof.',
+  tags:['double','modern','mountain','cantilever','shed roof','stone','glass'],
+  door:[200, -96],
+  liv:[ { wall:'#8a5a3b', clad:'#5e3d28', stone:'#8f877b', frame:'#26221f', roof:'#3a3d41', leaf:'#7a3a24', pave:'#a39a8a' },
+        { wall:'#a27650', clad:'#6b4a33', stone:'#a0978a', frame:'#2b2724', roof:'#4a3c34', leaf:'#2f4a3a', pave:'#aaa292' },
+        { wall:'#6f4d39', clad:'#4c3426', stone:'#7e786f', frame:'#1f1d1b', roof:'#2f3834', leaf:'#8a5a2a', pave:'#9d9585' } ],
+  vol:{
+    foot:[[36,-96],[776,-96],[776,-500],[36,-500]], h:300,
+    solids:[],
+    marks:{ door:[200,-96], mat:[200,-96+35.4] }
+  },
+  yard(c){ T(160, 240, -96, 0, 0.6, c.pave); },
+  ground(c, d){
+    const bf = d > 0 ? -96 : -500;
+    houseMass(36, 776, -96, -500, 118, c.stone, d);
+    T(36, 776, -500, -96, 118, shade(c.stone,1.04));
+    mtnCourses(36, 776, 0, 118, bf, c.stone, d);
+    if(d > 0){
+      beachSlats(110, 300, 0, 118, -96, c.clad, 1);
+      houseDoorway(200, -96, CITY_HOUSE_SC, c.frame, c.leaf, 1);
+      beachGlass(320, 764, 4, 112, -96, c.frame, 1, 74);
+    } else beachGlass(80, 700, 4, 112, -500, c.frame, -1, 78);
+    houseSideWins(36, 776, -96, -500, [[20,104]], c.frame, { plain:true, w:90, pitch:130 });
+    /* the terrace on the living room's roof: deck boards, a timber rail */
+    T(530, 776, -490, -100, 118.6, c.clad);
+    for(let b = -120; b > -490; b -= 22) poly([P(530, b, 118.8), P(776, b, 118.8)], null, shade(c.clad,.8), 0.8);
+    beachRail(530, 776, 118, 28, bf + (d > 0 ? -2 : 2), d);
+    beachRailEnd(FLANK_RIGHT ? 776 : 530, -100, -490, 118, 28);
+  },
+  upper(c, d){
+    box(20, 520, -470, -66, 118, 236, c.wall, c.wall, shade(c.wall,.8));
+    const bf = d > 0 ? -66 : -470;
+    beachGlass(40, 330, 134, 222, bf, c.frame, d, 72);
+    beachSlats(344, 508, 124, 232, bf, c.clad, d);
+    houseSideWins(20, 520, -66, -470, [[136,222]], c.frame, { plain:true, w:120, pitch:170 });
+    mtnShed(0, 540, -40, -490, 244, 290, 10, c.roof, { a0: 20, a1: 520, bf: -66, bb: -470, z: 236, wall: c.wall });
+    mtnChimney(410, 466, -380, -430, mtnShedZ(-40, -490, 244, 290, -380) - 4, 330, c.stone);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.upper(c, 1);
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.ground(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.ground(c, -1); this.upper(c, -1);
+  }
+},
+{
+  name:'Mountain Modern Terrace', hood:'The Flats', tier:'double', sc:CITY_HOUSE_SC, ww:HOUSE_DOUBLE, dd:HOUSE_DEPTH_LAB,
+  head:'Mountain modern house: all-glass stone-framed ground floor, cedar upper floor behind a balcony, a shed roof on timber posts',
+  desc:'A mountain modern house: a stone ground floor that is almost all glass to the view, a cedar-clad upper floor set back behind a full-width balcony, and a dark shed roof floating out over the balcony on two timber posts, a stone chimney rising through it at the back.',
+  tags:['double','modern','mountain','balcony','glass','shed roof','stone'],
+  door:[650, -96],
+  liv:[ { wall:'#94623f', clad:'#5a3a26', stone:'#8c8479', frame:'#24211f', roof:'#383b3f', leaf:'#6e3a24', pave:'#a39a8a', post:'#6b4a33' },
+        { wall:'#7e573c', clad:'#4f3626', stone:'#9d9487', frame:'#2b2724', roof:'#463a32', leaf:'#30483a', pave:'#aaa292', post:'#5a3e2c' },
+        { wall:'#a8784e', clad:'#6a4830', stone:'#7c766c', frame:'#1d1c1a', roof:'#2e3733', leaf:'#8a5a2a', pave:'#9d9585', post:'#704c34' } ],
+  vol:{
+    foot:[[30,-96],[780,-96],[780,-500],[30,-500]], h:300,
+    solids:[ { name:'post L', c:[44,-88], r:6, h:226 },
+             { name:'post R', c:[766,-88], r:6, h:226 } ],
+    marks:{ door:[650,-96], mat:[650,-96+35.4] }
+  },
+  yard(c){ T(610, 690, -96, 0, 0.6, c.pave); },
+  body(c, d){
+    const bf = d > 0 ? -96 : -500;
+    houseMass(30, 780, -96, -500, 116, c.stone, d);
+    T(30, 780, -500, -96, 116, shade(c.stone,1.04));
+    mtnCourses(30, 780, 0, 116, bf, c.stone, d);
+    if(d > 0){
+      beachGlass(64, 568, 4, 110, -96, c.frame, 1, 66);
+      beachSlats(580, 770, 0, 116, -96, c.clad, 1);
+      houseDoorway(650, -96, CITY_HOUSE_SC, c.frame, c.leaf, 1);
+    } else beachGlass(60, 740, 4, 110, -500, c.frame, -1, 70);
+    houseSideWins(30, 780, -96, -500, [[20,102]], c.frame, { plain:true, w:90, pitch:130 });
+    /* the balcony on the ground floor's roof, then the cedar floor set back behind it */
+    T(30, 780, -200, -96, 116.6, shade(c.clad,1.1));
+    for(let a = 50; a < 780; a += 24) poly([P(a, -98, 116.8), P(a, -200, 116.8)], null, shade(c.clad,.85), 0.8);
+    box(60, 750, -490, -200, 116, 226, c.wall, c.wall, shade(c.wall,.78));
+    const uf = d > 0 ? -200 : -490;
+    beachSlats(60, 750, 116, 226, uf, c.clad, d, 8);
+    beachGlass(120, 610, 132, 214, uf, c.frame, d, 70);
+    houseSideWins(60, 750, -200, -490, [[132,214]], c.frame, { plain:true, w:110, pitch:150 });
+    beachRail(30, 780, 116, 28, bf + (d > 0 ? -2 : 2), d);
+    beachRailEnd(FLANK_RIGHT ? 780 : 30, -98, -200, 116, 28);
+  },
+  roof(c){
+    for(const a of [44, 766]) box(a - 5, a + 5, -93, -83, 116, 232, c.post, c.post, shade(c.post,.75));
+    mtnShed(0, 810, -70, -510, 232, 284, 10, c.roof, { a0: 60, a1: 750, bf: -200, bb: -490, z: 226, wall: c.wall });
+    mtnChimney(90, 150, -400, -452, mtnShedZ(-70, -510, 232, 284, -400) - 4, 326, c.stone);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.roof(c);
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.body(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.body(c, -1); this.roof(c);
+  }
+},
+{
+  name:'Mountain Modern Tower', hood:'The Flats', tier:'single', sc:CITY_HOUSE_SC, ww:HOUSE_SINGLE, dd:HOUSE_DEPTH_LAB,
+  head:'Mountain modern house: three storeys on a narrow lot, a stone base, a cedar middle floor cantilevered forward, a steep shed roof',
+  desc:'A narrow mountain modern house: a stone ground floor with a slatted timber entry and glass, a cedar middle floor cantilevered forward with a glass band and a timber screen, and a tall glazed top floor under a steep shed roof with deep eaves, its stone chimney at the back.',
+  tags:['single','modern','mountain','tower','shed roof','stone','glass'],
+  door:[110, -96],
+  liv:[ { wall:'#8a5a3b', clad:'#5e3d28', stone:'#8f877b', frame:'#26221f', roof:'#3a3d41', leaf:'#7a3a24', pave:'#a39a8a' },
+        { wall:'#a27650', clad:'#6b4a33', stone:'#a0978a', frame:'#2b2724', roof:'#4a3c34', leaf:'#2f4a3a', pave:'#aaa292' },
+        { wall:'#6f4d39', clad:'#4c3426', stone:'#7e786f', frame:'#1f1d1b', roof:'#2f3834', leaf:'#8a5a2a', pave:'#9d9585' } ],
+  vol:{
+    foot:[[40,-96],[420,-96],[420,-500],[40,-500]], h:370,
+    solids:[],
+    marks:{ door:[110,-96], mat:[110,-96+35.4] }
+  },
+  yard(c){ T(70, 150, -96, 0, 0.6, c.pave); },
+  ground(c, d){
+    houseMass(40, 420, -96, -500, 110, c.stone, d);
+    mtnCourses(40, 420, 0, 110, d > 0 ? -96 : -500, c.stone, d);
+    if(d > 0){
+      beachSlats(50, 180, 0, 110, -96, c.clad, 1);
+      houseDoorway(110, -96, CITY_HOUSE_SC, c.frame, c.leaf, 1);
+      beachGlass(196, 410, 4, 104, -96, c.frame, 1, 72);
+    } else beachGlass(60, 400, 4, 104, -500, c.frame, -1, 70);
+    houseSideWins(40, 420, -96, -500, [[20,96]], c.frame, { plain:true, w:80, pitch:130 });
+  },
+  upper(c, d){
+    box(30, 430, -484, -78, 110, 216, c.wall, c.wall, shade(c.wall,.8));
+    const bf = d > 0 ? -78 : -484;
+    beachGlass(46, 270, 128, 202, bf, c.frame, d, 75);
+    beachSlats(282, 418, 116, 212, bf, c.clad, d);
+    houseSideWins(30, 430, -78, -484, [[128,202]], c.frame, { plain:true, w:110, pitch:150 });
+    /* the top floor, glazed to the view, under the steep shed */
+    box(40, 420, -470, -110, 216, 300, c.wall, c.wall, shade(c.wall,.8));
+    beachGlass(60, 400, 226, 292, d > 0 ? -110 : -470, c.frame, d, 64);
+    mtnShed(20, 440, -86, -494, 308, 370, 10, c.roof, { a0: 40, a1: 420, bf: -110, bb: -470, z: 300, wall: c.wall });
+    mtnChimney(70, 122, -390, -436, mtnShedZ(-86, -494, 308, 370, -390) - 4, 404, c.stone);
+  },
+  fore(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.upper(c, 1);
+  },
+  draw(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c); this.ground(c, 1);
+  },
+  back(p){
+    const c = this.liv[state.pal % this.liv.length];
+    this.yard(c);
+    this.ground(c, -1); this.upper(c, -1);
+  }
+},
 /* ---- FERRIS TAYLOR'S HOUSES: the town set from labs/houses.js (see
    FERRIS TAYLOR). VERBATIM copies but for the scale word, exactly as
    MARITIME'S HOUSES: HOUSE_SC reads CITY_HOUSE_SC. They keep the lab's own
@@ -110080,6 +110234,11 @@ class WorldScene extends Phaser.Scene {
           if(h !== null) return h;
         }
     }
+    /* MIRADOR HEIGHTS' houses up the hills, from their floors' heights (miradorBuiltAt) */
+    if(WORLDGEN_COAST && typeof miradorBuiltAt === "function" && this.route && this.route.grid){
+      const mh = miradorBuiltAt(this.route.grid, x, y, this.ow && this.ow.on && !this.ow.fly ? sierraZ(this.botX, this.botY) : 0);   // (from the ground he stands on: the x-ray measures from his feet)
+      if(mh !== null) return mh;
+    }
     /* NORTH SUNSET SHORE'S HOUSES ARE AS TALL AS THEY ARE, WHERE THEY ARE
        (Sir, on-device, on the boardwalk behind a Beach Modern house:
        "the ray not happening when I'm on the boardwalk by the strand").
@@ -110090,12 +110249,6 @@ class WorldScene extends Phaser.Scene {
        reads it (see nssRowsOf / the volume test after the gardens) and as
        hoodShopHeightAt reads a neighbourhood's houses; the garden between
        them is open. */
-    /* ...and MIRADOR HEIGHTS' houses, the same family, the same way (miradorBuiltAt): the east row stands in front of its
-       own pavement on screen, so he ghosts through it there */
-    if(WORLDGEN_COAST && typeof miradorBuiltAt === "function" && this.route && this.route.grid){
-      const mh = miradorBuiltAt(this.route.grid, x, y);
-      if(mh !== null) return mh;
-    }
     if(WORLDGEN_COAST && typeof nssRowsOf === "function"){
       const g3 = this.route && this.route.grid;
       if(g3) for(const [lot, row] of nssRowsOf(g3)){
@@ -116418,7 +116571,7 @@ class WorldScene extends Phaser.Scene {
       const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4], len = Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y);
       let s0 = ROAD_HALF, s1 = len - ROAD_HALF;
       if(edge.a.svGate) s0 += sierraGeo().round.r - ROAD_HALF;          // (as the centre line: not into the gate's round)
-      { const er = latticeEndRound(edge.a); if(er) s0 += er.r - 260 - ROAD_HALF; }   // (nor the harbour's turning circle, nor Mirador's)
+      if(edge.a.harborEnd) s0 += harborGeo().round.r - 260 - ROAD_HALF; // (nor the harbour's turning circle)
       if(s1 <= s0) continue;
       roadAsphaltPaint(this, g, { ax: edge.a.x, ay: edge.a.y, dv, rv, s0, s1, len,
         key: edge.a.x + ',' + edge.a.y + '>' + edge.b.x + ',' + edge.b.y,
@@ -116427,7 +116580,7 @@ class WorldScene extends Phaser.Scene {
     { const deg = r.grid._roadDeg || (r.grid._roadDeg = (() => { const m = new Map();
         for(const e of r.grid.edges) for(const n of [e.a, e.b]) m.set(n, (m.get(n) || 0) + 1); return m; })());
       for(const nd of r.grid.nodes){
-        if((deg.get(nd) || 0) < 2 || nd.svGate || nd.harborEnd || nd.miradorEnd) continue;
+        if((deg.get(nd) || 0) < 2 || nd.svGate || nd.harborEnd) continue;
         if(Math.abs(nd.x - this.camX) + Math.abs(nd.y - this.camY) > cullSpan + ROAD_HALF) continue;
         roadJunctionPaint(this, g, nd);
       } }
@@ -116506,8 +116659,8 @@ class WorldScene extends Phaser.Scene {
         const cut = sierraGeo().round.r - ROAD_HALF;
         sx += dv.x*cut; sy += dv.y*cut; len -= cut;
       }
-      if(latticeEndRound(edge.a)){                        // nor into the harbor's turning circle (or Mirador's), 260 north of its end node
-        const cut = latticeEndRound(edge.a).r - 260 - ROAD_HALF;
+      if(edge.a.harborEnd){                               // nor into the harbor's turning circle, 260 north of its end node
+        const cut = harborGeo().round.r - 260 - ROAD_HALF;
         sx += dv.x*cut; sy += dv.y*cut; len -= cut;
       }
       if(len <= 0) continue;
@@ -116816,7 +116969,7 @@ class WorldScene extends Phaser.Scene {
         /* the street into the estate's gate round: its kerb starts where the
            round's fillet ends (see round in sierraGeo, drawSierraRound) */
         const s0 = edge.a.svGate ? sierraGeo().round.fx - TANG
-                 : latticeEndRound(edge.a) ? latticeEndRound(edge.a).kerbS - TANG
+                 : edge.a.harborEnd ? harborGeo().round.kerbS - TANG
                  : sideOpen(edge.a, sgn) ? 0 : -TANG - (lOut(edge.a, (edge.f + 2) % 4) ? ROAD_HALF - L_OUT_R : 0);
         const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG + (lOut(edge.b, edge.f) ? ROAD_HALF - L_OUT_R : 0));
         band(sgn, s0, s1);
@@ -116900,7 +117053,7 @@ class WorldScene extends Phaser.Scene {
           }
         };
         if(!sideOpen(edge.b, sgn)) gully(len + TANG);
-        if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4] && !edge.a.svGate && !edge.a.harborEnd && !edge.a.miradorEnd) gully(-TANG);   // the estate's street carries on through the gate
+        if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4] && !edge.a.svGate && !edge.a.harborEnd) gully(-TANG);   // the estate's street carries on through the gate
       }
     }
     /* ---- THE CORNERS (Sir: "lets make it curve around the block with an
@@ -123932,6 +124085,7 @@ class WorldScene extends Phaser.Scene {
   hillPlantBlocked(x, y, m){
     const G = flyHillsGeo(), S = sierraGeo(), P = SP_PLAN;
     if(x < G.X0 + m || x > this.hillXMax() - m || y > G.Y0 - 40 - m) return true;
+    if(this.route && this.route.grid && miradorClaims(this.route.grid, x, y, m)) return true;   // MIRADOR HEIGHTS: its road, drives, pads and houses
     if(x < S.xe + 600 + m && y < S.wallY + 150 + m && y > S.e[4] - 400 - m) return true;
     if(x < S.xw + 200 + m && y > G.toe(x) - 200 - m) return true;   // the harbour seam's verge, west of the estate's wall (queueHarborSeam's)
     if(Math.hypot(x - S.round.x, y - S.round.y) < S.round.out + 150 + m) return true;
@@ -146617,7 +146771,7 @@ class WorldScene extends Phaser.Scene {
     const boxOf = (p) => {
       const i = Math.round(p.x/BLOCK), j = Math.round(p.y/BLOCK);
       if(!(Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF)) return null;
-      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate || n.mirador) return null; }
+      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate) return null; }
       return i + "," + j;
     };
     const cars = [];
@@ -148217,7 +148371,7 @@ class WorldScene extends Phaser.Scene {
     const grid = this.route && this.route.grid, LINE = STOP_LINE_D, LOOK = LINE + SIGNAL.stopBand + 20;
     const boxOf = q => { const i = Math.round(q.x/BLOCK), j = Math.round(q.y/BLOCK);
       if(!(Math.abs(q.x - i*BLOCK) < ROAD_HALF && Math.abs(q.y - j*BLOCK) < ROAD_HALF)) return null;
-      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate || n.mirador) return null; } return [i, j]; };
+      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate) return null; } return [i, j]; };
     if(boxOf({ x, y })) return false;
     for(let a = 20; a <= LOOK; a += 20){
       const b = boxOf({ x: x + hx*a, y: y + hy*a });
@@ -148239,7 +148393,7 @@ class WorldScene extends Phaser.Scene {
     const boxOf = p => {
       const i = Math.round(p.x/BLOCK), j = Math.round(p.y/BLOCK);
       if(!(Math.abs(p.x - i*BLOCK) < ROAD_HALF && Math.abs(p.y - j*BLOCK) < ROAD_HALF)) return null;
-      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate || n.mirador) return null; }
+      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate) return null; }
       return [i, j];
     };
     for(const rd of riders){
@@ -156986,6 +157140,7 @@ function sierraDriveAt(x, y){
 /* the ground height at (x, y): the shelf you stand on, or the ramp */
 function sierraZ(x, y){
   if(!WORLDGEN_COAST) return 0;
+  { const mz = miradorZ(x, y); if(mz !== null) return mz; }      // (MIRADOR HEIGHTS' road up the hills: the hill's own height under it)
   { const pz = spGroundZ(x, y); if(pz !== null) return pz; }      // (the security post's lawn, level with the first terrace, and its drive's climb)
   const S = sierraGeo();
   if(x > S.xe + 12 && y < S.e[1] && y > S.e[4]) return 0;   // (outside the east wall past the lawn it is the bench, at the ground, not the terrace's height)
@@ -157387,12 +157542,11 @@ let _eastGeo = null;
 function eastGeo(grid){
   if(_eastGeo && _eastGeo.grid === grid) return _eastGeo;
   const B = BLOCK, C = WG_COAST, F = C.FOOTW*B, X1 = (grid.cols - 1)*B + C.EXT*B, Y0 = -C.EXT*B, Y1 = (grid.rows - 1)*B + C.EXT*B;
-  const Yend = Y1 + (C.BOARD + C.SANDW)*B, ty = 10*B;                // (the j=10 row: Mirador Heights' street comes out along it)
-  /* the trailhead: off the south pavement of Mirador Heights' street, just short of its corner (the drive turns north there) */
-  const head = { x0: X1 + 640, x1: X1 + 1240, y0: ty + ROAD_HALF + SIDEWALK_W - 4, y1: ty + ROAD_HALF + SIDEWALK_W + 520 };
+  const Yend = Y1 + (C.BOARD + C.SANDW)*B, ty = 10*B;                // (the j=10 row: where Mirador Heights' stub came out)
+  const head = { x0: X1 - 6, x1: X1 + 470, y0: ty - 300, y1: ty + 300 };
   const look = { x: Math.round(X1 + 0.5*F), y: Math.round(Yend - 700), r: 330 };
   /* the trail's line: out of the trailhead east, then down the foothills, wandering across the band's lawn edge, to the lookout */
-  const rr = mulberry32(0xea57e1), cp = [[head.x0 + 330, head.y1 - 60], [X1 + 0.3*F, head.y1 + 900], [X1 + 0.4*F, ty + 3000]];
+  const rr = mulberry32(0xea57e1), cp = [[head.x1 - 60, ty], [X1 + 0.28*F, ty + 700], [X1 + 0.4*F, ty + 2300]];
   for(let y = ty + 5600; y < look.y - 4200; y += 3700) cp.push([X1 + F*(0.34 + rr()*0.18), y]);
   cp.push([look.x - 260, look.y - 1500], [look.x, look.y - look.r + 60]);
   const tx = [], tyv = [];
@@ -157418,7 +157572,7 @@ function eastGeo(grid){
   }
   /* the furniture: [kind, x, y, dir] -- a bench's dir its DIRV (DIRV[0] sits facing +y, south: down the band, to the sea) */
   const furn = [
-    ["bench", head.x0 + 190, head.y0 + 90, 0], ["bin", head.x0 + 470, head.y0 + 110, 0], ["marker", head.x0 + 170, head.y1 - 150, 0],
+    ["bench", head.x0 + 210, head.y0 + 95, 0], ["bin", head.x0 + 345, head.y0 + 85, 0], ["marker", head.x1 - 90, head.y1 - 70, 0],
     ["bench", look.x - 120, look.y + 90, 0], ["bench", look.x + 140, look.y + 90, 0], ["marker", look.x - 210, look.y - 170, 0],
   ];
   return (_eastGeo = { grid, B, F, X1, Y0, Y1, Yend, ty, head, look, tr: { x: tx, y: tyv, nx, ny, hw, bucket }, furn, cells: new Map() });
@@ -157495,21 +157649,23 @@ function eastTrailGround(S, g, onScreen, G){
     }
   }
 }
-/* (late in the ground pass, after the rim's lots: drawGroundPass) MIRADOR HEIGHTS' ground (miradorGround: its lots' gravel,
-   the turning circle, the palms' wells) and THE TRAILHEAD's pad, off the street's south pavement (square on the pavement's
-   side, its far corners rounded), over its edging */
+/* (late in the ground pass, after the rim's lots: drawGroundPass) THE TRAILHEAD: a gravel walk in from the pavement across the
+   rim's lawn, and the pad at the band's edge (square on the city's side, its far corners rounded), each over its edging */
 function eastGroundLate(S, g, onScreen){
   if(!WORLDGEN_COAST || !S.route || !S.route.grid) return;
-  miradorGround(S, g, onScreen);
+  miradorGround(S, g, onScreen);                                  // MIRADOR HEIGHTS' road up the hills, its drives and pads
   const G = eastGeo(S.route.grid), H = G.head, span = flatSpanOf(S.cx, S.cy, S.vpW(), S.vpH(), S.K, S.camZ) + 800;
-  if(Math.abs(H.x0 - S.camX) + Math.abs(H.y0 - S.camY) > span) return;
-  const GRAV = 0xc9b994, GRAV_E = 0x9a8866;
+  if(Math.abs(H.x0 - S.camX) + Math.abs(G.ty - S.camY) > span) return;
+  const GRAV = 0xc9b994, GRAV_E = 0x9a8866, xs = (S.route.grid.cols - 1)*G.B + ROAD_HALF + SIDEWALK_W - 2;   // (the pavement's outer edge)
   const pad = e => {
-    const R = 150 + e, out = [[H.x0 - e, H.y0], [H.x1 + e, H.y0]];
-    for(let k = 0; k <= 8; k++){ const a = k/8*Math.PI/2; out.push([H.x1 - 150 + Math.cos(a)*R, H.y1 - 150 + Math.sin(a)*R]); }
-    for(let k = 0; k <= 8; k++){ const a = Math.PI/2 + k/8*Math.PI/2; out.push([H.x0 + 150 + Math.cos(a)*R, H.y1 - 150 + Math.sin(a)*R]); }
+    const R = 150 + e, cx1 = H.x1 - 150, out = [[H.x0, H.y0 - e]];
+    for(let k = 0; k <= 8; k++){ const a = -Math.PI/2 + k/8*Math.PI/2; out.push([cx1 + Math.cos(a)*R, H.y0 + 150 + Math.sin(a)*R]); }
+    for(let k = 0; k <= 8; k++){ const a = k/8*Math.PI/2; out.push([cx1 + Math.cos(a)*R, H.y1 - 150 + Math.sin(a)*R]); }
+    out.push([H.x0, H.y1 + e]);
     return out; };
-  eastPad(S, g, onScreen, pad(14), GRAV_E); eastPad(S, g, onScreen, pad(0), GRAV);
+  const walk = e => [[xs, G.ty - 120 - e], [H.x0 + 20, G.ty - 120 - e], [H.x0 + 20, G.ty + 120 + e], [xs, G.ty + 120 + e]];
+  eastPad(S, g, onScreen, walk(12), GRAV_E); eastPad(S, g, onScreen, pad(14), GRAV_E);
+  eastPad(S, g, onScreen, walk(0), GRAV); eastPad(S, g, onScreen, pad(0), GRAV);
 }
 /* the nearest the trail comes to (x, y), as far as `lim` (Infinity past it) */
 function eastTrailDist(G, x, y, lim){
@@ -157522,9 +157678,8 @@ function eastTrailDist(G, x, y, lim){
 function eastPlantBlocked(G, x, y, m){
   const E = EAST_EDGE, H = G.head, L = G.look;
   if(x < G.X1 + E.verge + m || x > G.X1 + G.F*E.reach - m || y < G.Y0 + 60 + m || y > G.Yend - 260 - m) return true;
-  if(x > H.x0 - 120 - m && x < H.x1 + 120 + m && y > H.y0 - 120 - m && y < H.y1 + 120 + m) return true;
+  if(x < H.x1 + 120 + m && y > H.y0 - 120 - m && y < H.y1 + 120 + m) return true;
   if(Math.hypot(x - L.x, y - L.y) < L.r + 120 + m) return true;
-  if(miradorClaims(G.grid, x, y, m)) return true;                 // Mirador Heights' street, its circle, its houses
   return eastTrailDist(G, x, y, 400) < E.trailW + 60 + m;
 }
 /* THE PLANTING: one cell's clumps, built once and kept (a slot every `step`, a fixed count of rolls per slot); each clump cut
@@ -157619,6 +157774,7 @@ function eastDrawMarker(S, g, x, y){
 /* THE HOOK (the world queue): the planting and the trail's furniture */
 function eastQueue(S, vq){
   if(!WORLDGEN_COAST || !S.route || !S.route.grid) return;
+  miradorQueue(S, vq);                                            // MIRADOR HEIGHTS: its houses, decks, guardrail and lamps
   const G = eastGeo(S.route.grid), E = EAST_EDGE;
   /* the view's reach on the ground, as queueHillPlanting's: the screen's corners carried down to the ground and up to a crown */
   const o = S.W(0, 0, 0), ex = S.W(1, 0, 0), ey = S.W(0, 1, 0), ez = S.W(0, 0, 1);
@@ -157643,18 +157799,13 @@ function eastQueue(S, vq){
     else if(kind === "bin") vq.push({ depth: x + y, fn: (g) => S.bcDraw(g, key, x, y, gg => S.drawProp(gg, "bin", x, y, 0)) });
     else vq.push({ depth: x + y, fn: (g) => S.bcDraw(g, key, x, y, gg => eastDrawMarker(S, gg, x, y)) });
   }
-  miradorQueue(S, vq);                                            // MIRADOR HEIGHTS: its houses, lamps and palms
 }
 /* (solidAt) the trunks, the boulders and the trail's furniture -- only once the band's geometry is built (the ground pass builds it) */
 function eastSolidAt(grid, x, y, R){
   if(!WORLDGEN_COAST || !_eastGeo || _eastGeo.grid !== grid) return null;
   const G = _eastGeo, E = EAST_EDGE;
-  const blk = G.blk || (G.blk = { x0: G.X1, x1: G.X1 + G.F*E.reach, y0: G.Y0, y1: G.Yend, cx: G.X1 + G.F*0.7, cy: (G.Y0 + G.Yend)/2, i: 0, j: 0, type: "park" });
-  /* MIRADOR HEIGHTS' lamp posts and palm trunks (its stub's reach back over the city's edge too) */
-  { const P = miradorPlan(grid);
-    if(!P.none && x > P.box.x0 - R - 40 && x < P.box.x1 + R + 40 && y > P.box.y0 - R - 40 && y < P.box.y1 + R + 40)
-      for(const p of P.furn) if(Math.abs(p.x - x) < R + 40 && Math.abs(p.y - y) < R + 40 && fmBodyHits(x, y, R, { c: [p.x, p.y], r: p.kind === "lamp" ? 10 : 14 })) return blk; }
   if(x < G.X1 - R || x > G.X1 + G.F*E.reach + R || y < G.Y0 - R || y > G.Yend + R) return null;
+  const blk = G.blk || (G.blk = { x0: G.X1, x1: G.X1 + G.F*E.reach, y0: G.Y0, y1: G.Yend, cx: G.X1 + G.F*0.7, cy: (G.Y0 + G.Yend)/2, i: 0, j: 0, type: "park" });
   for(const [kind, fx, fy, dir] of G.furn){
     if(kind === "bench"){ const hw = BENCH_ART.w/2, hd = BENCH_ART.depth; const dv = DIRV[dir];
       const ax0 = dv.x ? fx - hw : fx, ax1 = dv.x ? fx + hw : fx + hd, ay0 = dv.x ? fy : fy - hw, ay1 = dv.x ? fy + hd : fy + hw;
@@ -157675,250 +157826,420 @@ function eastSolidAt(grid, x, y, R){
 /* the minimap's trail (drawMinimap): the trail's line and the two pads, in the trail's dirt */
 function eastMapTrail(grid, toScreen, ctx, roadCol){
   const G = eastGeo(grid), T = G.tr;
+  miradorMap(grid, toScreen, ctx, roadCol);
   ctx.save(); ctx.strokeStyle = "#bfa676"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.beginPath();
   for(let i = 0; i < T.x.length; i += 4){ const p = toScreen({ x: T.x[i], y: T.y[i] }); if(i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
   ctx.stroke();
   ctx.fillStyle = "#c9b994";
-  miradorMap(grid, toScreen, ctx, roadCol);
-  ctx.fillStyle = "#c9b994";
-  for(const [x, y, r] of [[(G.head.x0 + G.head.x1)/2, (G.head.y0 + G.head.y1)/2, 260], [G.look.x, G.look.y, G.look.r]]){
+  for(const [x, y, r] of [[(G.head.x0 + G.head.x1)/2, G.ty, 260], [G.look.x, G.look.y, G.look.r]]){
     const p = toScreen({ x, y }), e = toScreen({ x: x + r, y });
     ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, Math.abs(e.x - p.x)), 0, Math.PI*2); ctx.fill();
   }
   ctx.restore();
 }
-/* ==================== MIRADOR HEIGHTS (Sir, 2026-11-25: "I want to build houses there that resemble the beach houses") ====
-   The east band's neighbourhood, on the street buildGrid carries off the j=10 row: a block east from the city's edge to a
-   corner at (36, 10), then north up the foothills three blocks to a turning circle at (36, 7) -- all lattice, so it is the
-   city's street (asphalt, pavements, kerbs, crossings at each block's middle, the junction at (35, 10) with its light), and
-   surfaceAt, the kerb and the GPS know it. On it:
-     THE HOUSES   both sides of the drive, North Sunset Shore's modern beach house family (Beach Modern Tower, Cantilever,
-                  Terrace; now and then an old bungalow) on rows laid as nssRowsOf lays its lots -- an edge on the lot's front
-                  line, rv out to the kerb, each house its declared volume (solid: miradorBlocked), drawn and cached by the
-                  house library (queueHousingEdgeAt -> drawLibUnit -> bcDraw), its drive out to a dropped kerb
-                  (hoodDrivewaysOf), the gaps between fenced by the kit. Picked off a fixed seed. The west row fronts east, to
-                  the camera; it stands between the city's rim and the drive with its back just inside the band's edge, so its
-                  roofs reach back over the rim's own lots on screen, never as far as the city's pavement (a house is ~480
-                  high, the pavement 984 behind the band's edge). The east row fronts west, its plain back to the camera.
-     THE YARDS    landscaping gravel (NSS_GROUND), lot to lot, no lawns; the east edge's wild planting grows in the gaps and
-                  behind (miradorClaims keeps it off the street, the circle, the houses and the lots' fronts);
-     THE STREET'S FURNITURE  the city's lamps and palms on the kerb rows at the city's stride (as hillRoadFurn lays the
-                  street up to Sierra Vista), clear of corners, crossings, drives and front walks; cached, solid, lit at night.
-   The circle is Harbor Road's: centred 260 past the end node, drawn by drawKerbRound, asked by miradorRoundSurface. ---- */
-const MIRADOR_HOUSES = ['Beach Modern Tower', 'Beach Modern Cantilever', 'Beach Modern Terrace'];
-const MIRADOR_OLD = ['Seabreeze Bungalow', 'Driftwood Craftsman'];      // (now and then, one from before the money came)
-let _mirPlan = null;
-/* the turning circle at a lattice street's dead end: Harbor Road's, or Mirador Heights' (as Harbor Road's: 260 past the node) */
-function latticeEndRound(n){
-  if(n.harborEnd) return harborGeo().round;
-  if(!n.miradorEnd) return null;
-  if(n._round) return n._round;
-  const c = { x: n.x, y: n.y - 260, r: 760, rf: 2*T2 };
-  c.out = c.r + SIDEWALK_W;
-  c.fx = Math.sqrt((c.r + c.rf)**2 - (ROAD_HALF + c.rf)**2);
-  c.kerbS = c.fx - 260;
-  return (n._round = c);
+/* ==================== MIRADOR HEIGHTS, UP IN THE HILLS (Sir, 2026-11-25: "I want it perched higher up in the hills, no
+   retaining wall, this is a mountain road situation"; "less beach and more mountain style ... spread them out giving them
+   their own climbing and descending driveways") ====================
+   Behind the city's north-east corner, where the north hills climb behind the town on screen:
+     THE ROAD     out of the city's north street opposite column 32's street (the north-east's last that runs south from it) (a dropped kerb: hoodDrivewaysOf), north over the rim's
+                  lawn and the bench, up the first riser onto shelf 0, east along it, a hairpin up across shelf 1 to shelf 2,
+                  west along that, a hairpin up across shelf 3 to the top shelf, and east along the top past the city's
+                  corner into the drying hills to a turning circle. A narrow two-lane hill road: no pavement, a gravel
+                  shoulder, edge lines and a dashed centre line. It LIES ON THE GROUND: draped over northHillPolys' own
+                  shelves and risers, each of its points at the ground's height there (miradorGroundZ, the terraces' own
+                  lines and wobble), so where it crosses a riser it ramps up the slope itself -- no wall, no platform. Along
+                  each shelf it keeps a constant way back from the shelf's lip, so it winds as the shelf does. A guardrail of
+                  timber posts and a steel rail along its downhill side on the shelves (gapped at the drives), the odd lamp.
+     DRIVING      the road, the drives and the parking pads answer surfaceAt (miradorSurface) and sierraZ (miradorZ: the
+                  ground there), so he climbs it as he climbs Sierra Vista's ramps; off it the hills are nobody's ground
+                  and stop him (owNorthEdgeBlocks), so the road's edge is its wall.
+     THE HOUSES   twelve MOUNTAIN MODERN houses (the beach house's massings re-dressed: stone, cedar, shed roofs, chimneys),
+                  spread along the road on shelves 1 and 3 -- between its runs -- and two on the top: each on its own
+                  spot, its front to the view, its deck and the front of the house out over the riser below on timber
+                  stilts down to the slope (miradorDrawDeck), at its shelf's own height. Each its own drive from its own
+                  point on the road: CLIMBING the riser to it from the run below, or DESCENDING to it from the run above,
+                  angled across the slope, to a parking pad beside the house. Library houses (queueHousingEdgeAt, cached by
+                  drawLibUnit) drawn lifted to their height (hillLift), solid (miradorBlocked), x-rayed (miradorBuiltAt).
+   The hillside planting keeps off all of it (miradorClaims). All of it off fixed numbers and the ground: never time. */
+const MIRADOR_HILL = { xEntry: 100096, xE: 106800, xW: 99000, xEnd: 112700, RH: 170, SH: 36, off: 250, R: 300, circle: 380,
+  DRIVE: 78, PAD: [300, 300], ds: 40 };
+let _mirPlan = null, _mirT = null;
+function mirT(){
+  if(_mirT) return _mirT;
+  const G = flyHillsGeo(), H = WG_HILLS, B = BLOCK, n = H.steps.length, amp = [], ph = [], run = [];
+  for(let k = 0; k < n; k++){ const d = H.steps[k][0]*B; amp.push(H.wob*d); ph.push([k*1.7 + 0.4, k*2.9 + 1.1]); run.push(H.run*d); }
+  return (_mirT = { G, n, amp, ph, run, f1: Math.PI*2/(2.6*B), f2: Math.PI*2/(0.9*B) });
 }
-function miradorPlan(grid){
-  if(_mirPlan && _mirPlan.grid === grid) return _mirPlan;
-  const end = WORLDGEN_COAST && grid && grid.nodeAt ? grid.nodeAt(grid.cols, MIRADOR.J_END) : null;
-  if(!end || !end.miradorEnd || typeof LIB === "undefined" || !LIB.get(MIRADOR_HOUSES[0])) return { grid, none: true, rows: [], furn: [] };
-  const B = BLOCK, RX = end.x, ST = ROAD_HALF + SIDEWALK_W, yC = MIRADOR.J*B, round = latticeEndRound(end);
-  const X1 = (grid.cols - 1)*B + WG_COAST.EXT*B;
-  const yN = Math.ceil(round.y + Math.sqrt(round.out*round.out - ST*ST) + 80), yS = yC - ST - 60;
-  /* the crossings' pads on the drive (its corner's, each block's middle: buildWorldCurbRamps): a drive's mouth is kept a run
-     of kerb clear of them, as nssRowsOf's DRIVE_CLEAR */
-  const CLR = TILE + 2*T2 + 60, ramps = [yC - WORLD_RAMP.along];
-  for(let j = MIRADOR.J_END; j < MIRADOR.J; j++) ramps.push((j + 0.5)*B);
-  const rows = [], foot = [];
-  for(const side of [-1, 1]){             // -1 the west row (fronts east, to the camera), +1 the east row (fronts west)
-    const e = side < 0 ? { ox: RX - ST, oy: yN, dv: { x: 0, y: 1 }, rv: { x: 1, y: 0 }, len: yS - yN }
-                       : { ox: RX + ST, oy: yS, dv: { x: 0, y: -1 }, rv: { x: -1, y: 0 }, len: yS - yN };
-    const yOf = al => e.oy + e.dv.y*al;
-    const spansOf = (n, st) => { const sh = LIB.get(n), SC = sh.sc || 1, mir = (e.dv.x + e.dv.y) <= 0 && sh.mirror !== false;
-      return (sh.drive || []).filter(d => d.side === "front").map(d => [st + (mir ? sh.ww - d.to : d.from)*SC, st + (mir ? sh.ww - d.from : d.to)*SC]); };
-    const clash = (n, st) => spansOf(n, st).some(([a0, a1]) => { const y0 = Math.min(yOf(a0), yOf(a1)), y1 = Math.max(yOf(a0), yOf(a1));
-      return ramps.some(r => y1 > r - CLR && y0 < r + CLR); });
-    const rr = mulberry32(side < 0 ? 0x3a1d0e : 0x3a1d0f), units = [];
-    let at = 40;
-    for(let k = 0; k < 12; k++){
-      const old = rr() < 0.16, pool = (old ? MIRADOR_OLD : MIRADOR_HOUSES).filter(n => LIB.get(n)), pr = rr(), pal = Math.floor(rr()*3), gap = 80 + Math.round(rr()*180);
-      if(!pool.length) break;
-      let n = pool[Math.floor(pr*pool.length)];
-      if(at + hoodShopW(n) > e.len - 40) n = MIRADOR_HOUSES[0];                 // (a narrow one, if the wide one will not fit)
-      let st = at;
-      for(let t = 0; t < 40 && clash(n, st); t++) st += 40;
-      if(st + hoodShopW(n) > e.len - 40) break;
-      units.push({ start: Math.round(st), w: hoodShopW(n), shop: { lib: n, name: n }, house: true, pal });
-      at = Math.round(st + hoodShopW(n) + gap);
-    }
-    /* what room is left, shared out along the row as far as it keeps every drive clear */
-    const spare = e.len - 40 - (units.length ? units[units.length - 1].start + units[units.length - 1].w : 0);
-    for(const f of [1, 0.75, 0.5, 0.25]){
-      const sh = units.map((u, i) => Math.round(spare*f*(i + 0.5)/units.length));
-      if(units.every((u, i) => !clash(u.shop.lib, u.start + sh[i]))){ units.forEach((u, i) => { u.start += sh[i]; }); break; }
-    }
-    for(const u of units){
-      const D = hoodShopD(u.shop.lib), p0 = { x: e.ox + e.dv.x*u.start, y: e.oy + e.dv.y*u.start }, p1 = { x: p0.x + e.dv.x*u.w - e.rv.x*D, y: p0.y + e.dv.y*u.w - e.rv.y*D };
-      foot.push({ x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x), y0: Math.min(p0.y, p1.y), y1: Math.max(p0.y, p1.y), u, e });
-    }
-    rows.push({ e, units, side });
+/* riser k's foot and crest at x (northHillPolys' edgeY / lipY) */
+function mirEdge(k, x){ const T = mirT(); return T.G.toe(x) - T.G.cum[k] + T.amp[k]*(0.62*Math.sin(x*T.f1 + T.ph[k][0]) + 0.38*Math.sin(x*T.f2 + T.ph[k][1])); }
+function mirLip(k, x){ return mirEdge(k, x) - mirT().run[k]; }
+/* the ground's height at (x, y) in the north hills: the bench 0, a shelf its height, a riser its slope (as drawn) */
+function miradorGroundZ(x, y){
+  const T = mirT(), hg = T.G.hgt;
+  let e = mirEdge(0, x);
+  if(y >= e) return 0;
+  for(let k = 0; k < T.n; k++){
+    const lip = e - T.run[k];
+    if(y > lip) return hg[k] + (hg[k + 1] - hg[k])*(e - y)/T.run[k];
+    if(k === T.n - 1) return hg[T.n];
+    const far = mirEdge(k + 1, x);
+    if(y >= far) return hg[k + 1];
+    e = far;
   }
-  /* the lots: the west row's from the band's edge to its pavement, the east row's back as deep as the houses' lots */
-  const DL = Math.max(...MIRADOR_HOUSES.concat(MIRADOR_OLD).filter(n => LIB.get(n)).map(hoodShopD)) + 120;
-  const lots = [{ x0: X1, x1: RX - ST, y0: yN, y1: yS }, { x0: RX + ST, x1: RX + ST + DL, y0: yN, y1: yS }];
-  /* the street's own ground: the stub, the drive (the circle is round: P.round) */
-  const street = [{ x0: (grid.cols - 1)*B, x1: RX + ST, y0: yC - ST, y1: yC + ST }, { x0: RX - ST, x1: RX + ST, y0: round.y, y1: yC + ST }];
-  const plan = { grid, RX, ST, yC, yN, yS, X1, round, rows, foot, lots, street, ramps, CLR,
-                 box: { x0: (grid.cols - 1)*B, x1: lots[1].x1, y0: round.y - round.out, y1: yC + ST } };
-  _mirPlan = plan;
-  plan.furn = miradorFurnOf(plan);
-  return plan;
+  return hg[T.n];
 }
-/* the street's kerb-row furniture: [{ kind lamp | palm | palmDwarf, x, y, f, seed }] -- as hillRoadFurn lays it */
-function miradorFurnOf(P){
-  const out = [], LAT = ROAD_HALF + TILE, CL = CITY_FURN.cornerClear, B = BLOCK;
-  const step = LAMP_ACT.spacing*T2*CITY_FURN.lampInfra*CITY_FURN.cal.lamp;
-  const fOf = (nx, ny) => (DIRV.findIndex(d => d.x === -nx && d.y === -ny) + 3) % 4;
-  const doors = [], drives = [];
-  for(const rw of P.rows) for(const u of rw.units){
-    const sh = LIB.get(u.shop.lib), dr = houseDoorOf(rw.e, u);
-    doors.push(rw.e.oy + rw.e.dv.y*(u.start + dr.al));
-    const SC = sh.sc || 1, mir = (rw.e.dv.x + rw.e.dv.y) <= 0 && sh.mirror !== false;
-    for(const d of (sh.drive || [])) if(d.side === "front"){
-      const a0 = u.start + (mir ? sh.ww - d.to : d.from)*SC, a1 = u.start + (mir ? sh.ww - d.from : d.to)*SC;
-      drives.push([Math.min(rw.e.oy + rw.e.dv.y*a0, rw.e.oy + rw.e.dv.y*a1), Math.max(rw.e.oy + rw.e.dv.y*a0, rw.e.oy + rw.e.dv.y*a1)]);
-    }
+/* a road run's centre on shelf k at x: a constant way back from its lip */
+function mirRunY(k, x){ return mirLip(k, x) - MIRADOR_HILL.off; }
+/* a polyline with its corners rounded to radius r (the hairpins): straight on, an arc where it turns more than ~20 degrees */
+function mirFillet(pts, r){
+  const out = [pts[0]];
+  for(let i = 1; i < pts.length - 1; i++){
+    const A = pts[i - 1], B = pts[i], C = pts[i + 1];
+    let ux = B[0] - A[0], uy = B[1] - A[1], vx = C[0] - B[0], vy = C[1] - B[1];
+    const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy); ux /= lu; uy /= lu; vx /= lv; vy /= lv;
+    const cr = ux*vy - uy*vx, dt = ux*vx + uy*vy, th = Math.atan2(Math.abs(cr), dt);
+    if(th < 0.35){ out.push(B); continue; }
+    const t = Math.min(r*Math.tan(th/2), lu*0.45, lv*0.45), rr = t/Math.tan(th/2), s = cr > 0 ? 1 : -1;
+    const T1 = [B[0] - ux*t, B[1] - uy*t], cx = T1[0] - uy*rr*s, cy = T1[1] + ux*rr*s;
+    const a0 = Math.atan2(T1[1] - cy, T1[0] - cx), N = Math.max(4, Math.ceil(th*rr/40));
+    for(let k = 0; k <= N; k++){ const a = a0 + s*th*k/N; out.push([cx + Math.cos(a)*rr, cy + Math.sin(a)*rr]); }
   }
-  const clearY = y => !P.ramps.some(r => Math.abs(y - r) < 2*T2 + 60) && !drives.some(([a, b]) => y > a - 140 && y < b + 140) && !doors.some(d => Math.abs(y - d) < 130);
-  const row = (axis, c, s0, s1, nx, ny, chk) => {
-    const lo = Math.min(s0, s1), hi = Math.max(s0, s1), f = fOf(nx, ny);
-    const put = (kind, v) => { if(chk && !chk(v)) return; const x = Math.round(axis === "x" ? v : c), y = Math.round(axis === "x" ? c : v);
-      out.push({ kind, x, y, f, seed: ((x*7919) ^ (y*104729) ^ 0x1a3b) >>> 0 }); };
-    for(let v = Math.ceil(lo/step)*step; v <= hi; v += step) put("lamp", v);
-    for(let v0 = Math.floor(lo/step)*step + step*0.5; v0 <= hi; v0 += step){
-      const v = Math.floor(v0/T2)*T2 + TILE;                      // (onto the tile centre: PALM_WELL)
-      if(v >= lo && v <= hi) put(parkPlantHash(axis === "x" ? v : c, axis === "x" ? c : v, 0x9a1c) < 0.25 ? "palmDwarf" : "palm", v);
-    }
-  };
-  /* the stub, both kerbs, from the ring road's corner to the drive's */
-  const xa = (P.grid.cols - 1)*B + P.ST + CL, xb = P.RX - P.ST - CL;
-  row("x", P.yC - LAT, xa, xb, 0, -1, null); row("x", P.yC + LAT, xa, xb, 0, 1, null);
-  /* the drive, both kerbs, from the circle's paving to the corner */
-  const ya = P.round.y + P.round.out + CL, yb = P.yC - P.ST - CL;
-  row("y", P.RX - LAT, ya, yb, -1, 0, clearY); row("y", P.RX + LAT, ya, yb, 1, 0, clearY);
+  out.push(pts[pts.length - 1]);
   return out;
 }
-function miradorFurn(grid){ const P = miradorPlan(grid); return P.furn || []; }
-/* the turning circle, asked before the lattice as Harbor Road's is (harborRoundSurface) */
-function miradorRoundSurface(grid, x, y, kerb){
+/* resample a polyline every ds: [{ x, y, nx, ny }] (n the left normal) */
+function mirSample(pts, ds){
+  const out = [];
+  for(let i = 0; i < pts.length - 1; i++){
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1], L = Math.hypot(bx - ax, by - ay);
+    if(L < 0.5) continue;
+    const n = Math.max(1, Math.round(L/ds));
+    for(let k = 0; k < n; k++){ const t = k/n; out.push({ x: ax + (bx - ax)*t, y: ay + (by - ay)*t }); }
+  }
+  const l = pts[pts.length - 1]; out.push({ x: l[0], y: l[1] });
+  for(let i = 0; i < out.length; i++){
+    const a = out[Math.max(0, i - 1)], b = out[Math.min(out.length - 1, i + 1)], L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    out[i].nx = -(b.y - a.y)/L; out[i].ny = (b.x - a.x)/L;
+  }
+  return out;
+}
+/* a Catmull-Rom curve through pts, sampled every ds */
+function mirCurve(pts, ds){
+  const out = [];
+  for(let i = 0; i < pts.length - 1; i++){
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1])/ds));
+    for(let k = 0; k < n; k++){ const t = k/n, t2 = t*t, t3 = t2*t, f = (a, b, c, d) => 0.5*(2*b + (c - a)*t + (2*a - 5*b + 4*c - d)*t2 + (3*b - a - 3*c + d)*t3);
+      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]); }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+/* THE PLAN, built once per grid: the road's samples, its runs, the houses, their pads and drives, the furniture */
+function miradorPlan(grid){
+  if(_mirPlan && _mirPlan.grid === grid) return _mirPlan;
+  const M = MIRADOR_HILL;
+  if(!WORLDGEN_COAST || !grid || typeof LIB === "undefined" || !LIB.get('Mountain Modern Tower')) return { grid, none: true };
+  const T = mirT(), hg = T.G.hgt, Y0 = -WG_COAST.EXT*BLOCK, ySW = -(ROAD_HALF + SIDEWALK_W);
+  /* a run along shelf k from xa to xb: its two ends, and between them a point every `step` clear of the hairpins' arcs */
+  const step = 400, run = (k, xa, xb) => { const out = [[xa, mirRunY(k, xa)]], dir = Math.sign(xb - xa), cl = M.R + 80;
+    for(let x = xa + dir*cl; dir > 0 ? x < xb - cl : x > xb + cl; x += dir*step) out.push([x, mirRunY(k, x)]);
+    out.push([xb, mirRunY(k, xb)]); return out; };
+  /* the centreline: in at the kerb, north to shelf 0, east, up to shelf 2, west, up to the top, east */
+  const pts = [[M.xEntry, ySW + 4], [M.xEntry, Y0 - 120]]
+    .concat(run(0, M.xEntry, M.xE)).concat(run(2, M.xE, M.xW)).concat(run(4, M.xW, M.xEnd));
+  const road = mirSample(mirFillet(pts, M.R), M.ds);
+  road.forEach((s, i) => { s.z = miradorGroundZ(s.x, s.y); s.i = i; });
+  const end = { x: M.xEnd, y: mirRunY(4, M.xEnd), r: M.circle, z: hg[T.n] };
+  /* the shelf runs, for the guardrail: [k, x0, x1] (clear of the hairpins) */
+  const runs = [[0, M.xEntry + M.R + 80, M.xE - M.R - 80], [2, M.xW + M.R + 80, M.xE - M.R - 80], [4, M.xW + M.R + 80, M.xEnd - M.circle - 60]];
+  const runSpan = k => k === 0 ? [M.xEntry + M.R + 200, M.xE - M.R - 200] : k === 2 ? [M.xW + M.R + 200, M.xE - M.R - 200] : [M.xW + M.R + 200, M.xEnd - M.circle - 200];
+  /* THE HOUSES: on shelves 1 and 3 between the runs (clear of the hairpins' climbs), two on the top behind its run */
+  const rr = mulberry32(0x6d1a0e);
+  const lots = [
+    { k: 1, x0: M.xW + 420, x1: M.xE - M.R - 520, libs: ['Mountain Modern Tower', 'Mountain Modern Cantilever', 'Mountain Modern Tower', 'Mountain Modern Terrace'] },
+    { k: 3, x0: M.xW + M.R + 520, x1: M.xEnd - 260, libs: ['Mountain Modern Terrace', 'Mountain Modern Tower', 'Mountain Modern Tower', 'Mountain Modern Cantilever', 'Mountain Modern Tower', 'Mountain Modern Tower'] },
+    { k: 4, x0: M.xEnd - 3400, x1: M.xEnd - M.circle - 300, libs: ['Mountain Modern Cantilever', 'Mountain Modern Tower'] },
+  ];
+  const houses = [], drives = [];
+  for(const L of lots){
+    const ws = L.libs.map(hoodShopW), padW = M.PAD[0] + 40, tot = ws.reduce((a, w) => a + w + padW, 0);
+    const gap = Math.max(80, (L.x1 - L.x0 - tot)/Math.max(1, L.libs.length - 1));
+    let cur = L.x0;
+    L.libs.forEach((lib, i) => {
+      const w = ws[i], x0 = Math.round(cur), x1 = Math.round(cur + w), xc = (x0 + x1)/2, SC = (LIB.get(lib).sc || 1);
+      cur = x1 + padW + gap;
+      const top = L.k === 4, D = hoodShopD(lib);
+      /* its front: the deck (lot front, b 0) and the house's mass front (b -96) out over the riser below, the back on the
+         shelf; on the top, behind the run */
+      const yM = top ? mirRunY(4, xc) - M.RH - M.SH - 300 : Math.round(mirLip(L.k, xc) + 120);
+      const oy = Math.round(yM + 96*SC), z = hg[L.k + 1];
+      const e = { ox: x1, oy, dv: { x: -1, y: 0 }, rv: { x: 0, y: 1 }, len: w };
+      const unit = { start: 0, w, shop: { lib, name: lib }, house: true, pal: Math.floor(rr()*3) };
+      const pad = { x0: x1 + 40, x1: x1 + 40 + M.PAD[0] };
+      const yLip = top ? yM : mirLip(L.k, xc), yBack = top ? yM - 400 : mirEdge(L.k + 1, xc);
+      pad.y1 = Math.round(top ? yM : yLip - 50); pad.y0 = Math.round(Math.max(yBack + 40, pad.y1 - M.PAD[1]));
+      const pcx = (pad.x0 + pad.x1)/2, pcy = (pad.y0 + pad.y1)/2;
+      /* its drive: from the run below (climbing), or the run above (descending), angled across the riser between */
+      const below = !top && L.k - 1 >= 0 && (() => { const [a, b] = runSpan(L.k - 1); return pcx + 420 > a && pcx + 420 < b; })();
+      const above = !top && (() => { const [a, b] = runSpan(L.k + 1); return pcx + 420 > a && pcx + 420 < b; })();
+      const climb = top ? null : (below && (i % 2 === 0 || !above)) ? true : (above ? false : null);
+      let dp;
+      if(top) dp = [[pcx + 120, mirRunY(4, pcx + 120) - M.RH + 10], [pcx + 60, pad.y1 + 60], [pcx, pcy]];
+      else if(climb === true){ const kb = L.k - 1, xs = pcx + 420;
+        dp = [[xs, mirRunY(kb, xs) - M.RH + 14], [pcx + 300, mirEdge(L.k, pcx + 300) + 40], [pcx + 130, mirLip(L.k, pcx + 130) - 40], [pcx, pcy]]; }
+      else if(climb === false){ const ka = L.k + 1, xs = pcx + 420;
+        dp = [[xs, mirRunY(ka, xs) + M.RH - 14], [pcx + 300, mirLip(ka, pcx + 300) - 20], [pcx + 130, mirEdge(ka, pcx + 130) + 40], [pcx, pcy]]; }
+      const dr = dp ? mirSample(mirCurve(dp, 60), 30) : [];
+      for(const s of dr) s.z = miradorGroundZ(s.x, s.y);
+      const h = { lib, e, unit, x0, x1, oy, yM, yBack: yM - (D - 96*SC), z, k: L.k, pad, drive: dr, climb, top,
+                  mouth: dp ? { x: dp[0][0], y: dp[0][1], run: top ? 4 : climb ? L.k - 1 : L.k + 1 } : null };
+      houses.push(h);
+      if(dr.length) drives.push(dr);
+    });
+  }
+  /* the guardrail's posts, along each run's downhill (south) edge, gapped at the drives coming off it southward, and the
+     lamps: one by each hairpin and one on each run's middle, on the uphill shoulder */
+  const rails = [];
+  for(const [k, xa, xb] of runs){
+    const gaps = houses.filter(h => h.mouth && h.mouth.run === k && h.mouth.y > mirRunY(k, h.mouth.x)).map(h => h.mouth.x);
+    let chunk = [];
+    const flush = () => { if(chunk.length > 1) rails.push(chunk); chunk = []; };
+    for(let x = xa; x <= xb; x += 120){
+      if(gaps.some(g => Math.abs(g - x) < 170)){ flush(); continue; }
+      const y = mirRunY(k, x) + M.RH + M.SH + 10, p = { x: Math.round(x), y: Math.round(y), z: miradorGroundZ(x, y) };
+      chunk.push(p);
+      if(chunk.length >= 7){ flush(); chunk.push(p); }          // (chunks share their end post)
+    }
+    flush();
+  }
+  const lamps = [];
+  const lampAt = (k, x) => { const y = Math.round(mirRunY(k, x) - M.RH - M.SH - 24); lamps.push({ x: Math.round(x), y, z: miradorGroundZ(x, y), f: 0, seed: ((Math.round(x)*7919) ^ (y*104729) ^ 0x3c5) >>> 0 }); };
+  lampAt(0, M.xEntry + M.R + 160); lampAt(0, M.xE - M.R - 160); lampAt(2, M.xE - M.R - 160); lampAt(2, (M.xE + M.xW)/2); lampAt(2, M.xW + M.R + 160);
+  lampAt(4, M.xW + M.R + 160); lampAt(4, (M.xW + M.xEnd)/2); lampAt(4, M.xEnd - M.circle - 220);
+  /* every ribbon sample in a bucket, for the surface and the planting */
+  const bucket = new Map(), CELL = 300, put = (s, hw, kind) => { const k = Math.floor(s.x/CELL) + "," + Math.floor(s.y/CELL);
+    if(!bucket.has(k)) bucket.set(k, []); bucket.get(k).push([s.x, s.y, hw, kind]); };
+  for(const s of road) put(s, M.RH + M.SH, 'road');
+  for(const dr of drives) for(const s of dr) put(s, M.DRIVE, 'road');
+  let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+  for(const s of road){ bx0 = Math.min(bx0, s.x); bx1 = Math.max(bx1, s.x); by0 = Math.min(by0, s.y); by1 = Math.max(by1, s.y); }
+  for(const h of houses){ bx0 = Math.min(bx0, h.x0); bx1 = Math.max(bx1, h.pad.x1); by0 = Math.min(by0, h.yM - 700); }
+  const plan = { grid, M, road, end, runs, houses, drives, rails, lamps, bucket, CELL, box: { x0: bx0 - 600, x1: bx1 + 600, y0: by0 - 600, y1: ySW } };
+  return (_mirPlan = plan);
+}
+/* what the road says is at (x, y): 'road' on the road, its circle and the drives, 'lot' on a parking pad; else null */
+function miradorSurface(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return null;
   const P = miradorPlan(grid);
-  if(P.none) return null;
-  const c = P.round, dx = x - c.x, dy = y - c.y;
-  if(Math.abs(dx) > c.out || Math.abs(dy) > c.out) return null;
-  const r = Math.hypot(dx, dy);
-  if(r > c.out) return null;
-  let dd = Math.max(0, r - c.r);
-  if(dy > 0) dd = Math.min(dd, Math.max(0, Math.abs(dx) - ROAD_HALF));
-  const fxc = ROAD_HALF + c.rf, fyc = c.fx, px = Math.abs(dx) - fxc, py = dy - fyc, pr = Math.hypot(px, py);
-  const inF = py <= 0 && py * fxc - px * fyc >= 0;
-  if(inF) dd = Math.min(dd, Math.max(0, c.rf - pr));
-  const sf = dd <= 0 ? 'road' : dd <= CURB_W ? 'curb' : 'sidewalk';
-  return kerb ? kerbRoundK(sf, c, ROAD_HALF, r, Math.abs(dx), dy > 0, inF, pr) : sf;
+  if(P.none || x < P.box.x0 || x > P.box.x1 || y < P.box.y0 || y > P.box.y1 - 4) return null;
+  if(Math.hypot(x - P.end.x, y - P.end.y) <= P.end.r) return 'road';
+  const ci = Math.floor(x/P.CELL), cj = Math.floor(y/P.CELL);
+  for(let i = ci - 1; i <= ci + 1; i++) for(let j = cj - 1; j <= cj + 1; j++){
+    const l = P.bucket.get(i + "," + j);
+    if(l) for(const s of l) if(Math.abs(s[0] - x) <= s[2] && Math.abs(s[1] - y) <= s[2] && Math.hypot(s[0] - x, s[1] - y) <= s[2]) return s[3];
+  }
+  for(const h of P.houses) if(x >= h.pad.x0 && x <= h.pad.x1 && y >= h.pad.y0 && y <= h.pad.y1) return 'lot';
+  return null;
 }
-/* a house stops him, as North Sunset Shore's do: its declared volume (nssBlocked asks) */
+/* the ground's height under him there (sierraZ asks): on the road, a drive or a pad, the hill's own; else null */
+function miradorZ(x, y){ const P = _mirPlan; return P && !P.none && miradorSurface(P.grid, x, y) ? miradorGroundZ(x, y) : null; }
+/* a house stops him (nssBlocked asks): its declared volume, as North Sunset Shore's */
 function miradorBlocked(grid, x, y, R){
-  if(!WORLDGEN_COAST || !grid) return false;
-  const P = miradorPlan(grid);
-  if(P.none || x < P.box.x0 - R || x > P.box.x1 + R || y < P.box.y0 - R || y > P.box.y1 + R) return false;
-  for(const f of P.foot){
-    if(x < f.x0 - R - 4 || x > f.x1 + R + 4 || y < f.y0 - R - 4 || y > f.y1 + R + 4) continue;
-    const sh = LIB.get(f.u.shop.lib);
+  const P = _mirPlan;
+  if(!P || P.none || P.grid !== grid || x < P.box.x0 - R || x > P.box.x1 + R || y < P.box.y0 - R || y > P.box.y1 + R) return false;
+  for(const h of P.houses){
+    if(x < h.x0 - R - 4 || x > h.x1 + R + 4 || y < h.yBack - R - 4 || y > h.oy + R + 4) continue;
+    const sh = LIB.get(h.lib);
     if(!sh || !sh.vol) continue;
-    const v = LIB.vol(f.u.shop.lib), L = v.lot, q = hoodShopLab(f.e, f.u, sh, x, y), r = R / q.SC;
+    const v = LIB.vol(h.lib), L = v.lot, q = hoodShopLab(h.e, h.unit, sh, x, y), r = R / q.SC;
     if(q.a < L.a0 - r || q.a > L.a1 + r || q.b < L.b0 - r || q.b > L.b1 + r) continue;
     if(volBlockedAt(v, q.a, q.b, r, true)) return true;
   }
   return false;
 }
-/* the x-ray's built height (builtHeightAt): a house's declared volume and roof, as nssRowsOf's houses answer; null off them */
-function miradorBuiltAt(grid, x, y){
-  const P = miradorPlan(grid);
-  if(P.none || x < P.box.x0 || x > P.box.x1 || y < P.box.y0 || y > P.box.y1) return null;
-  for(const f of P.foot){
-    if(x < f.x0 || x > f.x1 || y < f.y0 || y > f.y1) continue;
-    const sh = LIB.get(f.u.shop.lib);
+/* the x-ray's built height (builtHeightAt): a house's declared volume and roof, from its floor's height; null off them */
+function miradorBuiltAt(grid, x, y, zRef){
+  const P = _mirPlan;
+  if(!P || P.none || P.grid !== grid || x < P.box.x0 || x > P.box.x1 || y < P.box.y0 || y > P.box.y1) return null;
+  for(const h of P.houses){
+    if(x < h.x0 || x > h.x1 || y < h.yBack || y > h.oy) continue;
+    const sh = LIB.get(h.lib);
     if(!sh || !sh.vol) continue;
-    const v = LIB.vol(f.u.shop.lib), L = v.lot, q = hoodShopLab(f.e, f.u, sh, x, y);
+    const v = LIB.vol(h.lib), L = v.lot, q = hoodShopLab(h.e, h.unit, sh, x, y);
     if(q.a < L.a0 || q.a > L.a1 || q.b < L.b0 || q.b > L.b1) continue;
-    let h = volBuiltHeight(v, q.a, q.b, 'street', true);
-    if(h === null) continue;
-    if(h > 0){ const rz = LIB.roofAt(f.u.shop.lib, q.a, q.b); if(rz !== null) h = Math.min(h, rz); }
-    return h * q.SC * (sh.zs === undefined ? 1.5 : sh.zs);
+    let hh = volBuiltHeight(v, q.a, q.b, 'street', true);
+    if(hh === null) continue;
+    if(hh > 0){ const rz = LIB.roofAt(h.lib, q.a, q.b); if(rz !== null) hh = Math.min(hh, rz); }
+    return Math.max(0, h.z - (zRef || 0) + hh * q.SC * (sh.zs === undefined ? 1.5 : sh.zs));
   }
-  for(const L of P.lots) if(x >= L.x0 && x <= L.x1 && y >= L.y0 && y <= L.y1) return 0;   // (its gravel)
   return null;
 }
-/* is (x, y) the neighbourhood's (the east edge's planting keeps off): the street, the circle, a house and the front of its lot */
+/* is (x, y) the neighbourhood's (the hillside planting keeps off it): the road, its circle, a drive, a pad, a house */
 function miradorClaims(grid, x, y, m){
   const P = miradorPlan(grid);
-  if(P.none || x < P.box.x0 - m - 200 || x > P.box.x1 + m + 200 || y < P.box.y0 - m - 200 || y > P.box.y1 + m + 200) return false;
-  for(const r of P.street) if(x > r.x0 - 60 - m && x < r.x1 + 60 + m && y > r.y0 - 60 - m && y < r.y1 + 60 + m) return true;
-  if(Math.hypot(x - P.round.x, y - P.round.y) < P.round.out + 80 + m) return true;
-  for(const f of P.foot) if(x > f.x0 - 90 - m && x < f.x1 + 90 + m && y > f.y0 - 90 - m && y < f.y1 + 90 + m) return true;
-  for(const L of P.lots) if(y > L.y0 && y < L.y1 && (L.x0 === P.X1 ? x > L.x1 - 260 - m && x < L.x1 + 10 : x > L.x0 - 10 && x < L.x0 + 260 + m)) return true;   // (the lots' fronts: walks, drives, fences)
+  if(P.none || x < P.box.x0 - m || x > P.box.x1 + m || y < P.box.y0 - m || y > P.box.y1 + m) return false;
+  if(Math.hypot(x - P.end.x, y - P.end.y) < P.end.r + 80 + m) return true;
+  const ci = Math.floor(x/P.CELL), cj = Math.floor(y/P.CELL), R = Math.ceil((m + 300)/P.CELL);
+  for(let i = ci - R; i <= ci + R; i++) for(let j = cj - R; j <= cj + R; j++){
+    const l = P.bucket.get(i + "," + j);
+    if(l) for(const s of l) if(Math.hypot(s[0] - x, s[1] - y) < s[2] + 70 + m) return true;
+  }
+  for(const h of P.houses){
+    if(x > h.x0 - 90 - m && x < h.pad.x1 + 60 + m && y > h.yBack - 90 - m && y < h.oy + 120 + m) return true;
+  }
   return false;
 }
-/* THE GROUND (eastGroundLate, in the ground pass): the lots' gravel, the circle, the palms' wells */
+/* a draped ribbon: samples s (x, y, nx, ny), its half width hw (+ add), each edge point at the ground's own height */
+function mirRibbon(S, g, onScreen, ss, hw, col, lift){
+  const zA = (x, y) => miradorGroundZ(x, y) + (lift || 0);
+  for(let i = 0; i < ss.length - 1; i++){
+    const a = ss[i], b = ss[i + 1];
+    const P = [S.W(a.x + a.nx*hw, a.y + a.ny*hw, zA(a.x + a.nx*hw, a.y + a.ny*hw)), S.W(b.x + b.nx*hw, b.y + b.ny*hw, zA(b.x + b.nx*hw, b.y + b.ny*hw)),
+               S.W(b.x - b.nx*hw, b.y - b.ny*hw, zA(b.x - b.nx*hw, b.y - b.ny*hw)), S.W(a.x - a.nx*hw, a.y - a.ny*hw, zA(a.x - a.nx*hw, a.y - a.ny*hw))];
+    if(onScreen(P)) S.quadOn(g, P, col);
+  }
+}
+/* THE GROUND (eastGroundLate, last in the ground pass: over the hills): the drives, the pads, the road -- shoulder, asphalt,
+   edge lines, centre dashes -- and its circle, each draped on the slope */
 function miradorGround(S, g, onScreen){
   const P = miradorPlan(S.route.grid);
   if(P.none) return;
-  const span = flatSpanOf(S.cx, S.cy, S.vpW(), S.vpH(), S.K, S.camZ) + 400, bx = P.box;
+  const span = flatSpanOf(S.cx, S.cy, S.vpW(), S.vpH(), S.K, S.camZ) + 1600, bx = P.box;
   if(Math.abs(Math.max(bx.x0, Math.min(bx.x1, S.camX)) - S.camX) + Math.abs(Math.max(bx.y0, Math.min(bx.y1, S.camY)) - S.camY) > span) return;
-  for(const L of P.lots){
-    const pts = [S.W(L.x0, L.y0, 0), S.W(L.x1, L.y0, 0), S.W(L.x1, L.y1, 0), S.W(L.x0, L.y1, 0)];
-    if(onScreen(pts)) S.fillBlockInterior(g, L, NSS_GROUND);
+  const M = P.M, near = s => Math.abs(s.x - S.camX) + Math.abs(s.y - S.camY) < span;
+  /* the stretches of a ribbon near the view, each padded a sample either end */
+  const vis = ss => { const out = []; let i = 0;
+    while(i < ss.length){
+      while(i < ss.length && !near(ss[i])) i++;
+      if(i >= ss.length) break;
+      const a = Math.max(0, i - 1);
+      while(i < ss.length && near(ss[i])) i++;
+      out.push(ss.slice(a, Math.min(ss.length, i + 1)));
+    }
+    return out; };
+  const GRAVEL = 0xa39a86, GRAVEL_E = 0x8a8170, DRIVE = 0x9a958c, ASPH = 0x55585d, LINE = 0xe9e6dc, MID = 0xe8cf6a;
+  /* the drives and the pads */
+  for(const dr of P.drives) for(const run of vis(dr)){ mirRibbon(S, g, onScreen, run, M.DRIVE + 10, GRAVEL_E, 0.3); mirRibbon(S, g, onScreen, run, M.DRIVE, DRIVE, 0.5); }
+  for(const h of P.houses){
+    const p = h.pad, z = miradorGroundZ((p.x0 + p.x1)/2, (p.y0 + p.y1)/2) + 0.5;
+    const Q = [S.W(p.x0, p.y0, z), S.W(p.x1, p.y0, z), S.W(p.x1, p.y1, z), S.W(p.x0, p.y1, z)];
+    if(onScreen(Q)) S.quadOn(g, Q, DRIVE);
   }
-  S.drawKerbRound(g, S.d, P.round, { streets: [1], pads: [], street: P.ST });
-  for(const p of P.furn) if(p.kind !== "lamp" && S.visProp(p.kind, p.x, p.y)) S.drawPalmGround(g, p.kind, p.x, p.y, 0);
+  /* the road */
+  const runs = vis(P.road);
+  for(const run of runs) mirRibbon(S, g, onScreen, run, M.RH + M.SH, GRAVEL, 0.6);
+  { const c = P.end, ring = (r, col, lift) => { const Q = Array.from({ length: 40 }, (_, k) => { const a = k/40*Math.PI*2; return S.W(c.x + Math.cos(a)*r, c.y + Math.sin(a)*r, c.z + lift); }); if(onScreen(Q)) S.quadOn(g, Q, col); };
+    if(near(c)) ring(c.r + M.SH, GRAVEL, 0.6);
+    P._ring = near(c) ? ring : null; }
+  for(const run of runs) mirRibbon(S, g, onScreen, run, M.RH, ASPH, 0.9);
+  for(const run of runs){
+    for(const side of [-1, 1]){
+      const off = side*(M.RH - 14), L = run.map(s => ({ x: s.x + s.nx*off, y: s.y + s.ny*off, nx: s.nx, ny: s.ny }));
+      mirRibbon(S, g, onScreen, L, 3.5, LINE, 1.1);
+    }
+    for(let i = 0; i < run.length - 1; i++){
+      const s = run[i];
+      if((s.i % 6) > 2) continue;
+      mirRibbon(S, g, onScreen, [s, run[i + 1]], 3.5, MID, 1.1);
+    }
+  }
+  /* the turning circle's asphalt last, over the ends of the road's lines */
+  if(P._ring){ P._ring(P.end.r, ASPH, 1.3); P._ring = null; }
 }
-/* THE HOOK (eastQueue, the world queue): the houses, a row at a time when it can show; the lamps and palms, their light */
+/* a house's deck at the lot front and the stilts under it and under the house's front, down to the slope */
+function miradorDrawDeck(S, g, h){
+  const P = (x, y, z) => S.W(x, y, z), Q = (pts, col) => S.quadOn(g, pts, col);
+  const z = h.z, x0 = h.x0, x1 = h.x1, yF = h.oy, yM = h.yM, WOOD = 0x6b4a33, WOODL = 0x8a6444, WOODD = 0x4e3626, STEEL = 0x3b3e42;
+  /* the stilts, back row (under the house's front) then front row (under the deck's edge), west to east */
+  const post = (px, py, zt, w, col) => { const zb = miradorGroundZ(px, py) - 6; if(zt - zb < 8) return;
+    Q([P(px - w, py + w, zb), P(px + w, py + w, zb), P(px + w, py + w, zt), P(px - w, py + w, zt)], col);
+    Q([P(px + w, py - w, zb), P(px + w, py + w, zb), P(px + w, py + w, zt), P(px + w, py - w, zt)], hillShade(col, 0.72)); };
+  const n = Math.max(2, Math.round((x1 - x0)/170));
+  for(const py of [yM - 20, yF - 12]) for(let i = 0; i <= n; i++) post(x0 + 18 + (x1 - x0 - 36)*i/n, py, z - 12, 6, py === yF - 12 ? WOOD : STEEL);
+  /* the deck: its boards' edge to the view and its seen end, then the boards */
+  Q([P(x0, yF, z - 12), P(x1, yF, z - 12), P(x1, yF, z), P(x0, yF, z)], WOODD);
+  Q([P(x1, yM, z - 12), P(x1, yF, z - 12), P(x1, yF, z), P(x1, yM, z)], hillShade(WOODD, 0.85));
+  Q([P(x0, yM, z), P(x1, yM, z), P(x1, yF, z), P(x0, yF, z)], WOODL);
+  g.lineStyle(Math.max(1, 0.8*S.K), WOOD, 1);
+  for(let x = x0 + 22; x < x1; x += 22){ const a = P(x, yM, z + 0.2), b = P(x, yF, z + 0.2); g.lineBetween(a.x, a.y, b.x, b.y); }
+  /* its rail to the view: posts and a top rail */
+  const rz = z + 34;
+  Q([P(x0, yF - 3, rz - 4), P(x1, yF - 3, rz - 4), P(x1, yF - 3, rz), P(x0, yF - 3, rz)], WOODL);
+  for(let i = 0; i <= n*2; i++){ const px = x0 + 4 + (x1 - x0 - 8)*i/(n*2); Q([P(px - 2, yF - 2, z), P(px + 2, yF - 2, z), P(px + 2, yF - 2, rz), P(px - 2, yF - 2, rz)], WOOD); }
+}
+/* a house, as drawLibUnit draws a row's unit (the library's draw, its livery, its frame along e) -- here inside the cached
+   piece, so the lift to its floor (hillLift) is the piece's content and not its anchor's */
+function miradorDrawHouse(S, gg, h){
+  const e = h.e, sh = LIB.get(h.lib);
+  if(!sh) return;
+  const G = (a, b, z) => S.W(e.ox + e.dv.x*a + e.rv.x*b, e.oy + e.dv.y*a + e.rv.y*b, z);
+  LIB.setLivery(h.unit.pal || 0);
+  sh._host = null;
+  try { LIB.draw(h.lib, gg, G, null, S.K, null, (e.dv.x + e.dv.y) > 0, (e.rv.x + e.rv.y) < 0, null); }
+  finally { LIB.setLivery(0); }
+}
+/* a chunk of the guardrail: its steel rail (on the road's side of the posts), then the posts in front, west to east */
+function miradorDrawRail(S, g, ch){
+  const Q = (pts, col) => S.quadOn(g, pts, col), P = (x, y, z) => S.W(x, y, z);
+  for(let i = 0; i < ch.length - 1; i++){
+    const a = ch[i], b = ch[i + 1];
+    Q([P(a.x, a.y - 7, a.z + 30), P(b.x, b.y - 7, b.z + 30), P(b.x, b.y - 7, b.z + 44), P(a.x, a.y - 7, a.z + 44)], 0xb9bec2);
+    Q([P(a.x, a.y - 7, a.z + 36), P(b.x, b.y - 7, b.z + 36), P(b.x, b.y - 7, b.z + 38), P(a.x, a.y - 7, a.z + 38)], 0x8c9196);
+  }
+  for(const p of ch){
+    Q([P(p.x - 5, p.y + 5, p.z), P(p.x + 5, p.y + 5, p.z), P(p.x + 5, p.y + 5, p.z + 48), P(p.x - 5, p.y + 5, p.z + 48)], 0x7a5a3e);
+    Q([P(p.x + 5, p.y - 5, p.z), P(p.x + 5, p.y + 5, p.z), P(p.x + 5, p.y + 5, p.z + 48), P(p.x + 5, p.y - 5, p.z + 48)], 0x5e4430);
+    Q([P(p.x - 5, p.y - 5, p.z + 48), P(p.x + 5, p.y - 5, p.z + 48), P(p.x + 5, p.y + 5, p.z + 48), P(p.x - 5, p.y + 5, p.z + 48)], 0x8f6c4c);
+  }
+}
+/* THE HOOK (eastQueue, the world queue): the houses at their heights with their decks, the guardrail, the lamps */
 function miradorQueue(S, vq){
   const P = miradorPlan(S.route.grid);
   if(P.none) return;
-  for(const rw of P.rows){
-    const e = rw.e, xs = [e.ox, e.ox - e.rv.x*900], ys = [e.oy, e.oy + e.dv.y*e.len], pts = [];
-    for(const x of xs) for(const y of ys) pts.push(S.W(x, y, 0), S.W(x, y, 700));
-    if(S.ptsOnScreen(pts)) S.queueHousingEdgeAt(vq, e, false, null, null, rw.units);
+  for(const h of P.houses){
+    const pts = [];
+    for(const [x, y] of [[h.x0, h.yBack], [h.x1, h.yBack], [h.x1, h.oy], [h.x0, h.oy]]) pts.push(S.W(x, y, h.z - 300), S.W(x, y, h.z + 700));
+    if(!S.ptsOnScreen(pts)) continue;
+    /* the house, one piece keyed at its middle as the city's units are (queueUnitStrips), its layer by the robot
+       (propLayer), drawn and cached by the house library (drawLibUnit) lifted to its floor; its deck and stilts just before */
+    const D = hoodShopD(h.lib), ucx = h.e.ox - h.unit.w/2, ucy = h.e.oy - D/2;
+    if(!h.top){ const key = "mir|deck|" + h.x0 + "," + h.oy;
+      vq.push({ depth: ucx + ucy - 1, fn: (g) => S.bcDraw(g, key, h.x0, h.oy, gg => miradorDrawDeck(S, gg, h)) }); }
+    vq.push({ depth: ucx + ucy, fn: (g) => S.bcDraw(S.propLayer(g, ucx, ucy), "mir|house|" + h.lib + "|" + h.e.ox + "," + h.e.oy + "|" + h.unit.pal, h.e.ox, h.e.oy,
+      gg => S.hillLift(h.z, () => miradorDrawHouse(S, gg, h))) });
+  }
+  for(const ch of P.rails){
+    const a = ch[0], b = ch[ch.length - 1], pts = [S.W(a.x, a.y, a.z), S.W(b.x, b.y, b.z), S.W(a.x, a.y, a.z + 60), S.W(b.x, b.y, b.z + 60)];
+    if(!S.ptsOnScreen(pts)) continue;
+    vq.push({ depth: (a.x + b.x)/2 + (a.y + b.y)/2, fn: (g) => S.bcDraw(g, "mir|rail|" + a.x + "," + a.y, a.x, a.y, gg => miradorDrawRail(S, gg, ch)) });
   }
   const nl = nightLevel();
-  for(const p of P.furn){
-    const x = p.x, y = p.y;
-    if(!S.visProp(p.kind, x, y)) continue;
-    if(p.kind === "lamp"){
-      const ld = { lampSeed: p.seed, armSign: -1, mal: false };
-      vq.push({ depth: x + y, fn: (g) => S.bcDraw(g, "mir|rl|" + x + "," + y, x, y, gg => S.drawProp(gg, "lamp", x, y, 0, p.f, 0, null, null, ld)) });
-      if(nl > 0.02) vq.push({ depth: x + y + 2, fn: () => S.glowInWorld((gg, fill) => S.landmarkLampGlow(gg, fill, x, y, 300, 260, LANDMARK_LAMP_COL, nl)) });
-    } else vq.push({ depth: x + y, fn: (g) => S.bcDraw(g, "mir|rp|" + x + "," + y, x, y, gg => S.drawProp(gg, p.kind, x, y, 0, p.f, 0)) });
+  for(const p of P.lamps){
+    if(!S.visProp("lamp", p.x, p.y, p.z)) continue;
+    const ld = { lampSeed: p.seed, armSign: -1, mal: false };
+    vq.push({ depth: p.x + p.y, fn: (g) => S.bcDraw(g, "mir|lamp|" + p.x + "," + p.y, p.x, p.y, gg => S.drawProp(gg, "lamp", p.x, p.y, 0, p.f, p.z, null, null, ld)) });
+    if(nl > 0.02) vq.push({ depth: p.x + p.y + 2, fn: () => S.glowInWorld((gg, fill) => S.hillLift(p.z, () => S.landmarkLampGlow(gg, fill, p.x, p.y, 300, 260, LANDMARK_LAMP_COL, nl))) });
   }
 }
-/* the minimap (eastMapTrail): the circle in the road's colour, the houses as the map's houses (the street is the lattice's) */
+/* the entrance off the north street: a dropped kerb the road's width, opposite column 32's street (hoodDrivewaysOf) */
+function miradorDrives(){
+  const M = MIRADOR_HILL;
+  return WORLDGEN_COAST ? [{ x0: M.xEntry - M.RH - M.SH, x1: M.xEntry + M.RH + M.SH, y: -(ROAD_HALF + SIDEWALK_W), out: 1, lane: true, col: "#6a6c70" }] : [];
+}
+/* the minimap (eastMapTrail): the road, its circle and the drives in the road's colour, the houses */
 function miradorMap(grid, toScreen, ctx, roadCol){
   const P = miradorPlan(grid);
   if(P.none) return;
-  ctx.fillStyle = roadCol || "#6a6d72";
-  for(const r of [{ x0: P.street[0].x0, x1: P.RX + ROAD_HALF, y0: P.yC - ROAD_HALF, y1: P.yC + ROAD_HALF }, { x0: P.RX - ROAD_HALF, x1: P.RX + ROAD_HALF, y0: P.round.y, y1: P.yC + ROAD_HALF }]){
-    const a = toScreen({ x: r.x0, y: r.y0 }), b = toScreen({ x: r.x1, y: r.y1 });
-    ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-  }
-  const c = toScreen({ x: P.round.x, y: P.round.y }), e = toScreen({ x: P.round.x + P.round.r, y: P.round.y });
-  ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2, Math.abs(e.x - c.x)), 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = "#e2b48a";
-  for(const f of P.foot){
-    const a = toScreen({ x: f.x0, y: f.y0 }), b = toScreen({ x: f.x1, y: f.y1 });
-    ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-  }
+  ctx.save(); ctx.strokeStyle = roadCol || "#6a6d72"; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  const line = (ss, wW) => { const a = toScreen({ x: 0, y: 0 }), b = toScreen({ x: wW, y: 0 }); ctx.lineWidth = Math.max(1.5, Math.abs(b.x - a.x));
+    ctx.beginPath(); ss.forEach((s, i) => { const p = toScreen(s); if(i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }); ctx.stroke(); };
+  line(P.road, 2*P.M.RH);
+  for(const dr of P.drives) line(dr, 2*P.M.DRIVE);
+  { const c = toScreen(P.end), e = toScreen({ x: P.end.x + P.end.r, y: P.end.y }); ctx.fillStyle = roadCol || "#6a6d72"; ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2, Math.abs(e.x - c.x)), 0, Math.PI*2); ctx.fill(); }
+  ctx.fillStyle = "#b07a52";
+  for(const h of P.houses){ const a = toScreen({ x: h.x0, y: h.yBack }), b = toScreen({ x: h.x1, y: h.oy }); ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); }
+  ctx.restore();
 }
 function northHillPolys(o){
   const B = BLOCK, H = WG_HILLS, out = [];
@@ -159744,16 +160065,15 @@ function worldgenLandmarks(grid){
     { name:"Sierra Palma",         x:(X0+X1)/2, y: Y0 - W2.FOOTW*B - B*1.4, kind:"range" },
     { name:"Mirador Hills",        x: X1 + W2.FOOTW*B + B*1.2, y:(Y0+Y1)/2, kind:"range" },
     { name:"Sierra Vista Estates", x: X0 + B*1.7, y: Y0 - W2.FOOTW*B*0.7, kind:"estates" },
-    { name:"Mirador Heights",      x: grid.cols*B, y: (MIRADOR.J + MIRADOR.J_END)/2*B, kind:"estates" },
+    { name:"Mirador Heights",      x: (MIRADOR_HILL.xW + MIRADOR_HILL.xEnd)/2, y: mirRunY(2, (MIRADOR_HILL.xW + MIRADOR_HILL.xEnd)/2), kind:"estates" },
   ];
 }
-/* MIRADOR HEIGHTS' LAND, for the region index (WORLD_REGIONS): its street off the j=10 row (stub: the block east to the
-   corner and the drive north up column 36 to the circle, as one box each is read: the stub) and the box its houses' lots
-   stand in (bx0..by1) -- the same lines as buildGrid's street (MIRADOR) and miradorPlan's rows, from the constants alone */
+/* MIRADOR HEIGHTS' LAND, for the region index (WORLD_REGIONS): up in the north-east hills (MIRADOR_HILL, miradorPlan) --
+   its road's way in off the north street (stub) and the box its road and houses climb in (bx0..by1), from the constants */
 function miradorGeo(grid){
-  const B = BLOCK, EXT = B*WG_COAST.EXT, X1 = (grid.cols - 1)*B + EXT, RX = grid.cols*B, ST = ROAD_HALF + SIDEWALK_W;
-  return { bx0: X1, by0: MIRADOR.J_END*B - 260 - 760 - SIDEWALK_W, bx1: RX + ST + 1000, by1: MIRADOR.J*B - ST,
-           stub: { x0: (grid.cols - 1)*B, y0: MIRADOR.J*B - ROAD_HALF, x1: RX + ROAD_HALF, y1: MIRADOR.J*B + ROAD_HALF } };
+  const M = MIRADOR_HILL, Y0 = -WG_COAST.EXT*BLOCK;
+  return { bx0: M.xW - 300, by0: mirRunY(4, M.xW) - 1400, bx1: M.xEnd + M.circle + 300, by1: Y0 - 60,
+           stub: { x0: M.xEntry - M.RH, y0: Y0, x1: M.xEntry + M.RH, y1: -(ROAD_HALF + SIDEWALK_W) } };
 }
 /* ==================== WORLD REGIONS (Sir, 2026-10-30) ====================
    Costa Palma's edge -- Pelican Harbor, the beaches, the boardwalk, the
@@ -159828,7 +160148,7 @@ const WORLD_REGIONS = [
   /* (not a Flats district, Sir 2026-10-30: "i can only see the flats so ... it should not be part of the flats": an edge of
      the hoods beside it -- most of its length is The Bluffs'; to be built out as a development, part built, part building) */
   { id: 'mirador-heights', name: 'Mirador Heights', owner: 'The Bluffs', kind: 'edge',
-    geo: 'miradorGeo(grid): the lots box and the stub; its street is lattice (buildGrid, MIRADOR), its houses miradorPlan' },
+    geo: 'miradorGeo(grid): its road and houses up the north-east hills (miradorPlan, MIRADOR_HILL) and the road\'s way in' },
   /* (Sir, 2026-10-30: the terraces are "all foot hills") */
   { id: 'the-foothills', name: 'The Foothills', owner: 'by stretch', kind: 'strip', parts: ['the north terraces (every WG_HILLS shelf)', 'the east foothills'],
     geo: 'north: Y0 back to northHillsTopY (every WG_HILLS shelf, the Sierra Vista bench and the harbour strip behind the headland included); east: WG_COAST.FOOTW band (X1 .. X1 + FOOTW)' },
