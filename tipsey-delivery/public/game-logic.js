@@ -156710,7 +156710,12 @@ function riverPieces(grid){
     if(r.north) add(1, [P(r, 0, -WH, 0), P(r, 0, WH, 0), P(r, 0, WH, -D), P(r, 0, -WH, -D)], 0xe8f4f8);
     /* 2: the banks at street height -- the quays' paving (tiled over in the finish: riverFinish) and the coping; the sand's east bank */
     if(!r.sand) for(const sd of [-1, 1]){ add(2, quad(r, r.qa, r.qb, sd*WH, sd*SW, 0, 0), 'pave'); add(2, quad(r, wl0 === r.w0 ? r.lo : wl0, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xc9c2b4); }
-    else { add(2, quad(r, r.lo, r.hi, WH, WH + D + 60, 0, 0), 0xf0e2ae);
+    /* (the sunk water shows through to street height RIVER.depth east and south of it: the boardwalk running on east of the mouth is
+       a bank too, laid again over it with its seams -- B7) */
+    if(r.nb === 'board'){ const b0 = r.len, b1 = r.len + WG_COAST.BOARD*BLOCK, x0 = r.x + WH + C, x1 = r.x + WH + D + 80;
+      add(2, [{ x: x0, y: r.y + b0, z: 0 }, { x: x1, y: r.y + b0, z: 0 }, { x: x1, y: r.y + b1, z: 0 }, { x: x0, y: r.y + b1, z: 0 }], 0xb98a5e);
+      for(let x = Math.ceil(x0/52)*52; x <= x1; x += 52) add(2, [{ x: x - 1.5, y: r.y + b0, z: 0 }, { x: x + 1.5, y: r.y + b0, z: 0 }, { x: x + 1.5, y: r.y + b1, z: 0 }, { x: x - 1.5, y: r.y + b1, z: 0 }], 0x8a6644, 0.55); }
+    if(r.sand){ add(2, quad(r, r.lo, r.hi, WH, WH + D + 60, 0, 0), 0xf0e2ae);
       for(const sd of [-1, 1]) add(2, quad(r, r.lo, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xd8c690); }
     /* 3: the decks -- a street's square at its node (tiled and kerbed in the finish), the boardwalk's timber with its seams, the
        footbridge's timber under the promenade's own walk */
