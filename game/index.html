@@ -116522,6 +116522,101 @@ class WorldScene extends Phaser.Scene {
     }
     this.drawProp(g, kind, x, y, 0, f, 0, 0, 7, DRONES[kind] ? { hover: 0 } : null);
   }
+  /* ---------- THE HARBOR'S SEAM WITH THE TOWN (Sir, 2026-11-24: "we added stuff in the hills and the harbor but they don't read as
+     part of the map") ----------
+     Harbor Road ran north from the city's corner as a strip of its own: the apron in the harbor's stone, met by the estate's lawn at
+     a ruler line, and the east sidewalk bare. Three things make it the same town:
+       the apron is the city's paving (drawHarborApronPaving: the slabs Harbor Road's own sidewalks are laid in, run on out to the
+         estate's wall -- the sidewalk and the apron one walk);
+       the east sidewalk is furnished as the city's are (harborGeo's seamFurn: lamps, kerb palms in grates, benches and bins);
+       the lawn comes down to the harbor through a planted verge along its edge (harborSeamPlants): coastal shade trees set back from
+         the parapet at a wandering distance and a loose border of lavender, rosemary and grasses spilling to it, on each terrace at
+         its own height. The parapet's line is broken by what grows along it, not redrawn: the estate's edge (drawSierraEdge) is as
+         it was. Every piece still is a cached image (bcDraw, keyed by what and where), culled to the screen; the palms sway, live. */
+  drawHarborApronPaving(g, onScreen){
+    const A = harborGeo().apron, B = BLOCK, d = this.d, z = 0.3;
+    const Wp = (x, y) => this.W(x, y, z);
+    /* the base, one quad: the slabs' own mean tone where the window below does not reach */
+    const base = [Wp(A.x0, A.y0), Wp(A.x1, A.y0), Wp(A.x1, A.y1), Wp(A.x0, A.y1)];
+    if(onScreen(base)) this.quadOn(g, base, mixC(d.pave, d.paveB, 0.5));
+    /* the slabs, on the sidewalks' own T2 lattice (so their joints run on from the sidewalk's), near the camera */
+    if(Math.abs(Math.max(A.x0, Math.min(A.x1, this.camX)) - this.camX) > B*3) return;
+    const ya = Math.max(A.y0, this.camY - B*3), yb = Math.min(A.y1, this.camY + B*3);
+    for(let x = Math.floor(A.x0/T2)*T2; x < A.x1 - 0.5; x += T2)
+      for(let y = Math.floor(ya/T2)*T2; y < yb - 0.5; y += T2){
+        const x0 = Math.max(A.x0, x), x1 = Math.min(A.x1, x + T2), y0 = Math.max(A.y0, y), y1 = Math.min(A.y1, y + T2);
+        const pts = [Wp(x0, y0), Wp(x1, y0), Wp(x1, y1), Wp(x0, y1)];
+        if(onScreen(pts)) this.paveSlabOn(g, pts, d, x + TILE, y + TILE);
+      }
+  }
+  /* the verge's planting on the estate's edge strip (X0 + EDGE_W .. xw, each terrace at its height), built once. Each piece is keyed
+     after the edge section it stands on (drawSierraEdge's sections are keyed at their near end, X0 + yb): never under its lawn */
+  harborSeamPlants(){
+    if(this._hbSeamPlants) return this._hbSeamPlants;
+    const S = sierraGeo(), SEG = SV_EDGE_SEG, x1 = S.X0 + EDGE_W, out = [];
+    const front = k => k >= 1 && k <= 3 && S.ramps[k-1].b0 <= S.xw + 1 ? S.ramps[k-1].yF : S.e[k];   // (as queueHarbor's edge sections)
+    const TREES = [null, 'olive', 'pepper', null, 'olive'], GREENS = [0x5f8f45, 0x6a9a4e, 0x557f40];
+    const SHRUBS = ['lavender', 'rosemary', 'grass', 'lavender', 'rosemary'];
+    for(let k = 0; k < 4; k++){
+      const yN = front(k + 1), yS = front(k), z = S.z[k], rr = mulberry32(0x5ea3 + k*977);
+      const secOf = y => Math.min(yN + (Math.floor((y - yN)/SEG) + 1)*SEG, yS);
+      /* the trees, a stride of 400..580, set back from the parapet by a wandering 170..280 */
+      for(let y = yS - 300; y > yN + 300; y -= 400 + rr()*180)
+        out.push({ kind: 'tree', x: x1 + 170 + rr()*110, y: y - rr()*80, z, h: 0.86 + rr()*0.3,
+                   sp: TREES[Math.floor(rr()*TREES.length)], col: GREENS[Math.floor(rr()*GREENS.length)] });
+      /* the border: clumps along the parapet's inside in a wandering line, some up to it, a second clump now and then behind */
+      for(let y = yS - 140; y > yN + 140; y -= 95 + rr()*110){
+        const wob = Math.sin(y/430)*30 + Math.sin(y/170)*14;
+        out.push({ kind: 'shrub', x: x1 + 50 + wob + rr()*20, y, z, r: 32 + rr()*22, sk: SHRUBS[Math.floor(rr()*SHRUBS.length)] });
+        if(rr() < 0.3) out.push({ kind: 'shrub', x: x1 + 130 + wob + rr()*30, y: y - 40, z, r: 28 + rr()*16, sk: SHRUBS[Math.floor(rr()*SHRUBS.length)] });
+      }
+      for(const p of out) if(p.z === z && p.yb === undefined) p.yb = secOf(p.y);
+    }
+    for(const p of out) p.depth = Math.max(p.x + p.y, S.X0 + p.yb + 1.5 + (p.x + p.y)*1e-5);   // (after its section; the plants among themselves by x + y)
+    return (this._hbSeamPlants = out);
+  }
+  queueHarborSeam(vq, hg, near){
+    const K = this.K, gw = this.vpW(), gh = this.vpH();
+    const box = (x, y, z, l, r, u, d) => { const c = this.W(x, y, z);
+      return c.x + r*K >= 0 && c.x - l*K <= gw && c.y + d*K >= 0 && c.y - u*K <= gh; };
+    /* the sidewalk's furniture (harborGeo's seamFurn) */
+    for(const f of hg.seamFurn){
+      const x = f.x, y = f.y;
+      if(!near(x, y, 400)) continue;
+      if(f.kind === 'lamp'){
+        if(!this.visProp('lamp', x, y)) continue;
+        const ld = { lampSeed: f.seed, armSign: -1, mal: f.mal };          // (fdir 1: +b toward the road, the arm reaching in over the walk)
+        vq.push({ depth: x + y, fn: (g, t) => this.drawProp(g, 'lamp', x, y, t, 1, 0, null, null, ld) });
+      } else if(f.kind === 'palm' || f.kind === 'palmDwarf'){
+        if(!this.visProp(f.kind, x, y)) continue;
+        /* its grate (PALM_WELL), flat: keyed at its far corner so nothing standing on the walk is under it */
+        vq.push({ depth: x + y - 2*TILE - 1, fn: (g) => this.bcDraw(g, "hb|seam|well|" + x + "," + y, x, y, gg => this.drawPalmGround(gg, f.kind, x, y, 0)) });
+        vq.push({ depth: x + y, fn: (g, t) => this.drawProp(g, f.kind, x, y, t, 0) });
+      } else if(f.kind === 'bench'){
+        if(!this.visProp('bench', x, y)) continue;
+        vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|seam|bench|" + x + "," + y, x, y, gg => this.drawBenchProp(gg, x, y, DIRV[1])) });
+      } else if(f.kind === 'bin'){
+        if(!this.visProp('bin', x, y)) continue;
+        vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|seam|bin|" + x + "," + y, x, y, gg => this.drawProp(gg, 'bin', x, y, 0, 1, 0)) });
+      }
+    }
+    /* the verge on the estate's edge strip: each drawn through a stand-in whose W stands it on its terrace */
+    const S = sierraGeo();
+    if(this.camX > S.xw + (gw + gh)/K + 1200) return;
+    for(const p of this.harborSeamPlants()){
+      if(!near(p.x, p.y, 400 + p.z)) continue;
+      const tr = p.kind === 'tree';
+      if(tr ? !box(p.x, p.y, p.z, 190*p.h + 40, 190*p.h + 40, 360*p.h + 60, 30) : !box(p.x, p.y, p.z, 2*p.r + 10, 2*p.r + 10, 2.6*p.r + 10, 1.2*p.r + 10)) continue;
+      const key = "hb|seam|" + p.kind + "|" + Math.round(p.x) + "," + Math.round(p.y);
+      vq.push({ depth: p.depth, fn: (g) => this.bcDraw(g, key, p.x, p.y, gg => {
+        const me = Object.create(this), z0 = p.z;
+        me.W = (a, b, c) => this.W(a, b, (c || 0) + z0);
+        const rr = mulberry32(((Math.round(p.x)*7919) ^ (Math.round(p.y)*104729)) >>> 0);
+        if(tr) this.drawShadeTree.call(me, gg, p.x, p.y, p.h, p.col, rr, p.sp);
+        else this.drawParkShrubSp.call(me, gg, { x: p.x, y: p.y, r: p.r, sk: p.sk, col: 0x6a8f52 }, rr);
+      }) });
+    }
+  }
   queueHarbor(vq){
     const hg = harborGeo();
     const span = (this.vpW() + this.vpH()) / this.K + 1200;
@@ -116592,6 +116687,8 @@ class WorldScene extends Phaser.Scene {
           }
         }
     }
+    /* the seam with the town: Harbor Road's east sidewalk furnished as the city's, the verge along the estate's edge (queueHarborSeam) */
+    this.queueHarborSeam(vq, hg, near);
     /* the day's boats */
     const sh = LIB.get('Harbor Boat');
     for(const bt of this._harborFleetFor(this.route && this.route.dateStr).concat([hg.islandBoat])){       // (and the island pier's skiff)
@@ -117474,7 +117571,9 @@ class WorldScene extends Phaser.Scene {
     }
     /* the paving: the apron and the plaza, one stone; a kerb of granite
        along the water */
-    rect(hg.apron, 0.3, PAVE);
+    /* the apron: Harbor Road's east sidewalk run on out to the estate's wall, so it is the town's paving -- the city's slabs, its
+       tones and joints (paveSlabOn), not the harbor's stone (drawHarborApronPaving). The plaza keeps the harbor's */
+    this.drawHarborApronPaving(g, onScreen);
     rect(hg.plaza, 0.3, PAVE);
     /* under the harbor house: its own footprint, no further back (the back lot is Sea Lion Point's: harborGeo) */
     for(const r of hg.house) rect({ x0: r.x0 - (r.x0 <= hg.bldg.x0 ? 120 : 0), x1: r.x1 + (r.x1 >= hg.bldg.x1 ? 120 : 0), y0: r.y0, y1: hg.plaza.y0 }, 0.3, PAVE);
@@ -117541,7 +117640,7 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(2, PAVEJ, 0.6);
     /* (...and the paving before the house's front, between its walls and the plaza's edge: the same stone, the same joints -- it was a flat plate, "blank grey") */
     const fore = hg.house.map(r => ({ x0: r.x0 - (r.x0 <= hg.bldg.x0 ? 120 : 0), x1: r.x1 + (r.x1 >= hg.bldg.x1 ? 120 : 0), y0: Math.max(r.y0, hg.plaza.y0 - 400), y1: hg.plaza.y0 }));
-    for(const r of [hg.apron, hg.plaza, ...fore]){
+    for(const r of [hg.plaza, ...fore]){
       if(!near(Math.max(r.x0, Math.min(r.x1, this.camX)), Math.max(r.y0, Math.min(r.y1, this.camY)))) continue;
       const S2 = T2*2;
       const xa = Math.max(r.x0, this.camX - B*3), xb = Math.min(r.x1, this.camX + B*3);
@@ -158695,6 +158794,42 @@ function harborGeo(){
      retaining wall stands 226-586 high along apron.x1, and a palm by it lost
      its tub behind the wall (it hides what is within its height of it) */
   for(const y of [-5250, -6800, -7950, -9950, -10500, -11600]) props.push({ kind:'palm', x: apron.x0 + 80, y, r: 46 });   // (none by the fish market's end)   // in the gaps the trailers, rack and kiosk leave
+  /* THE TOWN COMES DOWN HARBOR ROAD (Sir, 2026-11-24: "we added stuff in the hills and the harbor but they don't read as part of
+     the map"). The road's east sidewalk had nothing on it: no block owns that frontage, so the city's furniture pass never furnished
+     it. It is furnished here as the city's are (cityFurnitureForEdge): the city's lamps on the kerb row on the city's own stride
+     (LAMP_ACT x lampInfra x cal.lamp, phased off world y so they line up with the town's), its kerb palms in grates half a step off
+     them (a quarter dwarf), and on the back row a bench facing the water with a bin beside it, ~1,500 apart. Clear of the kerb
+     ramps (the crossings at -B/2 - kB), the gantry's posts, the bait shop's drive and the apron's own palms. Solid as the city's are
+     (harborBlocks reads props). Drawn by queueHarborSeam; the harbor's own pieces (column lamps, bollards) stay on the quay. */
+  const seamFurn = [];
+  { const kerbX = RX + ROAD_HALF + TILE, backX = road.x1 - TILE;     // lane 0 (the kerb row) and lane 3 (the back row), tile centres
+    const step = LAMP_ACT.spacing*T2*CITY_FURN.lampInfra*CITY_FURN.cal.lamp;
+    const yS = -SW - 800, yN = round.y + round.out + 400;             // past the gantry and the corner; short of the turning circle
+    const clear = (y, pad) => {
+      for(let k = 0; k < 6; k++) if(Math.abs(y - (-B/2 - k*B)) < 200 + pad) return false;            // the crossings' ramps
+      if(y > BT_PLAN.DRIVE.y1 - 120 - pad && y < BT_PLAN.DRIVE.y0 + 120 + pad) return false;          // the bait shop's drive
+      return true;
+    };
+    let lastBench = 0;
+    for(let k = Math.ceil(-yS/step); k*step < -yN; k++){
+      const y = -k*step;
+      if(clear(y, 0)){
+        const seed = ((Math.round(kerbX)*7919) ^ (Math.round(y)*104729) ^ 0x1a3b) >>> 0;
+        seamFurn.push({ kind: 'lamp', x: kerbX, y, seed, mal: mulberry32(seed)() < LAMP_ACT.malRate });
+      }
+      /* the palm, half a step on, onto the kerb row's tile centre (PALM_WELL) */
+      const yp = Math.floor((y - step/2)/T2)*T2 + TILE;
+      if(yp > yN && clear(yp, 40)) seamFurn.push({ kind: mulberry32(0x5ea4 + k*131)() < 0.25 ? 'palmDwarf' : 'palm', x: kerbX, y: yp });
+      /* a gap in every two or so: a bench on the back row facing the water, a bin beside it (none along the fish market's bollards) */
+      const yb = [0.3, 0.7, 0.15, 0.85].map(u => y - step*u).find(q => q > yN && q < -3000 && clear(q, 120) &&
+        ![-5250, -6800, -7950, -9950, -10500, -11600].some(p2 => Math.abs(p2 - q) < 260) && Math.abs(q - (yp - 0)) > 200);
+      if(yb !== undefined && lastBench - yb > step*1.5){
+        seamFurn.push({ kind: 'bench', x: backX + BENCH_ART.depth/2, y: yb }); lastBench = yb;
+        seamFurn.push({ kind: 'bin', x: backX, y: yb - BENCH_ART.w/2 - 60 });
+      }
+    }
+    for(const f of seamFurn) props.push({ kind: 'seam', x: f.x, y: f.y, r: f.kind === 'bench' ? 52 : f.kind === 'bin' ? 20 : f.kind === 'lamp' ? 16 : 22 });
+  }
   /* SEA LION POINT (Sir, 2026-10-01, drawing round the bare headland
      behind and west of the harbor house: "lets spruce this area up and make
      it a park. make it Sea themed and have a Sealion Statue in it ... more
@@ -158847,7 +158982,7 @@ function harborGeo(){
   const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, strip, strip2, strip3, jetty.north, jetty.arm, ...park.rects,
                  ...fingers.map(f => ({ x0: f.x0, x1: f.x1, y0: f.y0, y1: f.y1 })) ];
   _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty, strip, strip2, strip3,
-                 fingers, slips, islandBoat, ipStairs, zone, walk, props, park, beachWalk };
+                 fingers, slips, islandBoat, ipStairs, zone, walk, props, park, beachWalk, seamFurn };
   /* the light's landing is round: walkable inside it, the tower solid */
   props.push({ kind:'none', x: light.x, y: light.y, r: jetty.land.tower });
   return _harborGeo;
