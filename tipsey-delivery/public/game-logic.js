@@ -155940,12 +155940,14 @@ function tpMiniDraw(scene){
      instrument -- up the screen is where you are going -- and anything
      tighter loses the block either side of you at a junction. */
   const scale = Math.min(W, H)/span;
-  const cx = scene.botX, cy = scene.botY;
+  let cx = scene.botX, cy = scene.botY;
+  if(BEND.on){ const q = bendXY(cx, cy); cx = q.x; cy = q.y; }   // (THE BEND: on him where he is drawn)
   /* THE PROJECTION, direction-for-direction the same one gpsScreenAng
      and W() use. Nothing else in this function knows the camera exists;
      everything below just calls T. */
   const T = p => {
-    const dx = p.x - cx, dy = p.y - cy;
+    let px = p.x, py = p.y; if(BEND.on){ const q = bendXY(px, py); px = q.x; py = q.y; }   // (THE BEND: the minimap bends as the world does)
+    const dx = px - cx, dy = py - cy;
     return { x: W/2 + (dx - dy)*scale, y: H/2 + (dx + dy)*0.5*scale };
   };
   /* a world-space axis-aligned rectangle is a parallelogram once it is
@@ -156685,7 +156687,27 @@ function bendMask(u, v){
 }
 /* the bent place of world (x, y): out = {x, y} reused */
 const _bendOut = { x: 0, y: 0 };
+/* THE FIELD AS A TABLE (perf, Sir 2026-11-25 asked for the check): W calls bendXY for every point it lays, and the field's four
+   sines and its mask cost the update ~2-3 ms a frame in Old Town (perf_check otown/otriv, PERF_QS=?bend=1). The field is smooth,
+   so it is sampled once on a quarter-block lattice over the city and read back bilinearly: a lookup and four multiplies. */
+let _bendTab = null;
+function bendTable(){
+  if(_bendTab) return _bendTab;
+  const st = 4, nx = BEND.cols*st + 1, ny = BEND.rows*st + 1, dx = new Float32Array(nx*ny), dy = new Float32Array(nx*ny);
+  for(let j = 0; j < ny; j++) for(let i = 0; i < nx; i++){ const x = i/st*BLOCK, y = j/st*BLOCK, q = bendXYExact(x, y); dx[j*nx + i] = q.x - x; dy[j*nx + i] = q.y - y; }
+  return (_bendTab = { st, nx, ny, dx, dy });
+}
 function bendXY(x, y){
+  _bendOut.x = x; _bendOut.y = y;
+  const T = bendTable(), fu = x/BLOCK*T.st, fv = y/BLOCK*T.st;
+  if(fu <= 0 || fv <= 0 || fu >= T.nx - 1 || fv >= T.ny - 1) return _bendOut;     // (outside the city: the field is nothing there)
+  const i = fu | 0, j = fv | 0, a = fu - i, b = fv - j, o = j*T.nx + i, n = T.nx;
+  const w00 = (1 - a)*(1 - b), w10 = a*(1 - b), w01 = (1 - a)*b, w11 = a*b;
+  _bendOut.x = x + T.dx[o]*w00 + T.dx[o + 1]*w10 + T.dx[o + n]*w01 + T.dx[o + n + 1]*w11;
+  _bendOut.y = y + T.dy[o]*w00 + T.dy[o + 1]*w10 + T.dy[o + n]*w01 + T.dy[o + n + 1]*w11;
+  return _bendOut;
+}
+function bendXYExact(x, y){
   const B = BLOCK, u = x/B, v = y/B; _bendOut.x = x; _bendOut.y = y;
   const m = bendMask(u, v); if(m <= 0) return _bendOut;
   const A = BEND.amp*B*m, TAU = Math.PI*2;
@@ -163057,6 +163079,22 @@ function tpMapLabel(ctx, text, x, y, px, bold, opts){
   ctx.fillText(text, x, y);
   ctx.restore();
 }
+/* a world rectangle on a map, by its two projected corners (each carrying its world point, _wx/_wy): a plain fillRect, or --
+   with THE BEND on -- the rectangle's outline walked in short steps through the map's own projection, so a block bends on the
+   map as it does in the world */
+function mapRectFill(ctx, toScreen, a, b){
+  if(!BEND.on || a._wx === undefined){ ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y)); return; }
+  const x0 = Math.min(a._wx, b._wx), x1 = Math.max(a._wx, b._wx), y0 = Math.min(a._wy, b._wy), y1 = Math.max(a._wy, b._wy);
+  const n = Math.max(1, Math.min(12, Math.ceil(Math.max(x1 - x0, y1 - y0)/700)));
+  ctx.beginPath();
+  const pts = [];
+  for(let k = 0; k < n; k++) pts.push([x0 + (x1 - x0)*k/n, y0]);
+  for(let k = 0; k < n; k++) pts.push([x1, y0 + (y1 - y0)*k/n]);
+  for(let k = 0; k < n; k++) pts.push([x1 - (x1 - x0)*k/n, y1]);
+  for(let k = 0; k < n; k++) pts.push([x0, y1 - (y1 - y0)*k/n]);
+  pts.forEach(([x, y], k) => { const q = toScreen({ x, y }); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
+  ctx.closePath(); ctx.fill();
+}
 function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
@@ -163166,7 +163204,8 @@ function drawRouteMap(route){
      otherwise draw them is skipped below. */
   const usingAtlas = !!(tpMapView && tpMapView.atlas);
   const bgRoute = usingAtlas ? tpAtlas() : route;
-  const toScreen = p => ({ x: W/2 + (p.x-cx0)*scale, y: H/2 + (p.y-cy0)*scale });
+  const toScreen = p => { let x = p.x, y = p.y; if(BEND.on){ const q = bendXY(x, y); x = q.x; y = q.y; }   // (THE BEND: the map bends as the world does)
+    return { x: W/2 + (x-cx0)*scale, y: H/2 + (y-cy0)*scale, _wx: p.x, _wy: p.y }; };
   const viewMinX = cx0 - spanX/2, viewMaxX = cx0 + spanX/2;
   const viewMinY = cy0 - spanY/2, viewMaxY = cy0 + spanY/2;
   const inView = (x, y) => x >= viewMinX-BLOCK && x <= viewMaxX+BLOCK && y >= viewMinY-BLOCK && y <= viewMaxY+BLOCK;
@@ -163203,7 +163242,7 @@ function drawRouteMap(route){
     const cband = (x0,y0,x1,y1,fill) => {
       const a = toScreen({x:x0,y:y0}), b = toScreen({x:x1,y:y1});
       ctx.fillStyle = fill;
-      ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+      mapRectFill(ctx, toScreen, a, b);
     };
     const FOOTW = BLOCK*WG_COAST.FOOTW;
     mapCoastBands(bgRoute.grid, bgRoute.dateStr, cband, (cx, cy, rad, fill) => {
@@ -163308,7 +163347,7 @@ function drawRouteMap(route){
     if(!inView(blk.cx, blk.cy)) continue;
     const a = toScreen({x:blk.x0, y:blk.y0}), b = toScreen({x:blk.x1, y:blk.y1});
     ctx.fillStyle = blockColor[mapBlockType(blk)] || "#d8d2c2";
-    ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+    mapRectFill(ctx, toScreen, a, b);
   }
   /* merged parks: bridge the gap the swallowed street left behind. This
      minimap draws blocks independently rather than sharing the real
@@ -163333,17 +163372,17 @@ function drawRouteMap(route){
       tone(nx);
       if(nxOK){
         const a = toScreen({x:blk.x1, y:blk.y0}), b = toScreen({x:nx.x0, y:blk.y1});
-        ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+        mapRectFill(ctx, toScreen, a, b);
       }
       tone(ny);
       if(nyOK){
         const a = toScreen({x:blk.x0, y:blk.y1}), b = toScreen({x:blk.x1, y:ny.y0});
-        ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+        mapRectFill(ctx, toScreen, a, b);
       }
       tone(ndOK && mapBlockType(nx) === "commercial" && mapBlockType(ny) === "commercial" ? nd : null);
       if(ndOK){
         const a = toScreen({x:blk.x1, y:blk.y1}), b = toScreen({x:nx.x0, y:ny.y0});
-        ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+        mapRectFill(ctx, toScreen, a, b);
       }
     }
   }
@@ -163361,7 +163400,7 @@ function drawRouteMap(route){
     if(!inView((f[0] + f[1])/2, (f[2] + f[3])/2)) continue;
     const a = toScreen({ x: f[0], y: f[2] }), b = toScreen({ x: f[1], y: f[3] });
     ctx.fillStyle = MAP_FOOT_TONES[f[4]];
-    ctx.fillRect(Math.min(a.x,b.x), Math.min(a.y,b.y), Math.abs(b.x-a.x), Math.abs(b.y-a.y));
+    mapRectFill(ctx, toScreen, a, b);
   }
 
   /* Veterans Memorial Park's trail (see vetTrailOf), at its real width */
@@ -163708,7 +163747,7 @@ function drawRouteMap(route){
       const y0 = r === 0 ? -PAD : r*SH + E, y1 = r === DISTRICT_ROWS-1 ? route.grid.rows*BLOCK + PAD : (r+1)*SH + E;
       if(x1 < viewMinX-BLOCK || x0 > viewMaxX+BLOCK || y1 < viewMinY-BLOCK || y0 > viewMaxY+BLOCK) continue;
       const a = toScreen({ x:x0, y:y0 }), b = toScreen({ x:x1, y:y1 });
-      ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+      mapRectFill(ctx, toScreen, a, b);
     }
     ctx.restore();
   }

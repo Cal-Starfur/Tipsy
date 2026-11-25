@@ -55,6 +55,8 @@ const SPOTS = [                // [name, x, y] -- null x: where the game spawns 
   ['sierra', 3128,  -2400],
   ['harbor', -3600, -9000],      // Pelican Harbor: the road, the quay, the docks and the fleet
   ['sealion', -6700, -14900],    // Sea Lion Point: the statue, the planting, the harbor house's flank
+  ['otown',  67252, 14076],      // Old Town (the bend at full strength: ?bend=1 via PERF_QS)
+  ['otriv',  65688, 30029],      // the Palma River's quays and a bridge, Old Town
 ];
 const VIEWS = [1, 2, 3];
 
@@ -107,7 +109,7 @@ function serve(){
      caches, the ground tiles) must not move the next one's numbers, or a
      --only run and a full run disagree */
   const boot = async () => {
-    await p.goto(url);
+    await p.goto(url + (process.env.PERF_QS || ""));   // (PERF_QS: a query string to boot with, e.g. "?bend=1")
     await p.waitForFunction(() => typeof game !== 'undefined' && game.scene && game.scene.getScene('world') && game.scene.getScene('world').route, null, { timeout: 60000 });
     await p.waitForTimeout(3000);
     /* the game boots into the garage (the style shop over the depot): shut
