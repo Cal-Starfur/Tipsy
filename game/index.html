@@ -158463,11 +158463,20 @@ function riverPieces(grid){
     const n = r.sand ? 10 : 1, wl0 = r.na === true || r.na === 'board' ? r.w0 : r.lo, wl1 = r.nb ? r.w1 : r.hi;
     /* 0: the water, a darker channel down its middle */
     for(let k = 0; k < n; k++){ const a0 = r.w0 + (r.w1 - r.w0)*k/n, a1 = r.w0 + (r.w1 - r.w0)*(k + 1)/n;
-      add(0, quad(r, a0, a1, -WH, WH, zW(r, a0), zW(r, a1)), 0x5f9fbf, 1, true);
-      add(0, quad(r, a0, a1, -WH*0.55, WH*0.55, zW(r, a0), zW(r, a1)), 0x5590b2, 1, true); }
+      add(0, quad(r, a0, a1, -WH, WH, zW(r, a0), zW(r, a1)), 0x5f9fbf, 1, true); }
     /* 1: the shadow each deck throws down the reach past it; the wall the eye sees (west / north), down to the water; the falls */
-    if(r.na === 'board') add(1, quad(r, 0, 240, -WH, WH, zW(r, 0), zW(r, 240)), 0x1c3a4a, 0.28);   // (the boardwalk's shadow, on the mouth's water)
-    for(const d of r.decks) if(d.a1 < r.w1 - 10) add(1, quad(r, d.a1, Math.min(r.w1, d.a1 + 240), -WH, WH, zW(r, d.a1), zW(r, d.a1 + 240)), 0x1c3a4a, 0.28);
+    /* THE SHADOWS FALL AS THE CITY'S LIGHT DOES (Sir, 2026-11-25: "shadows need some work"; B11): the light comes from +y and a
+       touch of -x (the side every storefront is lit from), so a deck over a north-south reach throws its shadow NORTH onto the
+       water behind it -- not south, where the light falls -- a deck over an east-west reach only a sliver east; the channel's own
+       south wall shades the water along it on an east-west reach, its west wall a sliver on a north-south one. Each a core and a
+       softer fringe, laid over the open water only. */
+    const SH = 0x1c3a4a, band = (a0, a1, p0, p1, al) => { a0 = Math.max(a0, r.w0); a1 = Math.min(a1, r.w1); if(a1 - a0 > 1) add(1, quad(r, a0, a1, p0, p1, zW(r, a0), zW(r, a1)), SH, al); };
+    for(const d of r.decks){
+      if(r.f === 1){ band(d.a0 - 150, d.a0, -WH, WH, 0.24); band(d.a0 - 230, d.a0 - 150, -WH, WH, 0.11); }
+      else { band(d.a1, d.a1 + 55, -WH, WH, 0.18); }
+    }
+    if(r.f === 0){ band(r.lo, r.hi, WH - 110, WH, 0.2); band(r.lo, r.hi, WH - 170, WH - 110, 0.09); }
+    else { band(wl0, wl1, -WH, -WH + 45, 0.16); }
     for(let k = 0; k < n; k++){ const a0 = wl0 + (wl1 - wl0)*k/n, a1 = wl0 + (wl1 - wl0)*(k + 1)/n;
       add(1, [P(r, a0, -WH, 0), P(r, a1, -WH, 0), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], r.sand ? 0xb7a77a : 0x9d968a);
       add(1, [P(r, a0, -WH, zW(r, a0) + 26), P(r, a1, -WH, zW(r, a1) + 26), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], 0x6f7a74); }
