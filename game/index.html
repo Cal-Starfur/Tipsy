@@ -67989,7 +67989,7 @@ function houseCanopy(fn){
        (RBPK). The station's robot goes west along the lane (b 1410) and up to the stop; it comes back by a 620 into its spot; as it leaves,
        the spare rolls in */
     const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBL = 1410, SPOD = [330, 1000], SROB = [500, 1000], RPOD = [430, 850], RBIN = [SROB[0], SROB[1], 31];   /* (RPOD: the empties' rack beside the picker) */
-    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[820, 700, 460, 580][k], 1600];   /* (20 north: clear of the finished pallets' bays slid along the south wall -- Sir, 2026-11-24) */   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
+    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[820, 700, 460, 580][k], 1575];   /* (45 north: well out of the finished pallets' way along the south wall -- Sir, 2026-11-25: "lets nudge these back ups out of the pallets way so not much of a move just enough") */   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
     const rbGeo = k => { const pa = rbPA(k), ST = [pa, 1330], PK = RBPK(k), A = RBA[k];
       const H = (P, f) => [P[0] + 0.01*Math.cos(f*Math.PI/2), P[1] + 0.01*Math.sin(f*Math.PI/2)];   /* (a path starts the way the robot stands, so it spins off its spot rather than snapping: tools pathAt) */
       const EMP = [ST, H(ST, 0), [pa, RBL], [SROB[0], RBL], SROB], RET = [SROB, H(SROB, 3), [620, SROB[1]], [620, RBL], [PK[0], RBL], PK], ENT = [PK, H(PK, 1), [PK[0], RBL], [pa, RBL], ST, [ST[0] + 0.6, ST[1]]];   /* (and the spare turns to face along the line at its station) */
