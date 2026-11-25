@@ -97651,6 +97651,49 @@ function cpLook(p){ return p.look || (p.lookFn ? (p.look = p.lookFn()) : null); 
 const cpLookArr = L => Object.assign([L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe], { uni: L.uniform, dress: L.dress });   // (knockDown's look: the six parts, and the uniform and dress a street look carries)
 const cpLookPlain = L => [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe];
 /* the street's look for a knock-down (a dog's owner, an errand driver: adults, with the aid their set allows; or a named local) */
+/* WHAT THEY HAD IN HAND, DROPPED (Sir, 2026-11-25: "she lost her flowers on the fall ... we didn't see them land on the sidewalk any where
+   and she just automatically got them back. they need to pick them up"): one knocked down with something in hand (a shopper's carry: the
+   bunch, the loaf, the bag out of a shop's room) lets go of it as they go over. It flies out of the hand away from him and lands flat on
+   the pavement past where they fall; it lies there while they are down; once up they walk over to it, crouch, take it up, and step back
+   onto their way with it in hand. Until then it is not theirs to draw (ref.carry is null: K.drop has it).
+     dist   how far past where they stood it lands (away from him), side the sway either way; arcH the throw's height over the hand's
+     walkV  the pace over to it and back; reach how far from it they stop to crouch; downMs, holdMs, upMs the crouch's beats */
+const KNOCK_DROP = { dist: 46, side: 10, handZ: 34, arcH: 20, walkV: 0.075, reach: 17, downMs: 480, holdMs: 220, upMs: 460 };
+/* its beats once they are up (ms after the get-up ends): over to it, down, the grab, up, back to where they stood -> { u, total } */
+function knockDropPlan(K){
+  const D = K.drop, P = KNOCK_DROP;
+  if(!D.plan){ const L = Math.max(0, Math.hypot(D.x - K.x, D.y - K.y) - P.reach), w = Math.max(250, L/P.walkV);
+    const at = { x: D.x - D.ux*P.reach, y: D.y - D.uy*P.reach };
+    if(L <= 0){ at.x = K.x; at.y = K.y; }
+    D.plan = { at, w, t1: w, t2: w + P.downMs, t3: w + P.downMs + P.holdMs, t4: w + P.downMs + P.holdMs + P.upMs, total: 2*w + P.downMs + P.holdMs + P.upMs }; }
+  return D.plan;
+}
+/* where they are through the pick (el: ms since the get-up ended) -> { x, y, th, moving, pose, held } */
+function knockDropWho(K, el, build){
+  const D = K.drop, P = KNOCK_DROP, pl = knockDropPlan(K), sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
+  const toItem = Math.atan2(D.y - pl.at.y, D.x - pl.at.x), C = D.carry;
+  const crouch = e => ({ drop: build.legH*0.36*e, waist: 1.05*e, lift: [0.12 + 0.3*e, 0.12 + 0.3*e], bend: [0.25, 0.25] });
+  if(el < pl.t1){ const k = el/pl.w; return { x: K.x + (pl.at.x - K.x)*k, y: K.y + (pl.at.y - K.y)*k, th: toItem, moving: pl.at.x !== K.x || pl.at.y !== K.y, pose: null, held: false }; }
+  if(el < pl.t2) return { x: pl.at.x, y: pl.at.y, th: toItem, moving: false, pose: crouch(sm((el - pl.t1)/P.downMs)), held: false };
+  if(el < pl.t3) return { x: pl.at.x, y: pl.at.y, th: toItem, moving: false, pose: crouch(1), held: el > pl.t2 + P.holdMs*0.5 };
+  if(el < pl.t4){ const e = 1 - sm((el - pl.t3)/P.upMs); return { x: pl.at.x, y: pl.at.y, th: toItem, moving: false, pose: Object.assign(crouch(e), { lift: C.lift, bend: C.bend }), held: true }; }
+  const k = Math.min(1, (el - pl.t4)/pl.w), back = Math.atan2(K.y - pl.at.y, K.x - pl.at.x);
+  return { x: pl.at.x + (K.x - pl.at.x)*k, y: pl.at.y + (K.y - pl.at.y)*k, th: k < 1 && (pl.at.x !== K.x || pl.at.y !== K.y) ? back : toItem, moving: k < 1 && (pl.at.x !== K.x || pl.at.y !== K.y), pose: null, held: true };
+}
+/* the item itself, in the hold's own frame (a, f, h: across, forward, up from the hand -- the hull's at.G) turned about its across axis by
+   phi (0 upright as held, PI/2 laid along u, its top away) and set down on its lowest point at (x, y, z). The hold draws as it does in the
+   hand: only its frame is the pavement's. Its points are learnt once (a dry run of the hold) for where its lowest point is */
+const _knockDropPts = new WeakMap();
+function knockDropDraw(scene, g, hold, x, y, z, ux, uy, phi){
+  let pts = _knockDropPts.get(hold);
+  if(!pts){ pts = []; const nop = new Proxy({}, { get: () => () => {} });
+    try { hold(nop, { x: 0, y: 0 }, scene.K, { G: (a, f, h) => { pts.push([f, h]); return { x: 0, y: 0 }; }, a: 0, hand: [0, 0], mouth: [0, 0] }); } catch(e){}
+    _knockDropPts.set(hold, pts); }
+  const c = Math.cos(phi), sn = Math.sin(phi), vx = -uy, vy = ux;
+  let lo = 0; if(pts.length){ lo = Infinity; for(const q of pts){ const zz = -q[0]*sn + q[1]*c; if(zz < lo) lo = zz; } }
+  const G = (a, f, h) => { const al = f*c + h*sn; return scene.W(x + a*vx + al*ux, y + a*vy + al*uy, z + (-f*sn + h*c) - lo); };
+  hold(g, G(0, 0, 0), scene.K, { G, a: 0, hand: [0, 0], mouth: [0, 0] });
+}
 function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLook(n, adult ? { adult: true, aid } : null); }
 /* ==================== THE LIGHTHOUSE RUN (fleet P2: the first mission played in a fleet vehicle; the Flats plan,
    area 8; docs/fleet-redesign.md) ====================
@@ -147287,6 +147330,13 @@ class WorldScene extends Phaser.Scene {
       conf: null, confDone: false, seed: (Math.random()*1e9) >>> 0 }, o);
     if(o.chair){ K.t0 = t - SR.fallMs - SR.downMs; K.upSaid = true; }              // (his bump on their chair: on their feet already, no fall -- the ballroom's guests)
     o.ref.knock = K; list.push(K);
+    /* (what was in their hand goes flying: KNOCK_DROP) */
+    const C0 = o.ref.carry;
+    if(C0 && C0.hold && !K.scoot && !K.chair && !K.pk && !K.z){
+      const L = Math.hypot(K.imp.x, K.imp.y) || 1, ux = K.imp.x/L, uy = K.imp.y/L, sd = (Math.random()*2 - 1)*KNOCK_DROP.side;
+      K.drop = { carry: C0, ux, uy, x: K.x + ux*KNOCK_DROP.dist - uy*sd, y: K.y + uy*KNOCK_DROP.dist + ux*sd, got: false };
+      o.ref.carry = null;
+    }
     if(K.pk && K.pk.walkin && !K.scoot) walkinFallClear(K);                     // (in a room: over the way that clears its fixtures -- walkinFallClear)
     /* five down out in the street: the police (POLICE_CALL.pile) */
     if(!this._inside && this.state === "play" && this.ow && this.ow.on){
@@ -147357,6 +147407,8 @@ class WorldScene extends Phaser.Scene {
       if(Math.hypot(K.x - this.botX, K.y - this.botY) > 6000){ this.knockEnd(K, t); list.splice(i, 1); continue; }
       if(!K.upSaid && el > dn - SR.getUpMs*0.4){ K.upSaid = true; this.npcSay(K, null, sayPick(K.mood === 'young' ? SAY.youngUp : K.mood === 'polite' ? SAY.politeUp : SAY.riderUp), 2000, undefined, 150); }
       if(el < dn) continue;
+      /* (up: over to what they dropped, and it back in hand, before anything else -- KNOCK_DROP) */
+      if(K.drop && !K.drop.got){ if(el - dn < knockDropPlan(K).total) continue; K.drop.got = true; K.ref.carry = K.drop.carry; }
       if(K.wait && this.state !== "play" && el < dn + 20000) continue;                // (he is over too: words once the crew have him up)
       if(!K.confDone){
         K.confDone = true;
@@ -147483,6 +147535,7 @@ class WorldScene extends Phaser.Scene {
     if(K.kind === "derbycrowd") DERBY_DOWN.delete(K.ref.k);
     if(K.kind === "mallseat"){ MALL_CAST_DOWN.delete(mallCastKey(K.ref)); this.pocketPieceRepaint('Maritime Mall Interior', K.pieceN); }   // (back in their seat)                       // (back in their place)
     if(K.kind === "ballcast"){ MALL_CAST_DOWN.delete(mallCastKey(K.ref)); this.pocketPieceRepaint(K.pk.name, K.pieceN); }   // (back in their seat)
+    if(K.drop && !K.drop.got){ K.drop.got = true; K.ref.carry = K.drop.carry; }   // (gone before they picked it up -- a teleport: theirs again, not lost)
     if(K.ref.knock === K) K.ref.knock = null;
     if(this._knockMeet === K) this._knockMeet = null;
     if(K.kind === "hazard"){ const hz = K.ref; hz.hitT = t; hz.fleeA = Math.random() < 0.5 ? -1 : 1; hz.fleeB = Math.random() < 0.5 ? 1 : -1; }
@@ -147536,7 +147589,8 @@ class WorldScene extends Phaser.Scene {
         roll = 1;
         walker = K.conf ? hospWalkAt(K.conf.M, t) : null;
         if(walker && pv){ walker.x += pv.dx; walker.y += pv.dy; }
-        if(!walker){ const st = this.knockStand(K); stood = { x: st.x, y: st.y, th: K.thW + Math.PI/2 }; }
+        if(K.drop && !K.drop.got && !walker) stood = knockDropWho(K, el - dn, build);   // (over to what they dropped, and up with it: KNOCK_DROP)
+        else if(!walker){ const st = this.knockStand(K); stood = { x: st.x, y: st.y, th: K.thW + Math.PI/2 }; }
         else if(K.conf.kickT !== undefined && t >= K.conf.kickT){
           const ke = t - K.conf.kickT, KA = WILLIAM_ACT;
           let ang = 0;
@@ -147607,12 +147661,20 @@ class WorldScene extends Phaser.Scene {
               Object.assign({ dress: K.dress || undefined, noAid: true }, turn))) });
         }
       }
+      /* WHAT THEY DROPPED (KNOCK_DROP): out of the hand as they go over, flat on the pavement past them till they take it up */
+      const D = K.drop;
+      if(D && !D.got && !(who0 => who0 && who0.held)(stood)){
+        const k = Math.min(1, el/SR.fallMs), P = KNOCK_DROP, ix = K.x + (D.x - K.x)*k, iy = K.y + (D.y - K.y)*k, iz = P.handZ*(1 - k) + P.arcH*Math.sin(Math.PI*k);
+        if(seen(ix, iy)) blockVQ.push({ depth: ix + iy + dOff, fn: (g, tt) => knockDropDraw(this, layerFor(ix, iy), D.carry.hold, ix, iy, iz, D.ux, D.uy, Math.PI/2*sm(k)) });
+      }
       const who = walker || stood;
       if(who && seen(who.x, who.y)){
+        /* (in hand again once picked up: KNOCK_DROP) */
+        const C = D && (D.got || who.held) ? D.carry : null, po = Object.assign({}, K.dress ? { dress: K.dress } : null, C ? { hold: C.hold, lift: C.lift, bend: C.bend } : null, who.pose || null);
         blockVQ.push({ depth: who.x + who.y + dOff, fn: (g, tt) => room(() => {
           this._personKick = who.kick || 0;
           try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, kz, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkAt(who.x, who.y) : 0, !!who.moving, 0,
-                                    0, null, K.uni || null, false, K.dress ? { dress: K.dress } : null); }
+                                    0, null, K.uni || null, false, Object.keys(po).length ? po : null); }
           finally { this._personKick = 0; }
         }) });
       }
