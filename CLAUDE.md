@@ -123,11 +123,11 @@
 - Anything that wraps round another piece (a band, a hem, a cuff, a collar, a brim, a hat's band) is a ring -- only its faces toward
   the eye -- never a filled solid, whose silhouette lays a flat lid over what it wraps; a piece that wraps round another is split by depth
   (its part behind, the thing, its part in front), as a cap's bill round its crown.
-- Bridges and water in the town (Sir, 2026-11-25: "use the misses to make the rules"): `docs/kits/bridges.md` (B1-B12). Water in
+- Bridges and water in the town (Sir, 2026-11-25: "use the misses to make the rules"): `docs/kits/bridges.md` (B1-B13). Water in
   the town is sunk in a channel, never flat in the street; every way over it (street, boardwalk, promenade, trail) is a whole bridge
   -- deck, parapets, edge face, shadow -- weighted to what it carries (a street's stone wall, a footbridge's light rail); a street's
   deck is its road and sidewalks in the city's slabs out to the parapets; a street ending at the water ends round and kerbed; quays
-  are sidewalk; layers: water, shadows and walls, deck edge faces, banks, decks (every bank within the channel's depth east or south
+  are sidewalk, railed at the water and furnished (lamps, benches, bins); layers: water, shadows and walls, deck edge faces, banks, decks (every bank within the channel's depth east or south
   of the water laid over it); shadows fall away from the light (+y, a touch of -x); a deck edge is used up only by the reach that
   walls it; nothing is planted in the channel. Screenshot each kind of crossing with Tipsey on the deck.
 - Changes that depend on saved state: say so, and give a console line to seed it

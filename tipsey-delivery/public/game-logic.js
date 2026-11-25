@@ -19010,7 +19010,8 @@ function beachBlocks(ow, grid, x, y, R){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
   { const r = R*0.6;                                                              // THE PALMA RIVER's water: a kerb, as the sea's
-    if(riverWaterAt(grid, x + r, y) || riverWaterAt(grid, x - r, y) || riverWaterAt(grid, x, y + r) || riverWaterAt(grid, x, y - r)) return true; }
+    if(riverWaterAt(grid, x + r, y) || riverWaterAt(grid, x - r, y) || riverWaterAt(grid, x, y + r) || riverWaterAt(grid, x, y - r)) return true;
+    if(riverFurnBlocked(grid, x, y, R)) return true; }                            // (the quays' lamps, benches and bins: B13)
   if(x > G.xIn + R && y < G.yBoardS + BLOCK*WG_COAST.BOARD - R) return false;   // town
   if(y <= G.yTop) return false;                                                   // the harbor's rules
   const curPier = beachOnPier(grid, ow.px, ow.py);
@@ -124573,7 +124574,7 @@ class WorldScene extends Phaser.Scene {
     const rvX = grid.river ? RIVER_NODES[RIVER_NODES.length - 1][0]*B : null, rvH = ROAD_HALF + SIDEWALK_W + 200;
     const ucOf = (R, s) => R === RS && rvX != null && Math.abs(s - rvX) < rvH + 900
       ? ucOf0(R, s) + (ucOf0(R, rvX) - ucOf0(R, s))*sstep(1 - (Math.abs(s - rvX) - rvH)/900) : ucOf0(R, s);
-    if(rvX != null){ grid._riverFoot = { y: gy + IN + ucOf0(RS, rvX), hw: V.hw }; delete grid._riverRuns; delete grid._riverPieces; delete grid._riverPar; delete grid._riverTiles; }
+    if(rvX != null){ grid._riverFoot = { y: gy + IN + ucOf0(RS, rvX), hw: V.hw }; delete grid._riverRuns; delete grid._riverPieces; delete grid._riverPar; delete grid._riverTiles; delete grid._riverFurn; }
     V.uc = ucOf;
     const firstWalk = walks.filter(([a]) => a > yN).sort((a, b) => a[0] - b[0])[0];
     const pW0 = firstWalk ? firstWalk[1] : yN + 400, pW1 = yc - RC;
@@ -156823,10 +156824,73 @@ function riverTiles(grid){
   }
   return (grid._riverTiles = { cells: out, ends });
 }
+/* THE QUAYS' RAILINGS AND FURNITURE (B13: a quay over sunk water is guarded and furnished as the street it was). A railing
+   along each quay's coping wherever the water lies open below it -- the city's dark iron: posts every RAIL.post and two rails --
+   in pieces of RIVER.piece along (B9); stopped at a deck (the parapets take over) and short of an open corner's crossing arm. On
+   the quays of the town's reaches, set back from the water: the city's lamp (its arm out over the walk to the water), a bench
+   facing the water between lamps, a bin beside some. All seeded off where they stand; the furniture solid (riverFurnBlocked). */
+const RIVER_RAIL = { post: 120, h: 56, mid: 30, w: 7, col: 0x2e3733, lit: 0x4a5651, top: 0x56635d, lampStep: 1150 };
+function riverFurn(grid){
+  const RR = riverRuns(grid); if(!RR) return null;
+  if(grid._riverFurn) return grid._riverFurn;
+  const C = RIVER.coping, WH = RR.WH, SW = RR.SW, Lp = RIVER.piece, rails = [], items = [];
+  for(const r of RR.runs){
+    if(r.sand) continue;
+    const lo = r.na ? r.lo : WH + C, hi = r.nb ? r.hi : r.len - WH - C;
+    if(hi - lo < 60) continue;
+    for(const sd of [-1, 1]){
+      const p0 = sd*(WH + C*0.5);
+      for(let a = lo; a < hi - 1; a += Lp){ const a1 = Math.min(hi, a + Lp);
+        rails.push(r.f === 0 ? { x0: r.x + a, x1: r.x + a1, y: r.y + p0, f: 0, a0: a } : { y0: r.y + a, y1: r.y + a1, x: r.x + p0, f: 1, a0: a }); }
+      if(r.north || r.nb === 'board') continue;                  // (the furniture on the town's reaches only)
+      const toW = r.f === 1 ? (sd > 0 ? 2 : 0) : (sd > 0 ? 3 : 1), pB = sd*(SW - 110), pL = sd*(SW - 60);
+      let k = 0;
+      for(let a = lo + 420 + ((r.x + r.y + sd) % 2 ? RIVER_RAIL.lampStep/2 : 0); a < hi - 380; a += RIVER_RAIL.lampStep/2, k++){
+        const at = (pp) => r.f === 0 ? { x: Math.round(r.x + a), y: Math.round(r.y + pp) } : { x: Math.round(r.x + pp), y: Math.round(r.y + a) };
+        if(k % 2 === 0){ const q = at(pL); items.push({ kind: 'lamp', x: q.x, y: q.y, f: toW, seed: ((q.x*7919) ^ (q.y*104729) ^ 0x51ee) >>> 0 }); }
+        else { const q = at(pB); items.push({ kind: 'bench', x: q.x, y: q.y, f: toW });
+          if(paveRoll(Math.round(q.x/97), Math.round(q.y/97), 7) < 0.5){ const b = at(pB); const o = r.f === 0 ? { x: b.x + 150, y: b.y } : { x: b.x, y: b.y + 150 }; items.push({ kind: 'bin', x: o.x, y: o.y, f: toW }); } }
+      }
+    }
+  }
+  return (grid._riverFurn = { rails, items });
+}
+function riverFurnBlocked(grid, x, y, R){
+  const F = grid && grid.river ? riverFurn(grid) : null; if(!F) return false;
+  for(const it of F.items){ const rr = (it.kind === 'bench' ? 70 : it.kind === 'bin' ? 22 : 16) + R*0.6;
+    if(Math.abs(x - it.x) < rr && Math.abs(y - it.y) < rr) return true; }
+  return false;
+}
 /* queue them (the world queue, each at its own middle), cached as still pieces */
 function riverQueue(scene, queuePerson){
   const grid = scene.route && scene.route.grid; if(!WORLDGEN_COAST || !grid || !grid.river) return;
   const span = (scene.vpW() + scene.vpH())/scene.K*1.1;
+  /* the quays' railings (B13): each piece its posts and two rails, the faces the eye sees */
+  const F = riverFurn(grid), RL = RIVER_RAIL;
+  for(const p of F.rails){
+    const cx = p.f === 0 ? (p.x0 + p.x1)/2 : p.x, cy = p.f === 0 ? p.y : (p.y0 + p.y1)/2;
+    if(Math.abs(cx - scene.camX) > span || Math.abs(cy - scene.camY) > span) continue;
+    queuePerson(cx, cy, g => scene.bcDraw(g, "rvrail|" + Math.round(cx) + "," + Math.round(cy), cx, cy, gg => {
+      const W = (x, y, z) => scene.W(x, y, z), w = RL.w/2;
+      const box = (x0, y0, x1, y1, z0, z1) => {            // south face, east face, top
+        scene.quadOn(gg, [W(x0, y1, z0), W(x1, y1, z0), W(x1, y1, z1), W(x0, y1, z1)], RL.col);
+        scene.quadOn(gg, [W(x1, y0, z0), W(x1, y1, z0), W(x1, y1, z1), W(x1, y0, z1)], RL.lit);
+        scene.quadOn(gg, [W(x0, y0, z1), W(x1, y0, z1), W(x1, y1, z1), W(x0, y1, z1)], RL.top); };
+      const L0 = p.f === 0 ? p.x0 : p.y0, L1 = p.f === 0 ? p.x1 : p.y1;
+      const along = (a0, a1, z0, z1, t) => p.f === 0 ? box(a0, p.y - t, a1, p.y + t, z0, z1) : box(p.x - t, a0, p.x + t, a1, z0, z1);
+      for(let a = Math.ceil(L0/RL.post)*RL.post; a <= L1; a += RL.post) along(a - w, a + w, 0, RL.h, w);   // the posts
+      along(L0, L1, RL.mid - 3, RL.mid, 2.5);                                                            // the mid rail
+      along(L0, L1, RL.h - 5, RL.h, 3.5);                                                                // the top rail
+    }));
+  }
+  /* the quays' furniture (B13): the city's lamp, bench and bin */
+  for(const it of F.items){
+    if(Math.abs(it.x - scene.camX) > span || Math.abs(it.y - scene.camY) > span || !scene.visProp(it.kind, it.x, it.y)) continue;
+    const x = it.x, y = it.y;
+    if(it.kind === 'lamp') queuePerson(x, y, (g, t) => scene.drawProp(g, 'lamp', x, y, t, it.f, 0, null, null, { lampSeed: it.seed, armSign: -1 }));
+    else if(it.kind === 'bench') queuePerson(x, y, g => scene.bcDraw(g, "rvfurn|bench|" + x + "," + y, x, y, gg => scene.drawBenchProp(gg, x, y, DIRV[it.f])));
+    else queuePerson(x, y, g => scene.bcDraw(g, "rvfurn|bin|" + x + "," + y, x, y, gg => scene.drawProp(gg, 'bin', x, y, 0, it.f, 0)));
+  }
   for(const b of riverParapets(grid)){
     const cx = (b.x0 + b.x1)/2, cy = (b.y0 + b.y1)/2;
     if(Math.abs(cx - scene.camX) > span || Math.abs(cy - scene.camY) > span) continue;
