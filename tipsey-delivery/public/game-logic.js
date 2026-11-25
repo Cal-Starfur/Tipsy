@@ -18984,7 +18984,7 @@ function oceanWaterAt(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
   if(y <= G.yTop) return false;                       // the harbor's own water (harborWaterAt)
-  if(!seaPast(grid, x, y)) return false;                 // (the natural waterline: THE NATURAL COAST)
+  if(!seaPast(grid, x, y) || ncIsleAt(x, y)) return false;   // (the natural waterline and the islands: THE NATURAL COAST)
   return !beachOnPier(grid, x, y);
 }
 /* is (x, y) beach sand he may be on (west of the boardwalk, or the south beach) */
@@ -116428,7 +116428,14 @@ class WorldScene extends Phaser.Scene {
         for(const [out, col] of [[110, 0x9fcfdc], [0, 0xf0e2ae]])
           for(const pc of coastBeachPieces(r.grid, out)){
             if(pc.x1 < this.camX - span || pc.x0 > this.camX + span || pc.y1 < this.camY - span || pc.y0 > this.camY + span) continue;
-            this.quadOn(g, pc.pts.map(p => this.W(p.x, p.y, 0)), col); } }
+            this.quadOn(g, pc.pts.map(p => this.W(p.x, p.y, 0)), col); }
+        /* the islands: wash, sand, grass, a darker heart -- each a fan from its middle (a fill here takes convex pieces) */
+        for(const I of NC_ISLES){ const ix = I[0]*BLOCK, iy = I[1]*BLOCK, rr = I[2]*BLOCK*1.4 + 120;
+          if(ix + rr < this.camX - span || ix - rr > this.camX + span || iy + rr < this.camY - span || iy - rr > this.camY + span) continue;
+          const c = this.W(ix, iy, 0);
+          for(const [out, col] of [[110, 0x9fcfdc], [0, 0xf0e2ae], [-BLOCK*0.24, 0x8fbf7a], [-BLOCK*0.5, 0x7aad69]]){
+            const ring = ncIsleRing(I, out).map(p => this.W(p.x, p.y, 0));
+            for(let k = 0; k < ring.length; k++) this.quadOn(g, [c, ring[k], ring[(k + 1) % ring.length]], col); } } }
       /* the boardwalk: a different kind of sidewalk between the town and
          the sand. Base bands always; plank seams only when the camera is
          actually near a boardwalk, clamped to a window around it, so the
@@ -155671,6 +155678,7 @@ function mapCoastBands(grid, dateStr, cband, cring, cpoly){
   if(cpoly){                                                                        // the sand to its natural waterline (THE NATURAL COAST)
     cband(cX0 - BOARD - SANDW, cY1 + BOARD + SANDW - BLOCK*NCOAST.cornerR, cX0 - BOARD - SANDW + BLOCK*NCOAST.cornerR, cY1 + BOARD + SANDW, "#6fa8c4");
     cpoly(coastBeachPoly(grid, 0), "#f0e2ae");
+    for(const I of NC_ISLES){ cpoly(ncIsleRing(I, 0), "#f0e2ae"); cpoly(ncIsleRing(I, -BLOCK*0.24), "#8fbf7a"); }
   } else {
     cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");           // west beach — Sunset Shore
     cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");   // south beach — Driftwood Beach
@@ -156545,6 +156553,23 @@ function seaPast(grid, x, y, out = 0){
   if(x < cx && y > cy && Math.hypot(x - cx, y - cy) > R) return true;
   return x < coastSeaX(grid, y) - out || y > coastSeaY(grid, x) + out;
 }
+/* THE ISLANDS (the natural survey's keys offshore): a sandy rim round a grassy crown, out in the bay where nothing he can reach
+   goes, clear of the pier, the aquarium and the harbor. [x, y, r] in blocks from the city's corner node; the rim wobbles. Land for
+   the collision and the index (oceanWaterAt is false on one), scenery for everything else. */
+const NC_ISLES = [[-5.6, 8.6, 0.9, 'Pelican Key'], [-4.6, 23.5, 1.15, 'Sunset Key'], [8, 31.4, 1.2, 'Driftwood Key'], [27, 32.2, 0.8, 'Gull Rock'], [38.4, 31.4, 0.75, 'Mirador Rock']];
+function ncIsleR(isle, a, out){ const B = BLOCK; return (isle[2]*B + out)*(1 + 0.22*ncWave(a/(Math.PI*2)*3 + isle[0]*0.13, 851 + Math.round(isle[1]))); }
+/* is (x, y) on an island (out: its rim pushed out) */
+function ncIsleAt(x, y, out = 0){
+  if(!WORLDGEN_COAST) return null;
+  for(const I of NC_ISLES){ const dx = x - I[0]*BLOCK, dy = y - I[1]*BLOCK, d = Math.hypot(dx, dy);
+    if(d > I[2]*BLOCK*1.4 + out) continue;
+    if(d <= ncIsleR(I, Math.atan2(dy, dx) + Math.PI, out)) return I; }
+  return null;
+}
+/* an island's rim as a ring of world points (k: the shrink -- 0 the sand, B*0.24 the grass) */
+function ncIsleRing(I, out, n = 40){ const pts = []; for(let k = 0; k < n; k++){ const a = k/n*Math.PI*2; const r = ncIsleR(I, a, out);
+  pts.push({ x: I[0]*BLOCK + Math.cos(a - Math.PI)*r, y: I[1]*BLOCK + Math.sin(a - Math.PI)*r }); } return pts; }
+
 /* the sand as convex pieces for the world's ground pass (a fill there takes convex polygons): strips from the boardwalk out to
    the waterline down Sunset Shore and along Driftwood Beach, the corner square, and a fan for the rounded point. out pushes the
    waterline out (the wash). Cached per grid and outset; each piece carries its world box for the cull. */
@@ -160461,7 +160486,7 @@ function worldRegionIndex(grid){
     /* the coast's bands, as drawWorld and mapCoastBands paint them */
     if(x >= X0 - BOARD && x <= X0 && y >= Y0 && y <= Y1) return [R.BW, 'boardwalk'];
     if(y >= Y1 && y <= Y1 + BOARD && x >= X0 - BOARD && x <= X1) return [R.BW, 'boardwalk'];
-    if(seaPast(grid, x, y)) return [R.SEA, 'sea'];                                  // (the natural waterline: THE NATURAL COAST)
+    if(seaPast(grid, x, y)) return [R.SEA, ncIsleAt(x, y) ? 'beach' : 'sea'];     // (the natural waterline, the islands: THE NATURAL COAST)
     if(x <= X0 - BOARD && y >= Y0 && y <= Y1 + BOARD) return [R.SS, 'beach'];
     if(y >= Y1 + BOARD && x <= X1) return [R.DB, 'beach'];
     /* Sierra Vista's street up from the top of the city to the gate */
