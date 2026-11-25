@@ -8051,6 +8051,7 @@ function owBuildWorld(route){
     { const sr = sierraRoundSurface(x, y, kerb); if(sr) return sr; }   // the estate's gate round, which straddles the wall
     { const hr = harborRoundSurface(x, y, kerb); if(hr) return hr; }   // PELICAN HARBOR's turning circle, at the road's end
     { const sv = sierraSurface(x, y, kerb); if(sv) return sv; }   // the estate's streets, city-standard
+    { const re = riverEndSurface(g2, x, y, kerb); if(re) return re; }   // THE PALMA RIVER: a street's round end at the water (B4)
     const nx = Math.round(x / BLOCK) * BLOCK, ny = Math.round(y / BLOCK) * BLOCK;
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     const dx = Math.abs(x - nx), dy = Math.abs(y - ny);
@@ -118532,9 +118533,18 @@ class WorldScene extends Phaser.Scene {
       for(const E of RT.ends){
         if(Math.abs(E.n.x - this.camX) > flatSpan || Math.abs(E.n.y - this.camY) > flatSpan) continue;
         const dv = DIRV[(E.k + 2) % 4], rv = { x: -dv.y, y: dv.x }, x = E.n.x, y = E.n.y;   // dv: on from the street over its end
-        const sec = (al, pr, inx, iny) => ({ rx: x + dv.x*al + rv.x*pr + inx, ry: y + dv.y*al + rv.y*pr + iny, px: x + dv.x*al + rv.x*pr, py: y + dv.y*al + rv.y*pr, h: KH });
-        /* the end: round from one side's kerb across the road's end to the other's, the stone's road face inward */
-        this.kerbPath(g, [sec(0, -RH, rv.x*KW, rv.y*KW), sec(RH, -RH, -dv.x*KW + rv.x*KW, -dv.y*KW + rv.y*KW), sec(RH, RH, -dv.x*KW - rv.x*KW, -dv.y*KW - rv.y*KW), sec(0, RH, -rv.x*KW, -rv.y*KW)], {});
+        const at = (al, pr) => ({ x: x + dv.x*al + rv.x*pr, y: y + dv.y*al + rv.y*pr });
+        /* THE END IS ROUND (Sir, 2026-11-25: "the termination needs fixing"; B4): the road's square stub past the node is cut back
+           to a half round of the road's own half width -- its two corners paved over as the sidewalk (fans from each corner: a
+           fill here takes convex pieces) -- and the city's kerb runs round it, one stone from one side's kerb to the other's */
+        const PV = mixC(d.pave, d.paveB, 0.5), N = 12;
+        for(const sd of [-1, 1]){ const C0 = at(RH, sd*RH), fan = [];
+          for(let i = 0; i <= N; i++){ const t = sd*(Math.PI/2)*(1 - i/N); fan.push(at(Math.cos(t)*RH, Math.sin(t)*RH)); }
+          for(let i = 0; i < N; i++) this.quadOn(g, [this.W(C0.x, C0.y, 0), this.W(fan[i].x, fan[i].y, 0), this.W(fan[i + 1].x, fan[i + 1].y, 0)], PV); }
+        const SS = [];
+        for(let i = 0; i <= 2*N; i++){ const t = -Math.PI/2 + Math.PI*i/(2*N), c = Math.cos(t), sn = Math.sin(t), P = at(c*RH, sn*RH), Q = at(c*(RH - KW), sn*(RH - KW));
+          SS.push({ rx: Q.x, ry: Q.y, px: P.x, py: P.y, h: KH }); }
+        this.kerbPath(g, SS, {});
       }
     }
     /* center line: flat road paint, no depth. */
@@ -158399,6 +158409,22 @@ function riverSurface(grid, x, y){
     if(p <= RR.SW && a >= r.qa && a <= r.qb && !r.sand) quay = true;
   }
   return quay ? 'sidewalk' : null;
+}
+/* a street ending at the river ends ROUND (B4): past its node, outside the half round of the road's half width, it is the
+   sidewalk; the stone round it is the kerb (asked as the wall) or the curb band; inside, the street answers as before (null) */
+function riverEndSurface(grid, x, y, kerb){
+  if(!grid || !grid.river) return null;
+  const RT = riverTiles(grid); if(!RT || !RT.ends.length) return null;
+  for(const E of RT.ends){
+    if(Math.abs(x - E.n.x) > ROAD_HALF + 4 || Math.abs(y - E.n.y) > ROAD_HALF + 4) continue;
+    const dv = DIRV[(E.k + 2) % 4], al = (x - E.n.x)*dv.x + (y - E.n.y)*dv.y;
+    if(al <= 0) continue;
+    const pr = (x - E.n.x)*(-dv.y) + (y - E.n.y)*dv.x, r = Math.hypot(al, pr);
+    if(r > ROAD_HALF) return 'sidewalk';
+    if(r > ROAD_HALF - KERB_STONE.w) return kerb ? 'kerb' : 'curb';
+    return null;
+  }
+  return null;
 }
 function riverWaterAt(grid, x, y){ return riverSurface(grid, x, y) === 'water'; }
 /* the hills' ground the river, Lake Palma and its creek take (the planting keeps off it) */
