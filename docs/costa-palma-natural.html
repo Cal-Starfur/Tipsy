@@ -125,7 +125,7 @@ const ISLES = [[-5.0, 9.6, 1.0], [-4.4, 19.8, 1.15], [2.6, 20.9, 1.2], [11.8, 22
 let MARINA = null;
 function landS(u, v){
   const xW = -2.15 + T*(wWlo(v) + wWhi(v));
-  const yS = N + 2.15 + T*(wSlo(u) + wShi(u));
+  const yS = N + 2.15 + T*(wSlo(u) + wShi(u) + 0.75*smooth(8.0, 9.6, u)*smooth(16.6, 15.0, u));
   let s = smin(u - xW, yS - v, 0.05 + T*1.8);
   if(T > 0){
     for(const [cx, cy, r] of ISLES){
@@ -154,11 +154,33 @@ function catmull(P, per){
   out.push(P[P.length - 1]); return out;
 }
 const RIVER = catmull(RIVER_CP, 24).map(([u, v], k) => [u + 0.25*fbm(k*0.02, 0.5, 97, 2), v]);
+/* Mirador Creek: down off the east range into the river above the town */
+const CREEK = catmull([[24.8,-6.4],[22.4,-4.9],[20.4,-4.2],[18.6,-3.0],[16.6,-2.5],[14.9,-2.1],[13.45,-1.6]], 20);
+const creekW = k => 0.035 + 0.04*k/CREEK.length;
+/* lakes: the reservoir the river fills behind its dam, a lake under Mirador, and high tarns */
+const LAKES = [ { x:12.75, y:-3.55, rx:1.25, ry:0.62, rot:0.93, s:201, name:'LAKE PALMA' },
+  { x:20.0, y:2.6, rx:0.95, ry:0.55, rot:0.35, s:202, name:'MIRADOR LAKE' },
+  { x:5.2, y:-5.2, rx:0.6, ry:0.4, rot:0.2, s:203 }, { x:22.2, y:8.2, rx:0.55, ry:0.4, rot:1.1, s:204 },
+  { x:21.0, y:14.2, rx:0.7, ry:0.42, rot:-0.5, s:205 }, { x:9.0, y:-6.0, rx:0.45, ry:0.3, rot:-0.3, s:206 } ];
+function lakeS(u, v){
+  if(T <= 0) return -9; let best = -9;
+  for(const L of LAKES){ const dx = u - L.x, dy = v - L.y; if(Math.abs(dx) > 3 || Math.abs(dy) > 3) continue;
+    const c = Math.cos(L.rot), sn = Math.sin(L.rot), a = (dx*c + dy*sn)/L.rx, b = (-dx*sn + dy*c)/L.ry, d = Math.hypot(a, b);
+    best = Math.max(best, ((1 + 0.3*fbm(u*1.5, v*1.5, L.s, 3))*T - d)*L.ry); }
+  return best;
+}
+/* Driftwood Lagoon: behind the barrier beach, east of the river mouth */
+function lagoonS(u, v, s){
+  if(T <= 0 || u < 8.4 || u > 16.2 || s < 0.3 || s > 2.6) return -9;
+  const tp = smooth(8.4, 9.8, u)*smooth(16.2, 14.8, u), g = unwarp([u, v]);
+  return Math.min(s - 0.3, 0.26*tp*T*(1 + 0.35*fbm(u*1.2, v*1.2, 211, 2)) - Math.abs(g[1] - 17.75));
+}
+const inlandW = (u, v, s) => Math.max(lakeS(u, v), lagoonS(u, v, s));
 const riverW = v => v < -1 ? 0.06 + 0.06*smooth(-6, -1, v) : v < N + 1 ? 0.13 + 0.05*smooth(-1, N, v) : 0.18 + 0.22*smooth(N + 1, N + 4.5, v);
 /* distance to the river on a coarse grid, for carving its valley */
 const VG = 0.1, VW = Math.ceil((X1 - X0)/VG) + 1, VH = Math.ceil((Y1 - Y0)/VG) + 1, VD = new Float32Array(VW*VH).fill(9);
-for(let k = 0; k < RIVER.length; k += 2){
-  const [ru, rv] = RIVER[k], R = 2.6, ci = Math.round((ru - X0)/VG), cj = Math.round((rv - Y0)/VG), rc = Math.ceil(R/VG);
+for(const [ru, rv, R] of RIVER.filter((q, k) => k % 2 === 0).map(q => [q[0], q[1], 2.6]).concat(CREEK.filter((q, k) => k % 2 === 0).map(q => [q[0], q[1], 1.2]))){
+  const ci = Math.round((ru - X0)/VG), cj = Math.round((rv - Y0)/VG), rc = Math.ceil(R/VG);
   for(let j = Math.max(0, cj - rc); j <= Math.min(VH - 1, cj + rc); j++)
     for(let i = Math.max(0, ci - rc); i <= Math.min(VW - 1, ci + rc); i++){
       const d = Math.hypot(X0 + i*VG - ru, Y0 + j*VG - rv), o = j*VW + i; if(d < VD[o]) VD[o] = d; }
@@ -206,8 +228,14 @@ function renderTerrain(ppb){
     } else {
       const h = hA[o], u = X0 + (x + 0.5)/ppb, v = Y0 + (y + 0.5)/ppb;
       const sandW = (0.34 + 0.14*fbm(u/2, v/2, 81, 2))*(1 - smooth(0.25, 0.6, mA[o]));
+      const iw = inlandW(u, v, s);
+      if(iw > 0){ const dep = smooth(0, 0.35, iw); c = [lerp(126, 84, dep), lerp(190, 152, dep), lerp(214, 196, dep)];
+        if(iw < 0.025) c = [lerp(c[0], 220, 0.45), lerp(c[1], 236, 0.45), lerp(c[2], 240, 0.45)];
+        td[p] = c[0]; td[p + 1] = c[1]; td[p + 2] = c[2]; td[p + 3] = 255; continue; }
       if(s < sandW) c = [230, 214, 162];
       else c = landCol(h);
+      if(T > 0 && v > N + 0.6 && s < 1.8 && s >= sandW){ const rd = riverD(u, v), mk = (1 - smooth(0.35, 1.1, rd))*T;   // the estuary's marsh
+        if(mk > 0){ const wet = fbm(u*5, v*5, 221, 2) > 0.25 && rd < 0.8; c = wet ? [lerp(c[0], 120, mk), lerp(c[1], 182, mk), lerp(c[2], 204, mk)] : [lerp(c[0], 128, mk), lerp(c[1], 158, mk), lerp(c[2], 118, mk)]; } }
       const hl = hA[x > 0 ? o - 1 : o], hr = hA[x < W - 1 ? o + 1 : o], hu = hA[y > 0 ? o - W : o], hd = hA[y < H - 1 ? o + W : o];
       const sh = clamp(1 + ((hl - hr) + (hu - hd))*K, 0.62, 1.28);
       c = [c[0]*sh, c[1]*sh, c[2]*sh];
@@ -241,7 +269,7 @@ function switchback(start, o){
       const g = grad(p[0], p[1]), gl = Math.hypot(g[0], g[1]) || 1e-6;
       let dx = -g[1]/gl*side + o.climb*g[0]/gl, dy = g[0]/gl*side + o.climb*g[1]/gl; const dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
       const q = [p[0] + dx*o.step, p[1] + dy*o.step];
-      if(!inPlate(q) || landS(q[0], q[1]) < 0.3 || nearRiver(q) < 0.12) break;
+      if(!inPlate(q) || landS(q[0], q[1]) < 0.3 || nearRiver(q) < 0.12 || lakeS(q[0], q[1]) > -0.1) break;
       p = q; pts.push(p.slice());
     }
     side = -side;
@@ -255,7 +283,7 @@ function contourRoad(start, side, len, step){
     const back = clamp((h0 - h)*6, -0.6, 0.6);                        // steer back onto its level
     let dx = -g[1]/gl*side + back*g[0]/gl, dy = g[0]/gl*side + back*g[1]/gl; const dl = Math.hypot(dx, dy);
     const q = [p[0] + dx/dl*step, p[1] + dy/dl*step];
-    if(!inPlate(q) || landS(q[0], q[1]) < 0.25) break;
+    if(!inPlate(q) || landS(q[0], q[1]) < 0.25 || lakeS(q[0], q[1]) > -0.1) break;
     p = q; pts.push(p.slice());
   }
   return chaikin(pts, 2);
@@ -264,17 +292,18 @@ function contourRoad(start, side, len, step){
 function build(){
   MARINA = T > 0 ? { x: -2.15 + T*(wWlo(-2.2) + wWhi(-2.2)) + 0.45, y: -2.2, r: 0.8*T } : null;
   const byIJ = new Map(blocks.map(b => [b.i + ',' + b.j, b]));
-  let lostSea = 0, toPark = 0, lostHill = 0;
-  /* parcels: the river claims what it runs through as riverside park; the sea takes what it reaches */
+  let lostSea = 0, lostRiver = 0, cutRiver = 0, lostHill = 0;
+  /* parcels keep their use; the river runs between them and they hug its banks; the sea takes what it reaches */
   for(const b of blocks.concat(lots)){
     b.poly = warpRect(b.x0, b.y0, b.x1, b.y1, 6);
     b.wet = b.poly.filter(p => landS(p[0], p[1]) < 0.05).length > b.poly.length*0.3;
     b.hill = !b.wet && T > 0.3 && !!b.ext && (b.y0 < 0 || b.x0 >= N) && fbm(b.x0*0.55 + 0.3, b.y0*0.55, 101, 2) > 0.12;
     if(b.hill){ b.wet = true; lostHill++; continue; }
     b.cell = b.ext ? warpRect(b.x0 - 0.1, b.y0 - 0.1, b.x1 + 0.1, b.y1 + 0.1, 6) : warpRect(b.i - 0.02, b.j - 0.02, b.i + 1.02, b.j + 1.02, 6);
-    b.river = T > 0.15 && !b.wet && b.poly.some(p => nearRiver(p) < 0.12*T);
-    b.eff = b.river ? 'park' : b.type;
-    if(b.wet) lostSea++; else if(b.river && b.type !== 'park') toPark++;
+    b.eff = b.type;
+    if(b.wet){ lostSea++; continue; }
+    if(T > 0.15){ const inR = b.poly.filter(p => nearRiver(p) < 0.03).length;
+      if(inR > b.poly.length*0.55){ b.wet = true; lostRiver++; } else if(inR) cutRiver++; }
   }
   const isPark = (i, j) => { const b = byIJ.get(i + ',' + j); return !!b && !b.wet && b.eff === 'park'; };
   const OV = 0.03;
@@ -283,23 +312,35 @@ function build(){
     const y0 = isPark(b.i, b.j - 1) ? b.j - OV : b.y0, y1 = isPark(b.i, b.j + 1) ? b.j + 1 + OV : b.y1;
     b.poly = warpRect(x0, y0, x1, y1, 6); }
   /* streets: swallowed between parks, gone where they'd run in the river or the sea, bridges where they cross */
-  const roads = [], bridges = []; let bent = 0;
+  const roads = [], bridges = []; let bent = 0, nBridge = 0, cutStreets = 0;
   for(const e of edges){
-    const pts = warpLine(e.ax, e.ay, e.bx, e.by, 10);
+    const pts = warpLine(e.ax, e.ay, e.bx, e.by, 20), n = pts.length - 1;
     if(pts.some(p => landS(p[0], p[1]) < 0.02)) continue;
-    const wetN = T > 0.15 ? pts.filter(p => nearRiver(p) < 0.02).length : 0;
-    if(wetN > pts.length*0.45) continue;
     const swallowed = e.f === 0 ? isPark(e.i, e.j - 1) && isPark(e.i, e.j) : isPark(e.i - 1, e.j) && isPark(e.i, e.j);
-    if(swallowed && wetN === 0) continue;
-    if(wetN) bridges.push(pts); else roads.push(pts);
-    const dev = pts.reduce((m, p, k) => { const t = k/10, gx = lerp(pts[0][0], pts[10][0], t), gy = lerp(pts[0][1], pts[10][1], t); return Math.max(m, Math.hypot(p[0] - gx, p[1] - gy)); }, 0);
-    const ang = Math.abs(Math.atan2(pts[10][1] - pts[0][1], pts[10][0] - pts[0][0]) % (Math.PI/2));
+    if(swallowed) continue;
+    const wet = pts.map(p => T > 0.15 && nearRiver(p) < 0.05);
+    let k = 0;
+    while(k <= n){
+      const w0 = wet[k]; let k1 = k; while(k1 + 1 <= n && wet[k1 + 1] === w0) k1++;
+      if(!w0) roads.push(pts.slice(Math.max(0, k - 1), Math.min(n, k1 + 1) + 1));
+      else if(k > 0 && k1 < n){                                        // water with dry street both sides
+        const a = pts[k - 1], b = pts[k1 + 1], span = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const w = riverW((a[1] + b[1])/2);
+        const kr = nearestK([(a[0] + b[0])/2, (a[1] + b[1])/2]), r0 = RIVER[Math.max(0, kr - 2)], r1 = RIVER[Math.min(RIVER.length - 1, kr + 2)], rc = RIVER[kr];
+        const tx = r1[0] - r0[0], ty = r1[1] - r0[1], sideA = tx*(a[1] - rc[1]) - ty*(a[0] - rc[0]), sideB = tx*(b[1] - rc[1]) - ty*(b[0] - rc[0]);
+        const cosA = Math.abs(tx*(b[0] - a[0]) + ty*(b[1] - a[1]))/(Math.hypot(tx, ty)*span || 1);
+        if(sideA*sideB < 0 && cosA < 0.65 && span < 2*w + 0.4){ bridges.push(pts.slice(k - 1, k1 + 2)); nBridge++; } else cutStreets++;
+      } else cutStreets++;
+      k = k1 + 1;
+    }
+    const dev = pts.reduce((m, p, k) => { const t = k/n, gx = lerp(pts[0][0], pts[n][0], t), gy = lerp(pts[0][1], pts[n][1], t); return Math.max(m, Math.hypot(p[0] - gx, p[1] - gy)); }, 0);
+    const ang = Math.abs(Math.atan2(pts[n][1] - pts[0][1], pts[n][0] - pts[0][0]) % (Math.PI/2));
     if(dev > 0.04 || Math.min(ang, Math.PI/2 - ang) > 0.08) bent++;
   }
   /* the streets run on past the ring lots to the coast road and the hills */
   const stubs = [];
   for(let i = 0; i <= N; i++){ stubs.push(warpLine(i, N, i, N + 0.95, 4)); stubs.push(warpLine(-0.95, i, 0, i, 4)); }
-  const out = { roads: roads.concat(stubs.filter(p => !p.some(q => landS(q[0], q[1]) < 0.05))), bridges, lostSea, toPark, bent, lostHill };
+  const out = { roads: roads.concat(stubs.filter(p => !p.some(q => landS(q[0], q[1]) < 0.05))), bridges, lostSea, lostRiver, cutRiver, nBridge, cutStreets, bent, lostHill };
 
   /* the coast highway: one ring in grid space round the west and south, warped, so it rides the coast's swell */
   const hw = []; const R = 1.3, xL = -0.95, yB = N + 0.95;
@@ -339,11 +380,42 @@ function build(){
     out.pier = [ps, [px, ps[1]]];
     const isle = ISLES[2], cs = warp(isle[0], N + 0.95);
     out.causeway = [cs, [isle[0], isle[1] - 0.2]];
-    out.riverPoly = ribbon(RIVER, k => riverW(RIVER[k][1])*Math.min(1, T*1.5));
+    const rk = Math.min(1, T*1.5);
+    out.riverPoly = ribbon(RIVER, k => riverW(RIVER[k][1])*rk);
+    out.creekPoly = ribbon(CREEK, k => creekW(k)*rk);
+    /* the embankments: a quay road along each bank through the town, the streets meet it */
+    out.bankBand = ribbon(RIVER, k => (riverW(RIVER[k][1]) + 0.13)*rk);
+    out.bank = [];
+    for(const sd of [-1, 1]){ let cur = [];
+      for(let k = 0; k < RIVER.length; k++){
+        const a = RIVER[Math.max(0, k - 1)], b = RIVER[Math.min(RIVER.length - 1, k + 1)], tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1;
+        const off = (riverW(RIVER[k][1]) + 0.085)*rk, q = [RIVER[k][0] - ty/tl*off*sd, RIVER[k][1] + tx/tl*off*sd], g = unwarp(q);
+        if(g[0] > -0.7 && g[0] < N + 0.7 && g[1] > -0.7 && g[1] < N + 0.97 && landS(q[0], q[1]) > 0.3) cur.push(q); else { if(cur.length > 2) out.bank.push(cur); cur = []; } }
+      if(cur.length > 2) out.bank.push(cur); }
+    out.cityClip = new Path2D(); for(const b of blocks.concat(lots)) if(!b.hill) out.cityClip.addPath(polyPath(b.cell || b.poly, true));
+    /* the dam across the river below Lake Palma */
+    { let kd = 0, bd = 9; for(let k = 0; k < RIVER.length; k++){ const d = Math.hypot(RIVER[k][0] - 13.25, RIVER[k][1] + 2.45); if(d < bd){ bd = d; kd = k; } }
+      const a = RIVER[kd - 1], b = RIVER[kd + 1], tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty), c = RIVER[kd];
+      out.dam = [[c[0] - ty/tl*0.32, c[1] + tx/tl*0.32], [c[0] + ty/tl*0.32, c[1] - tx/tl*0.32]]; }
+    /* ponds in the town's parks: one in a park of its own, a bigger one where a park is two by two */
+    out.ponds = [];
+    const pk = (i, j) => { const b = byIJ.get(i + ',' + j); return !!b && !b.wet && b.type === 'park'; };
+    const used = new Set();
+    for(const b of blocks){ if(!pk(b.i, b.j) || used.has(b.i + ',' + b.j)) continue;
+      if(pk(b.i + 1, b.j) && pk(b.i, b.j + 1) && pk(b.i + 1, b.j + 1)){
+        for(const [di, dj] of [[0,0],[1,0],[0,1],[1,1]]) used.add((b.i + di) + ',' + (b.j + dj));
+        out.ponds.push(pond(warp(b.i + 1, b.j + 1), 0.5*T, b.i*31 + b.j)); }
+      else if(h2(b.i, b.j, 7) < 0.4){ used.add(b.i + ',' + b.j); out.ponds.push(pond(warp(b.i + 0.5, b.j + 0.5), 0.17*T, b.i*31 + b.j)); }
+    }
+    out.ponds = out.ponds.filter(P => !P.some(q => nearRiver(q) < 0.1));
   }
   G = out; G.blocks = blocks.concat(lots);
   refreshStats();
 }
+function nearestK(p){ let bk = 0, bd = 1e9; for(let k = 0; k < RIVER.length; k++){ const d = (p[0] - RIVER[k][0])**2 + (p[1] - RIVER[k][1])**2; if(d < bd){ bd = d; bk = k; } } return bk; }
+function unwarp(p){ let g = p.slice(); for(let k = 0; k < 6; k++){ const w = warp(g[0], g[1]); g = [g[0] + p[0] - w[0], g[1] + p[1] - w[1]]; } return g; }
+function pond(c, r, sd){ const P = []; for(let k = 0; k < 30; k++){ const a = k/30*Math.PI*2, rr = r*(1 + 0.22*fbm(Math.cos(a)*1.3 + sd, Math.sin(a)*1.3, 231, 2));
+  P.push([c[0] + Math.cos(a)*rr*1.15, c[1] + Math.sin(a)*rr*0.85]); } return P; }
 function ribbon(P, wf){ const L = [], R = []; for(let k = 0; k < P.length; k++){ const a = P[Math.max(0, k - 1)], b = P[Math.min(P.length - 1, k + 1)];
   const tx = b[0] - a[0], ty = b[1] - a[1], tl = Math.hypot(tx, ty) || 1, w = wf(k); L.push([P[k][0] - ty/tl*w, P[k][1] + tx/tl*w]); R.push([P[k][0] + ty/tl*w, P[k][1] - tx/tl*w]); }
   return L.concat(R.reverse()); }
@@ -356,7 +428,7 @@ function clampView(){ const W = innerWidth, H = innerHeight, sMin = Math.max(W/(
   const hw = W/2/view.s, hh = H/2/view.s; view.cx = clamp(view.cx, X0 + hw, X1 - hw); view.cy = clamp(view.cy, Y0 + hh, Y1 - hh); }
 function fit(){ const W = innerWidth, H = innerHeight; view.s = Math.min(W/27, H/28.5); view.cx = 7.6; view.cy = 8.6; clampView(); }
 function resize(){ dpr = Math.min(2, devicePixelRatio || 1); cv.width = innerWidth*dpr; cv.height = innerHeight*dpr; need = true; }
-const COL = { commercial: '#c3bdd8', housing: '#e8e0d1', park: '#93be8c', pave: '#d8d4e2', road: '#fdfcf8', casing: '#a49fb6',
+const COL = { commercial: '#c3bdd8', housing: '#e8e0d1', park: '#93be8c', pave: '#d8d4e2', quay: '#cfcad9', road: '#fdfcf8', casing: '#a49fb6',
   hwy: '#f1dc8c', hwyCase: '#b99a4a', river: '#69acd3', riverEdge: '#4f93bf', estate: '#f5efe3', estateEdge: '#b9ad94', wood: '#c4956a' };
 function polyPath(P, close){ const p = new Path2D(); P.forEach((q, k) => k ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1])); if(close) p.closePath(); return p; }
 function strokeLines(list, w, col, cap){ ctx.lineWidth = w; ctx.strokeStyle = col; ctx.lineCap = cap || 'round'; ctx.lineJoin = 'round'; for(const P of list) ctx.stroke(polyPath(P)); }
@@ -374,8 +446,13 @@ function draw(){
   for(const b of G.blocks){ if(b.wet) continue; ctx.fillStyle = COL[b.eff]; ctx.fill(polyPath(b.poly, true)); }
   ctx.drawImage(waterTop, X0, Y0, X1 - X0, Y1 - Y0);              // the sea over any of the town it reached
   const rw = Math.max(0.06, px(1.6)), cw = rw + Math.max(0.025, px(1.1));
-  if(G.riverPoly){ ctx.fillStyle = COL.river; ctx.strokeStyle = COL.riverEdge; ctx.lineWidth = px(1); const rp = polyPath(G.riverPoly, true); ctx.fill(rp); ctx.stroke(rp); }
-  const hill = [G.sierra, G.mirador, G.skyline, G.canyon].filter(Boolean);
+  if(G.riverPoly){
+    ctx.save(); ctx.clip(G.cityClip); ctx.fillStyle = COL.quay; ctx.fill(polyPath(G.bankBand, true)); ctx.restore();   // the parcels end at the quay
+    ctx.fillStyle = COL.river; ctx.strokeStyle = COL.riverEdge; ctx.lineWidth = px(1);
+    for(const P of [G.riverPoly, G.creekPoly].concat(G.ponds)){ const rp = polyPath(P, true); ctx.fill(rp); ctx.stroke(rp); }
+    strokeLines([G.dam], Math.max(0.08, px(3)), '#8d8880', 'butt');
+  }
+  const hill = [G.sierra, G.mirador, G.skyline, G.canyon].filter(Boolean).concat(G.bank || []);
   strokeLines(G.roads, cw, COL.casing); strokeLines(hill, cw, COL.casing);
   if(G.estates){ const L = 0.11, Wd = 0.085; ctx.lineWidth = px(1); ctx.strokeStyle = COL.estateEdge; ctx.fillStyle = COL.estate;
     for(const e of G.estates){ ctx.save(); ctx.translate(e.c[0], e.c[1]); ctx.rotate(e.a); ctx.fillRect(-L, -Wd, 2*L, 2*Wd); ctx.strokeRect(-L, -Wd, 2*L, 2*Wd); ctx.restore(); } }
@@ -408,6 +485,9 @@ function drawLabels(){
   labelAt('MIRADOR HILLS', N + 3.6, 4.5, big, { rot: -Math.PI/2, col: '#24382c' });
   if(T > 0.2 && G && G.riverPoly){ const k = Math.round(RIVER.length*0.72), a = RIVER[k - 3], b = RIVER[k + 3];
     labelAt('PALMA RIVER', RIVER[k][0] + 0.55, RIVER[k][1], mid*0.85, { rot: Math.atan2(b[1] - a[1], b[0] - a[0]) + (b[1] < a[1] ? Math.PI : 0), col: '#1f5f86' });
+    for(const L of LAKES) if(L.name) labelAt(L.name, L.x, L.y + L.ry + 0.45, mid*0.75, { col: '#1f5f86' });
+    labelAt('DRIFTWOOD LAGOON', 12.4, N + 2.15 + T*(wSlo(12.4) + wShi(12.4)) - 0.95, mid*0.65, { col: '#1f5f86' });
+    { const q = CREEK[Math.floor(CREEK.length*0.45)]; labelAt('MIRADOR CREEK', q[0], q[1] - 0.35, mid*0.65, { col: '#1f5f86' }); }
     labelAt('SIERRA VISTA', G.sierra[Math.floor(G.sierra.length*0.6)][0], G.sierra[Math.floor(G.sierra.length*0.6)][1] - 0.5, mid*0.8, { col: '#4a3f2a' });
     labelAt('MIRADOR HEIGHTS', G.mirador[Math.floor(G.mirador.length*0.6)][0] + 0.6, G.mirador[Math.floor(G.mirador.length*0.6)][1], mid*0.8, { rot: -Math.PI/2, col: '#4a3f2a' });
     if(G.skyline.length > 40){ const q = G.skyline[Math.floor(G.skyline.length*0.55)]; labelAt('SKYLINE DR', q[0], q[1] - 0.3, mid*0.7, { col: '#24382c' }); }
@@ -420,7 +500,7 @@ function drawLabels(){
 function refreshStats(){
   const kept = G.blocks.filter(b => !b.wet).length;
   document.getElementById('stats').textContent = T > 0
-    ? `${kept} of ${G.blocks.length} parcels kept · ${G.bent} of ${edges.length} street links bent · ${G.toPark} turned riverside park · ${G.lostSea} given to the sea · ${G.lostHill} edge lots left to the hills`
+    ? `${kept} of ${G.blocks.length} parcels kept · ${G.bent} of ${edges.length} street links bent · ${G.nBridge} bridges · ${G.cutRiver} parcels on the river's banks · ${G.lostRiver} under it · ${G.lostSea} given to the sea · ${G.lostHill} edge lots left to the hills`
     : `Grid today: ${G.blocks.length} parcels, ${edges.length} straight street links.`;
 }
 
