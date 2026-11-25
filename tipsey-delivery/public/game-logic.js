@@ -156896,15 +156896,7 @@ function riverFurn(grid){
       }
     }
   }
-  /* B14: what stands at a street's dead end at the water -- a DEAD END sign at the street's mouth end, back up the street on its
-     kerb side, facing the traffic coming down it; and the end-of-road markers (red diamonds on posts) at the round's apex */
-  const RT = riverTiles(grid);
-  for(const E of RT.ends){
-    const dv = DIRV[(E.k + 2) % 4], rvv = { x: -dv.y, y: dv.x }, fi = E.k, x = E.n.x, y = E.n.y, RH = ROAD_HALF;
-    const at = (al, pr) => ({ x: Math.round(x + dv.x*al + rvv.x*pr), y: Math.round(y + dv.y*al + rvv.y*pr) });
-    { const q = at(-900, RH + 70); items.push({ kind: 'deadend', x: q.x, y: q.y, f: fi }); }
-    for(const pr of [-130, 130]){ const q = at(RH + 60, pr); items.push({ kind: 'endmark', x: q.x, y: q.y, f: fi }); }
-  }
+  /* (no road signs at a dead end: the city has none -- Sir, 2026-11-25) */
   return (grid._riverFurn = { rails, items });
 }
 function riverFurnBlocked(grid, x, y, R){
@@ -156912,33 +156904,6 @@ function riverFurnBlocked(grid, x, y, R){
   for(const it of F.items){ const rr = (it.kind === 'bench' ? 70 : it.kind === 'bin' ? 22 : it.kind === 'lamp' ? 16 : 10) + R*0.6;
     if(Math.abs(x - it.x) < rr && Math.abs(y - it.y) < rr) return true; }
   return false;
-}
-/* a road sign on its post (B14): the galvanised post, a plate facing DIRV[it.f] -- the DEAD END diamond (yellow, a black border, the
-   T of a road that stops) or an end-of-road marker (a red diamond, three reflectors). Faces the eye sees only: a plate turned
-   away shows its grey back, drawn before the post; turned to the eye, after it. */
-function riverSignDraw(S, g, it){
-  const dead = it.kind === 'deadend', n0 = DIRV[it.f], n = n0.x + n0.y < 0 ? { x: -n0.x, y: -n0.y } : n0;   // (both faces carry it: the marker reflects both ways, the sign is read from either way down the street)
-  const W = (x, y, z) => S.W(x, y, z), u = { x: -n.y, y: n.x };
-  const H = dead ? 230 : 120, pr = 3, rD = dead ? 46 : 26, zc = H - rD - 6, off = pr + 1.5;
-  const front = n.x + n.y > 0;
-  const post = () => { const x0 = it.x - pr, x1 = it.x + pr, y0 = it.y - pr, y1 = it.y + pr;
-    S.quadOn(g, [W(x0, y1, 0), W(x1, y1, 0), W(x1, y1, H), W(x0, y1, H)], 0x8e959a);
-    S.quadOn(g, [W(x1, y0, 0), W(x1, y1, 0), W(x1, y1, H), W(x1, y0, H)], 0x6c7378);
-    S.quadOn(g, [W(x0, y0, H), W(x1, y0, H), W(x1, y1, H), W(x0, y1, H)], 0xb4babd); };
-  const D = (r, du, dz, o) => { const c = { x: it.x + n.x*(o == null ? off : o), y: it.y + n.y*(o == null ? off : o) };
-    return [[0, r], [r, 0], [0, -r], [-r, 0]].map(([a, b]) => W(c.x + u.x*(a + du), c.y + u.y*(a + du), zc + b + dz)); };
-  const P = (a, z, o) => W(it.x + n.x*(o == null ? off + 0.5 : o) + u.x*a, it.y + n.y*(o == null ? off + 0.5 : o) + u.y*a, z);
-  const plate = () => {
-    if(!front){ S.quadOn(g, D(rD, 0, 0), 0xa3a9ac); return; }
-    S.quadOn(g, D(rD, 0, 0), dead ? 0x1d1d1f : 0x1d1d1f);
-    S.quadOn(g, D(rD - 4, 0, 0, off + 0.3), dead ? 0xf2c230 : 0xd0362b);
-    if(dead){ const L = 0.42*rD, w = 0.09*rD;      // the T: a bar across, a stem down to it
-      S.quadOn(g, [P(-L, zc + 0.35*rD), P(L, zc + 0.35*rD), P(L, zc + 0.35*rD - 2*w), P(-L, zc + 0.35*rD - 2*w)], 0x1d1d1f);
-      S.quadOn(g, [P(-w, zc + 0.35*rD - 2*w), P(w, zc + 0.35*rD - 2*w), P(w, zc - 0.55*rD), P(-w, zc - 0.55*rD)], 0x1d1d1f); }
-    else for(const [a, b] of [[0, 0.45], [-0.45, 0], [0.45, 0], [0, -0.45]].slice(0, 3)){
-      const c = P(a*rD, zc + b*rD); const r = 3.2*S.K; g.fillStyle(0xfff4d6, 1); g.fillCircle(c.x, c.y, Math.max(1, r)); }
-  };
-  if(front){ post(); plate(); } else { plate(); post(); }
 }
 /* queue them (the world queue, each at its own middle), cached as still pieces */
 function riverQueue(scene, queuePerson){
@@ -156969,7 +156934,6 @@ function riverQueue(scene, queuePerson){
     if(it.kind === 'lamp') queuePerson(x, y, (g, t) => scene.drawProp(g, 'lamp', x, y, t, it.f, 0, null, null, { lampSeed: it.seed, armSign: -1 }));
     else if(it.kind === 'bench') queuePerson(x, y, g => scene.bcDraw(g, "rvfurn|bench|" + x + "," + y, x, y, gg => scene.drawBenchProp(gg, x, y, DIRV[it.f])));
     else if(it.kind === 'bin') queuePerson(x, y, g => scene.bcDraw(g, "rvfurn|bin|" + x + "," + y, x, y, gg => scene.drawProp(gg, 'bin', x, y, 0, it.f, 0)));
-    else queuePerson(x, y, g => scene.bcDraw(g, "rvfurn|" + it.kind + "|" + x + "," + y, x, y, gg => riverSignDraw(scene, gg, it)));
   }
   for(const b of riverParapets(grid)){
     const cx = (b.x0 + b.x1)/2, cy = (b.y0 + b.y1)/2;

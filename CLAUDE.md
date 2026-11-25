@@ -126,7 +126,7 @@
 - Bridges and water in the town (Sir, 2026-11-25: "use the misses to make the rules"): `docs/kits/bridges.md` (B1-B14). Water in
   the town is sunk in a channel, never flat in the street; every way over it (street, boardwalk, promenade, trail) is a whole bridge
   -- deck, parapets, edge face, shadow -- weighted to what it carries (a street's stone wall, a footbridge's light rail); a street's
-  deck is its road and sidewalks in the city's slabs out to the parapets; a street ending at the water ends round and kerbed, finished as a real one (its asphalt and gutter round the end, slabbed corners, a DEAD END sign, end markers); quays
+  deck is its road and sidewalks in the city's slabs out to the parapets; a street ending at the water ends round and kerbed, finished as a real one (its asphalt and gutter round the end, slabbed corners; no road signs: the city has none); quays
   are sidewalk, railed at the water and furnished (lamps, benches, bins); layers: water, shadows and walls, deck edge faces, banks, decks (every bank within the channel's depth east or south
   of the water laid over it); shadows fall away from the light (+y, a touch of -x); a deck edge is used up only by the reach that
   walls it; nothing is planted in the channel. Screenshot each kind of crossing with Tipsey on the deck.
