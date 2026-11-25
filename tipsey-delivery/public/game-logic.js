@@ -142160,7 +142160,8 @@ class WorldScene extends Phaser.Scene {
            the screen's top with room to spare at its foot) */
         if(!_rp._coverAim) camTargetZ += (Math.min(_rp.h || 240, ROOM_FIT.hCap)*0.5)*(1 - f); } }   // (on as much of the walls as the fit counts: ROOM_FIT.hCap)
     /* (the room's own scale at view 2, fitted to the screen -- zoomK: taken up as he is taken in and given back as he comes out) */
-    { const _wk = zoomK(); if(Math.abs(this.K - _wk) > 1e-4) zoomApply(); }
+    /* (never while the garage is open: its frame owns K -- at a saved view 3 this put the street's 0.30 back every frame, a tiny garage) */
+    if(!this._garage){ const _wk = zoomK(); if(Math.abs(this.K - _wk) > 1e-4) zoomApply(); }
     const camVmul = ((this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1) * (this._botAboard ? 5 : 1);
     /* EASE PER MILLISECOND, NOT PER FRAME (Sir on-device, 2026-09-17:
        "everything moves while i move", screen recording). The recording
