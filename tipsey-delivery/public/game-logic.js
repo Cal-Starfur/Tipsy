@@ -113654,7 +113654,7 @@ class WorldScene extends Phaser.Scene {
     /* _inWorldFlush off: a lamp painted into an image has no place in the
        world's order to put its light (glowInWorld falls back to gGlow) */
     const sv = { camX: this.camX, camY: this.camY, camZ: this.camZ, cx: this.cx, cy: this.cy, _vp: this._vp, g: this.g, _inWorldFlush: this._inWorldFlush };
-    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C; this.cy = C; this._vp = { w: 2*C, h: 2*C }; this.g = sc; this._inWorldFlush = false;
+    this.camX = ax; this.camY = ay; if(BEND.on){ const b = bendXY(ax, ay); this.camX = b.x; this.camY = b.y; }   /* (THE BEND: painted about its bent anchor, where bcDraw places it) */ this.camZ = 0; this.cx = C; this.cy = C; this._vp = { w: 2*C, h: 2*C }; this.g = sc; this._inWorldFlush = false;
     try { drawFn(sc); } finally { Object.assign(this, sv); }
     const [x0, y0, x1, y1] = sc.__b;
     if(!(x1 > x0) || !(y1 > y0)){ sc.clear(); return null; }
@@ -113721,7 +113721,7 @@ class WorldScene extends Phaser.Scene {
        are (see PADDED, SHOWN CROPPED): a full T x T tile is a power of two
        and on an Apple GPU its edge row would read the opposite edge */
     const GP = GROUND_CACHE.pad;
-    this.camX = ax; this.camY = ay; this.camZ = 0; this.cx = C - tx + GP; this.cy = C - ty + GP; this._vp = { w: tw + 2*GP, h: th + 2*GP }; this.g = sc; this._inWorldFlush = false;
+    this.camX = ax; this.camY = ay; if(BEND.on){ const b = bendXY(ax, ay); this.camX = b.x; this.camY = b.y; }   /* (THE BEND: painted about its bent anchor, where bcDraw places it) */ this.camZ = 0; this.cx = C - tx + GP; this.cy = C - ty + GP; this._vp = { w: tw + 2*GP, h: th + 2*GP }; this.g = sc; this._inWorldFlush = false;
     try { drawFn(sc); } finally { Object.assign(this, sv); }
     const rt = this.make.renderTexture({ x: 0, y: 0, width: tw + 2*GP, height: th + 2*GP }, false);
     rt.setOrigin(0, 0);
@@ -120801,6 +120801,7 @@ class WorldScene extends Phaser.Scene {
   }
   /* world (x, y, z) to the screen, into the scratch point p (W without the new object) */
   turfPt(p, x, y, z = 0){
+    if(BEND.on){ const w = this.W(x, y, z); p.x = w.x; p.y = w.y; p._wx = w._wx; p._wy = w._wy; p._wz = w._wz; return p; }   // (THE BEND: as W, so the lawn bends with the sidewalk)
     const xr = x - this.camX, yr = y - this.camY;
     p.x = (xr - yr)*this.K + this.cx; p.y = ((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy;
     return p;
