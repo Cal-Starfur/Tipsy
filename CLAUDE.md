@@ -123,6 +123,11 @@
 - Anything that wraps round another piece (a band, a hem, a cuff, a collar, a brim, a hat's band) is a ring -- only its faces toward
   the eye -- never a filled solid, whose silhouette lays a flat lid over what it wraps; a piece that wraps round another is split by depth
   (its part behind, the thing, its part in front), as a cap's bill round its crown.
+- Bridges and water in the town (Sir, 2026-11-25: "use the misses to make the rules"): `docs/kits/bridges.md` (B1-B9). Water in
+  the town is sunk in a channel, never flat in the street; every way over it (street, boardwalk, promenade, trail) is a whole bridge
+  -- deck, parapets, edge face, shadow; a street's deck is its road and sidewalks in the city's slabs out to the parapets; a street
+  ending at the water is kerbed across its end; quays are sidewalk; banks are laid after the sunk water and decks after the banks;
+  nothing is planted in the channel. Screenshot each kind of crossing with Tipsey on the deck.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
 - No secondary grass: a house, shop or landmark never paints its own lawn over the

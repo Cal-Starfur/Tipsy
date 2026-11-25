@@ -118521,6 +118521,22 @@ class WorldScene extends Phaser.Scene {
       if(!onScreen(pts)) continue;
       this.paveSlabOn(g, pts, d, cell.x, cell.y);
     }
+    /* THE PALMA RIVER's finish (riverTiles): the quays and the bridges' decks in the city's slabs, a dead end kerbed across */
+    if(WORLDGEN_COAST && r.grid.river){
+      const RT = riverTiles(r.grid), half = T2/2, ci = Math.floor(this.camX/BLOCK), cj = Math.floor(this.camY/BLOCK), rc = Math.ceil(flatSpan/BLOCK) + 1;
+      for(let i = ci - rc; i <= ci + rc; i++) for(let j = cj - rc; j <= cj + rc; j++){
+        const list = RT.cells.get(i + ',' + j); if(!list) continue;
+        for(const t of list){ const pts = [this.W(t.x - half, t.y - half, 0), this.W(t.x + half, t.y - half, 0), this.W(t.x + half, t.y + half, 0), this.W(t.x - half, t.y + half, 0)];
+          if(onScreen(pts)) this.paveSlabOn(g, pts, d, t.x, t.y); } }
+      const KW = KERB_STONE.w, KH = KERB_STONE.h, RH = ROAD_HALF;
+      for(const E of RT.ends){
+        if(Math.abs(E.n.x - this.camX) > flatSpan || Math.abs(E.n.y - this.camY) > flatSpan) continue;
+        const dv = DIRV[(E.k + 2) % 4], rv = { x: -dv.y, y: dv.x }, x = E.n.x, y = E.n.y;   // dv: on from the street over its end
+        const sec = (al, pr, inx, iny) => ({ rx: x + dv.x*al + rv.x*pr + inx, ry: y + dv.y*al + rv.y*pr + iny, px: x + dv.x*al + rv.x*pr, py: y + dv.y*al + rv.y*pr, h: KH });
+        /* the end: round from one side's kerb across the road's end to the other's, the stone's road face inward */
+        this.kerbPath(g, [sec(0, -RH, rv.x*KW, rv.y*KW), sec(RH, -RH, -dv.x*KW + rv.x*KW, -dv.y*KW + rv.y*KW), sec(RH, RH, -dv.x*KW - rv.x*KW, -dv.y*KW - rv.y*KW), sec(0, RH, -rv.x*KW, -rv.y*KW)], {});
+      }
+    }
     /* center line: flat road paint, no depth. */
     /* This loop had NO cull whatsoever -- it painted the stripe on every
        street in the whole city, all 356 edges, every frame, at every
@@ -126275,11 +126291,17 @@ class WorldScene extends Phaser.Scene {
     const nearPath = (R, s, pad) => V.paths.some(P => P.R === R && Math.abs(s - P.s) < P.hw + pad);
     /* THE PROMENADE: its centre line, out from the sidewalk about half way across the lawn, eased to one line round the corner */
     const UC = 300, RC = 280, xc = -IN - UC, yc = gy + IN + UC;
-    const ucOf = (R, s) => {
+    const ucOf0 = (R, s) => {
       const u = cl(0.52*(W - R.em(s) - 60), 170, 360);
       const d = R === RW ? (gy + EXT) - s : s - (-EXT);
       return u + (UC - u)*sstep(1 - (d - 1000)/1600);
     };
+    /* THE PROMENADE'S FOOTBRIDGE over THE PALMA RIVER's mouth (THE BRIDGE RULES: a walk over the water is a bridge): the walk runs
+       straight across the channel, and the river lays a timber deck, parapets and its edge face under and along it there */
+    const rvX = grid.river ? RIVER_NODES[RIVER_NODES.length - 1][0]*B : null, rvH = ROAD_HALF + SIDEWALK_W + 200;
+    const ucOf = (R, s) => R === RS && rvX != null && Math.abs(s - rvX) < rvH + 900
+      ? ucOf0(R, s) + (ucOf0(R, rvX) - ucOf0(R, s))*sstep(1 - (Math.abs(s - rvX) - rvH)/900) : ucOf0(R, s);
+    if(rvX != null){ grid._riverFoot = { y: gy + IN + ucOf0(RS, rvX), hw: V.hw }; delete grid._riverRuns; delete grid._riverPieces; delete grid._riverPar; delete grid._riverTiles; }
     V.uc = ucOf;
     const firstWalk = walks.filter(([a]) => a > yN).sort((a, b) => a[0] - b[0])[0];
     const pW0 = firstWalk ? firstWalk[1] : yN + 400, pW1 = yc - RC;
@@ -158347,6 +158369,16 @@ function riverRuns(grid){
     const na = !!(nS.conn[0] || nS.conn[2]), L = yB - nS.y;
     runs.push({ x: nS.x, y: nS.y, f: 1, len: L, s0: na ? SW : -WH, s1: L, qa: na ? SW : -SW, qb: L, na, nb: 'board', w0: -WH, w1: yS - nS.y, lo: na ? SW : -WH, hi: L });
     runs.push({ x: nS.x, y: yS, f: 1, len: yE - yS, s0: 0, s1: yE - yS, qa: 0, qb: 0, sand: true, na: 'board', nb: false, w0: 0, w1: yE - yS, lo: 0, hi: yE - yS }); }
+  /* THE DECKS over each reach, [a0, a1] along it and their kind (THE BRIDGE RULES): a street's at its node (its road and both
+     sidewalks, -SW..SW), the boardwalk's over the mouth, the promenade's footbridge where the beach verge's walk crosses */
+  for(const r of runs){
+    r.decks = [];
+    if(r.na === true) r.decks.push({ a0: -SW, a1: SW, kind: 'street' });
+    if(r.nb === true) r.decks.push({ a0: r.len - SW, a1: r.len + SW, kind: 'street' });
+    if(r.nb === 'board') r.decks.push({ a0: r.len, a1: r.len + WG_COAST.BOARD*B, kind: 'board' });
+  }
+  if(grid._riverFoot && nS){ const r = runs.find(q => q.nb === 'board'), F = grid._riverFoot, a = F.y - r.y;
+    if(r && a > 0 && a < r.len) r.decks.push({ a0: a - F.hw - 40, a1: a + F.hw + 40, kind: 'foot' }); }
   const idx = new Map();
   for(const r of runs){ const ex = r.x + (r.f === 0 ? r.len : 0), ey = r.y + (r.f === 1 ? r.len : 0);
     for(let i = Math.floor(Math.min(r.x, ex)/B) - 1; i <= Math.floor(Math.max(r.x, ex)/B) + 1; i++)
@@ -158363,7 +158395,7 @@ function riverSurface(grid, x, y){
   let quay = false;
   for(const r of list){
     const a = r.f === 0 ? x - r.x : y - r.y, p = Math.abs(r.f === 0 ? y - r.y : x - r.x);
-    if(p <= RR.WH && a >= r.s0 && a <= r.s1) return 'water';
+    if(p <= RR.WH && a >= r.s0 && a <= r.s1){ if(r.decks.some(d => d.kind === 'foot' && a >= d.a0 && a <= d.a1)) return 'sidewalk'; return 'water'; }
     if(p <= RR.SW && a >= r.qa && a <= r.qb && !r.sand) quay = true;
   }
   return quay ? 'sidewalk' : null;
@@ -158387,76 +158419,114 @@ function riverHillClaims(x, y, m){
    its timber. Painted in the ground pass in this order: the water, the shadows, the walls, the deck edges, then the quays
    and the coping and the bridges' sidewalks over the water (at street height they lie over the lowered water south and east
    of them, as they should), then the streets' own pass lays the roads; the parapets stand in the world queue (riverQueue). */
-Object.assign(RIVER, { depth: 160, deck: 90, ph: 78, pt: 34, piece: 60 });
+Object.assign(RIVER, { depth: 160, deck: 90, ph: 78, pt: 34, piece: 60,
+  kinds: { street: { fascia: 0xa29b8e, ph: 78, top: 0xddd7ca, s: 0xc4bdb0, e: 0xaaa396, F: 90 },
+           board:  { fascia: 0x7d5a3c, ph: 70, top: 0xa77c55, s: 0x8a6644, e: 0x6f5236, F: 60 },
+           foot:   { fascia: 0x9a9386, ph: 64, top: 0xa77c55, s: 0x8a6644, e: 0x6f5236, F: 50 } } });
 function riverPieces(grid){
   const RR = riverRuns(grid); if(!RR) return [];
   if(grid._riverPieces) return grid._riverPieces;
-  const out = [], C = RIVER.coping, D = RIVER.depth, F = RIVER.deck, WH = RR.WH, SW = RR.SW, RH = ROAD_HALF;
-  /* a point of run r at (along a, across p, height z) */
+  const C = RIVER.coping, D = RIVER.depth, WH = RR.WH, SW = RR.SW;
   const P = (r, a, p, z) => r.f === 0 ? { x: r.x + a, y: r.y + p, z } : { x: r.x + p, y: r.y + a, z };
-  const quad = (r, a0, a1, p0, p1, z0, z1) => [P(r, a0, p0, z0), P(r, a1, p0, z1), P(r, a1, p1, z1), P(r, a0, p1, z0)];   // flat or sloped along
-  const zW = (r, a) => r.sand ? -D*(1 - Math.min(1, Math.max(0, a/r.len))) : -D;                 // (the mouth rises to the sea over the sand)
-  const add = (pts, col, al, map) => out.push({ pts, col, al: al == null ? 1 : al, map: !!map });
+  const quad = (r, a0, a1, p0, p1, z0, z1) => [P(r, a0, p0, z0), P(r, a1, p0, z1), P(r, a1, p1, z1), P(r, a0, p1, z0)];
+  const zW = (r, a) => r.sand ? -D*(1 - Math.min(1, Math.max(0, a/r.len))) : -D;
+  /* five layers, laid in this order across the whole river (THE BRIDGE RULES: what stands at street height is laid after the
+     sunk water it hides, and a deck after every bank, so no ground-level piece ever paints over a deck's edge) */
+  const L = [[], [], [], [], []], add = (k, pts, col, al, map) => L[k].push({ pts, col, al: al == null ? 1 : al, map: !!map });
   for(const r of RR.runs){
-    const w0 = r.w0, w1 = r.w1, lo = r.lo, hi = r.hi, n = r.sand ? 10 : 1;
-    /* the water, a darker channel down its middle */
-    for(let k = 0; k < n; k++){ const a0 = w0 + (w1 - w0)*k/n, a1 = w0 + (w1 - w0)*(k + 1)/n;
-      add(quad(r, a0, a1, -WH, WH, zW(r, a0), zW(r, a1)), 0x5f9fbf, 1, true);
-      add(quad(r, a0, a1, -WH*0.55, WH*0.55, zW(r, a0), zW(r, a1)), 0x5590b2, 1, true); }
-    /* the shadow a deck throws on it, at the start of the reach */
-    if(r.na) add(quad(r, lo, lo + 240, -WH, WH, zW(r, lo), zW(r, lo + 240)), 0x1c3a4a, 0.28);
-    /* the wall the eye sees (west on a north-south reach, north on an east-west one), down to the water */
-    const wl0 = r.na === true ? w0 : lo, wl1 = r.nb === true ? w1 : hi;            // (on under a deck: it hides what it covers, and no sky shows at its foot)
+    const n = r.sand ? 10 : 1, wl0 = r.na === true || r.na === 'board' ? r.w0 : r.lo, wl1 = r.nb ? r.w1 : r.hi;
+    /* 0: the water, a darker channel down its middle */
+    for(let k = 0; k < n; k++){ const a0 = r.w0 + (r.w1 - r.w0)*k/n, a1 = r.w0 + (r.w1 - r.w0)*(k + 1)/n;
+      add(0, quad(r, a0, a1, -WH, WH, zW(r, a0), zW(r, a1)), 0x5f9fbf, 1, true);
+      add(0, quad(r, a0, a1, -WH*0.55, WH*0.55, zW(r, a0), zW(r, a1)), 0x5590b2, 1, true); }
+    /* 1: the shadow each deck throws down the reach past it; the wall the eye sees (west / north), down to the water; the falls */
+    if(r.na === 'board') add(1, quad(r, 0, 240, -WH, WH, zW(r, 0), zW(r, 240)), 0x1c3a4a, 0.28);   // (the boardwalk's shadow, on the mouth's water)
+    for(const d of r.decks) if(d.a1 < r.w1 - 10) add(1, quad(r, d.a1, Math.min(r.w1, d.a1 + 240), -WH, WH, zW(r, d.a1), zW(r, d.a1 + 240)), 0x1c3a4a, 0.28);
     for(let k = 0; k < n; k++){ const a0 = wl0 + (wl1 - wl0)*k/n, a1 = wl0 + (wl1 - wl0)*(k + 1)/n;
-      add([P(r, a0, -WH, 0), P(r, a1, -WH, 0), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], r.sand ? 0xb7a77a : 0x9d968a);
-      add([P(r, a0, -WH, zW(r, a0) + 26), P(r, a1, -WH, zW(r, a1) + 26), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], 0x6f7a74); }   // (the wet line at its foot)
-    /* the falls into it, where it comes down off the hills' bench */
-    if(r.north) add([P(r, 0, -WH, 0), P(r, 0, WH, 0), P(r, 0, WH, -D), P(r, 0, -WH, -D)], 0xe8f4f8);
-    /* a deck's edge over the water, where a bridge starts the reach (the boardwalk's in timber) */
-    if(r.na) add([P(r, lo, -WH - C, 0), P(r, lo, WH + C, 0), P(r, lo, WH + C, -F), P(r, lo, -WH - C, -F)], r.na === 'board' ? 0x7d5a3c : 0xa29b8e);
-    /* the quays either side, and the coping along the water */
-    if(!r.sand) for(const sd of [-1, 1]){ add(quad(r, r.qa, r.qb, sd*WH, sd*SW, 0, 0), 'pave'); add(quad(r, lo, hi, sd*WH, sd*(WH + C), 0, 0), 0xc9c2b4); }
-    else { add(quad(r, lo, hi, WH, WH + D + 60, 0, 0), 0xf0e2ae);                     // (the east bank's sand over the sunk water's edge)
-      for(const sd of [-1, 1]) add(quad(r, lo, hi, sd*WH, sd*(WH + C), 0, 0), 0xd8c690); }
-    /* the bridges' sidewalks over the water (the road between them is the cross street's own) */
-    if(r.na === true) add(quad(r, RH, SW, -WH - C, WH + C, 0, 0), 'pave');
-    if(r.nb === true) add(quad(r, r.len - SW, r.len - RH, -WH - C, WH + C, 0, 0), 'pave');
-    if(r.nb === 'board') add(quad(r, r.len, r.len + WG_COAST.BOARD*BLOCK, -WH - C, WH + C, 0, 0), 0xb98a5e);   // the boardwalk over the mouth
+      add(1, [P(r, a0, -WH, 0), P(r, a1, -WH, 0), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], r.sand ? 0xb7a77a : 0x9d968a);
+      add(1, [P(r, a0, -WH, zW(r, a0) + 26), P(r, a1, -WH, zW(r, a1) + 26), P(r, a1, -WH, zW(r, a1)), P(r, a0, -WH, zW(r, a0))], 0x6f7a74); }
+    if(r.north) add(1, [P(r, 0, -WH, 0), P(r, 0, WH, 0), P(r, 0, WH, -D), P(r, 0, -WH, -D)], 0xe8f4f8);
+    /* 2: the banks at street height -- the quays' paving (tiled over in the finish: riverFinish) and the coping; the sand's east bank */
+    if(!r.sand) for(const sd of [-1, 1]){ add(2, quad(r, r.qa, r.qb, sd*WH, sd*SW, 0, 0), 'pave'); add(2, quad(r, wl0 === r.w0 ? r.lo : wl0, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xc9c2b4); }
+    else { add(2, quad(r, r.lo, r.hi, WH, WH + D + 60, 0, 0), 0xf0e2ae);
+      for(const sd of [-1, 1]) add(2, quad(r, r.lo, r.hi, sd*WH, sd*(WH + C), 0, 0), 0xd8c690); }
+    /* 3: the decks -- a street's square at its node (tiled and kerbed in the finish), the boardwalk's timber with its seams, the
+       footbridge's timber under the promenade's own walk */
+    for(const d of r.decks){
+      if(d.kind === 'street'){ const c = P(r, (d.a0 + d.a1)/2, 0, 0);
+        add(3, [{ x: c.x - SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y + SW, z: 0 }, { x: c.x - SW, y: c.y + SW, z: 0 }], 'pave'); }
+      else { add(3, quad(r, d.a0, d.a1, -WH - C, WH + C, 0, 0), 0xb98a5e);
+        for(let p = -WH - C + 26; p < WH + C; p += 52) add(3, quad(r, d.a0, d.a1, p - 1.5, p + 1.5, 0, 0), 0x8a6644, 0.55); }
+    }
+    /* 4: each deck's edge face over the water, where the eye looks down the reach past it */
+    for(const d of r.decks) if(d.a1 < r.w1 - 10 || d.kind === 'board'){ const K = RIVER.kinds[d.kind];
+      add(4, [P(r, d.a1, -WH, 0), P(r, d.a1, WH, 0), P(r, d.a1, WH, -K.F), P(r, d.a1, -WH, -K.F)], K.fascia); }
   }
-  /* each bridge's deck square at its node, under the streets' own pass (the corner a turn leaves outside its L included) */
-  const seen = new Set();
-  for(const r of RR.runs) for(const [on, a] of [[r.na === true, 0], [r.nb === true, r.len]]){
-    if(!on) continue; const c = P(r, a, 0, 0), k = Math.round(c.x) + ',' + Math.round(c.y); if(seen.has(k)) continue; seen.add(k);
-    add([{ x: c.x - SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y - SW, z: 0 }, { x: c.x + SW, y: c.y + SW, z: 0 }, { x: c.x - SW, y: c.y + SW, z: 0 }], 'pave'); }
-  return (grid._riverPieces = out);
+  return (grid._riverPieces = [].concat(...L));
 }
 /* the parapets: one along each deck edge over the water, as boxes of RIVER.piece along (W37: a long piece is never one item) */
 function riverParapets(grid){
   const RR = riverRuns(grid); if(!RR) return [];
   if(grid._riverPar) return grid._riverPar;
-  const out = [], C = RIVER.coping, WH = RR.WH, SW = RR.SW, T = RIVER.pt, L = RIVER.piece, H = WG_COAST.BOARD*BLOCK;
-  const wall = (r, at, inward, wood) => {          // across the water at `at` along the reach, its thickness toward `inward`
+  const out = [], C = RIVER.coping, WH = RR.WH, T = RIVER.pt, Lp = RIVER.piece;
+  const wall = (r, at, inward, kind) => {
     const a0 = inward > 0 ? at : at - T, a1 = inward > 0 ? at + T : at;
-    for(let p = -WH - C; p < WH + C - 1; p += L){ const p1 = Math.min(WH + C, p + L);
+    for(let p = -WH - C; p < WH + C - 1; p += Lp){ const p1 = Math.min(WH + C, p + Lp);
       const b = r.f === 0 ? { x0: r.x + a0, x1: r.x + a1, y0: r.y + p, y1: r.y + p1 } : { x0: r.x + p, x1: r.x + p1, y0: r.y + a0, y1: r.y + a1 };
-      out.push(Object.assign(b, { wood })); } };
-  for(const r of RR.runs){
-    if(r.na === true) wall(r, SW, -1, false);
-    if(r.nb === true) wall(r, r.len - SW, 1, false);
-    if(r.na === 'board') wall(r, 0, -1, true);
-    if(r.nb === 'board'){ wall(r, r.len, 1, true); }
+      out.push(Object.assign(b, { kind })); } };
+  const seen = new Set();
+  for(const r of RR.runs) for(const d of r.decks){
+    for(const [at, inw] of [[d.a0, 1], [d.a1, -1]]){
+      if(at < r.w0 + 5 && inw > 0 && d.kind === 'street') {}   // (a deck edge with no water beyond it still gets its wall where the reach meets it)
+      const c = r.f === 0 ? (r.x + at) + ',' + r.y : r.x + ',' + (r.y + at), k = c + '|' + inw + '|' + r.f;
+      if(seen.has(k)) continue; seen.add(k);
+      /* only where water lies beyond that edge along this reach */
+      if(d.kind !== 'board' && (inw > 0 ? at <= r.w0 + 1 : at >= r.w1 - 1)) continue;   // (the boardwalk's south edge has the mouth beyond it, on the next reach)
+      wall(r, at, inw, d.kind);
+    }
   }
   return (grid._riverPar = out);
+}
+/* THE FINISH, after the city's sidewalks (riverFinish): the quays and the street decks in the city's own sidewalk slabs (a deck is
+   the street's road and its sidewalks: the slabs run on over the water to the parapets), and a street that ENDS at the river
+   kerbed across its end. Tiles on the city's T2 grid, where the city's would be; none on the road. Built once per grid. */
+function riverTiles(grid){
+  const RR = riverRuns(grid); if(!RR) return null;
+  if(grid._riverTiles) return grid._riverTiles;
+  const C = RIVER.coping, WH = RR.WH, SW = RR.SW, out = new Map(), seen = new Set();
+  const put = (x, y) => { const k = Math.round(x) + ',' + Math.round(y); if(seen.has(k)) return; seen.add(k);
+    const b = Math.floor(x/BLOCK) + ',' + Math.floor(y/BLOCK); if(!out.has(b)) out.set(b, []); out.get(b).push({ x, y }); };
+  const near = (x, y) => grid.edges.filter(e => Math.abs(e.a.x - x) < BLOCK*1.6 && Math.abs(e.a.y - y) < BLOCK*1.6);
+  const tileRect = (x0, y0, x1, y1, notRoad) => {
+    const E = notRoad ? near((x0 + x1)/2, (y0 + y1)/2) : null;
+    for(let x = (Math.floor(x0/T2) + 0.5)*T2; x < x1; x += T2) for(let y = (Math.floor(y0/T2) + 0.5)*T2; y < y1; y += T2){
+      if(x - T2/2 < x0 - 1 || y - T2/2 < y0 - 1 || x + T2/2 > x1 + 1 || y + T2/2 > y1 + 1) continue;
+      if(E && classifyAt(E, x, y) === 'road') continue;
+      put(x, y); } };
+  const ends = [];
+  for(const r of RR.runs){
+    if(r.sand) continue;
+    for(const sd of [-1, 1]){ const pA = sd < 0 ? -SW : WH + C, pB = sd < 0 ? -WH - C : SW;
+      const a0 = r.qa, a1 = r.qb, p0 = r.f === 0 ? { x: r.x + a0, y: r.y + pA } : { x: r.x + pA, y: r.y + a0 }, p1 = r.f === 0 ? { x: r.x + a1, y: r.y + pB } : { x: r.x + pB, y: r.y + a1 };
+      tileRect(Math.min(p0.x, p1.x), Math.min(p0.y, p1.y), Math.max(p0.x, p1.x), Math.max(p0.y, p1.y), false); }
+    for(const d of r.decks) if(d.kind === 'street'){
+      const c = r.f === 0 ? { x: r.x + (d.a0 + d.a1)/2, y: r.y } : { x: r.x, y: r.y + (d.a0 + d.a1)/2 };
+      tileRect(c.x - SW, c.y - SW, c.x + SW, c.y + SW, true);
+      const n = grid.nodeAt(Math.round(c.x/BLOCK), Math.round(c.y/BLOCK));
+      if(n && n.conn.filter(Boolean).length === 1 && !ends.some(q => q.n === n)) ends.push({ n, k: n.conn.indexOf(true) });
+    }
+  }
+  return (grid._riverTiles = { cells: out, ends });
 }
 /* queue them (the world queue, each at its own middle), cached as still pieces */
 function riverQueue(scene, queuePerson){
   const grid = scene.route && scene.route.grid; if(!WORLDGEN_COAST || !grid || !grid.river) return;
-  const span = (scene.vpW() + scene.vpH())/scene.K*1.1, H = RIVER.ph;
+  const span = (scene.vpW() + scene.vpH())/scene.K*1.1;
   for(const b of riverParapets(grid)){
     const cx = (b.x0 + b.x1)/2, cy = (b.y0 + b.y1)/2;
     if(Math.abs(cx - scene.camX) > span || Math.abs(cy - scene.camY) > span) continue;
     queuePerson(cx, cy, g => scene.bcDraw(g, "rvpar|" + Math.round(b.x0) + "," + Math.round(b.y0), cx, cy, gg => {
-      const W = (x, y, z) => scene.W(x, y, z), top = b.wood ? 0xa77c55 : 0xddd7ca, s = b.wood ? 0x8a6644 : 0xc4bdb0, e = b.wood ? 0x6f5236 : 0xaaa396;
+      const W = (x, y, z) => scene.W(x, y, z), K = RIVER.kinds[b.kind], H = K.ph, top = K.top, s = K.s, e = K.e;
       scene.quadOn(gg, [W(b.x0, b.y1, 0), W(b.x1, b.y1, 0), W(b.x1, b.y1, H), W(b.x0, b.y1, H)], s);   // south face
       scene.quadOn(gg, [W(b.x1, b.y0, 0), W(b.x1, b.y1, 0), W(b.x1, b.y1, H), W(b.x1, b.y0, H)], e);   // east face
       scene.quadOn(gg, [W(b.x0, b.y0, H), W(b.x1, b.y0, H), W(b.x1, b.y1, H), W(b.x0, b.y1, H)], top); // its top
