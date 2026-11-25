@@ -6245,6 +6245,8 @@ function owBuildWorld(route){
     { const sp = spSolidAt(x, y, R); if(sp) return sp; }
     /* THE LETTERS' PARK: the ranger's kiosk, the trees' trunks, the lamps */
     { const cp = cplSolidAt(x, y, R); if(cp) return cp; }
+    /* THE STREET UP TO SIERRA VISTA: its lamp posts and palm trunks (hillRoadSolidAt) */
+    { const hr = WorldScene.prototype.hillRoadSolidAt(x, y, R); if(hr) return hr; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -117613,6 +117615,7 @@ class WorldScene extends Phaser.Scene {
     cplQueueStatic(this, blockVQ);          // THE COSTA PALMA LETTERS, the stair, the ranger's kiosk; the floods at night
     cplQueueStory(this, blockVQ);           // LETTERS ON THE HILL: the panel lowered onto its pegs; Tipsey parked while he flies
     cplQueuePark(this, blockVQ);            // THE LETTERS' PARK: its plants, lamps and their light
+    this.queueHillside(blockVQ);            // THE CITY CARRIED UP INTO THE NORTH HILLS: the hillside planting, the street up to Sierra Vista
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
     this.queueYardFence(blockVQ);
@@ -118239,6 +118242,7 @@ class WorldScene extends Phaser.Scene {
       const pgt = cp.type, pgx = cp.wx, pgy = cp.wy;
       groundVQ.push({ depth: pgx+pgy, fn:(g,t)=>this.drawPalmGround(g, pgt, pgx, pgy, t) });
     }
+    this.queueHillRoadGround(groundVQ);     // THE STREET UP TO SIERRA VISTA: its palms' wells (queueHillRoadGround)
     if(cityFurn) for(const cp of cityFurn){
       /* the city's own burst hydrants, same split as the route's above.
          Both skips are repeated here rather than shared because they
@@ -123753,6 +123757,290 @@ class WorldScene extends Phaser.Scene {
     }
     items.sort((a, b) => a.k - b.k);
     for(const it of items) it.fn(it.q);
+  }
+  /* ==================== THE CITY CARRIED UP INTO THE NORTH HILLS (Sir, 2026-11-24: "we added stuff in the hills and the harbor but
+     they don't read as part of the map") ====================
+     The terraces past the city's north edge (WG_HILLS, northHillPolys) were bare shelves, and the city's street trees and lamps
+     stopped at its edge. Two things carry the town up them, both from the library:
+     - HILLSIDE PLANTING (hillCell, queueHillPlanting): clumps of the park kit's trees (a round oak-like tree, the coastal theme's
+       olives, pepper trees and pines: drawShadeTree), Monterey cypress (drawCypress), a few of the street's palms, scrub (the
+       coastal shrubs -- lavender, rosemary, agave, grass: drawParkShrub), clumps of dry grass (drawNssGardenItem) and boulders
+       (drawHarborRocks) over the foothill bench and the lower shelves: densest on the bench, thinning as they climb, none on the
+       top shelf. Each stands at its shelf's own height (hillTerraceAt: northHillPolys' shelves to the line, wobble and all, so
+       nothing stands on a riser's face or hangs off its crest), all seeded off its cell (never time, never per frame). A clump
+       (2..6 plants, ~170 round, painted back to front) is one cached image keyed at its middle -- nobody walks the hills, a
+       flyer passes high over them -- culled to the view. Kept off Sierra Vista (the estate, its walls, the bench beside them,
+       the gate round, the road in), the security post, the rim sites' lots and the Costa Palma letters; east of the city's X0
+       only (the harbour's strip is its own).
+     - THE STREET UP TO SIERRA VISTA (hillRoadFurn): 2nd St's leg from the top street to the gate round, and the estate's drive
+       up its shelves, get the city's kerb-row furniture as cityFurnitureForEdge lays it -- lamps on the citywide stride (phased
+       off world position, so they line up with the town's), a palm (one in four a dwarf) half a stride off each on its tile
+       centre in a tree well, both on lane 0, the lamp's arm reaching in over the pavement; corners, crossings, driveways and
+       front walks kept clear. Lamps and palms are cached (bcDraw), the lamps' light at night as the letters' park's
+       (landmarkLampGlow); the wells ride the ground pass (queueHillRoadGround), as the city's do; posts and trunks are solid
+       (hillRoadSolidAt, from solidAt). */
+  hillCache(){
+    return WorldScene._hill || (WorldScene._hill = { cells: new Map(),
+      /* the planting's dials: cell and slot size; per zone (the bench, then shelves 0..4) a slot's chance of a clump; each
+         zone's mix by weight, and what leads a clump (its middle plant).
+         behind: BEHIND THE WHOLE CITY. Every clump stands north of every footprint the city has (the rim lots, the mall's
+         deeper centre, the fish market's: hillPlantBlocked keeps them all clear), so no city piece is ever behind one -- from
+         any city piece the sight line to the camera runs south, away from the hills. Keyed at x + y the bench's clumps sorted
+         after the rim's tall pieces they stand behind (a tower keyed at its far corner, a landmark lmDepth moved) and painted
+         over their fronts; keyed a long way back (the same shift for every clump, so they keep their own order among
+         themselves) they are painted first, under everything. The hill's own pieces (the estate, the security post, the
+         letters) are kept a crown's reach clear on the side where a clump could stand in front of them. */
+      P: { cell: 1600, step: 400, behind: 1e6,
+           dens: [1, 0.9, 0.66, 0.42, 0.16, 0],
+           mix: [[["tree", 26], ["palm", 10], ["shrub", 26], ["grass", 24], ["rock", 14]],
+                 [["tree", 24], ["palm", 7], ["shrub", 26], ["grass", 27], ["rock", 16]],
+                 [["tree", 20], ["palm", 3], ["shrub", 26], ["grass", 31], ["rock", 20]],
+                 [["tree", 14], ["shrub", 26], ["grass", 34], ["rock", 26]],
+                 [["tree", 6], ["shrub", 22], ["grass", 40], ["rock", 32]],
+                 [["grass", 1]]],
+           lead: [[["tree", 50], ["cypress", 16], ["palm", 20], ["rock", 14]],
+                  [["tree", 52], ["cypress", 18], ["palm", 14], ["rock", 16]],
+                  [["tree", 50], ["cypress", 22], ["palm", 6], ["rock", 22]],
+                  [["tree", 44], ["cypress", 24], ["rock", 32]],
+                  [["tree", 30], ["cypress", 20], ["rock", 50]],
+                  [["rock", 1]]] } });
+  }
+  /* what ground the hills give at (x, y), as northHillPolys draws it for the city's strip: { k: -1 the foothill bench, else the
+     shelf; z its height; front: how far south its crest is; back: how far north the next riser's foot is } -- null on a riser */
+  hillTerraceAt(x, y){
+    const C = this.hillCache();
+    let T = C.terr;
+    if(!T){
+      const G = flyHillsGeo(), H = WG_HILLS, B = BLOCK, n = H.steps.length, amp = [], ph = [], run = [];
+      for(let k = 0; k < n; k++){ const d = H.steps[k][0]*B; amp.push(H.wob*d); ph.push([k*1.7 + 0.4, k*2.9 + 1.1]); run.push(H.run*d); }
+      T = C.terr = { G, n, amp, ph, run, f1: Math.PI*2/(2.6*B), f2: Math.PI*2/(0.9*B) };
+    }
+    const G = T.G, t0 = G.toe(x);
+    const edge = k => t0 - G.cum[k] + T.amp[k]*(0.62*Math.sin(x*T.f1 + T.ph[k][0]) + 0.38*Math.sin(x*T.f2 + T.ph[k][1]));
+    let e = edge(0);
+    if(y > e) return { k: -1, z: 0, front: Infinity, back: y - e };
+    for(let k = 0; k < T.n; k++){
+      const lip = e - T.run[k];
+      if(y > lip) return null;                                   // on the riser
+      const far = k < T.n - 1 ? edge(k + 1) : G.topY;
+      if(y >= far) return { k, z: G.hgt[k + 1], front: lip - y, back: y - far };
+      e = far;
+    }
+    return null;
+  }
+  hillXMax(){ const g = this.route && this.route.grid; return g ? (g.cols - 1)*BLOCK + (WG_COAST.EXT + WG_COAST.FOOTW)*BLOCK : -Infinity; }
+  /* where the hills are someone else's: Sierra Vista (its walls, the bench in its notch, the gate round, the road in), the
+     security post, the rim sites' lots (the mall's deeper centre too), the Costa Palma letters; the harbour west of X0 */
+  hillPlantBlocked(x, y, m){
+    const G = flyHillsGeo(), S = sierraGeo(), P = SP_PLAN;
+    if(x < G.X0 + m || x > this.hillXMax() - m || y > G.Y0 - 40 - m) return true;
+    if(x < S.xe + 600 + m && y < S.wallY + 150 + m && y > S.e[4] - 400 - m) return true;
+    if(x < S.xw + 200 + m && y > G.toe(x) - 200 - m) return true;   // the harbour seam's verge, west of the estate's wall (queueHarborSeam's)
+    if(Math.hypot(x - S.round.x, y - S.round.y) < S.round.out + 150 + m) return true;
+    if(Math.abs(x - S.gx) < S.STREET + 120 + m && y > S.wallY - 200) return true;
+    const L = P.LOOP; if(x > L.x0 - 80 - m && x < L.x1 + 80 + m && y > L.yN - 80 - m && y < L.yS + 80 + m) return true;
+    const A = P.AREA; if(x > A.x0 - 150 - m && x < A.x1 + 600 + m && y > A.y0 - 300 - m && y < A.y1 + 80 + m) return true;
+    for(const s of HOOD_RIM_SITES){
+      if(s.axis !== "x" || s.out >= 0 || x < s.from - 60 - m || x > s.to + 60 + m) continue;
+      if(y > s.at + s.out*s.depth - 80 - m) return true;
+      if(s.bump && x > s.from + s.bump.a0 - 60 - m && x < s.from + s.bump.a1 + 60 + m && y > s.at + s.out*s.bump.depth - 80 - m) return true;
+    }
+    const CP = CPL_PLAN, cx0 = Math.min(...CP.ROWS.map(r => r.x0)) - 300, cx1 = Math.max(...CP.ROWS.map(r => r.x0 + r.word.length*CP.PITCH)) + 300;
+    if(x > cx0 - m && x < cx1 + 300 + m && y > Math.min(...CP.ROWS.map(r => r.yf)) - 300 - m) return true;
+    return false;
+  }
+  /* one cell's clumps (cell CS square), built once and kept: a slot every `step`, jittered, each rolled against its zone's
+     density -- a fixed count of rolls per slot, so a slot's clump never depends on its neighbours' */
+  hillCell(i, j){
+    const C = this.hillCache(), key = i + "," + j;
+    let cell = C.cells.get(key);
+    if(cell) return cell;
+    cell = [];
+    const P = C.P, N = Math.round(P.cell/P.step), rr = mulberry32(((i*73856093) ^ (j*19349663) ^ 0x6b1a5) >>> 0);
+    for(let a = 0; a < N; a++) for(let b = 0; b < N; b++){
+      const cx = Math.round(i*P.cell + (a + 0.15 + rr()*0.7)*P.step), cy = Math.round(j*P.cell + (b + 0.15 + rr()*0.7)*P.step);
+      const roll = rr(), nRoll = rr(), seed = (rr()*4294967296) >>> 0;
+      const at = this.hillTerraceAt(cx, cy);
+      if(!at || roll >= P.dens[at.k + 1] || at.back < 70 || at.front < 80) continue;
+      if(this.hillPlantBlocked(cx, cy, 120)) continue;
+      const cl = this.hillClump(cx, cy, at, seed, 2 + Math.floor(nRoll*(1 + 5*P.dens[at.k + 1])));
+      if(cl) cell.push(cl);
+    }
+    C.cells.set(key, cell);
+    return cell;
+  }
+  /* a clump round (cx, cy) on one shelf: its lead plant in the middle, the rest round it on the same shelf, clear of each other */
+  hillClump(cx, cy, at, seed, n){
+    const P = this.hillCache().P, rr = mulberry32(seed), ps = [];
+    const pick = (tab, r) => { let tot = 0; for(const e of tab) tot += e[1]; let a = r*tot; for(const e of tab){ a -= e[1]; if(a < 0) return e[0]; } return tab[0][0]; };
+    for(let t = 0; t < n*3 && ps.length < n; t++){
+      const first = ps.length === 0, d = first ? 0 : 60 + rr()*120, an = rr()*Math.PI*2, kr = rr(), sr = rr();
+      const x = Math.round(cx + Math.cos(an)*d), y = Math.round(cy + Math.sin(an)*d*0.8);
+      const here = first ? at : this.hillTerraceAt(x, y);
+      if(!here || here.k !== at.k || here.back < 45 || here.front < 60) continue;
+      if(!first && this.hillPlantBlocked(x, y, 60)) continue;
+      const kind = pick(first ? P.lead[at.k + 1] : P.mix[at.k + 1], kr);
+      const big = kind === "tree" || kind === "cypress" || kind === "palm";
+      if(ps.some(q => Math.hypot(q.x - x, q.y - y) < (big || q.big ? 95 : 55))) continue;
+      const p = this.hillPlantOf(kind, x, y, sr);
+      p.big = big;
+      ps.push(p);
+    }
+    if(!ps.length) return null;
+    ps.sort((a, b) => (a.x + a.y) - (b.x + b.y));                 // back to front
+    let rad = 0, across = 0, up = 0;
+    for(const p of ps){
+      rad = Math.max(rad, Math.hypot(p.x - cx, p.y - cy));
+      const h = p.h || 1;
+      const [ac, u] = p.kind === "tree" ? [160*h, 350*h] : p.kind === "cypress" ? [330, 330*h] : p.kind === "palm" ? [150, 330] : p.kind === "palmDwarf" ? [90, 150]
+                    : p.kind === "shrub" ? [2*p.r, 2.6*p.r] : p.kind === "rock" ? [p.r, p.h] : [60, 90];
+      across = Math.max(across, ac); up = Math.max(up, u);
+    }
+    return { cx, cy, z: at.z, k: at.k, ps, rad, across, up };
+  }
+  /* one plant's record (the park kit's fields, so its drawers take it as it is), its look off its own spot */
+  hillPlantOf(kind, x, y, r){
+    const h1 = parkPlantHash(x, y, 0x41c3), h2 = parkPlantHash(x, y, 0x41c7);
+    if(kind === "tree"){
+      const p = { kind, x, y, h: 0.8 + h1*0.35, col: [0x5d7d3e, 0x4f8440, 0x667f45, 0x5a8f45][Math.floor(h2*4)] };
+      if(r < 0.4){ p.sp = null; p.sz = h1 < 0.2 ? "young" : "mature"; }   // the round oak-like tree
+      else { parkPlantVariety(p, "coastal", x, y); if(p.sz === "sapling") p.sz = "young"; }   // (nobody stakes a tree on a wild hill)
+      return p;
+    }
+    if(kind === "cypress") return { kind, x, y, h: 0.7 + h1*0.35, lean: 0.25 + h2*0.5 };
+    if(kind === "palm") return { kind: h1 < 0.3 ? "palmDwarf" : "palm", x, y };
+    if(kind === "shrub") return parkPlantVariety({ kind, x, y, r: 22 + h1*16, col: [0x6f8a4a, 0x5a7d45, 0x7d8f55][Math.floor(h2*3)], bloom: h1 < 0.2 ? 0xb07aff : null }, "coastal", x, y);
+    if(kind === "rock") return { kind, x, y, r: 26 + h1*40, h: 18 + h2*30, n: 7 + Math.floor(h1*3), rot: h2*6.28, tone: Math.floor(parkPlantHash(x, y, 0x41cb)*4) };
+    return { kind: "grass", x, y, s: 0.8 + h1*0.6, col: h2 < 0.7 ? 0 : 1 };
+  }
+  /* draw at a height: every drawer here projects through this.W, so lift it by z for the call (as the horse's rider is scaled) */
+  hillLift(z, fn){
+    if(!z) return fn();
+    const own = Object.prototype.hasOwnProperty.call(this, "W"), W0 = this.W;
+    this.W = (x, y, zz) => W0.call(this, x, y, (zz || 0) + z);
+    try { return fn(); } finally { if(own) this.W = W0; else delete this.W; }
+  }
+  /* a clump, back to front, at its shelf's height */
+  hillDrawClump(g, c){
+    this.hillLift(c.z, () => {
+      for(const p of c.ps){
+        const rr = mulberry32(((Math.round(p.x)*7919) ^ (Math.round(p.y)*104729)) >>> 0);
+        if(p.kind === "tree") this.drawShadeTree(g, p.x, p.y, p.h*(PARK_TREE_SIZE[p.sz] || 1), p.col, rr, p.sp);
+        else if(p.kind === "shrub") this.drawParkShrub(g, p, rr);
+        else if(p.kind === "cypress") this.drawCypress(g, p);
+        else if(p.kind === "palm" || p.kind === "palmDwarf") this.drawProp(g, p.kind, p.x, p.y, 0);
+        else if(p.kind === "rock") this.drawHarborRocks(g, [p]);
+        else this.drawNssGardenItem(g, p);                          // a clump of dry grass
+      }
+    });
+  }
+  hillClumpVis(c){
+    const K = this.K, p = this.W(c.cx, c.cy, c.z), w = (c.rad*1.5 + c.across)*K + 8;
+    return p.x + w >= 0 && p.x - w <= this.vpW() && p.y + (c.rad + 30)*K >= 0 && p.y - (c.up + c.rad)*K - 8 <= this.vpH();
+  }
+  /* THE HOOK (the world queue): the planting and the street's furniture */
+  queueHillside(vq){
+    if(!WORLDGEN_COAST || !this.route || !this.route.grid) return;
+    this.queueHillPlanting(vq);
+    this.queueHillRoad(vq);
+  }
+  queueHillPlanting(vq){
+    const G = flyHillsGeo(), P = this.hillCache().P;
+    /* the view's reach on the ground: the screen's corners carried down to the ground and to the planting's top (W is linear) */
+    const o = this.W(0, 0, 0), ex = this.W(1, 0, 0), ey = this.W(0, 1, 0), ez = this.W(0, 0, 1);
+    const ax = ex.x - o.x, bx = ey.x - o.x, ay = ex.y - o.y, by = ey.y - o.y, zy = ez.y - o.y, det = ax*by - bx*ay;
+    if(Math.abs(det) < 1e-9) return;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for(const sx of [0, this.vpW()]) for(const sy of [0, this.vpH()]) for(const z of [0, 1700]){
+      const u = sx - o.x, v = sy - o.y - zy*z, wx = (u*by - bx*v)/det, wy = (ax*v - u*ay)/det;
+      x0 = Math.min(x0, wx); x1 = Math.max(x1, wx); y0 = Math.min(y0, wy); y1 = Math.max(y1, wy);
+    }
+    x0 = Math.max(x0 - 500, G.X0); x1 = Math.min(x1 + 500, this.hillXMax()); y0 = Math.max(y0 - 500, G.topY); y1 = Math.min(y1 + 500, G.Y0);
+    if(x0 > x1 || y0 > y1) return;
+    for(let i = Math.floor(x0/P.cell); i <= Math.floor(x1/P.cell); i++) for(let j = Math.floor(y0/P.cell); j <= Math.floor(y1/P.cell); j++)
+      for(const c of this.hillCell(i, j)){
+        if(!this.hillClumpVis(c)) continue;
+        vq.push({ depth: c.cx + c.cy - P.behind, fn: (g) => this.bcDraw(g, "hill|c|" + c.cx + "," + c.cy, c.cx, c.cy, gg => this.hillDrawClump(gg, c)) });
+      }
+  }
+  /* the street's kerb-row furniture, built once: [{ kind lamp | palm | palmDwarf, x, y, z, f, seed }] */
+  hillRoadFurn(){
+    const C = this.hillCache();
+    if(C.road) return C.road;
+    const S = sierraGeo(), out = [], LAT = ROAD_HALF + TILE, CLR = CITY_FURN.cornerClear;
+    const step = LAMP_ACT.spacing*T2*CITY_FURN.lampInfra*CITY_FURN.cal.lamp;      // (cityFurnitureForEdge's lamp stride)
+    /* f: the prop's frame, DIRV[(f+1)%4] toward the road (see cityFurnitureForEdge); n points away from the road */
+    const fOf = (nx, ny) => (DIRV.findIndex(d => d.x === -nx && d.y === -ny) + 3) % 4;
+    const clearOf = (x, y) => {
+      for(const p of S.pads) if(Math.abs(p.x - x) < 2*T2 + 60 && Math.abs(p.y - y) < 2*T2 + 60) return false;
+      for(const d of S.drives) if(x > d.x0 - 140 && x < d.x1 + 140 && y > Math.min(d.yK, d.ySw) - 140 && y < Math.max(d.yK, d.ySw) + 140) return false;
+      const Ct = S.court; if(Ct && Ct.x0 !== undefined && x > Ct.x0 - 140 && x < Ct.x1 + 140 && y > Ct.y0 - 140 && y < Ct.y1 + 140) return false;
+      for(const w of S.walks) if(x > w.x0 - 100 && x < w.x1 + 100 && y > w.y0 - 100 && y < w.y1 + 100) return false;
+      for(const lt of S.lots) if(Math.abs(x - (lt.x0 + lt.x1)/2) < 170 && Math.abs(y - lt.yF) < S.STREET + 300) return false;   // (its front walk)
+      return true;
+    };
+    /* one kerb row: along `axis` from s0 to s1 (already cleared of its corners), its kerb row at c, n away from the road */
+    const row = (axis, c, s0, s1, nx, ny, estate) => {
+      const lo = Math.min(s0, s1), hi = Math.max(s0, s1), f = fOf(nx, ny);
+      const put = (kind, v) => {
+        const x = Math.round(axis === "x" ? v : c), y = Math.round(axis === "x" ? c : v);
+        if(estate && (sierraSurface(x + nx*20, y + ny*20) !== "sidewalk" || !clearOf(x, y))) return;
+        out.push({ kind, x, y, z: estate ? sierraZ(x, y) : 0, f, seed: ((x*7919) ^ (y*104729) ^ 0x1a3b) >>> 0 });
+      };
+      for(let v = Math.ceil(lo/step)*step; v <= hi; v += step) put("lamp", v);
+      for(let v0 = Math.floor(lo/step)*step + step*0.5; v0 <= hi; v0 += step){
+        const v = Math.floor(v0/T2)*T2 + TILE;                    // onto the tile centre (PALM_WELL)
+        if(v >= lo && v <= hi) put(parkPlantHash(axis === "x" ? v : c, axis === "x" ? c : v, 0x9a1b) < 0.25 ? "palmDwarf" : "palm", v);
+      }
+    };
+    /* 2nd St's leg: from the top street's corner to the gate round's fillet */
+    const R = S.round, yTop = -(ROAD_HALF + SIDEWALK_W) - CLR, yEnd = R.y + R.fx + R.rf + CLR;   // (the top street's north walk at y 0)
+    for(const s of [-1, 1]) row("y", S.gx + s*LAT, yTop, yEnd, s, 0, false);
+    /* the estate's drive, run by run (its corners, the round at its foot and the circle at its head cleared) */
+    for(const rn of S.runs){
+      const dv = DIRV[rn.f], axis = dv.x !== 0 ? "x" : "y", a = axis === "x" ? rn.a.x : rn.a.y, b = axis === "x" ? rn.b.x : rn.b.y, sg = Math.sign(b - a);
+      const ca = rn.gate ? R.fx + R.rf + CLR : S.STREET + CLR, cb = rn.circle ? S.circle.r + S.SW + CLR : S.STREET + CLR;
+      if(Math.abs(b - a) <= ca + cb) continue;
+      const c = axis === "x" ? rn.a.y : rn.a.x;
+      for(const s of [-1, 1]) row(axis, c + s*LAT, a + sg*ca, b - sg*cb, axis === "x" ? 0 : s, axis === "x" ? s : 0, true);
+    }
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for(const p of out){ x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    C.roadBox = { x0, x1, y0, y1 };
+    C.roadBlk = { x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, i: 0, j: 0, type: "park" };
+    return (C.road = out);
+  }
+  queueHillRoad(vq){
+    const nl = nightLevel();
+    for(const p of this.hillRoadFurn()){
+      const x = p.x, y = p.y, z = p.z;
+      if(!this.visProp(p.kind, x, y, z)) continue;
+      if(p.kind === "lamp"){
+        const ld = { lampSeed: p.seed, armSign: -1, mal: false };   // (its arm in over the pavement, as the city's kerb row's)
+        vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hill|rl|" + x + "," + y, x, y, gg => this.drawProp(gg, "lamp", x, y, 0, p.f, z, null, null, ld)) });
+        if(nl > 0.02) vq.push({ depth: x + y + 2, fn: () => this.glowInWorld((gg, fill) => this.hillLift(z, () => this.landmarkLampGlow(gg, fill, x, y, 300, 260, LANDMARK_LAMP_COL, nl))) });
+      } else vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hill|rp|" + x + "," + y, x, y, gg => this.drawProp(gg, p.kind, x, y, 0, p.f, z)) });
+    }
+  }
+  /* (the ground pass) each palm's tree well, drawPalmGround's: its spot told it is a paved tile centre -- the estate's walks are
+     its own, not the lattice's, so the lattice is not asked */
+  queueHillRoadGround(groundVQ){
+    if(!WORLDGEN_COAST || !PALM_WELL.on || !this.route || !this.route.grid) return;
+    const wc = this.route.grid._palmWell || (this.route.grid._palmWell = new Map());
+    for(const p of this.hillRoadFurn()){
+      if(p.kind === "lamp" || !this.visProp(p.kind, p.x, p.y, p.z)) continue;
+      const x = p.x, y = p.y, z = p.z, kind = p.kind;
+      if(!wc.has(x + "," + y)) wc.set(x + "," + y, { cx: x, cy: y });
+      groundVQ.push({ depth: x + y, fn: (g, t) => this.hillLift(z, () => this.drawPalmGround(g, kind, x, y, t)) });
+    }
+  }
+  /* (solidAt) the lamp posts and palm trunks */
+  hillRoadSolidAt(x, y, R){
+    if(!WORLDGEN_COAST) return null;
+    const L = this.hillRoadFurn(), C = this.hillCache(), bb = C.roadBox;
+    if(x < bb.x0 - R - 40 || x > bb.x1 + R + 40 || y < bb.y0 - R - 40 || y > bb.y1 + R + 40) return null;
+    for(const p of L) if(Math.abs(p.x - x) < R + 40 && Math.abs(p.y - y) < R + 40 && fmBodyHits(x, y, R, { c: [p.x, p.y], r: p.kind === "lamp" ? 10 : 14 })) return C.roadBlk;
+    return null;
   }
   /* A PARK'S PLANTS, each culled on its own and each still one cached (the park trail's: shrubs, beds, trees, benches;
      anything else through drawProp) -- the park kit, also the Costa Palma letters' park's (cplQueuePark) */
