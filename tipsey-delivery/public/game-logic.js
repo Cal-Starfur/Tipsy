@@ -6249,6 +6249,8 @@ function owBuildWorld(route){
     { const hr = WorldScene.prototype.hillRoadSolidAt(x, y, R); if(hr) return hr; }
     /* THE BEACHFRONT VERGE: its lamp posts, palm trunks, benches and bins (beachVergeSolidAt) */
     { const bv = WorldScene.prototype.beachVergeSolidAt(x, y, R); if(bv) return bv; }
+    /* THE EAST EDGE: its trunks, boulders and the trail's furniture (eastSolidAt) */
+    { const es = eastSolidAt(g2, x, y, R); if(es) return es; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -116081,78 +116083,27 @@ class WorldScene extends Phaser.Scene {
       /* ONE GROUND: the foothills are the city's lawn, laid as the ring lawn is (hillTurfLay), so it runs on past the city's
          edge with no seam -- the north band up to the first riser (and the bench under Sierra Vista, round its walls), the
          east band drying across its width to the range's rock. Only what is on screen. */
-      { const toeN = northHillToeFn({ xw: X0, y0: Y0 }).toe;
-        const dryE = wx => (wx - X1)/FOOTW;
-        hillTurfLay(this, g, { x0: X0, x1: X1 + FOOTW, y0: Y0 - BLOCK*WG_HILLS.SV_TOE, y1: Y0 }, { toe: toeN,
+      { const toeN = northHillToeFn({ xw: X0, y0: Y0 }).toe, EG = eastGeo(r.grid);
+        hillTurfLay(this, g, { x0: X0, x1: eastTurfX(EG), y0: Y0 - BLOCK*WG_HILLS.SV_TOE, y1: Y0 }, { toe: toeN,
           skip: (x0, y0, x1, y1) => sierraInside(x0 + 1, y0 + 1) && sierraInside(x1 - 1, y1 - 1),
-          out: (wx, wy) => Math.max(Y0 - wy, wx - X1), dry: wx => wx > X1 ? dryE(wx) : 0 });
-        hillTurfLay(this, g, { x0: X1, x1: X1 + FOOTW, y0: Y0, y1: Y1 + BOARD + SANDW }, { out: wx => wx - X1, dry: dryE }); }
+          out: (wx, wy) => Math.max(Y0 - wy, wx - X1), dry: (wx, wy) => wx > X1 ? eastDryAt(EG, wx, wy) : 0, wash: true });
+        eastGround(this, g, onScreen); }   // THE EAST EDGE: its lawn, the drying washed over it, the trail (eastGround)
       /* THE NORTH HILLS climb on top of the flat north range, which stays
          as the floor under them. See northHillPolys for the shape and why
          only the north side rises. cy carries camZ so the pure function
          projects exactly as W() does. */
       {
         const gW = this.vpW(), gH = this.vpH();
+        const EG = eastGeo(r.grid);
         const hp = northHillPolys({ xw: X0, xe: X1 + FOOTW + FAR, y0: Y0, far: FAR,
+          dry: (x, y) => x > X1 ? eastDryAt(EG, x, y) : 0, dryFine: (xa, xb) => xb > X1 + FOOTW*0.1 && xa < X1 + FOOTW*1.3,   // (the corner dries as the east band does)
           camX: this.camX, camY: this.camY, K: this.K,
           cx: this.cx, cy: this.cy + this.camZ*this.K, w: gW, h: gH });
         hillPaint(this, g, onScreen, hp);
       }
-      /* upscale housing in the hills: Sierra Vista Estates on the shoulder
-         east of the marina, Mirador Heights terraced into the eastern
-         slope — and the houses LINE the drive. Each district is one
-         quadratic drive from its access-stub entry; lots sit on both
-         sides of it, rotated to the local tangent, pushed out by half
-         the road plus a setback so no house ever stands on the asphalt.
-         Seeded skips and jitter keep it a neighbourhood instead of a
-         barracks; fixed seed, houses don't move house. Access stubs in
-         the city's own pal.road extend real streets past the ring road
-         (2nd St north, the j=10 row east), aligned to street positions
-         so they thread the perimeter-lot gaps. Visual connections only:
-         routable estate addresses mean lattice extension, next phase. */
-      {
-        const LOT = 0xf2ece0;
-        const RW = ROAD_HALF;
-        const q = (a, c2, b3, t) => { const s2 = 1 - t; return s2*s2*a + 2*s2*t*c2 + t*t*b3; };
-        const drive = (ex, ey, fx2, fy2, cx2, cy2) => {
-          let px = ex, py = ey;
-          for(let k = 1; k <= 12; k++){
-            const t = k/12, hw = RW*0.45;
-            const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
-            band(Math.min(px,qx) - hw, Math.min(py,qy) - hw,
-                 Math.max(px,qx) + hw, Math.max(py,qy) + hw, r.pal.road);
-            px = qx; py = qy;
-          }
-        };
-        const lotsAlong = (ex, ey, fx2, fy2, cx2, cy2, seed, bx0, by0, bx1, by1) => {
-          const r3 = mulberry32(seed);
-          for(let t = 0.16; t <= 0.94; t += 0.11){
-            const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
-            const tx = q(ex, cx2, fx2, t + 0.01) - qx, ty = q(ey, cy2, fy2, t + 0.01) - qy;
-            const tl = Math.hypot(tx, ty) || 1, ux = tx/tl, uy = ty/tl;
-            const nx = -uy, ny = ux;
-            for(const side of [-1, 1]){
-              if(r3() < 0.22) continue;
-              const setback = RW*0.45 + BLOCK*0.07 + BLOCK*0.12 + r3()*BLOCK*0.05;
-              const cxL = qx + nx*side*setback, cyL = qy + ny*side*setback;
-              if(cxL < bx0 || cxL > bx1 || cyL < by0 || cyL > by1) continue;
-              const hw2 = BLOCK*(0.16 + r3()*0.05), hd = BLOCK*0.12;
-              this.quadOn(g, [
-                this.W(cxL - ux*hw2 - nx*side*hd, cyL - uy*hw2 - ny*side*hd, 0),
-                this.W(cxL + ux*hw2 - nx*side*hd, cyL + uy*hw2 - ny*side*hd, 0),
-                this.W(cxL + ux*hw2 + nx*side*hd, cyL + uy*hw2 + ny*side*hd, 0),
-                this.W(cxL - ux*hw2 + nx*side*hd, cyL - uy*hw2 + ny*side*hd, 0)], LOT);
-            }
-          }
-        };
-        /* Sierra Vista is real ground now: see drawSierraVista */
-        this.drawSierraVista(g, onScreen, r.pal.road, r.pal);
-        /* Mirador Heights: stub east on the j=10 row, drive down the slope */
-        const MH = miradorGeo(r.grid);
-        band(MH.stub.x0, MH.stub.y0, MH.stub.x1, MH.stub.y1, r.pal.road);
-        drive(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy);
-        lotsAlong(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy, MH.seed, MH.bx0, MH.by0, MH.bx1, MH.by1);
-      }
+      /* Sierra Vista is real ground now: see drawSierraVista. (Mirador Heights' paint -- its stub off the j=10 row, its
+         drive and the flat pads for its lots -- is gone: the east edge's trailhead and trail stand there, eastGround) */
+      this.drawSierraVista(g, onScreen, r.pal.road, r.pal);
     }
     /* UNIVERSAL GROUND BACKSTOP (2026-08-11, "make sure it can't happen
        anywhere") -- third on-device report of the same symptom (ocean
@@ -116987,6 +116938,7 @@ class WorldScene extends Phaser.Scene {
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
     this.beachVergeGround(g);               // THE BEACHFRONT VERGE: the dune, the promenade and the cross walks (beachVergeGround)
+    eastGroundLate(this, g, onScreen);      // THE EAST EDGE's trailhead: its walk in over the rim's lawn, its pad (eastGroundLate)
   }
   drawWorld(t){
     /* IN THE MALL, the frame from the street's side (MALL_VIEW, above) */
@@ -117621,6 +117573,7 @@ class WorldScene extends Phaser.Scene {
     cplQueuePark(this, blockVQ);            // THE LETTERS' PARK: its plants, lamps and their light
     this.queueHillside(blockVQ);            // THE CITY CARRIED UP INTO THE NORTH HILLS: the hillside planting, the street up to Sierra Vista
     this.queueBeachVerge(blockVQ);          // THE BEACHFRONT VERGE: its lamps, benches, palms, shrubs and beach grass (queueBeachVerge)
+    eastQueue(this, blockVQ);               // THE EAST EDGE: its planting, the trail's benches and markers (eastQueue)
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
     this.queueYardFence(blockVQ);
@@ -123833,7 +123786,8 @@ class WorldScene extends Phaser.Scene {
     }
     return null;
   }
-  hillXMax(){ const g = this.route && this.route.grid; return g ? (g.cols - 1)*BLOCK + (WG_COAST.EXT + WG_COAST.FOOTW)*BLOCK : -Infinity; }
+  /* (out past the east band, over the shelves that dry round the north-east corner: the planting thins to nothing there, hillCell) */
+  hillXMax(){ const g = this.route && this.route.grid; return g ? (g.cols - 1)*BLOCK + (WG_COAST.EXT + WG_COAST.FOOTW*EAST_EDGE.reach)*BLOCK : -Infinity; }
   /* where the hills are someone else's: Sierra Vista (its walls, the bench in its notch, the gate round, the road in), the
      security post, the rim sites' lots (the mall's deeper centre too), the Costa Palma letters; the harbour west of X0 */
   hillPlantBlocked(x, y, m){
@@ -123866,7 +123820,9 @@ class WorldScene extends Phaser.Scene {
       const cx = Math.round(i*P.cell + (a + 0.15 + rr()*0.7)*P.step), cy = Math.round(j*P.cell + (b + 0.15 + rr()*0.7)*P.step);
       const roll = rr(), nRoll = rr(), seed = (rr()*4294967296) >>> 0;
       const at = this.hillTerraceAt(cx, cy);
-      if(!at || roll >= P.dens[at.k + 1] || at.back < 70 || at.front < 80) continue;
+      /* (round the north-east corner the hills dry as the east band does: the planting thins with it, eastDens) */
+      const dry = this.route && this.route.grid ? eastGeo(this.route.grid) : null, thin = dry && cx > dry.X1 ? eastDens(dry, cx, cy)/0.9 : 1;
+      if(!at || roll >= P.dens[at.k + 1]*thin || at.back < 70 || at.front < 80) continue;
       if(this.hillPlantBlocked(cx, cy, 120)) continue;
       const cl = this.hillClump(cx, cy, at, seed, 2 + Math.floor(nRoll*(1 + 5*P.dens[at.k + 1])));
       if(cl) cell.push(cl);
@@ -123884,7 +123840,10 @@ class WorldScene extends Phaser.Scene {
       const here = first ? at : this.hillTerraceAt(x, y);
       if(!here || here.k !== at.k || here.back < 45 || here.front < 60) continue;
       if(!first && this.hillPlantBlocked(x, y, 60)) continue;
-      const kind = pick(first ? P.lead[at.k + 1] : P.mix[at.k + 1], kr);
+      let kind = pick(first ? P.lead[at.k + 1] : P.mix[at.k + 1], kr);
+      { const G = this.route && this.route.grid ? eastGeo(this.route.grid) : null;   // (dried round the north-east corner: the east band's mix)
+        const zn = G && x > G.X1 ? eastZone(G, x, y) : "lawn";
+        if((zn === "gold" || zn === "rock") && (kind === "palm" || ((kind === "tree" || kind === "cypress") && sr > (zn === "gold" ? 0.35 : 0.08)))) kind = "rock"; }
       const big = kind === "tree" || kind === "cypress" || kind === "palm";
       if(ps.some(q => Math.hypot(q.x - x, q.y - y) < (big || q.big ? 95 : 55))) continue;
       const p = this.hillPlantOf(kind, x, y, sr);
@@ -157170,7 +157129,9 @@ function northHillToeFn(o){
    and 2, where they take the blade grain; coarser further out, where a tile is a few pixels and the field is smooth across
    it). o: toe (skip what lies wholly under the shelves: north of the first riser's foot), skip (x0, y0, x1, y1 -> true:
    covered by something else's ground, e.g. inside Sierra Vista's walls), out (wx, wy -> world units out from the city's
-   edge: the grass grows rough over HILL_TURF.roughIn), dry (wx, wy -> 0..1, how far across the drying stretch; wanders). */
+   edge: the grass grows rough over HILL_TURF.roughIn), dry (wx, wy -> 0..1, how far across the drying stretch; wanders), wash
+   (true: the tiles stay the lawn's tone and coarse -- the drying is laid over them by the east edge's layers, eastGround --
+   `dry` only roughening the grain). */
 function hillTurfLay(S, g, R, o){
   const K = S.K, HT = HILL_TURF, st = K >= 0.6 ? T2 : K >= 0.28 ? T2*2 : T2*4;
   const det = st === T2 && S.grainOn();
@@ -157183,7 +157144,7 @@ function hillTurfLay(S, g, R, o){
   const reach = WG_HILLS.wob*WG_HILLS.steps[0][0]*BLOCK + T2;   // (the first riser's foot wobbles this far south of the toe)
   /* columns along x: a lattice tile wide (T2) wherever the ground is drying (o.dry between the lawn and the rock: a coarse
      tile there would step the colour in bands), `st` elsewhere */
-  const fineAt = x => o.dry && (d => d > HT.dry[0] - 0.12 && d < 1)(o.dry(x, 0));
+  const fineAt = x => o.dry && !o.wash && (d => d > HT.dry[0] - 0.12 && d < 1)(o.dry(x, 0));
   for(let cx = Math.floor(x0/T2)*T2; cx < x1; ){
     const cs = st === T2 || fineAt(cx) || fineAt(cx + st) ? T2 : st - (cx % st + st) % st;   // (a coarse column ends on the st lattice)
     const tx0 = Math.max(x0, cx), tx1 = Math.min(x1, cx + cs), bi = Math.floor(cx/T2), wx = cx + cs/2, fine = cs === T2;
@@ -157207,7 +157168,7 @@ function hillTurfLay(S, g, R, o){
         const d = d0 + (0.7*hillVN(wx, wy, 1400, 57) + 0.3*hillVN(wx, wy, 430, 59))*0.16*w + (paveRoll(bi, bj, 61) - 0.5)*0.06*w;
         dry = d <= HT.dry[0] ? 0 : d >= 1 ? 1 : d < HT.dry[1] ? 0.5*hillEase(HT.dry[0], HT.dry[1], d) : 0.5 + 0.5*hillEase(HT.dry[1], 1, d);
       }
-      const col = hillGroundTone(S, bi, bj, wx, wy, dry);
+      const col = hillGroundTone(S, bi, bj, wx, wy, o.wash ? 0 : dry);
       S.quadOn(g, Q, col);
       if(det && fine && dry < 0.75){
         const out = o.out ? o.out(wx, wy) : 0;
@@ -157248,6 +157209,336 @@ function hillPaint(S, g, onScreen, hp){
       g.lineStyle(it.w, it.c, 1); g.lineBetween(a.x, a.y, b2.x, b2.y);
     }
   }
+}
+/* ==================== THE EAST EDGE (Sir, 2026-11-25: unify the map) ====================
+   The strip down the city's east side (x > X1: WG_COAST.FOOTW of foothills, then the Mirador range's rock) was an empty lawn
+   drying to rock in coarse tiles -- a staircase of colour -- with Mirador Heights' paint (a stub of road off the j=10 row, a
+   drive stepped in boxes down the band and flat white pads for houses nobody had built) dead-ending in the grass. Now:
+     THE DRYING   the lawn (the ring lawn's turf, hillTurfLay, its tiles coarse: they no longer step the colour) washed over by
+                  wavy layers -- gold, then the range's rock -- each a polygon along its own contour (x = X1 + F*(f - wobble(y)):
+                  one shared two-octave wander, plus each layer's own finer one, so they cross and the ground dries in tongues),
+                  alpha'd so their sum runs lawn -> gold -> rock; the last of each is whole. Eleven polygons over the view, in
+                  the ground pass (cached). eastDryAt is the same field as one number, for the hills' shelves round the north-
+                  east corner (northHillPolys' o.dry: the terraces dry the same way past X1, so the corner turns without a
+                  seam) and for the planting (thinning into the dry);
+     THE PLANTING the hillside planting's kit (hillPlantOf, hillDrawClump: the park's trees, cypress, a few palms, coastal
+                  scrub, dry grass, boulders) in clumps over the band: densest by the city, thinning through the gold to a
+                  few rocks on the range. East is IN FRONT of the city on screen (down-right), and a tall thing there stands
+                  over the streets behind it, so within EAST_EDGE.lowTo of the city's paving only low things grow (scrub,
+                  grass, rocks) and nothing at all within `verge`. A clump is cut where a tall plant stands: each tree its own
+                  cached piece keyed at its trunk, the low plants between them one piece keyed at their front -- so Tipsey,
+                  who can drive out here, sorts round each tree. Trunks and boulders are solid (eastSolidAt);
+     THE TRAIL    Mirador Heights' road is gone (paint only, it went nowhere and nothing drove on it); in its place on the j=10
+                  row a trailhead off the pavement -- a gravel pad, a bench, a bin, a trail marker -- and Mirador Trail, a dirt
+                  path down the foothills to a lookout over Palma Bay at the band's south end (a gravel round, two benches to
+                  the sea, a marker). Mirador Heights keeps its name and its land (miradorGeo, the region index): unbuilt.
+   All of it a pure function of world position: never time, the camera or a random roll. */
+const EAST_EDGE = {
+  gold: [0.26, 0.66, 6],   // the gold layers: first contour, last (whole), count -- fractions of FOOTW out from X1
+  rock: [0.74, 1.0, 5],    // the range's rock over the gold, likewise
+  wobBig: 0.10, wobMid: 0.05, wobLvl: 0.035, wobFine: 0.012,   // the contours' wander (fractions of FOOTW): shared big and mid, each layer's own
+  reach: 1.4,              // the planting's reach, FOOTW out (it thins to nothing by then, over the range's rock)
+  verge: 380,              // nothing planted within this of the city's paving
+  lowTo: 1050,             // only low planting (scrub, grass, rocks) within this: anything taller would stand over the streets on screen
+  cell: 1600, step: 420,   // the planting's cells and slots (as the hills')
+  trailW: 50,              // the trail's half width
+};
+let _eastGeo = null;
+/* the band's lines, the trailhead, the trail's samples and the lookout, built once per grid */
+function eastGeo(grid){
+  if(_eastGeo && _eastGeo.grid === grid) return _eastGeo;
+  const B = BLOCK, C = WG_COAST, F = C.FOOTW*B, X1 = (grid.cols - 1)*B + C.EXT*B, Y0 = -C.EXT*B, Y1 = (grid.rows - 1)*B + C.EXT*B;
+  const Yend = Y1 + (C.BOARD + C.SANDW)*B, ty = 10*B;                // (the j=10 row: where Mirador Heights' stub came out)
+  const head = { x0: X1 - 6, x1: X1 + 470, y0: ty - 300, y1: ty + 300 };
+  const look = { x: Math.round(X1 + 0.5*F), y: Math.round(Yend - 700), r: 330 };
+  /* the trail's line: out of the trailhead east, then down the foothills, wandering across the band's lawn edge, to the lookout */
+  const rr = mulberry32(0xea57e1), cp = [[head.x1 - 60, ty], [X1 + 0.28*F, ty + 700], [X1 + 0.4*F, ty + 2300]];
+  for(let y = ty + 5600; y < look.y - 4200; y += 3700) cp.push([X1 + F*(0.34 + rr()*0.18), y]);
+  cp.push([look.x - 260, look.y - 1500], [look.x, look.y - look.r + 60]);
+  const tx = [], tyv = [];
+  for(let i = 0; i < cp.length - 1; i++){
+    const p0 = cp[Math.max(0, i - 1)], p1 = cp[i], p2 = cp[i + 1], p3 = cp[Math.min(cp.length - 1, i + 2)];
+    const n = Math.max(2, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1])/70));
+    for(let k = 0; k < n; k++){
+      const t = k/n, t2 = t*t, t3 = t2*t, f = (a, b, c, d) => 0.5*(2*b + (c - a)*t + (2*a - 5*b + 4*c - d)*t2 + (3*b - a - 3*c + d)*t3);
+      tx.push(f(p0[0], p1[0], p2[0], p3[0])); tyv.push(f(p0[1], p1[1], p2[1], p3[1]));
+    }
+  }
+  tx.push(cp[cp.length - 1][0]); tyv.push(cp[cp.length - 1][1]);
+  /* each sample's normal and half width (its edges wander a little, off its own arc length) */
+  const N = tx.length, nx = [], ny = [], hw = [], bucket = new Map();
+  let s = 0;
+  for(let i = 0; i < N; i++){
+    const a = Math.max(0, i - 1), b = Math.min(N - 1, i + 1), dx = tx[b] - tx[a], dy = tyv[b] - tyv[a], L = Math.hypot(dx, dy) || 1;
+    if(i) s += Math.hypot(tx[i] - tx[i - 1], tyv[i] - tyv[i - 1]);
+    nx.push(-dy/L); ny.push(dx/L); hw.push(EAST_EDGE.trailW*(1 + 0.18*hillVN(s, 0, 420, 97)));
+    const kb = Math.floor(tyv[i]/1000);
+    if(!bucket.has(kb)) bucket.set(kb, []);
+    bucket.get(kb).push(i);
+  }
+  /* the furniture: [kind, x, y, dir] -- a bench's dir its DIRV (DIRV[0] sits facing +y, south: down the band, to the sea) */
+  const furn = [
+    ["bench", head.x0 + 210, head.y0 + 95, 0], ["bin", head.x0 + 345, head.y0 + 85, 0], ["marker", head.x1 - 90, head.y1 - 70, 0],
+    ["bench", look.x - 120, look.y + 90, 0], ["bench", look.x + 140, look.y + 90, 0], ["marker", look.x - 210, look.y - 170, 0],
+  ];
+  return (_eastGeo = { grid, B, F, X1, Y0, Y1, Yend, ty, head, look, tr: { x: tx, y: tyv, nx, ny, hw, bucket }, furn, cells: new Map() });
+}
+function eastWob(y){ const E = EAST_EDGE; return E.wobBig*hillVN(310, y, 2600, 71) + E.wobMid*hillVN(530, y, 900, 73); }
+/* how dry the ground is at (x, y): 0 at the city's edge, FOOTW-fractions out, wandering -- EAST_EDGE.gold/rock map it to colour */
+function eastDryAt(G, x, y){ return (x - G.X1)/G.F + eastWob(y); }
+/* layer l's line at y (its value f): the shared wander plus its own */
+function eastContour(G, f, l, y){
+  const E = EAST_EDGE;
+  return G.X1 + G.F*(f - eastWob(y) - E.wobLvl*hillVN(l*977 + 50, y, 700, 83) - E.wobFine*hillVN(l*977 + 90, y, 190, 89));
+}
+/* a colour dried to d, as the layers' sum dries the lawn: toward gold over gold[0..1], then the range's rock over rock[0..1] */
+function eastTone(col, d){
+  const E = EAST_EDGE, HT = HILL_TURF;
+  if(d <= E.gold[0]) return col;
+  const gf = Math.min(1, (d - E.gold[0])/(E.gold[1] - E.gold[0])), rf = Math.min(1, Math.max(0, (d - E.rock[0])/(E.rock[1] - E.rock[0])));
+  const c = hillMix(col, HT.gold, gf);
+  return rf > 0 ? hillMix(c, HT.range, rf) : c;
+}
+/* where the band's turf needs laying: out to where the last gold layer can reach (past it nothing shows through) */
+function eastTurfX(G){ const E = EAST_EDGE; return G.X1 + G.F*(E.gold[1] + E.wobBig + E.wobMid + E.wobLvl + E.wobFine) + T2; }
+/* THE GROUND (drawGroundPass, after the foothills' turf, before the north hills): the band's lawn, the drying layers, the
+   trailhead's and the lookout's gravel, the trail */
+function eastGround(S, g, onScreen){
+  if(!S.route || !S.route.grid) return;
+  const G = eastGeo(S.route.grid), E = EAST_EDGE, HT = HILL_TURF, K = S.K;
+  hillTurfLay(S, g, { x0: G.X1, x1: eastTurfX(G), y0: G.Y0, y1: G.Yend }, { out: wx => wx - G.X1, dry: (wx, wy) => eastDryAt(G, wx, wy), wash: true });
+  const span = flatSpanOf(S.cx, S.cy, S.vpW(), S.vpH(), K, S.camZ);
+  const y0 = Math.max(G.Y0 - G.B*1.3, S.camY - span), y1 = Math.min(G.Yend, S.camY + span);
+  if(y0 < y1){
+    const xE = G.X1 + G.F*1.35, dy = Math.min(300, Math.max(40, 9/K)), n = Math.max(1, Math.ceil((y1 - y0)/dy));
+    if(onScreen([S.W(G.X1, y0, 0), S.W(xE, y0, 0), S.W(xE, y1, 0), S.W(G.X1, y1, 0)])){
+      const lay = (f, l, col, a) => {
+        const pts = [];
+        for(let i = 0; i <= n; i++){ const y = Math.min(y1, y0 + i*dy); pts.push(S.W(eastContour(G, f, l, y), y, 0)); }
+        pts.push(S.W(xE, y1, 0), S.W(xE, y0, 0));
+        if(onScreen(pts)) S.quadOn(g, pts, col, a);
+      };
+      for(const [L, col, salt] of [[E.gold, HT.gold, 0], [E.rock, HT.range, 10]]){
+        const [f0, f1, N] = L;
+        for(let l = 0; l < N; l++) lay(f0 + (f1 - f0)*l/(N - 1), l + salt, col, 1/(N - l));
+      }
+    }
+  }
+  eastTrailGround(S, g, onScreen, G);
+}
+/* a flat piece of ground, if on screen */
+function eastPad(S, g, onScreen, pts, col){ const P = pts.map(p => S.W(p[0], p[1], 0)); if(onScreen(P)) S.quadOn(g, P, col); }
+function eastTrailGround(S, g, onScreen, G){
+  const span = flatSpanOf(S.cx, S.cy, S.vpW(), S.vpH(), S.K, S.camZ) + 200, T = G.tr, N = T.x.length;
+  const EDGE = 0x8c7650, DIRT = 0xbfa676, TREAD = 0xd0ba8e, GRAV = 0xc9b994, GRAV_E = 0x9a8866;
+  /* the lookout: a gravel round, its stone edging */
+  { const L = G.look;
+    if(Math.abs(L.x - S.camX) + Math.abs(L.y - S.camY) < span + 800){
+      const disc = (r) => Array.from({ length: 30 }, (_, k) => { const a = k/30*Math.PI*2, rr = r*(1 + 0.04*hillVN(Math.cos(a)*300, Math.sin(a)*300, 140, 41)); return [L.x + Math.cos(a)*rr, L.y + Math.sin(a)*rr]; });
+      eastPad(S, g, onScreen, disc(L.r + 18), 0x8f8676); eastPad(S, g, onScreen, disc(L.r), GRAV); } }
+  /* the trail: its runs on screen, each a ribbon -- the trodden edge, the dirt, the packed tread down its middle */
+  let i = 0;
+  while(i < N){
+    while(i < N && (Math.abs(T.x[i] - S.camX) > span || Math.abs(T.y[i] - S.camY) > span)) i++;
+    if(i >= N) break;
+    const a = Math.max(0, i - 1);
+    while(i < N && Math.abs(T.x[i] - S.camX) <= span && Math.abs(T.y[i] - S.camY) <= span) i++;
+    const b = Math.min(N - 1, i);
+    for(const [w, add, col] of [[1, 16, EDGE], [1, 0, DIRT], [0.36, 0, TREAD]]){
+      const L = [], R = [];
+      for(let k = a; k <= b; k++){
+        const h = T.hw[k]*w + add;
+        L.push(S.W(T.x[k] + T.nx[k]*h, T.y[k] + T.ny[k]*h, 0)); R.push(S.W(T.x[k] - T.nx[k]*h, T.y[k] - T.ny[k]*h, 0));
+      }
+      const P = L.concat(R.reverse());
+      if(onScreen(P)) S.quadOn(g, P, col);
+    }
+  }
+}
+/* (late in the ground pass, after the rim's lots: drawGroundPass) THE TRAILHEAD: a gravel walk in from the pavement across the
+   rim's lawn, and the pad at the band's edge (square on the city's side, its far corners rounded), each over its edging */
+function eastGroundLate(S, g, onScreen){
+  if(!WORLDGEN_COAST || !S.route || !S.route.grid) return;
+  const G = eastGeo(S.route.grid), H = G.head, span = flatSpanOf(S.cx, S.cy, S.vpW(), S.vpH(), S.K, S.camZ) + 800;
+  if(Math.abs(H.x0 - S.camX) + Math.abs(G.ty - S.camY) > span) return;
+  const GRAV = 0xc9b994, GRAV_E = 0x9a8866, xs = (S.route.grid.cols - 1)*G.B + ROAD_HALF + SIDEWALK_W - 2;   // (the pavement's outer edge)
+  const pad = e => {
+    const R = 150 + e, cx1 = H.x1 - 150, out = [[H.x0, H.y0 - e]];
+    for(let k = 0; k <= 8; k++){ const a = -Math.PI/2 + k/8*Math.PI/2; out.push([cx1 + Math.cos(a)*R, H.y0 + 150 + Math.sin(a)*R]); }
+    for(let k = 0; k <= 8; k++){ const a = k/8*Math.PI/2; out.push([cx1 + Math.cos(a)*R, H.y1 - 150 + Math.sin(a)*R]); }
+    out.push([H.x0, H.y1 + e]);
+    return out; };
+  const walk = e => [[xs, G.ty - 120 - e], [H.x0 + 20, G.ty - 120 - e], [H.x0 + 20, G.ty + 120 + e], [xs, G.ty + 120 + e]];
+  eastPad(S, g, onScreen, walk(12), GRAV_E); eastPad(S, g, onScreen, pad(14), GRAV_E);
+  eastPad(S, g, onScreen, walk(0), GRAV); eastPad(S, g, onScreen, pad(0), GRAV);
+}
+/* the nearest the trail comes to (x, y), as far as `lim` (Infinity past it) */
+function eastTrailDist(G, x, y, lim){
+  const T = G.tr, k0 = Math.floor((y - lim)/1000), k1 = Math.floor((y + lim)/1000);
+  let best = Infinity;
+  for(let k = k0; k <= k1; k++){ const l = T.bucket.get(k); if(l) for(const i of l){ const d = Math.hypot(T.x[i] - x, T.y[i] - y); if(d < best) best = d; } }
+  return best;
+}
+/* is (x, y) someone else's: the trail and the two pads, the band's edges */
+function eastPlantBlocked(G, x, y, m){
+  const E = EAST_EDGE, H = G.head, L = G.look;
+  if(x < G.X1 + E.verge + m || x > G.X1 + G.F*E.reach - m || y < G.Y0 + 60 + m || y > G.Yend - 260 - m) return true;
+  if(x < H.x1 + 120 + m && y > H.y0 - 120 - m && y < H.y1 + 120 + m) return true;
+  if(Math.hypot(x - L.x, y - L.y) < L.r + 120 + m) return true;
+  return eastTrailDist(G, x, y, 400) < E.trailW + 60 + m;
+}
+/* THE PLANTING: one cell's clumps, built once and kept (a slot every `step`, a fixed count of rolls per slot); each clump cut
+   into its pieces (eastSplit) */
+const EAST_MIX = {
+  low:  { lead: [["shrub", 46], ["rock", 18], ["grass", 36]], mix: [["shrub", 38], ["grass", 46], ["rock", 16]] },
+  lawn: { lead: [["tree", 56], ["cypress", 14], ["palm", 8], ["rock", 22]], mix: [["tree", 16], ["shrub", 30], ["grass", 32], ["rock", 22]] },
+  gold: { lead: [["tree", 36], ["cypress", 10], ["rock", 54]], mix: [["tree", 7], ["shrub", 22], ["grass", 45], ["rock", 26]] },
+  rock: { lead: [["rock", 80], ["tree", 6], ["grass", 14]], mix: [["grass", 44], ["rock", 52], ["shrub", 4]] },
+};
+function eastZone(G, x, y){
+  const d = eastDryAt(G, x, y);
+  return x - G.X1 < EAST_EDGE.lowTo ? "low" : d < 0.36 ? "lawn" : d < 0.82 ? "gold" : "rock";
+}
+/* the chance a slot takes a clump: near-full by the city, thinning through the gold to a few rocks out on the range */
+function eastDens(G, x, y){ const d = eastDryAt(G, x, y); return 0.9 - 0.82*hillEase(0.3, EAST_EDGE.reach, d); }
+function eastCell(G, i, j){
+  const key = i + "," + j;
+  let cell = G.cells.get(key);
+  if(cell) return cell;
+  cell = [];
+  const E = EAST_EDGE, N = Math.round(E.cell/E.step), rr = mulberry32(((i*73856093) ^ (j*19349663) ^ 0xea5c1) >>> 0);
+  const pick = (tab, r) => { let tot = 0; for(const e of tab) tot += e[1]; let a = r*tot; for(const e of tab){ a -= e[1]; if(a < 0) return e[0]; } return tab[0][0]; };
+  const HP = WorldScene.prototype;
+  for(let a = 0; a < N; a++) for(let b = 0; b < N; b++){
+    const cx = Math.round(i*E.cell + (a + 0.15 + rr()*0.7)*E.step), cy = Math.round(j*E.cell + (b + 0.15 + rr()*0.7)*E.step);
+    const roll = rr(), nRoll = rr(), seed = (rr()*4294967296) >>> 0;
+    if(eastPlantBlocked(G, cx, cy, 80)) continue;
+    const dens = eastDens(G, cx, cy);
+    if(roll >= dens) continue;
+    const r2 = mulberry32(seed), n = 2 + Math.floor(nRoll*(1 + 4*dens)), ps = [];
+    for(let t = 0; t < n*3 && ps.length < n; t++){
+      const first = ps.length === 0, dd = first ? 0 : 60 + r2()*120, an = r2()*Math.PI*2, kr = r2(), sr = r2();
+      const x = Math.round(cx + Math.cos(an)*dd), y = Math.round(cy + Math.sin(an)*dd*0.8);
+      if(!first && eastPlantBlocked(G, x, y, 40)) continue;
+      const Z = EAST_MIX[eastZone(G, x, y)];
+      let kind = pick(first ? Z.lead : Z.mix, kr);
+      if(x - G.X1 < E.lowTo && (kind === "tree" || kind === "cypress" || kind === "palm")) kind = "shrub";   // (the low strip)
+      const big = kind === "tree" || kind === "cypress" || kind === "palm";
+      if(ps.some(q => Math.hypot(q.x - x, q.y - y) < (big || q.big ? 95 : 55))) continue;
+      const p = HP.hillPlantOf(kind, x, y, sr);
+      p.big = big;
+      if(kind === "rock" && x - G.X1 < E.lowTo){ p.r = Math.min(p.r, 40); p.h = Math.min(p.h, 30); }
+      ps.push(p);
+    }
+    if(ps.length) cell.push(...eastSplit(ps));
+  }
+  G.cells.set(key, cell);
+  return cell;
+}
+/* a clump into its pieces, back to front: each tall plant one, the low plants between them one -- keyed at its front */
+function eastSplit(ps){
+  ps.sort((a, b) => (a.x + a.y) - (b.x + b.y));
+  const out = [];
+  let run = [];
+  const put = list => {
+    if(!list.length) return;
+    const ax = list[0].x, ay = list[0].y;
+    let rad = 0, across = 0, up = 0, depth = -Infinity;
+    for(const p of list){
+      rad = Math.max(rad, Math.hypot(p.x - ax, p.y - ay)); depth = Math.max(depth, p.x + p.y);
+      const h = p.h || 1;
+      const [ac, u] = p.kind === "tree" ? [160*h, 350*h] : p.kind === "cypress" ? [330, 330*h] : p.kind === "palm" ? [150, 330] : p.kind === "palmDwarf" ? [90, 150]
+                    : p.kind === "shrub" ? [2*p.r, 2.6*p.r] : p.kind === "rock" ? [p.r, p.h] : [60, 90];
+      across = Math.max(across, ac); up = Math.max(up, u);
+    }
+    out.push({ ax, ay, ps: list, rad, across, up, depth, z: 0 });
+  };
+  for(const p of ps){ if(p.big){ put(run); run = []; put([p]); } else run.push(p); }
+  put(run);
+  return out;
+}
+function eastPieceVis(S, c){
+  const K = S.K, p = S.W(c.ax, c.ay, 0), w = (c.rad*1.5 + c.across)*K + 8;
+  return p.x + w >= 0 && p.x - w <= S.vpW() && p.y + (c.rad + 30)*K >= 0 && p.y - (c.up + c.rad)*K - 8 <= S.vpH();
+}
+/* a trail marker: a timber post, its board facing south (+y, the faces the eye sees: top, south, east), a pale route blaze and
+   two lines of routed lettering; built off the bench's timber (BENCH_ART) */
+function eastDrawMarker(S, g, x, y){
+  const A = BENCH_ART, W = (a, b, z) => S.W(x + a, y + b, z);
+  const box = (a0, a1, b0, b1, z0, z1, top, south, east) => {
+    S.quadOn(g, [W(a0, b1, z1), W(a1, b1, z1), W(a1, b1, z0), W(a0, b1, z0)], south);
+    S.quadOn(g, [W(a1, b0, z1), W(a1, b1, z1), W(a1, b1, z0), W(a1, b0, z0)], east);
+    S.quadOn(g, [W(a0, b0, z1), W(a1, b0, z1), W(a1, b1, z1), W(a0, b1, z1)], top);
+  };
+  box(-6, 6, -6, 6, 0, 118, A.woodLt, A.wood, A.woodDk);                       // the post
+  box(-46, 46, 6, 12, 64, 112, A.woodLt, A.wood, A.woodDk);                     // the board, on the post's south face
+  S.quadOn(g, [W(-38, 12.5, 104), W(-24, 12.5, 104), W(-24, 12.5, 90), W(-38, 12.5, 90)], 0xe8d9a8);   // the blaze
+  g.lineStyle(Math.max(1, 1.4*S.K), A.woodDk, 1);
+  for(const z of [99, 86, 74]){ const a = W(-18, 12.5, z), b = W(z === 74 ? 20 : 36, 12.5, z); g.lineBetween(a.x, a.y, b.x, b.y); }
+}
+/* THE HOOK (the world queue): the planting and the trail's furniture */
+function eastQueue(S, vq){
+  if(!WORLDGEN_COAST || !S.route || !S.route.grid) return;
+  const G = eastGeo(S.route.grid), E = EAST_EDGE;
+  /* the view's reach on the ground, as queueHillPlanting's: the screen's corners carried down to the ground and up to a crown */
+  const o = S.W(0, 0, 0), ex = S.W(1, 0, 0), ey = S.W(0, 1, 0), ez = S.W(0, 0, 1);
+  const ax = ex.x - o.x, bx = ey.x - o.x, ay = ex.y - o.y, by = ey.y - o.y, zy = ez.y - o.y, det = ax*by - bx*ay;
+  if(Math.abs(det) < 1e-9) return;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for(const sx of [0, S.vpW()]) for(const sy of [0, S.vpH()]) for(const z of [0, 500]){
+    const u = sx - o.x, v = sy - o.y - zy*z, wx = (u*by - bx*v)/det, wy = (ax*v - u*ay)/det;
+    x0 = Math.min(x0, wx); x1 = Math.max(x1, wx); y0 = Math.min(y0, wy); y1 = Math.max(y1, wy);
+  }
+  x0 = Math.max(x0 - 400, G.X1); x1 = Math.min(x1 + 400, G.X1 + G.F*E.reach); y0 = Math.max(y0 - 400, G.Y0); y1 = Math.min(y1 + 400, G.Yend);
+  if(x0 > x1 || y0 > y1) return;
+  for(let i = Math.floor(x0/E.cell); i <= Math.floor(x1/E.cell); i++) for(let j = Math.floor(y0/E.cell); j <= Math.floor(y1/E.cell); j++)
+    for(const c of eastCell(G, i, j)){
+      if(!eastPieceVis(S, c)) continue;
+      vq.push({ depth: c.depth, fn: (g) => S.bcDraw(g, "east|c|" + c.ax + "," + c.ay, c.ax, c.ay, gg => S.hillDrawClump(gg, c)) });
+    }
+  for(const [kind, x, y, dir] of G.furn){
+    if(!S.visProp(kind === "marker" ? "bench" : kind, x, y)) continue;
+    const key = "east|" + kind + "|" + x + "," + y;
+    if(kind === "bench") vq.push({ depth: x + y, fn: (g) => S.bcDraw(g, key, x, y, gg => S.drawBenchProp(gg, x, y, DIRV[dir])) });
+    else if(kind === "bin") vq.push({ depth: x + y, fn: (g) => S.bcDraw(g, key, x, y, gg => S.drawProp(gg, "bin", x, y, 0)) });
+    else vq.push({ depth: x + y, fn: (g) => S.bcDraw(g, key, x, y, gg => eastDrawMarker(S, gg, x, y)) });
+  }
+}
+/* (solidAt) the trunks, the boulders and the trail's furniture -- only once the band's geometry is built (the ground pass builds it) */
+function eastSolidAt(grid, x, y, R){
+  if(!WORLDGEN_COAST || !_eastGeo || _eastGeo.grid !== grid) return null;
+  const G = _eastGeo, E = EAST_EDGE;
+  if(x < G.X1 - R || x > G.X1 + G.F*E.reach + R || y < G.Y0 - R || y > G.Yend + R) return null;
+  const blk = G.blk || (G.blk = { x0: G.X1, x1: G.X1 + G.F*E.reach, y0: G.Y0, y1: G.Yend, cx: G.X1 + G.F*0.7, cy: (G.Y0 + G.Yend)/2, i: 0, j: 0, type: "park" });
+  for(const [kind, fx, fy, dir] of G.furn){
+    if(kind === "bench"){ const hw = BENCH_ART.w/2, hd = BENCH_ART.depth; const dv = DIRV[dir];
+      const ax0 = dv.x ? fx - hw : fx, ax1 = dv.x ? fx + hw : fx + hd, ay0 = dv.x ? fy : fy - hw, ay1 = dv.x ? fy + hd : fy + hw;
+      if(x > ax0 - R && x < ax1 + R && y > ay0 - R && y < ay1 + R) return blk; }
+    else if(Math.hypot(x - fx, y - fy) < R + (kind === "bin" ? 16 : 10)) return blk;
+  }
+  for(let i = Math.floor((x - R - 200)/E.cell); i <= Math.floor((x + R + 200)/E.cell); i++)
+    for(let j = Math.floor((y - R - 200)/E.cell); j <= Math.floor((y + R + 200)/E.cell); j++){
+      const cell = G.cells.get(i + "," + j);
+      if(!cell) continue;
+      for(const c of cell) for(const p of c.ps){
+        const r = p.big ? 16 : p.kind === "rock" && p.r > 34 ? p.r*0.7 : 0;
+        if(r && Math.hypot(x - p.x, y - p.y) < R + r) return blk;
+      }
+    }
+  return null;
+}
+/* the minimap's trail (drawMinimap): the trail's line and the two pads, in the trail's dirt */
+function eastMapTrail(grid, toScreen, ctx){
+  const G = eastGeo(grid), T = G.tr;
+  ctx.save(); ctx.strokeStyle = "#bfa676"; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.beginPath();
+  for(let i = 0; i < T.x.length; i += 4){ const p = toScreen({ x: T.x[i], y: T.y[i] }); if(i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
+  ctx.stroke();
+  ctx.fillStyle = "#c9b994";
+  for(const [x, y, r] of [[(G.head.x0 + G.head.x1)/2, G.ty, 260], [G.look.x, G.look.y, G.look.r]]){
+    const p = toScreen({ x, y }), e = toScreen({ x: x + r, y });
+    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(2, Math.abs(e.x - p.x)), 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
 }
 function northHillPolys(o){
   const B = BLOCK, H = WG_HILLS, out = [];
@@ -157337,16 +157628,23 @@ function northHillPolys(o){
   for(let k = n - 1; k >= 0; k--){
     const z0 = hgt[k], z1 = hgt[k+1], col = H.steps[k][2];
     const farY = k < n - 1 ? (x => edgeY(k+1, x)) : (() => yP);
-    const riserLit = hillShade(col, 0.74), riserMid = hillShade(col, 0.65), riserSh = hillShade(col, 0.56);
-    const footW = k < n - 1 ? H.foot*H.steps[k][0]*B : 0, footC = hillShade(col, 0.9);
-    const crest = hillShade(col, 1.07);
+    const riserLit0 = hillShade(col, 0.74), riserMid0 = hillShade(col, 0.65), riserSh0 = hillShade(col, 0.56);
+    const footW = k < n - 1 ? H.foot*H.steps[k][0]*B : 0, footC0 = hillShade(col, 0.9);
+    const crest0 = hillShade(col, 1.07);
     const ys = [toePlain - cum[k], toeSV - cum[k], toePlain - cum[k+1], toeSV - cum[k+1]];
     if(k === n - 1) ys.push(yP);
     const [a0, a1] = win(ys, z0, z1, (amp[k] + runOf(k))*2 + S);
     if(a0 > a1) continue;
-    for(let x = Math.floor(a0/S)*S; x < a1; x += S){
-      const xa = Math.max(x, o.xw), xb = Math.min(x + S, o.xe);
+    /* o.dry (x, y -> the east edge's dryness, eastDryAt): past the city's east edge the shelves dry as the band below them
+       does, to the range's rock (eastTone) -- shelf, riser, crest and foot alike -- so the north-east corner turns without a
+       seam; o.dryFine (xa, xb -> true) lays the strips a third as wide there, so the drying runs smooth along the shelf */
+    const dT = o.dry ? (c, x, y) => { const d = o.dry(x, y); return d > EAST_EDGE.gold[0] ? eastTone(c, d) : c; } : null;
+    for(let xs = Math.floor(a0/S)*S; xs < a1; xs += S) for(let sub = 0, nSub = o.dryFine && o.dryFine(xs, xs + S) ? 3 : 1; sub < nSub; sub++){
+      const x = xs + S*sub/nSub, xa = Math.max(x, o.xw), xb = Math.min(x + S/nSub, o.xe);
       if(xb <= xa) continue;
+      const xm = (xa + xb)/2, dc = dT ? dT(col, xm, edgeY(k, xm)) : col;
+      const riserLit = dc === col ? riserLit0 : hillShade(dc, 0.74), riserMid = dc === col ? riserMid0 : hillShade(dc, 0.65), riserSh = dc === col ? riserSh0 : hillShade(dc, 0.56);
+      const footC = dc === col ? footC0 : hillShade(dc, 0.9), crest = dc === col ? crest0 : hillShade(dc, 1.07);
       /* shelf: from this shelf's lip north to the next riser's foot, the
          last footW of it in the shade that riser casts -- what sets each
          step down ON the one below instead of stacking flat stripes.
@@ -157355,10 +157653,11 @@ function northHillPolys(o){
       { const R = HILL_TURF.rows, la = lipY(k, xa), lb = lipY(k, xb), fa = farY(xa) + footW, fb = farY(xb) + footW;
         for(let r = 0; r < R; r++){
           const t0 = r/R, t1 = (r + 1)/R, tm = (r + 0.5)/R;
+          const ym = (la + lb)/2 + ((fa + fb) - (la + lb))/2*tm, tone = hillShelfTone(k, tm, xm, ym);
           P([[xa, la + (fa - la)*t0, z1], [xb, lb + (fb - lb)*t0, z1], [xb, lb + (fb - lb)*t1, z1], [xa, la + (fa - la)*t1, z1]],
-            hillShelfTone(k, tm, (xa + xb)/2, (la + lb)/2 + ((fa + fb) - (la + lb))/2*tm));
+            dT ? dT(tone, xm, ym) : tone);
         }
-        if(HILL_TURF.grain[k]) out.push({ gr: [xa, xb, Math.max(fa, fb), Math.min(la, lb), z1, k] }); }
+        if(HILL_TURF.grain[k] && dc === col) out.push({ gr: [xa, xb, Math.max(fa, fb), Math.min(la, lb), z1, k] }); }   // (none where it has dried)
       if(footW) P([[xa, farY(xa) + footW, z1], [xb, farY(xb) + footW, z1], [xb, farY(xb), z1], [xa, farY(xa), z1]], footC);
       /* riser, shaded by where its face points. An edge run along +x has
          normal (-dy, dx); light comes from +y and a touch of -x, the side
@@ -161348,57 +161647,9 @@ function drawRouteMap(route){
       const p = toScreen({x:cx, y:cy}), edge = toScreen({x:cx+rad, y:cy});
       ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(p.x, p.y, Math.abs(edge.x-p.x), 0, Math.PI*2); ctx.fill();
     });
-    /* upscale housing in the hills: Sierra Vista Estates on the shoulder
-       east of the marina, Mirador Heights terraced into the eastern
-       slope. Same construction the real world uses — one quadratic
-       drive per district off its access stub, lots on both sides
-       rotated to the local tangent and pushed out by a setback, seeded
-       skips so it reads as a neighbourhood. cquad fills the rotated lot
-       the same way quadOn does in the real world, just through a canvas
-       path instead of a mesh. Fixed seeds — same houses, same day. */
+    /* the hills' housing: Sierra Vista, the gated community (sierraGeo); Mirador Heights is unbuilt -- the east edge's trail
+       runs there (eastMapTrail) */
     {
-      const RW = ROAD_HALF;
-      const q = (a, c2, b3, t) => { const s2 = 1 - t; return s2*s2*a + 2*s2*t*c2 + t*t*b3; };
-      const cdrive = (ex, ey, fx2, fy2, cx2, cy2) => {
-        let px = ex, py = ey;
-        for(let k = 1; k <= 12; k++){
-          const t = k/12, hw = RW*0.45;
-          const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
-          cband(Math.min(px,qx) - hw, Math.min(py,qy) - hw,
-                Math.max(px,qx) + hw, Math.max(py,qy) + hw, hex(pal.road));
-          px = qx; py = qy;
-        }
-      };
-      const cquad = (pts, fill) => {
-        ctx.fillStyle = fill;
-        ctx.beginPath();
-        pts.forEach((p, idx) => {
-          const s = toScreen(p);
-          if(idx === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
-        });
-        ctx.closePath(); ctx.fill();
-      };
-      const lotsAlong = (ex, ey, fx2, fy2, cx2, cy2, seed, bx0, by0, bx1, by1) => {
-        const r3 = mulberry32(seed);
-        for(let t = 0.16; t <= 0.94; t += 0.11){
-          const qx = q(ex, cx2, fx2, t), qy = q(ey, cy2, fy2, t);
-          const tx = q(ex, cx2, fx2, t + 0.01) - qx, ty = q(ey, cy2, fy2, t + 0.01) - qy;
-          const tl = Math.hypot(tx, ty) || 1, ux = tx/tl, uy = ty/tl;
-          const nx = -uy, ny = ux;
-          for(const side of [-1, 1]){
-            if(r3() < 0.22) continue;
-            const setback = RW*0.45 + BLOCK*0.07 + BLOCK*0.12 + r3()*BLOCK*0.05;
-            const cxL = qx + nx*side*setback, cyL = qy + ny*side*setback;
-            if(cxL < bx0 || cxL > bx1 || cyL < by0 || cyL > by1) continue;
-            const hw2 = BLOCK*(0.16 + r3()*0.05), hd = BLOCK*0.12;
-            cquad([
-              {x:cxL - ux*hw2 - nx*side*hd, y:cyL - uy*hw2 - ny*side*hd},
-              {x:cxL + ux*hw2 - nx*side*hd, y:cyL + uy*hw2 - ny*side*hd},
-              {x:cxL + ux*hw2 + nx*side*hd, y:cyL + uy*hw2 + ny*side*hd},
-              {x:cxL - ux*hw2 + nx*side*hd, y:cyL - uy*hw2 + ny*side*hd}], "#f2ece0");
-          }
-        }
-      };
       /* Sierra Vista: the gated community in the hills (see sierraGeo) --
          shelves shading darker as they climb, the zigzag drive, the lots
          waiting on the uphill side of each drive, the walls */
@@ -161420,11 +161671,8 @@ function drawRouteMap(route){
           cband(S.xw, S.e[k] - 30, rp.b0, S.e[k] + 30, wallC); cband(rp.b1, S.e[k] - 30, S.xe, S.e[k] + 30, wallC);
           cband(rp.b0, rp.yF - 30, rp.c0, rp.yF + 30, wallC); cband(rp.c1, rp.yF - 30, rp.b1, rp.yF + 30, wallC); }
       }
-      /* Mirador Heights: stub east on the j=10 row, drive down the slope */
-      const MH = miradorGeo(bgRoute.grid);
-      cband(MH.stub.x0, MH.stub.y0, MH.stub.x1, MH.stub.y1, hex(pal.road));
-      cdrive(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy);
-      lotsAlong(MH.ex, MH.ey, MH.fx, MH.fy, MH.cx, MH.cy, MH.seed, MH.bx0, MH.by0, MH.bx1, MH.by1);
+      /* the east edge: Mirador Trail, its trailhead and its lookout (eastMapTrail) */
+      eastMapTrail(bgRoute.grid, toScreen, ctx);
     }
     /* MOUNTAIN + BEACH LABELS (2026-08-10, Sir's call): worldgenLandmarks
        already carries these four names and real positions — Sunset
