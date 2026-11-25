@@ -157494,6 +157494,9 @@ function mapCoastBands(grid, dateStr, cband, cring, cpoly){
   cband(cX0, cY0 - FOOTW, cX1 + FOOTW, cY0, "#cfc69b");                               // north foothills
   cband(cX1, cY0, cX1 + FOOTW, cY1 + BOARD + SANDW, "#cfc69b");                       // east foothills
   cband(cX0, cY0 - FOOTW - FAR, cX1 + FOOTW + FAR, cY0 - FOOTW, "#a89b82");           // north range — Sierra Palma
+  if(cpoly){ const yP = northHillsTopY(cY0 - BLOCK*WG_HILLS.SV_TOE);                  // Lake Palma and its creek (NC_PALMA)
+    for(const q of ncCreekQuads(yP, 30)) cpoly(q, "#7fb6cf");
+    cpoly(ncPalmaRing(yP, 0), "#7fb6cf"); }
   cband(cX1 + FOOTW, cY0 - FOOTW, cX1 + FOOTW + FAR, cY1 + BOARD + SANDW, "#a89b82"); // east range — Mirador Hills
   if(cpoly) for(const L of NC_LAKES) cpoly(ncLakeRing(L, 0), "#7fb6cf");          // its lakes (THE NATURAL COAST: NC_LAKES)
 }
@@ -158353,6 +158356,43 @@ function ncLakeAt(x, y){
 }
 function ncInRing(P, x, y){ let c = false; for(let i = 0, j = P.length - 1; i < P.length; j = i++){ const a = P[i], b = P[j];
   if((a.y > y) !== (b.y > y) && x < (b.x - a.x)*(y - a.y)/(b.y - a.y) + a.x) c = !c; } return c; }
+
+/* LAKE PALMA AND ITS CREEK, up on the north hills' plateau (the natural survey's reservoir): a long lake in a gap of the ridgeline
+   behind the town's middle, a creek winding down to it between the peaks from the far range. Flat on the plateau at its height,
+   painted in northHillPolys on the top shelf, just after that shelf (and before the shelves below it, which are nearer), the
+   creek winding down to it over the plateau behind (the peaks keep out of its line). Out of his reach (the hills are nobody's
+   ground). In blocks from the city's corner node: its middle, its half axes, the creek's points. */
+const NC_PALMA = { x: 24.85, y: -4.3, rx: 1.35, ry: 0.5, name: 'Lake Palma',
+  creek: [[26.4, -10.4], [25.6, -8.6], [26.5, -7.0], [25.7, -5.8], [25.4, -4.75]], creekW: 0.05 };
+function ncPalmaRing(yP, out, n = 40){
+  const B = BLOCK, L = NC_PALMA, cx = L.x*B, cy = L.y*B, pts = [];
+  for(let k = 0; k < n; k++){ const a = k/n*Math.PI*2, w = 1 + 0.16*ncWave(k/n*3 + 0.3, 881);
+    pts.push({ x: cx + Math.cos(a)*(L.rx*B*w + out), y: cy + Math.sin(a)*(L.ry*B*w + out) }); }
+  return pts;
+}
+function ncCreekLine(yP){
+  const B = BLOCK, P = NC_PALMA.creek.map(([x, y]) => [x*B, y*B]), out = [];
+  for(let i = 0; i < P.length - 1; i++){ const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+    for(let k = 0; k < 10; k++){ const t = k/10, t2 = t*t, t3 = t2*t, f = (a, b, c, d) => 0.5*(2*b + (c - a)*t + (2*a - 5*b + 4*c - d)*t2 + (3*b - a - 3*c + d)*t3);
+      out.push({ x: f(p0[0], p1[0], p2[0], p3[0]), y: f(p0[1], p1[1], p2[1], p3[1]) }); } }
+  out.push({ x: P[P.length - 1][0], y: P[P.length - 1][1] });
+  return out;
+}
+/* the creek as quads along its line (out: its banks) */
+function ncCreekQuads(yP, out = 0){
+  const Ln = ncCreekLine(yP), q = [], n = Ln.length, B = BLOCK;
+  const side = i => { const a = Ln[Math.max(0, i - 1)], b = Ln[Math.min(n - 1, i + 1)], dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1, w = NC_PALMA.creekW*B*(0.6 + 0.6*i/n) + out;
+    return [{ x: Ln[i].x - dy/l*w, y: Ln[i].y + dx/l*w }, { x: Ln[i].x + dy/l*w, y: Ln[i].y - dx/l*w }]; };
+  for(let i = 0; i < n - 1; i++){ const [a0, a1] = side(i), [b0, b1] = side(i + 1); q.push([a0, b0, b1, a1]); }
+  return q;
+}
+/* does a peak standing over (x0..x1, y0..y1) cross the lake or the creek (it is left out: the ridgeline parts round them) */
+function ncPalmaClash(yP, x0, x1, y0, y1){
+  const B = BLOCK, L = NC_PALMA, cx = L.x*B, cy = L.y*B, m = 0.12*B;
+  if(x1 > cx - L.rx*B*1.2 - m && x0 < cx + L.rx*B*1.2 + m && y1 > cy - L.ry*B*1.2 - m && y0 < cy + L.ry*B*1.2 + m) return true;
+  for(const p of ncCreekLine(yP)) if(p.x > x0 - m && p.x < x1 + m && p.y > y0 - m && p.y < y1 + m) return true;
+  return false;
+}
 
 /* THE ISLANDS (the natural survey's keys offshore): a sandy rim round a grassy crown, out in the bay where nothing he can reach
    goes, clear of the pier, the aquarium and the harbor. [x, y, r] in blocks from the city's corner node; the rim wobbles. Land for
@@ -160338,6 +160378,17 @@ function northHillPolys(o){
 
   /* ---- plateau core ---- */
   P([[o.xw, yP, zTop], [o.xe, yP, zTop], [o.xe, yP - o.far, zTop], [o.xw, yP - o.far, zTop]], H.steps[n-1][2]);
+  /* LAKE PALMA and its creek on the top shelf and the plateau (NC_PALMA): the creek's banks and water, then the lake's shore,
+     water and deep -- the lake a fan from its middle (a fill here takes convex pieces). Pushed just after the top shelf. */
+  const palma = () => {
+    const Z = zTop, L = NC_PALMA, cx = L.x*B, cy = L.y*B;
+    if(WORLDGEN_COAST && o.xe > cx - 8*B && o.xw < cx + 8*B){
+      for(const [out, col] of [[40, 0x9c9479], [0, 0x7fb6cf]]) for(const q of ncCreekQuads(yP, out)) P(q.map(p => [p.x, p.y, Z]), col);
+      for(const [out, col] of [[110, 0x9c9479], [0, 0x7fb6cf], [-0.2*B, 0x6aa6c4]]){
+        const ring = ncPalmaRing(yP, out);
+        for(let k = 0; k < ring.length; k++){ const a = ring[k], b = ring[(k + 1) % ring.length]; P([[cx, cy, Z], [a.x, a.y, Z], [b.x, b.y, Z]], col); } }
+    }
+  };
 
   /* ---- ridgeline ----
      Square-based, ridge-topped pyramids on the plateau. From this camera
@@ -160358,6 +160409,7 @@ function northHillPolys(o){
       const hw = (row.hw[0] + rr()*(row.hw[1] - row.hw[0]))*B;
       if(ax - hw < o.xw || ax + hw > o.xe) continue;
       const hd = hw*(0.7 + rr()*0.3);
+      if(WORLDGEN_COAST && ncPalmaClash(yP, ax - hw, ax + hw, ay - hd, ay + hd)) continue;   // (the ridgeline parts round Lake Palma and its creek)
       const h  = zTop + row.h[0] + rr()*(row.h[1] - row.h[0]);
       const ridge = hw*rr()*0.35;                 // 0 = a point, >0 = a short crest
       const jx = (rr() - 0.5)*hw*0.4, jy = (rr() - 0.5)*hd*0.3;
@@ -160373,6 +160425,7 @@ function northHillPolys(o){
 
   /* ---- terraces, top down: shelf, then its riser and crest ---- */
   for(let k = n - 1; k >= 0; k--){
+    if(k === n - 2) palma();                     // (Lake Palma lies on the top shelf: after it, before the nearer shelves)
     const z0 = hgt[k], z1 = hgt[k+1], col = H.steps[k][2];
     const farY = k < n - 1 ? (x => edgeY(k+1, x)) : (() => yP);
     const riserLit0 = hillShade(col, 0.74), riserMid0 = hillShade(col, 0.65), riserSh0 = hillShade(col, 0.56);
