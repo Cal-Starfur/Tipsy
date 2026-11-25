@@ -20722,14 +20722,14 @@ function oceanWaterAt(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
   if(y <= G.yTop) return false;                       // the harbor's own water (harborWaterAt)
-  if(!(x < G.xSea || y > G.ySouth)) return false;
+  if(!seaPast(grid, x, y)) return false;                 // (the natural waterline: THE NATURAL COAST)
   return !beachOnPier(grid, x, y);
 }
 /* is (x, y) beach sand he may be on (west of the boardwalk, or the south beach) */
 function beachSandAt(grid, x, y){
   if(!WORLDGEN_COAST || !grid) return false;
   const G = beachGeoOf(grid);
-  if(y <= G.yTop || x < G.xSea || y > G.ySouth) return false;
+  if(y <= G.yTop || seaPast(grid, x, y)) return false;
   if(x <= G.xIn) return true;
   return y > G.yBoardS + BLOCK*WG_COAST.BOARD && x <= G.xEast;
 }
@@ -108609,7 +108609,7 @@ function jobsAt(scene, x, y){
   try { const Z = harborGeo().zone; if(Z && x <= Z.x1 + m && y <= Z.y1 + m && !J.includes('fisher')) J.push('fisher', 'sailor'); } catch(e){}   // (the harbor quarter: north-west of the zone's corner)
   const grid = scene && scene.route && scene.route.grid;
   if(grid){
-    try { const G = beachGeoOf(grid); if(y > G.yTop && y <= G.ySouth && x >= G.xSea - m && (x <= G.xIn + m || y >= G.yBoardS - m)) J.push('lifeguard'); } catch(e){}
+    try { const G = beachGeoOf(grid); if(y > G.yTop && !seaPast(grid, x, y, m) && (x <= G.xIn + m || y >= G.yBoardS - m)) J.push('lifeguard'); } catch(e){}
     const cafes = grid._coffeeDoors || (grid._coffeeDoors = shopDoorsOf(grid).filter(d => /coffee|cafe|caf\u00e9|tea house|roast/i.test(d.key)));
     for(const d of cafes) if(Math.abs(d.x - x) < m && Math.abs(d.y - y) < m){ J.push('barista'); break; }
   }
@@ -118159,8 +118159,14 @@ class WorldScene extends Phaser.Scene {
         this.W(x0,y0,0), this.W(x1,y0,0), this.W(x1,y1,0), this.W(x0,y1,0)], col);
       band(X0 - BOARD - SANDW - FAR, Y0 - FAR, X0 - BOARD - SANDW, Y1 + BOARD + SANDW + FAR, 0x6fa8c4); // ocean west
       band(X0 - BOARD - SANDW, Y1 + BOARD + SANDW, X1 + FAR, Y1 + BOARD + SANDW + FAR, 0x6fa8c4);       // ocean south
-      band(X0 - BOARD - SANDW, Y0, X0 - BOARD, Y1 + BOARD, 0xf0e2ae);              // west beach
-      band(X0 - BOARD - SANDW, Y1 + BOARD, X1, Y1 + BOARD + SANDW, 0xf0e2ae);      // south beach
+      /* the sand, to its natural waterline (THE NATURAL COAST): the corner the rounded point gives back is sea, then the
+         wash (the waterline a little out, the shallows' pale), then the sand over it */
+      band(X0 - BOARD - SANDW, Y1 + BOARD + SANDW - BLOCK*NCOAST.cornerR, X0 - BOARD - SANDW + BLOCK*NCOAST.cornerR, Y1 + BOARD + SANDW, 0x6fa8c4);
+      { const vw = this.vpW(), vh = this.vpH(), span = (vw + vh)/this.K*1.2;
+        for(const [out, col] of [[110, 0x9fcfdc], [0, 0xf0e2ae]])
+          for(const pc of coastBeachPieces(r.grid, out)){
+            if(pc.x1 < this.camX - span || pc.x0 > this.camX + span || pc.y1 < this.camY - span || pc.y0 > this.camY + span) continue;
+            this.quadOn(g, pc.pts.map(p => this.W(p.x, p.y, 0)), col); } }
       /* the boardwalk: a different kind of sidewalk between the town and
          the sand. Base bands always; plank seams only when the camera is
          actually near a boardwalk, clamped to a window around it, so the
@@ -157394,14 +157400,19 @@ let _miniTapAt = 0;
    two projections: band(x0, y0, x1, y1, fill) fills a world rect and
    ring(x, y, r, fill) a world disc, each through its own map's screen
    transform, so the corner and the full map cannot disagree. */
-function mapCoastBands(grid, dateStr, cband, cring){
+function mapCoastBands(grid, dateStr, cband, cring, cpoly){
   const gEnd = { x:(grid.cols-1)*BLOCK, y:(grid.rows-1)*BLOCK };
   const EXT = BLOCK*WG_COAST.EXT, SANDW = BLOCK*WG_COAST.SANDW, BOARD = BLOCK*WG_COAST.BOARD, FAR = BLOCK*10, FOOTW = BLOCK*WG_COAST.FOOTW;
   const cX0 = -EXT, cX1 = gEnd.x + EXT, cY0 = -EXT, cY1 = gEnd.y + EXT;
   cband(cX0 - BOARD - SANDW - FAR, cY0 - FAR, cX0 - BOARD - SANDW, cY1 + BOARD + SANDW + FAR, "#6fa8c4"); // ocean west
   cband(cX0 - BOARD - SANDW, cY1 + BOARD + SANDW, cX1 + FAR, cY1 + BOARD + SANDW + FAR, "#6fa8c4");       // ocean south
-  cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");             // west beach — Sunset Shore
-  cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");     // south beach — Driftwood Beach
+  if(cpoly){                                                                        // the sand to its natural waterline (THE NATURAL COAST)
+    cband(cX0 - BOARD - SANDW, cY1 + BOARD + SANDW - BLOCK*NCOAST.cornerR, cX0 - BOARD - SANDW + BLOCK*NCOAST.cornerR, cY1 + BOARD + SANDW, "#6fa8c4");
+    cpoly(coastBeachPoly(grid, 0), "#f0e2ae");
+  } else {
+    cband(cX0 - BOARD - SANDW, cY0, cX0 - BOARD, cY1 + BOARD, "#f0e2ae");           // west beach — Sunset Shore
+    cband(cX0 - BOARD - SANDW, cY1 + BOARD, cX1, cY1 + BOARD + SANDW, "#f0e2ae");   // south beach — Driftwood Beach
+  }
   cband(cX0 - BOARD, cY0, cX0, cY1, "#b98a5e");                                     // west boardwalk
   cband(cX0 - BOARD, cY1, cX1, cY1 + BOARD, "#b98a5e");                             // south boardwalk
   /* the pier: off the center of Sunset Shore, a deck across the sand
@@ -157532,7 +157543,8 @@ function tpMiniDraw(scene){
       for(let a = 0; a < 24; a++){ const t = a/24*Math.PI*2, q = T({ x: ox + Math.cos(t)*rad, y: oy + Math.sin(t)*rad }); a ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }
       ctx.closePath(); ctx.fill();
     };
-    mapCoastBands(grid, scene.route.dateStr, band, ring);
+    const poly = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach((p, k) => { const q = T(p); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); ctx.closePath(); ctx.fill(); };
+    mapCoastBands(grid, scene.route.dateStr, band, ring, poly);
   }
   const BLOCKCOL = { housing: "#e3d4b8", park: "#8fbf7a", commercial: "#c4c8cc" };
   /* the visible region is a rotated square now, so the world-space box
@@ -158221,6 +158233,92 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
      deck; these are built to 782 x 640 for margin. Real piers widen at the
      landward end anyway. */
   FLARE_LEN: 0.29, FLARE_HALF: 0.216 };
+/* ==================== THE NATURAL COAST (Sir, 2026-11-25) ====================
+   "make it feel more natural ... even the road systems have to bend and move with the features of this map's topography" --
+   the natural survey (docs/costa-palma-natural.html), step 1, the land. The waterline was a ruler line down Sunset Shore and
+   along Driftwood Beach. Now the sand runs out into points and back into coves, and the south-west corner is a rounded point.
+   ONLY THE WATERLINE MOVES, and only OUTWARD: the sand gets wider, never narrower, so everything standing on it (the lifeguard
+   towers, the dunes, the courts, the surf school, the pier's landward run) stays on sand, and the boardwalk and the town are
+   untouched. The swell eases to nothing at the harbor, either side of the pier (its end stays out over the water) and at the
+   beach's east end; THE FLATS' stretch (rows 0-8) takes a third of it (Sir: it is built, keep it close to as it is).
+   ONE WATERLINE: coastSeaX / coastSeaY / seaPast are read by the ground paint (drawWorld), both maps (mapCoastBands), the
+   region index and the collision (oceanWaterAt, beachSandAt), so what he sees is where the water is. */
+const NCOAST = { amp: 0.95, flatsK: 0.33, flatsY0: 8.6, flatsY1: 10.6, pierEase: 1.4, harborEase: 1.4, eastEase: 2.6, cornerR: 1.0, step: 0.18 };
+function ncHash(i, s){ let h = Math.imul(i, 374761393) ^ Math.imul(s, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0)/4294967296; }
+function ncWave(t, s){                                   // smooth 1D value noise, three octaves, about -1..1
+  let v = 0, a = 1, n = 0;
+  for(let o = 0; o < 3; o++){ const f = t*(1 << o), i = Math.floor(f), u = f - i, k = u*u*(3 - 2*u);
+    v += a*((ncHash(i, s + o*31)*(1 - k) + ncHash(i + 1, s + o*31)*k)*2 - 1); n += a; a *= 0.5; }
+  return Math.max(-1, Math.min(1, v/n*1.7));
+}
+const ncSmooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
+function ncGeo(grid){
+  const B = BLOCK, C = WG_COAST, EXT = C.EXT*B, BOARD = C.BOARD*B, SANDW = C.SANDW*B;
+  const gEndX = (grid.cols - 1)*B, gEndY = (grid.rows - 1)*B;
+  return { B, xIn: -EXT - BOARD, xSea: -EXT - BOARD - SANDW, yIn: gEndY + EXT + BOARD, ySea: gEndY + EXT + BOARD + SANDW,
+           xEast: gEndX + EXT, Y0: -EXT, pierY: (gEndY)/2, yTop: (typeof harborGeo === "function" ? harborGeo().zone.y1 : -EXT) };
+}
+/* how far out past the old line the west waterline runs at y (world units, >= 0) */
+function coastOffW(grid, y){
+  if(!WORLDGEN_COAST || !grid) return 0;
+  const G = ncGeo(grid), B = G.B, N = NCOAST;
+  let k = ncSmooth(G.yTop + 0.2*B, G.yTop + N.harborEase*B, y);
+  k *= ncSmooth(0.35*B, N.pierEase*B, Math.abs(y - G.pierY));
+  k *= ncSmooth(0.1*B, 1.4*B, G.yIn - y);                  // (the rounded point takes the corner)
+  k *= N.flatsK + (1 - N.flatsK)*ncSmooth(N.flatsY0*B, N.flatsY1*B, y);
+  return k <= 0 ? 0 : B*N.amp*k*(0.5 + 0.5*ncWave(y/(4.6*B) + 0.37, 811));
+}
+function coastOffS(grid, x){
+  if(!WORLDGEN_COAST || !grid) return 0;
+  const G = ncGeo(grid), B = G.B, N = NCOAST;
+  let k = ncSmooth(G.xSea + (NCOAST.cornerR + 0.1)*B, G.xSea + (NCOAST.cornerR + 1.4)*B, x);
+  k *= 1 - ncSmooth(G.xEast - N.eastEase*B, G.xEast - 0.3*B, x);
+  return k <= 0 ? 0 : B*N.amp*k*(0.5 + 0.5*ncWave(x/(4.6*B) + 0.71, 823));
+}
+function coastSeaX(grid, y){ return ncGeo(grid).xSea - coastOffW(grid, y); }
+function coastSeaY(grid, x){ return ncGeo(grid).ySea + coastOffS(grid, x); }
+/* is (x, y) past the waterline -- west or south of it, or off the rounded south-west point (out = extra margin) */
+function seaPast(grid, x, y, out = 0){
+  const G = ncGeo(grid), R = NCOAST.cornerR*G.B + out, cx = G.xSea + NCOAST.cornerR*G.B, cy = G.ySea - NCOAST.cornerR*G.B;
+  if(x < cx && y > cy && Math.hypot(x - cx, y - cy) > R) return true;
+  return x < coastSeaX(grid, y) - out || y > coastSeaY(grid, x) + out;
+}
+/* the sand as convex pieces for the world's ground pass (a fill there takes convex polygons): strips from the boardwalk out to
+   the waterline down Sunset Shore and along Driftwood Beach, the corner square, and a fan for the rounded point. out pushes the
+   waterline out (the wash). Cached per grid and outset; each piece carries its world box for the cull. */
+const _ncPieces = new Map();
+function coastBeachPieces(grid, out = 0){
+  const key = (grid.cols + 'x' + grid.rows) + ':' + out, hit = _ncPieces.get(key);
+  if(hit && hit.grid === grid) return hit.list;
+  const G = ncGeo(grid), B = G.B, st = NCOAST.step*B, R = NCOAST.cornerR*B, cx = G.xSea + R, cy = G.ySea - R, list = [];
+  const add = pts => { let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for(const p of pts){ x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    list.push({ pts, x0, x1, y0, y1 }); };
+  for(let y = G.Y0; y < G.yIn; y += st){ const y2 = Math.min(G.yIn, y + st);
+    add([{ x: coastSeaX(grid, y) - out, y }, { x: G.xIn, y }, { x: G.xIn, y: y2 }, { x: coastSeaX(grid, y2) - out, y: y2 }]); }
+  for(let x = cx; x < G.xEast; x += st){ const x2 = Math.min(G.xEast, x + st);
+    add([{ x, y: G.yIn }, { x: x2, y: G.yIn }, { x: x2, y: coastSeaY(grid, x2) + out }, { x, y: coastSeaY(grid, x) + out }]); }
+  add([{ x: G.xSea - out, y: G.yIn }, { x: cx, y: G.yIn }, { x: cx, y: cy }, { x: G.xSea - out, y: cy }]);
+  for(let a = 0; a < 16; a++){ const t0 = Math.PI/2 + a/16*Math.PI/2, t1 = Math.PI/2 + (a + 1)/16*Math.PI/2;
+    add([{ x: cx, y: cy }, { x: cx + Math.cos(t0)*(R + out), y: cy + Math.sin(t0)*(R + out) }, { x: cx + Math.cos(t1)*(R + out), y: cy + Math.sin(t1)*(R + out) }]); }
+  _ncPieces.set(key, { grid, list });
+  return list;
+}
+/* the whole sand as one ring of world points (cached per grid and outset): inner edge along the boardwalk, then the waterline
+   east to west along the south, round the point, and north up Sunset Shore. out pushes the waterline out (the wash). */
+const _ncPoly = new Map();
+function coastBeachPoly(grid, out = 0){
+  const key = (grid.cols + 'x' + grid.rows) + ':' + out;
+  if(_ncPoly.has(key) && _ncPoly.get(key).grid === grid) return _ncPoly.get(key).pts;
+  const G = ncGeo(grid), B = G.B, st = NCOAST.step*B, R = NCOAST.cornerR*B, cx = G.xSea + R, cy = G.ySea - R, pts = [];
+  pts.push({ x: G.xIn, y: G.Y0 }, { x: G.xIn, y: G.yIn }, { x: G.xEast, y: G.yIn });
+  for(let x = G.xEast; x > cx; x -= st) pts.push({ x, y: coastSeaY(grid, x) + out });
+  for(let a = 0; a <= 12; a++){ const t = Math.PI/2 + a/12*Math.PI/2; pts.push({ x: cx + Math.cos(t)*(R + out), y: cy + Math.sin(t)*(R + out) }); }
+  for(let y = cy; y > G.Y0; y -= st) pts.push({ x: coastSeaX(grid, y) - out, y });
+  pts.push({ x: coastSeaX(grid, G.Y0) - out, y: G.Y0 });
+  _ncPoly.set(key, { grid, pts });
+  return pts;
+}
 /* ---------- THE NORTH HILLS: terraces + ridgeline ----------
    (2026-09-18, Sir: "the hill doesn't really read as hill")
 
@@ -162101,9 +162199,9 @@ function worldRegionIndex(grid){
     /* the coast's bands, as drawWorld and mapCoastBands paint them */
     if(x >= X0 - BOARD && x <= X0 && y >= Y0 && y <= Y1) return [R.BW, 'boardwalk'];
     if(y >= Y1 && y <= Y1 + BOARD && x >= X0 - BOARD && x <= X1) return [R.BW, 'boardwalk'];
-    if(x >= X0 - BOARD - SANDW && x <= X0 - BOARD && y >= Y0 && y <= Y1 + BOARD) return [R.SS, 'beach'];
-    if(y >= Y1 + BOARD && y <= Y1 + BOARD + SANDW && x >= X0 - BOARD - SANDW && x <= X1) return [R.DB, 'beach'];
-    if(x < X0 - BOARD - SANDW || y > Y1 + BOARD + SANDW) return [R.SEA, 'sea'];
+    if(seaPast(grid, x, y)) return [R.SEA, 'sea'];                                  // (the natural waterline: THE NATURAL COAST)
+    if(x <= X0 - BOARD && y >= Y0 && y <= Y1 + BOARD) return [R.SS, 'beach'];
+    if(y >= Y1 + BOARD && x <= X1) return [R.DB, 'beach'];
     /* Sierra Vista's street up from the top of the city to the gate */
     if(y < Y0 && y >= S.wallY - SWO && lattice(x, y)) return [R.SV, 'road'];
     /* MIRADOR HEIGHTS (paint) */
@@ -164200,7 +164298,7 @@ function drawRouteMap(route){
     mapCoastBands(bgRoute.grid, bgRoute.dateStr, cband, (cx, cy, rad, fill) => {
       const p = toScreen({x:cx, y:cy}), edge = toScreen({x:cx+rad, y:cy});
       ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(p.x, p.y, Math.abs(edge.x-p.x), 0, Math.PI*2); ctx.fill();
-    });
+    }, (pts, fill) => { ctx.fillStyle = fill; ctx.beginPath(); pts.forEach((w, k) => { const q = toScreen(w); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); ctx.closePath(); ctx.fill(); });
     /* the hills' housing: Sierra Vista, the gated community (sierraGeo); Mirador Heights is unbuilt -- the east edge's trail
        runs there (eastMapTrail) */
     {
