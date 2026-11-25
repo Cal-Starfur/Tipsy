@@ -7985,6 +7985,8 @@ function owBuildWorld(route){
     { const cp = cplSolidAt(x, y, R); if(cp) return cp; }
     /* THE STREET UP TO SIERRA VISTA: its lamp posts and palm trunks (hillRoadSolidAt) */
     { const hr = WorldScene.prototype.hillRoadSolidAt(x, y, R); if(hr) return hr; }
+    /* THE BEACHFRONT VERGE: its lamp posts, palm trunks, benches and bins (beachVergeSolidAt) */
+    { const bv = WorldScene.prototype.beachVergeSolidAt(x, y, R); if(bv) return bv; }
     const i = Math.round(x / BLOCK), j = Math.round(y / BLOCK);
     for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){
       const list = bucket.get((i + a) + ',' + (j + c));
@@ -20633,7 +20635,8 @@ function pedTownTail(grid, sx, ys, tdir, D, base){
   return { pts, cross };
 }
 function bwPasses(grid){
-  return lifeguardStations(grid).map(st => ({ y: st.y, hw: BEACH_ACCESS_HW })).concat(nssPathsOf(grid).map(pt => ({ y: pt.y, hw: (pt.y1 - pt.y0)/2 })));
+  return lifeguardStations(grid).map(st => ({ y: st.y, hw: BEACH_ACCESS_HW })).concat(nssPathsOf(grid).map(pt => ({ y: pt.y, hw: (pt.y1 - pt.y0)/2 })),
+    typeof WorldScene !== "undefined" ? WorldScene.prototype.beachVergePasses(grid) : []);   // (and the beachfront verge's west cross walks)
 }
 /* along the boardwalk on line bo from y0, in through pass ps (on lane), out on the
    pavement and along it to y1: its points and their running lengths */
@@ -118721,6 +118724,7 @@ class WorldScene extends Phaser.Scene {
     cplFillGround(this, g);                 // THE COSTA PALMA LETTERS' gravel: the walk to the stair, the shelf path
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
     for(const lot of visLots) this.fillExteriorLot(g, lot);
+    this.beachVergeGround(g);               // THE BEACHFRONT VERGE: the dune, the promenade and the cross walks (beachVergeGround)
   }
   drawWorld(t){
     /* IN THE MALL, the frame from the street's side (MALL_VIEW, above) */
@@ -119354,6 +119358,7 @@ class WorldScene extends Phaser.Scene {
     cplQueueStory(this, blockVQ);           // LETTERS ON THE HILL: the panel lowered onto its pegs; Tipsey parked while he flies
     cplQueuePark(this, blockVQ);            // THE LETTERS' PARK: its plants, lamps and their light
     this.queueHillside(blockVQ);            // THE CITY CARRIED UP INTO THE NORTH HILLS: the hillside planting, the street up to Sierra Vista
+    this.queueBeachVerge(blockVQ);          // THE BEACHFRONT VERGE: its lamps, benches, palms, shrubs and beach grass (queueBeachVerge)
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
     this.queueYardFence(blockVQ);
@@ -125778,6 +125783,376 @@ class WorldScene extends Phaser.Scene {
     const L = this.hillRoadFurn(), C = this.hillCache(), bb = C.roadBox;
     if(x < bb.x0 - R - 40 || x > bb.x1 + R + 40 || y < bb.y0 - R - 40 || y > bb.y1 + R + 40) return null;
     for(const p of L) if(Math.abs(p.x - x) < R + 40 && Math.abs(p.y - y) < R + 40 && fmBodyHits(x, y, R, { c: [p.x, p.y], r: p.kind === "lamp" ? 10 : 14 })) return C.roadBlk;
+    return null;
+  }
+  /* ==================== THE BEACHFRONT VERGE (Sir, 2026-11-25: "unify the map") ====================
+     Between the city's outer sidewalk and the boardwalk -- the west strip south of North Sunset Shore's lots, and the south strip
+     along Driftwood Beach, round the corner between them -- the ring lawn lay as a plain green band with ruler-straight edges and
+     nothing on it, so the town and the beach read as two pieces laid side by side. Now it is the town's seaside verge:
+     - THE DUNE (beachVergeGround, the ground pass, so the ground cache paints it once): the lawn gives way to sand toward the
+       boardwalk on a wobbly edge (a run's `e`: seeded sines along the coast, never straight), through a fringe of thin sand over
+       the grass and the odd blowout running in; the sand is the beach's own, grained. The beach access walks are left as they
+       are (their paving is their lots': fillExteriorLot), and the sand tapers out before the east foothills.
+     - THE PATHS: a cross walk from the city's sidewalk at a cross street -- and a wide one at the pier, which lands on the
+       middle cross street -- over the lawn in the city's own slabs (paveSlabOn, on the sidewalk's T2 lattice) and over the dune
+       in the boardwalk's planks, to the boardwalk: the town walking down to the beach. A gravel promenade (the park kit's walk,
+       PARK_PATH) wanders along the lawn from walk to walk and round the corner from one strip to the other. The west cross
+       walks are passes the boardwalk's people use (bwPasses).
+     - ITS FURNITURE AND PLANTING (queueBeachVerge): the city's lamps along the promenade on the citywide stride (lit at night),
+       benches facing the sea with a bin beside some, palms at the walks' heads and in groups along the lawn, coastal shrubs in
+       drifts along the dune's edge (the park kit's), beach grass on the sand (the dunes' own tufts), the odd boulder. Built once
+       per grid, seeded off position (never time), each a cached image keyed at its foot (bcDraw), culled to the view by cell.
+       Lamp posts, palm trunks, benches and bins are solid (beachVergeSolidAt); the planting is not, as the hills' is not.
+     Built off the beach geometry (WG_COAST, the lattice's edge), so the verge moves with it. */
+  beachCache(){ return WorldScene._beach || (WorldScene._beach = { grid: null, geo: null }); }
+  /* the verge for a grid, once: { runs, paths, prom (the promenade's pieces), cells (items by cell), solids, passes } */
+  beachVergeGeo(grid){
+    const C = this.beachCache();
+    if(C.grid === grid && C.geo) return C.geo;
+    C.grid = grid;
+    const V = C.geo = { runs: [], paths: [], prom: [], cells: new Map(), solids: new Map(), passes: [], CELL: 1600, hw: PARK_PATH.hw };
+    if(!grid || !WORLDGEN_COAST) return V;
+    const B = BLOCK, EXT = WG_COAST.EXT*B, IN = ROAD_HALF + SIDEWALK_W, W = EXT - IN, gx = (grid.cols - 1)*B, gy = (grid.rows - 1)*B;
+    V.W = W; V.IN = IN;
+    V.blk = { x0: -EXT, x1: gx + EXT, y0: 0, y1: gy + EXT, cx: gx/2, cy: gy, i: 0, j: 0, type: "park" };
+    const rr = mulberry32(0xbe4c5), TAU = Math.PI*2, cl = (v, a, b) => v < a ? a : v > b ? b : v;
+    const sstep = t => { t = cl(t, 0, 1); return t*t*(3 - 2*t); };
+    /* the beach access walks (the lifeguards' cross streets): the verge keeps off them */
+    const walks = lifeguardStations(grid).map(st => [st.y - BEACH_ACCESS_HW, st.y + BEACH_ACCESS_HW]);
+    let yN = 0;
+    for(const [lot] of nssRowsOf(grid)) yN = Math.max(yN, lot.oy + lot.len);
+    if(!yN) yN = 9*B;
+    /* a run along the coast: s along it, u out from the sidewalk's outer line (0) to the boardwalk's edge (W); e(s) the sand's
+       width in from the boardwalk, em(s) its slow swell (the promenade follows that), fr(s) the fringe of thin sand past it */
+    const run = (k, s0, s1, pt, sOf, uOf, cuts, taper1) => {
+      const p = [rr()*TAU, rr()*TAU, rr()*TAU, rr()*TAU];
+      const tp = s => taper1 ? sstep((taper1 - s)/1200) : 1;
+      const sm = s => 330 + 85*Math.sin(s/2900*TAU + p[0]) + 45*Math.sin(s/1130*TAU + p[1]);
+      return { k, s0, s1, pt, sOf, uOf, cuts, tp,
+               e: s => cl(sm(s) + 22*Math.sin(s/410*TAU + p[2]), 200, 470)*tp(s),
+               em: s => cl(sm(s), 210, 460),
+               fr: s => (55 + 25*Math.sin(s/530*TAU + p[3]))*tp(s) };
+    };
+    const RW = run('w', yN, gy + EXT, (s, u) => ({ x: -IN - u, y: s }), (x, y) => y, (x, y) => -IN - x, walks, 0);
+    const RS = run('s', -EXT, gx + EXT, (s, u) => ({ x: s, y: gy + IN + u }), (x, y) => x, (x, y) => y - gy - IN, [], gx + EXT - 100);
+    V.runs = [RW, RS];
+    const inCut = (R, s, pad) => R.cuts.some(([a, b]) => s > a - pad && s < b + pad);
+    /* the cross walks: the west strip's at every fourth cross street between the access walks, and the pier's (it lands on the
+       middle cross street); the south strip's every third */
+    const pierJ = Math.round((gy/2)/B);
+    const wj = new Set();
+    for(let j = 0; j < grid.rows; j++) if((j % 4 === 0 || j === pierJ) && j*B > yN + 1500 && j*B < gy - 1500 && !inCut(RW, j*B, 400)) wj.add(j);
+    for(const j of wj) V.paths.push({ R: RW, s: j*B, hw: j === pierJ ? 4*T2 : 2*T2, pier: j === pierJ });
+    for(let i = 1; i < grid.cols - 1; i += 3) V.paths.push({ R: RS, s: i*B, hw: 2*T2, pier: false });
+    for(const P of V.paths) P.nT = Math.max(2, Math.floor((W - P.R.e(P.s) + 30)/T2));      // slabs over the lawn, planks over the dune
+    V.passes = V.paths.filter(P => P.R === RW).map(P => ({ y: P.s, hw: P.hw }));
+    const nearPath = (R, s, pad) => V.paths.some(P => P.R === R && Math.abs(s - P.s) < P.hw + pad);
+    /* THE PROMENADE: its centre line, out from the sidewalk about half way across the lawn, eased to one line round the corner */
+    const UC = 300, RC = 280, xc = -IN - UC, yc = gy + IN + UC;
+    const ucOf = (R, s) => {
+      const u = cl(0.52*(W - R.em(s) - 60), 170, 360);
+      const d = R === RW ? (gy + EXT) - s : s - (-EXT);
+      return u + (UC - u)*sstep(1 - (d - 1000)/1600);
+    };
+    V.uc = ucOf;
+    const firstWalk = walks.filter(([a]) => a > yN).sort((a, b) => a[0] - b[0])[0];
+    const pW0 = firstWalk ? firstWalk[1] : yN + 400, pW1 = yc - RC;
+    const lastS = V.paths.filter(P => P.R === RS).reduce((m, P) => Math.max(m, P.s), -EXT + 4000);
+    /* the west run's stretches between the access walks, the last one carried round the corner and along the south run */
+    const stops = [pW0];
+    for(const [a, b] of walks) if(a > pW0 && b < pW1){ stops.push(a, b); }
+    stops.push(pW1);
+    const pieces = [];
+    for(let k = 0; k < stops.length; k += 2){
+      const a = stops[k], b = stops[k + 1], pts = [];
+      const n = Math.max(2, Math.ceil((b - a)/60));
+      for(let i = 0; i <= n; i++){ const s = a + (b - a)*i/n, q = RW.pt(s, ucOf(RW, s)); pts.push({ x: q.x, y: q.y, R: RW, s }); }
+      pieces.push(pts);
+    }
+    { const last = pieces[pieces.length - 1], cx0 = xc + RC, cy0 = yc - RC;
+      for(let i = 1; i < 8; i++){ const a = Math.PI - (Math.PI/2)*i/8; last.push({ x: cx0 + Math.cos(a)*RC, y: cy0 + Math.sin(a)*RC, arc: true }); }
+      const a = xc + RC, n = Math.ceil((lastS - a)/60);
+      for(let i = 0; i <= n; i++){ const s = a + (lastS - a)*i/n, q = RS.pt(s, ucOf(RS, s)); last.push({ x: q.x, y: q.y, R: RS, s }); } }
+    /* each point's tangent and its normal out toward the sea (-t.y, t.x: west on the west run, south on the south) */
+    for(const pts of pieces) pts.forEach((p, i) => {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      p.tx = (b.x - a.x)/L; p.ty = (b.y - a.y)/L; p.nx = -p.ty; p.ny = p.tx;
+    });
+    V.prom = pieces;
+    /* ITEMS, by cell */
+    const add = (it) => {
+      it.x = Math.round(it.x); it.y = Math.round(it.y);
+      const key = Math.floor(it.x/V.CELL) + "," + Math.floor(it.y/V.CELL);
+      let c = V.cells.get(key); if(!c) V.cells.set(key, c = []);
+      c.push(it);
+      if(it.solid){ let sc = V.solids.get(key); if(!sc) V.solids.set(key, sc = []); sc.push(it); placed.push(it); }
+    };
+    const placed = [], clear = (x, y, r) => !placed.some(p => Math.abs(p.x - x) < r && Math.abs(p.y - y) < r && Math.hypot(p.x - x, p.y - y) < r);
+    const dirOf = (x, y) => DIRV.findIndex(d => d.x === x && d.y === y);
+    const axis = (x, y) => Math.abs(x) >= Math.abs(y) ? { x: Math.sign(x), y: 0 } : { x: 0, y: Math.sign(y) };
+    /* the promenade's lamps (the city's stride, on its sea side, the arm in over the walk), and between them a bench on its town
+       side facing the sea, a bin beside some */
+    const LSTEP = LAMP_ACT.spacing*T2*CITY_FURN.lampInfra*CITY_FURN.cal.lamp, hw = V.hw;
+    for(const pts of pieces){
+      let acc = 0, next = LSTEP*0.5, half = false;
+      for(let i = 1; i < pts.length; i++){
+        const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.y - a.y);
+        while(acc + L >= next){
+          const f = (next - acc)/L, x = a.x + (b.x - a.x)*f, y = a.y + (b.y - a.y)*f, p = f < 0.5 ? a : b;
+          next += LSTEP*0.5; half = !half;
+          if(p.arc || !p.R || nearPath(p.R, p.s, 220) || inCut(p.R, p.s, 220)) continue;
+          const n = axis(p.nx, p.ny), t = axis(p.tx, p.ty);
+          if(half){
+            const lx = x + n.x*(hw + 34), ly = y + n.y*(hw + 34);
+            add({ kind: 'lamp', x: lx, y: ly, f: (dirOf(-n.x, -n.y) + 3) % 4, seed: ((Math.round(lx)*7919) ^ (Math.round(ly)*104729) ^ 0xbe11) >>> 0, solid: 10 });
+          } else if(parkPlantHash(x, y, 0xbe12) < 0.7){
+            const D = BENCH_ART.depth, di = (dirOf(n.x, n.y) + 3) % 4;                 // (rv, the way its sitter faces, is the sea)
+            const bx = x - n.x*(hw + 48 + D), by = y - n.y*(hw + 48 + D);
+            add({ kind: 'bench', x: bx, y: by, di, solid: { a: BENCH_ART.w/2 + 6, b0: -6, b1: D + 6 } });
+            if(parkPlantHash(x, y, 0xbe13) < 0.5){
+              const s2 = BENCH_ART.w/2 + 38;
+              add({ kind: 'bin', x: bx + t.x*s2 + n.x*D*0.4, y: by + t.y*s2 + n.y*D*0.4, f: (dirOf(-n.x, -n.y) + 3) % 4, solid: 12 });
+            }
+          }
+        }
+        acc += L;
+      }
+    }
+    /* palms: a pair at each cross walk's head either side (a short avenue at the pier), and groups along the lawn */
+    const palm = (R, s, u) => { const q = R.pt(s, u); if(clear(q.x, q.y, 120)) add({ kind: parkPlantHash(q.x, q.y, 0xbe21) < 0.25 ? 'palmDwarf' : 'palm', x: q.x, y: q.y, solid: 14 }); };
+    for(const P of V.paths){
+      const uc = ucOf(P.R, P.s), uIn = Math.max(110, uc - hw - 110);
+      for(const sd of [-1, 1]){
+        palm(P.R, P.s + sd*(P.hw + 95), 110);
+        if(uIn > 200) palm(P.R, P.s + sd*(P.hw + 95), uIn);
+        if(P.pier) palm(P.R, P.s + sd*(P.hw + 95), Math.min(P.nT*T2 - 60, uc + hw + 110));
+        /* a boulder or two by the planks, on the dune's edge */
+        if(parkPlantHash(P.s, sd, 0xbe22) < 0.6){
+          const q = P.R.pt(P.s + sd*(P.hw + 70), W - P.R.e(P.s) + 20), h1 = parkPlantHash(q.x, q.y, 0xbe23);
+          add({ kind: 'rock', x: q.x, y: q.y, r: 30 + h1*26, h: 18 + h1*20, n: 7 + Math.floor(h1*3), rot: h1*6.28, tone: Math.floor(parkPlantHash(q.x, q.y, 0xbe24)*4) });
+        }
+      }
+    }
+    for(const R of V.runs){
+      const sEnd = R === RS ? gx + IN - 300 : R.s1 - 300;
+      for(let s = R.s0 + 700 + rr()*500; s < sEnd; s += 1100 + rr()*900){
+        if(nearPath(R, s, 320) || inCut(R, s, 260)) continue;
+        const uc = ucOf(R, s), uS0 = uc + hw + 90, uS1 = W - R.e(s) - 50, n = 1 + Math.floor(rr()*3);
+        const sea = uS1 - uS0 > 40 && rr() < 0.65;
+        for(let k = 0; k < n; k++){
+          const ss = s + (k - (n - 1)/2)*(130 + rr()*60), u = sea ? uS0 + rr()*(uS1 - uS0) : 90 + rr()*Math.max(0, uc - hw - 180);
+          if(!nearPath(R, ss, 160) && !inCut(R, ss, 140)) palm(R, ss, u);
+        }
+      }
+    }
+    /* coastal shrubs in drifts along the dune's edge, on the lawn's side of it, clear of the promenade */
+    const SKS = ['lavender', 'rosemary', 'grass', 'agave', 'lavender', 'rosemary', 'grass', 'bougainvillea'];
+    const GREENS = [0x6a8f52, 0x5f8f45, 0x7d8f55];
+    for(const R of V.runs){
+      const sEnd = R === RS ? gx + IN - 150 : R.s1 - 120;
+      for(let s = R.s0 + 120 + rr()*200; s < sEnd; s += 150 + rr()*230){
+        if(nearPath(R, s, 70) || inCut(R, s, 60) || rr() < 0.18) continue;
+        const uE = W - R.e(s), u0 = uE - 25 - rr()*55;
+        if(u0 < ucOf(R, s) + hw + 55) continue;
+        { const c0 = R.pt(s, u0); if(!clear(c0.x, c0.y, 110)) continue; }
+        const sk = SKS[Math.floor(rr()*SKS.length)], col = GREENS[Math.floor(rr()*GREENS.length)], n = 1 + Math.floor(rr()*3), ps = [];
+        for(let k = 0; k < n; k++){
+          const q = R.pt(s + (rr() - 0.5)*120, Math.max(ucOf(R, s) + hw + 40, u0 + (rr() - 0.5)*60));
+          ps.push({ x: Math.round(q.x), y: Math.round(q.y), r: (sk === 'agave' ? 20 : 22) + rr()*16, sk: k && rr() < 0.4 ? SKS[Math.floor(rr()*SKS.length)] : sk, col });
+        }
+        ps.sort((a, b) => (a.x + a.y) - (b.x + b.y));
+        const q = R.pt(s, u0), r = ps.reduce((m, p) => Math.max(m, Math.hypot(p.x - q.x, p.y - q.y) + p.r), 0);
+        add({ kind: 'shrubs', x: q.x, y: q.y, ps, r });
+      }
+      /* beach grass on the sand */
+      for(let s = R.s0 + 40 + rr()*80; s < R.s1 - 60; s += 85 + rr()*120){
+        const e = R.e(s);
+        if(e < 90 || nearPath(R, s, 45) || inCut(R, s, 40)) continue;
+        const u = W - e + 30 + rr()*Math.max(0, e - 90), q = R.pt(s, u), n = 3 + Math.floor(rr()*4), tufts = [];
+        for(let k = 0; k < n; k++){
+          const a = rr()*TAU, f = k ? 18 + rr()*48 : 0;
+          tufts.push({ a, f, s: 0.65 + rr()*0.5, lean: (rr() - 0.5)*0.6, bx: q.x + Math.cos(a)*f, by: q.y + Math.sin(a)*f });
+        }
+        tufts.sort((a, b) => (a.bx + a.by) - (b.bx + b.by));
+        add({ kind: 'grass', x: q.x, y: q.y, m: { cx: Math.round(q.x), cy: Math.round(q.y), rx: 1, ry: 1, h: 0, tufts } });
+      }
+    }
+    return V;
+  }
+  /* (bwPasses) the west cross walks, as passes from the boardwalk to the sidewalk */
+  beachVergePasses(grid){ return this.beachVergeGeo(grid).passes; }
+  /* THE GROUND (the ground pass): the fringe and the sand, run by run in fixed segments (their grain seeded off the segment, so
+     every ground-cache chunk paints the same), then the promenade, then the cross walks over it */
+  beachVergeGround(g){
+    const grid = this.route && this.route.grid;
+    if(!WORLDGEN_COAST || !grid) return;
+    const V = this.beachVergeGeo(grid);
+    if(!V.runs.length) return;
+    const reach = (this.vpW() + this.vpH())/this.K + 1200, SEG = 160, Wd = V.W, d = this.d;
+    const q = (P, col, al) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col, al == null ? 1 : al); };
+    const SAND = 0xf0e2ae, GRAIN = [0xd9c592, 0xf8f0d2, 0xe6d39c];
+    let any = false;
+    for(const R of V.runs){
+      const cs = R.sOf(this.camX, this.camY), cu = R.uOf(this.camX, this.camY);
+      if(Math.abs(cu - Wd/2) > reach) continue;
+      any = true;
+      const P = (s, u) => { const w = R.pt(s, u); return this.W(w.x, w.y, 0); };
+      const k0 = Math.floor(Math.max(R.s0, cs - reach)/SEG), k1 = Math.floor(Math.min(R.s1, cs + reach)/SEG);
+      for(let k = k0; k <= k1; k++){
+        /* the segment, less any access walk across it */
+        let iv = [[Math.max(R.s0, k*SEG), Math.min(R.s1, (k + 1)*SEG)]];
+        for(const [c0, c1] of R.cuts) iv = iv.flatMap(([a, b]) => b <= c0 || a >= c1 ? [[a, b]] : [[a, Math.min(b, c0)], [Math.max(a, c1), b]].filter(([x, y]) => y - x > 0.5));
+        for(const [a, b] of iv){
+          if(b - a < 0.5) continue;
+          const n = Math.max(2, Math.ceil((b - a)/40)), E = [], F1 = [], F2 = [];
+          for(let i = 0; i <= n; i++){
+            const s = a + (b - a)*i/n, e = R.e(s), f = R.fr(s);
+            E.push(P(s, Wd - e)); F1.push(P(s, Wd - e - f)); F2.push(P(s, Wd - e - f - (28 + 12*Math.sin(s/97))*R.tp(s)));
+          }
+          const Er = E.slice().reverse();
+          q(F2.concat(Er), SAND, 0.2);                                         // the fringe: thin sand over the grass
+          q(F1.concat(Er), SAND, 0.42);
+          q([P(a, Wd), P(b, Wd)].concat(Er), SAND);                            // the sand
+        }
+        /* its grain, and now and then a blowout running in over the lawn */
+        const rg = mulberry32(((k*7919) ^ (R.k === 'w' ? 0xbe51 : 0xbe53)) >>> 0);
+        const sa = Math.max(R.s0, k*SEG), sb = Math.min(R.s1, (k + 1)*SEG);
+        if(sb - sa < 1 || R.cuts.some(([c0, c1]) => sb > c0 - 30 && sa < c1 + 30)) continue;
+        const nG = Math.round((sb - sa)*R.e((sa + sb)/2)/5200);
+        for(let i = 0; i < nG; i++){
+          const s = sa + rg()*(sb - sa), u = Wd - rg()*R.e(s)*0.94, r = 3 + rg()*5, c = GRAIN[Math.floor(rg()*3)], w = R.pt(s, u);
+          q([this.W(w.x - r, w.y, 0.6), this.W(w.x, w.y - r, 0.6), this.W(w.x + r, w.y, 0.6), this.W(w.x, w.y + r, 0.6)], c);
+        }
+        if(rg() < 0.2){
+          const s = sa + rg()*(sb - sa), e = R.e(s);
+          if(e > 120){
+            const u = Wd - e - 15 - rg()*30, rs = 70 + rg()*110, ru = 24 + rg()*28, ph = rg()*6.28;
+            for(const [sc, al] of [[1, 0.42], [0.62, 0.5]]){
+              const B = [];
+              for(let i = 0; i < 14; i++){ const t = i/14*Math.PI*2, j = 0.85 + 0.15*Math.sin(i*2.1 + ph);
+                B.push(P(s + Math.cos(t)*rs*sc*j, u + Math.sin(t)*ru*sc*j)); }
+              q(B, SAND, al);
+            }
+          }
+        }
+      }
+    }
+    if(!any) return;
+    /* THE PROMENADE: its edging, then its gravel top, then flecks */
+    const M = PARK_PATH.mats[0], hw = V.hw, far = (p) => Math.abs(p.x - this.camX) + Math.abs(p.y - this.camY) > reach;
+    for(const pts of V.prom){
+      for(const [w, col] of [[hw + 4, M.edge], [hw - 3, M.top]])
+        for(let i = 1; i < pts.length; i++){
+          const a = pts[i - 1], b = pts[i];
+          if(far(a) && far(b)) continue;
+          q([this.W(a.x + a.nx*w, a.y + a.ny*w, 0), this.W(b.x + b.nx*w, b.y + b.ny*w, 0), this.W(b.x - b.nx*w, b.y - b.ny*w, 0), this.W(a.x - a.nx*w, a.y - a.ny*w, 0)], col);
+        }
+      for(let i = 1; i < pts.length; i++){
+        const a = pts[i - 1], b = pts[i];
+        if(far(a)) continue;
+        const rf = mulberry32(((Math.round(a.x)*7919) ^ (Math.round(a.y)*104729) ^ 0xbe61) >>> 0);
+        for(let k = 0; k < 4; k++){
+          const f = rf(), o = (rf()*2 - 1)*(hw - 10), x = a.x + (b.x - a.x)*f + a.nx*o, y = a.y + (b.y - a.y)*f + a.ny*o, r = 3 + rf()*3;
+          q([this.W(x - r, y, 0.6), this.W(x, y - r, 0.6), this.W(x + r, y, 0.6), this.W(x, y + r, 0.6)], M.fleck[Math.floor(rf()*M.fleck.length)]);
+        }
+      }
+    }
+    /* THE CROSS WALKS: the planks over the dune (laid a hair under the slabs' end), then the slabs */
+    const BOARDC = 0xb98a5e, PLANK = 52;
+    for(const Pth of V.paths){
+      const R = Pth.R, s = Pth.s, h = Pth.hw, uS = Pth.nT*T2, c = R.pt(s, Wd/2);
+      if(Math.abs(c.x - this.camX) + Math.abs(c.y - this.camY) > reach + Wd) continue;
+      const Pw = (ss, u) => { const w = R.pt(ss, u); return this.W(w.x, w.y, 0); };
+      q([Pw(s - h, uS - 6), Pw(s + h, uS - 6), Pw(s + h, Wd), Pw(s - h, Wd)], BOARDC);
+      q([Pw(s - h, uS - 6), Pw(s - h + 7, uS - 6), Pw(s - h + 7, Wd), Pw(s - h, Wd)], 0x9e744c);   // its edge boards
+      q([Pw(s + h - 7, uS - 6), Pw(s + h, uS - 6), Pw(s + h, Wd), Pw(s + h - 7, Wd)], 0x9e744c);
+      g.lineStyle(3, 0x8a6644, 0.55);
+      for(let u = Math.ceil(uS/PLANK)*PLANK; u < Wd; u += PLANK){
+        const a = Pw(s - h, u), b = Pw(s + h, u);
+        if(this.ptsOnScreen([a, b])) g.lineBetween(a.x, a.y, b.x, b.y);
+      }
+      /* the slabs, on the sidewalk's own lattice */
+      const w0 = R.pt(s - h, 0), w1 = R.pt(s + h, uS);
+      const x0 = Math.min(w0.x, w1.x), x1 = Math.max(w0.x, w1.x), y0 = Math.min(w0.y, w1.y), y1 = Math.max(w0.y, w1.y);
+      for(let x = x0; x < x1 - 1; x += T2) for(let y = y0; y < y1 - 1; y += T2){
+        const pts = [this.W(x, y, 0), this.W(x + T2, y, 0), this.W(x + T2, y + T2, 0), this.W(x, y + T2, 0)];
+        if(this.ptsOnScreen(pts)) this.paveSlabOn(g, pts, d, x + TILE, y + TILE);
+      }
+    }
+  }
+  /* THE HOOK (the world queue): the verge's furniture and planting, each a cached image at its foot, culled by cell and by its reach */
+  queueBeachVerge(vq){
+    const grid = this.route && this.route.grid;
+    if(!WORLDGEN_COAST || !grid) return;
+    const V = this.beachVergeGeo(grid);
+    if(!V.cells.size) return;
+    /* the view's reach on the ground (as queueHillPlanting) */
+    const o = this.W(0, 0, 0), ex = this.W(1, 0, 0), ey = this.W(0, 1, 0), ez = this.W(0, 0, 1);
+    const ax = ex.x - o.x, bx = ey.x - o.x, ay = ex.y - o.y, by = ey.y - o.y, zy = ez.y - o.y, det = ax*by - bx*ay;
+    if(Math.abs(det) < 1e-9) return;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for(const sx of [0, this.vpW()]) for(const sy of [0, this.vpH()]) for(const z of [0, 520]){
+      const u = sx - o.x, v = sy - o.y - zy*z, wx = (u*by - bx*v)/det, wy = (ax*v - u*ay)/det;
+      x0 = Math.min(x0, wx); x1 = Math.max(x1, wx); y0 = Math.min(y0, wy); y1 = Math.max(y1, wy);
+    }
+    const B = V.blk;
+    x0 = Math.max(x0 - 300, B.x0 - 400); x1 = Math.min(x1 + 300, B.x1 + 400); y0 = Math.max(y0 - 300, B.y0); y1 = Math.min(y1 + 300, B.y1 + 400);
+    if(x0 > x1 || y0 > y1) return;
+    const K = this.K, gw = this.vpW(), gh = this.vpH(), nl = nightLevel();
+    const box = (x, y, l, r, u, dn) => { const c = this.W(x, y, 0); return c.x + r*K >= 0 && c.x - l*K <= gw && c.y + dn*K >= 0 && c.y - u*K <= gh; };
+    const GR = [0x7e8c47, 0x95a257, 0xa9b46a];
+    const C = V.CELL;
+    for(let i = Math.floor(x0/C); i <= Math.floor(x1/C); i++) for(let j = Math.floor(y0/C); j <= Math.floor(y1/C); j++){
+      const cell = V.cells.get(i + "," + j);
+      if(!cell) continue;
+      for(const it of cell){
+        const x = it.x, y = it.y, kd = it.kind, key = "bv|" + kd + "|" + x + "," + y;
+        if(kd === 'grass'){
+          if(!box(x, y, 110, 120, 110, 50)) continue;
+          vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, key, x, y, gg => this.drawDuneTufts(gg, it.m, GR)) });
+        } else if(kd === 'shrubs'){
+          const r = it.r;
+          if(!box(x, y, 2*r + 20, 2*r + 20, 2.6*r + 40, 1.2*r + 20)) continue;
+          vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, key, x, y, gg => {
+            for(const p of it.ps) this.drawParkShrubSp(gg, p, mulberry32(((p.x*7919) ^ (p.y*104729)) >>> 0));
+          }) });
+        } else if(kd === 'rock'){
+          if(!box(x, y, 2*it.r, 2*it.r, it.h + it.r, it.r)) continue;
+          vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, key, x, y, gg => this.drawHarborRocks(gg, [it])) });
+        } else if(kd === 'lamp'){
+          if(!this.visProp('lamp', x, y)) continue;
+          const ld = { lampSeed: it.seed, armSign: -1, mal: false };
+          vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, key, x, y, gg => this.drawProp(gg, 'lamp', x, y, 0, it.f, 0, null, null, ld)) });
+          if(nl > 0.02) vq.push({ depth: x + y + 2, fn: () => this.glowInWorld((gg, fill) => this.landmarkLampGlow(gg, fill, x, y, 300, 260, LANDMARK_LAMP_COL, nl)) });
+        } else if(kd === 'bench'){
+          if(!this.visProp('bench', x, y)) continue;
+          vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, key, x, y, gg => this.drawBenchProp(gg, x, y, DIRV[it.di])) });
+        } else if(kd === 'bin'){
+          if(!this.visProp('bin', x, y)) continue;
+          vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, key, x, y, gg => this.drawProp(gg, 'bin', x, y, 0, it.f, 0)) });
+        } else {
+          if(!this.visProp(kd, x, y)) continue;
+          vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, key, x, y, gg => this.drawProp(gg, kd, x, y, 0, 0)) });
+        }
+      }
+    }
+  }
+  /* (solidAt) the lamp posts, palm trunks, benches and bins -- off the cache the verge was built into (null before it is) */
+  beachVergeSolidAt(x, y, R){
+    const C = WorldScene._beach, V = C && C.geo;
+    if(!V || !V.solids.size || !WORLDGEN_COAST) return null;
+    const B = V.blk;
+    if(x < B.x0 - R - 100 || y > B.y1 + R + 100 || (x > -V.IN + R + 60 && y < B.y1 - V.W - R - 60)) return null;
+    const CS = V.CELL, i0 = Math.floor((x - R - 80)/CS), i1 = Math.floor((x + R + 80)/CS), j0 = Math.floor((y - R - 80)/CS), j1 = Math.floor((y + R + 80)/CS);
+    for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){
+      const L = V.solids.get(i + "," + j);
+      if(!L) continue;
+      for(const it of L){
+        if(typeof it.solid === "number"){ if(Math.hypot(x - it.x, y - it.y) < R + it.solid) return B; continue; }
+        const dv = DIRV[it.di], rv = DIRV[(it.di + 1) % 4], a = (x - it.x)*dv.x + (y - it.y)*dv.y, b = (x - it.x)*rv.x + (y - it.y)*rv.y, S = it.solid;
+        if(a > -S.a - R && a < S.a + R && b > S.b0 - R && b < S.b1 + R) return B;
+      }
+    }
     return null;
   }
   /* A PARK'S PLANTS, each culled on its own and each still one cached (the park trail's: shrubs, beds, trees, benches;
