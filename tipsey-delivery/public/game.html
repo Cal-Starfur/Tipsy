@@ -582,12 +582,6 @@
     -webkit-tap-highlight-color:transparent;touch-action:none;}
   #scootBtn:active{transform:scale(0.96);}
   #scootBtn.hidden{display:none;}
-  #hornBtn{position:fixed;right:max(16px, env(safe-area-inset-right));bottom:calc(222px + env(safe-area-inset-bottom));z-index:61;
-    width:52px;height:52px;border:0;border-radius:26px;background:#e8a23a;color:#fff;font:800 22px/1 system-ui,-apple-system,sans-serif;
-    box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:none;}
-  #hornBtn:active{transform:scale(0.92);}
-  #hornBtn.hidden{display:none;}
-  body.tpPanelOpen #hornBtn, body.tpGarage #hornBtn, body.attractBare #hornBtn{display:none;}
   /* THE HEIGHT CONTROLS (fleet P2 fix, 2026-10-31): two big round orange buttons stacked on the right edge at mid
      height, UP over DOWN, press and hold to climb or come down; beside them the height bar: the craft (orange), the
      ceiling (red), what is under it and the tallest thing ahead (grey, red if over the ceiling), its height in m */
@@ -1667,7 +1661,6 @@
 <!-- FLYING (fleet P2): the context button (Take off / Land), the UP / DOWN buttons and the height bar -->
 <button id="flyBtn" class="hidden">Take off</button>
 <button id="scootBtn" class="hidden">Hop on</button>
-<button id="hornBtn" class="hidden" aria-label="Horn">📯</button>
 <button id="trailerBtn" class="hidden">Drop trailer</button>
 <button id="amrPickBtn" class="hidden">Pick up</button>
 <button id="amrLoadBtn" class="hidden">Set down</button>

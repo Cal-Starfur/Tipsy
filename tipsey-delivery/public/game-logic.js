@@ -101947,17 +101947,8 @@ function scootUiTick(){
   if(scootCan(s)) verb = ow.scoot ? "Hop off" : (scootNearest(s) ? "Hop on" : null);
   btn.classList.toggle("hidden", !verb);
   if(verb && btn.textContent !== verb) btn.textContent = verb;
-  { const hb = document.getElementById("hornBtn"); if(hb){ const show = !!(s && s.state === "play" && !s._garage && !s.attract && hornTop(s)); hb.classList.toggle("hidden", !show); } }   // (the horn: a topper fitted)
 }
 setInterval(scootUiTick, 200);
-(function hornBind(){
-  const hb = document.getElementById("hornBtn");
-  if(!hb){ setTimeout(hornBind, 300); return; }
-  hb.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); const s = scn(), top = hornTop(s); if(!top) return;
-    sfxHorn(top, 1); HORN.t = performance.now(); });
-  for(const ev of ["touchstart", "mousedown"]) hb.addEventListener(ev, e => e.stopPropagation(), { passive: true });
-  hb.addEventListener("contextmenu", e => e.preventDefault());
-})();
 (function scootBind(){
   const btn = document.getElementById("scootBtn");
   if(!btn){ setTimeout(scootBind, 300); return; }
