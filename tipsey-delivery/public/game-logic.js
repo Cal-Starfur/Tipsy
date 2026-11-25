@@ -156650,7 +156650,7 @@ function riverRuns(grid){
     if(r.nb === 'board') r.decks.push({ a0: r.len, a1: r.len + WG_COAST.BOARD*B, kind: 'board' });
   }
   if(grid._riverFoot && nS){ const r = runs.find(q => q.nb === 'board'), F = grid._riverFoot, a = F.y - r.y;
-    if(r && a > 0 && a < r.len) r.decks.push({ a0: a - F.hw - 40, a1: a + F.hw + 40, kind: 'foot' }); }
+    if(r && a > 0 && a < r.len) r.decks.push({ a0: a - F.hw - 16, a1: a + F.hw + 16, kind: 'foot' }); }   // (its rails at the walk's own edges)
   const idx = new Map();
   for(const r of runs){ const ex = r.x + (r.f === 0 ? r.len : 0), ey = r.y + (r.f === 1 ? r.len : 0);
     for(let i = Math.floor(Math.min(r.x, ex)/B) - 1; i <= Math.floor(Math.max(r.x, ex)/B) + 1; i++)
@@ -156708,9 +156708,11 @@ function riverHillClaims(x, y, m){
    and the coping and the bridges' sidewalks over the water (at street height they lie over the lowered water south and east
    of them, as they should), then the streets' own pass lays the roads; the parapets stand in the world queue (riverQueue). */
 Object.assign(RIVER, { depth: 160, deck: 90, ph: 78, pt: 34, piece: 60,
-  kinds: { street: { fascia: 0xa29b8e, ph: 78, top: 0xddd7ca, s: 0xc4bdb0, e: 0xaaa396, F: 90 },
-           board:  { fascia: 0x7d5a3c, ph: 70, top: 0xa77c55, s: 0x8a6644, e: 0x6f5236, F: 60 },
-           foot:   { fascia: 0x9a9386, ph: 64, top: 0xa77c55, s: 0x8a6644, e: 0x6f5236, F: 50 } } });
+  /* each kind's deck edge face (F thick) and parapet (ph high, pt thick), WEIGHTED TO WHAT IT CARRIES (B12): a street's stone
+     wall, the boardwalk's timber, the promenade's footbridge a light timber rail to its narrow walk */
+  kinds: { street: { fascia: 0xa29b8e, ph: 78, pt: 34, top: 0xddd7ca, s: 0xc4bdb0, e: 0xaaa396, F: 90 },
+           board:  { fascia: 0x7d5a3c, ph: 70, pt: 34, top: 0xa77c55, s: 0x8a6644, e: 0x6f5236, F: 60 },
+           foot:   { fascia: 0x8a6644, ph: 44, pt: 12, top: 0xb08760, s: 0x8a6644, e: 0x6f5236, F: 32 } } });
 function riverPieces(grid){
   const RR = riverRuns(grid); if(!RR) return [];
   if(grid._riverPieces) return grid._riverPieces;
@@ -156772,7 +156774,7 @@ function riverParapets(grid){
   if(grid._riverPar) return grid._riverPar;
   const out = [], C = RIVER.coping, WH = RR.WH, T = RIVER.pt, Lp = RIVER.piece;
   const wall = (r, at, inward, kind) => {
-    const a0 = inward > 0 ? at : at - T, a1 = inward > 0 ? at + T : at;
+    const T = RIVER.kinds[kind].pt, a0 = inward > 0 ? at : at - T, a1 = inward > 0 ? at + T : at;
     for(let p = -WH - C; p < WH + C - 1; p += Lp){ const p1 = Math.min(WH + C, p + Lp);
       const b = r.f === 0 ? { x0: r.x + a0, x1: r.x + a1, y0: r.y + p, y1: r.y + p1 } : { x0: r.x + p, x1: r.x + p1, y0: r.y + a0, y1: r.y + a1 };
       out.push(Object.assign(b, { kind })); } };
