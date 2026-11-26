@@ -35092,9 +35092,9 @@ const CC_SCOOP = [0xf4a8b8, 0xb8e6c8, 0xf6ecc8, 0x7a4a30, 0xf4e27a, 0xa8b8e8, 0x
 /* the seats: where they stand to sit (stand), where they sit (at: a hair forward of the seat's middle, so they sort after it), which way they
    face, the seat's height -- the banquette's three, the chairs at its tables, the two middle tables', the window table's */
 const CC_SEATS = (() => { const o = [], ch = (id, a, b, th, sa, sb) => o.push({ id, stand: [sa, sb, th], at: [a + Math.cos(th)*3, b + Math.sin(th)*3], th, z: 35 });
-  [410, 510, 610].forEach((b, i) => { ch('bq' + i, 24, b, 0, 66, b + 48); ch('bc' + i, 118, b, Math.PI, 150, b + 40); });
-  [[310, 430, 470], [310, 580, 540], [480, 500, 460]].forEach(([a, b, sb], i) => { ch('mw' + i, a - 34, b, 0, a - 34, sb); ch('me' + i, a + 34, b, Math.PI, a + 34, sb); });
-  ch('ww', 566, 640, 0, 566, 600); ch('we', 634, 640, Math.PI, 634, 600);
+  [410, 510, 610].forEach((b, i) => { ch('bq' + i, 24, b, 0, 70, b + 50); ch('bc' + i, 124, b, Math.PI, 158, b + 44); });
+  [[310, 430, 474], [310, 580, 536], [480, 500, 456]].forEach(([a, b, sb], i) => { ch('mw' + i, a - 40, b, 0, a - 40, sb); ch('me' + i, a + 40, b, Math.PI, a + 40, sb); });
+  ch('ww', 560, 640, 0, 560, 598); ch('we', 640, 640, Math.PI, 640, 598);
   return o; })();
 function ccSeed(s){ return ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0; }
 /* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a cone (the waffle cone point
@@ -67423,7 +67423,7 @@ function houseCanopy(fn){
                         shows through the front wall at a + (D - b), z + (D - b))
        a 713..765       the door's lane, door to back wall, clear; the gumball machine by it
      Every long fixture a run of pieces (runPiece, W28); what stands on them its own piece; no see-through fill inside a run (overlapping
-     runs would lay it twice). Heights (docs/kits/library.md): the counters 75, the tables 62, the seats 38. */
+     runs would lay it twice). Heights (docs/kits/library.md): the counters 75, the tables 66 (44 across), the seats 38 (24 across). */
   name:'Cove Creamery Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 800, dd: 700,
   head:'Inside Cove Creamery: a dipping cabinet of tubs, a back counter of machines, pint freezers, a pink banquette, cafe tables, a menu board',
@@ -67535,7 +67535,7 @@ function houseCanopy(fn){
        gleam only (a fill laid by overlapping runs would double); the till counter on from it (a 610..690). In runs of 35, keyed down its
        middle line ---- */
     { const A0 = 330, A1 = 610, B0 = 100, B1 = 150, zW = 62, zG = 100;
-      runPiece(items, A0, A1, B0, B1, zG, (s0, s1) => [solid(s0, s1, B0, B1, zG, 'counter')], () => {
+      runPiece(items, A0, A1, B0, B1, zG, (s0, s1) => [solid(s0, s1, B0, B1, zG, 'display cabinet')], () => {
         box(A0, A1, B0, B1, 0, zW, '#e8f2f8', sky, skyD);
         F(A0, A1, 0, 6, chromeD, null, 0, B1 + 0.2); F(A0, A1, 38, 44, pink, null, 0, B1 + 0.2);
         blockWordIn('SCOOPS', 420, 520, 16, 32, B1 + 0.3, white, null, 4);
@@ -67601,31 +67601,34 @@ function houseCanopy(fn){
       }, { alongB: true, pad: 3, keyStart: true, extra: { a: A0 } });   // (keyed at the wall: whoever sits on it, a step in from its front, sorts after it)
     }
 
-    /* ---- A CAFE TABLE (62): its foot, the stem, the marble top on a pink edge; a napkin box and now and then a sundae on it. Keyed a little
+    /* ---- A CAFE TABLE (66, 44 across -- the cafe tables' size: Lagoon Coffee Roasters', Sandpiper Bakery's; docs/kits/library.md, tables
+       one sits at 60..66): its foot, the stem, the marble top on a pink edge; a napkin box and now and then a sundae on it. Keyed a little
        toward the back (they sit round it) ---- */
-    const table = (ta, tb, r, k) => items.push({ a: ta - 4, b: tb - 4, z: 0, solids: [{ name: 'table', c: [ta, tb], r, h: 62 }], draw: () => {
-      plateCircle(ta, tb, 0.5, 10, chromeD, '#8a9096', 0.8); tube(ta, tb, 1, ta, tb, 58, 1.8, chrome);
-      cyl(ta, tb, 58, 62, r, pink, marble);
-      box(ta - 4, ta + 4, tb - 6, tb - 2, 62, 69, white, whiteF, whiteS); F(ta - 3, ta + 3, 66, 68, '#f4fbfe', null, 0, tb - 1.9);
-      if(k % 2 === 0){ const sa = ta + 6, sb = tb + 4, c = FLAV[k % FLAV.length]; turn(sa, sb, [[62, 3], [63, 3]], 'rgba(220,240,248,.7)'); tube(sa, sb, 63, sa, sb, 67, 0.6, '#dcecf2');
-        turn(sa, sb, [[67, 1.2], [70, 3.8], [75, 4.4]], 'rgba(220,240,248,.6)'); scoop(sa, sb, 74, 3.6, c); ball(sa, sb, 79.6, 1.1, '#d0342c'); } } });
-    /* A WIRE CHAIR (its seat 38): facing th; its back on the side away from where it faces. A back on the far side drawn with it, first; a
-       back on the near side its own piece after whoever sits there (they sit a hair forward of its middle) */
-    const chair = (ca, cb, th) => { const ba = ca - Math.cos(th)*9, bb = cb - Math.sin(th)*9, far = Math.cos(th) + Math.sin(th) > 0;
-      const back = () => { for(const s of [-1, 1]){ const pa = ba - Math.sin(th)*6*s, pb = bb + Math.cos(th)*6*s; tube(pa, pb, 36, pa, pb, 60, 0.7, chromeD); }
-        const pts = []; for(let k = 0; k <= 8; k++){ const u = Math.PI*k/8, sd = Math.cos(u)*6; pts.push([ba - Math.sin(th)*sd, bb + Math.cos(th)*sd, 60 + Math.sin(u)*6]); }
-        for(let k = 0; k < 8; k++) tube(pts[k][0], pts[k][1], pts[k][2], pts[k + 1][0], pts[k + 1][1], pts[k + 1][2], 0.8, chromeD);
-        tube(ba - Math.sin(th)*6, bb + Math.cos(th)*6, 48, ba + Math.sin(th)*6, bb - Math.cos(th)*6, 48, 0.5, chromeD); };
-      const seat = () => { const L = [[-6, -6], [6, -6], [-6, 6], [6, 6]].sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
-        for(const [la, lb] of L) tube(ca + la, cb + lb, 0, ca + la*0.8, cb + lb*0.8, 35, 0.6, chromeD);
-        cyl(ca, cb, 34, 36, 9, chromeD, chrome); cyl(ca, cb, 36, 38, 8.4, pink, pinkL); };
-      if(far) items.push({ a: ca - 6, b: cb - 6, z: 0, solids: [{ name: 'chair', c: [ca, cb], r: 9, h: 38 }], draw: () => { back(); seat(); } });
-      else { items.push({ a: ca - 6, b: cb - 6, z: 0, solids: [{ name: 'chair', c: [ca, cb], r: 9, h: 38 }], draw: seat });
-        items.push({ a: ba + Math.cos(th)*-2 + 2, b: bb + 2, z: 0, solids: [], draw: back }); } };
+    const TZ = 66;
+    const table = (ta, tb, r, k) => items.push({ a: ta - 4, b: tb - 4, z: 0, solids: [{ name: 'table', c: [ta, tb], r, h: TZ }], draw: () => {
+      plateCircle(ta, tb, 0.5, 12, chromeD, '#8a9096', 0.8); tube(ta, tb, 1, ta, tb, TZ - 5, 2, chrome);
+      cyl(ta, tb, TZ - 5, TZ, r, pink, marble);
+      box(ta - 5, ta + 5, tb - 8, tb - 3, TZ, TZ + 8, white, whiteF, whiteS); F(ta - 4, ta + 4, TZ + 4, TZ + 6.4, '#f4fbfe', null, 0, tb - 2.9);
+      if(k % 2 === 0){ const sa = ta + 8, sb = tb + 5, c = FLAV[k % FLAV.length]; turn(sa, sb, [[TZ, 3.4], [TZ + 1, 3.4]], 'rgba(220,240,248,.7)'); tube(sa, sb, TZ + 1, sa, sb, TZ + 5, 0.6, '#dcecf2');
+        turn(sa, sb, [[TZ + 5, 1.2], [TZ + 8, 4.2], [TZ + 13, 4.8]], 'rgba(220,240,248,.6)'); scoop(sa, sb, TZ + 12, 4, c); ball(sa, sb, TZ + 18, 1.2, '#d0342c'); } } });
+    /* A WIRE CHAIR (its seat 38, 24 across -- the cafe chairs' size, Lagoon Coffee Roasters'): facing th; its back on the side away from where
+       it faces, up to 74. A back on the far side drawn with it, first; a back on the near side its own piece after whoever sits there (they
+       sit a hair forward of its middle) */
+    const chair = (ca, cb, th) => { const ba = ca - Math.cos(th)*11, bb = cb - Math.sin(th)*11, far = Math.cos(th) + Math.sin(th) > 0;
+      const back = () => { for(const s of [-1, 1]){ const pa = ba - Math.sin(th)*9*s, pb = bb + Math.cos(th)*9*s; tube(pa, pb, 36, pa, pb, 66, 0.9, chromeD); }
+        const pts = []; for(let k = 0; k <= 10; k++){ const u = Math.PI*k/10, sd = Math.cos(u)*9; pts.push([ba - Math.sin(th)*sd, bb + Math.cos(th)*sd, 66 + Math.sin(u)*8]); }
+        for(let k = 0; k < 10; k++) tube(pts[k][0], pts[k][1], pts[k][2], pts[k + 1][0], pts[k + 1][1], pts[k + 1][2], 1, chromeD);
+        for(const z of [46, 56]) tube(ba - Math.sin(th)*9, bb + Math.cos(th)*9, z, ba + Math.sin(th)*9, bb - Math.cos(th)*9, z, 0.6, chromeD); };
+      const seat = () => { const L = [[-8, -8], [8, -8], [-8, 8], [8, 8]].sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+        for(const [la, lb] of L) tube(ca + la*1.15, cb + lb*1.15, 0, ca + la*0.85, cb + lb*0.85, 34, 0.8, chromeD);
+        cyl(ca, cb, 33, 35.5, 12, chromeD, chrome); cyl(ca, cb, 35.5, 38, 11.4, pink, pinkL); };
+      if(far) items.push({ a: ca - 6, b: cb - 6, z: 0, solids: [{ name: 'chair', c: [ca, cb], r: 13, h: 38 }], draw: () => { back(); seat(); } });
+      else { items.push({ a: ca - 6, b: cb - 6, z: 0, solids: [{ name: 'chair', c: [ca, cb], r: 13, h: 38 }], draw: seat });
+        items.push({ a: ba + 2, b: bb + 2, z: 0, solids: [], draw: back }); } };
     /* the banquette's tables (a chair across each), the middle ones, the window table */
-    [410, 510, 610].forEach((b, i) => { table(78, b, 16, i); chair(118, b, Math.PI); });
-    [[310, 430], [310, 580], [480, 500]].forEach(([a, b], i) => { table(a, b, 18, i + 3); chair(a - 34, b, 0); chair(a + 34, b, Math.PI); });
-    table(600, 640, 18, 6); chair(566, 640, 0); chair(634, 640, Math.PI);
+    [410, 510, 610].forEach((b, i) => { table(80, b, 20, i); chair(124, b, Math.PI); });
+    [[310, 430], [310, 580], [480, 500]].forEach(([a, b], i) => { table(a, b, 22, i + 3); chair(a - 40, b, 0); chair(a + 40, b, Math.PI); });
+    table(600, 640, 22, 6); chair(560, 640, 0); chair(640, 640, Math.PI);
 
     /* ---- THE GUMBALL MACHINE by the lane: its foot, the pole, the red body with its coin slot and chute, the glass globe of gumballs (the
        far ones first, then the globe's gleam over them), its cap ---- */
