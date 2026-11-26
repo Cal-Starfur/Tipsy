@@ -7210,21 +7210,34 @@ function kerbLatticeJoints(a, b){
    them variable"): each slab's height is rolled across a wide range, skewed so most are gentle and a few are steep (hr^1.6),
    its light scales with its height up to toneMax (a steep slab reads steep), and the ride is weighted by feelK past the
    ramps' so what he does matches what the slab shows. */
-const PAVE_TILT = { p: 1/8, ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneK: 0.3, toneMax: 16, feelK: 1.5,
+/* A ROCKED SLAB (Sir, 2026-11-26: "the slabs are a single piece ... add them alongside the pairs and lips ... these will cause
+   tipsy to tilt forward and back"): one slab tipped whole about its middle, along the walk's own run, so one end stands
+   proud of the walk and the other sinks under it -- a step up, the tilt, a drop off. Rolled only in groups the pairs and
+   lips leave empty (pRock past p), so none of those moves. */
+const PAVE_TILT = { p: 1/8, pRock: 1/14, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneK: 0.3, toneMax: 16, feelK: 1.5,
                     bump: 0.18, kick: 0.07, bumpMs: 140 };
 function paveRunSet(grid){
   if(grid._swRunSet) return grid._swRunSet;
-  const m = new Set();
-  for(const rn of (grid.sidewalkRuns || [])) m.add(Math.floor(rn.x/T2) + ',' + Math.floor(rn.y/T2));
+  /* each mid-block slab, and which way its walk runs (0: along x, 1: along y) */
+  const m = new Map();
+  for(const rn of (grid.sidewalkRuns || [])) m.set(Math.floor(rn.x/T2) + ',' + Math.floor(rn.y/T2), rn.ax);
   return (grid._swRunSet = m);
 }
 /* the feature of slab (ix, iy), if it has one: { kind, axis (0: x, 1: y), z0, dz } -- its height z0 + dz*t across the slab
    along the axis (t 0..1 from its low-index edge) -- and lipS (+1 / -1: which edge stands proud) on a lip. has(ix, iy): is
    that slab a mid-block run's. */
-function paveTilt(ix, iy, has){
+function paveTilt(ix, iy, has, walkAx){
   if(!has(ix, iy)) return null;
-  const T = PAVE_TILT, sx = Math.floor(ix/2), sy = Math.floor(iy/2);
-  if(paveRoll(sx, sy, 15) >= T.p) return null;
+  const T = PAVE_TILT, sx = Math.floor(ix/2), sy = Math.floor(iy/2), r0 = paveRoll(sx, sy, 15);
+  if(r0 >= T.p){
+    if(r0 >= T.p + T.pRock || !walkAx) return null;
+    const R = [2*sx + (paveRoll(sx, sy, 22) < 0.5 ? 0 : 1), 2*sy + (paveRoll(sx, sy, 23) < 0.5 ? 0 : 1)];
+    if(ix !== R[0] || iy !== R[1]) return null;
+    const axis = walkAx(ix, iy);
+    if(axis === undefined) return null;
+    const h = T.hRock[0] + (T.hRock[1] - T.hRock[0])*Math.pow(paveRoll(sx, sy, 24), 1.6), up = paveRoll(sx, sy, 25) < 0.5 ? -1 : 1;
+    return { kind: 'rock', axis, z0: -up*h/2, dz: up*h };
+  }
   const k = paveRoll(sx, sy, 16), axis = paveRoll(sx, sy, 17) < 0.5 ? 0 : 1, row = paveRoll(sx, sy, 18) < 0.5 ? 0 : 1;
   const hr = Math.pow(paveRoll(sx, sy, 19), 1.6), lerp = (r) => r[0] + (r[1] - r[0])*hr;
   if(k < T.valley){
@@ -7242,13 +7255,21 @@ function paveTilt(ix, iy, has){
 }
 /* the walk's height at world (x, y) from a tilted slab, and the slab's uphill gradient; null on the level */
 function paveTiltAt(grid, x, y){
-  const set = paveRunSet(grid), has = (i, j) => set.has(i + ',' + j);
-  const ix = Math.floor(x/T2), iy = Math.floor(y/T2), F = paveTilt(ix, iy, has);
+  const set = paveRunSet(grid), has = (i, j) => set.has(i + ',' + j), walkAx = (i, j) => set.get(i + ',' + j);
+  const ix = Math.floor(x/T2), iy = Math.floor(y/T2), F = paveTilt(ix, iy, has, walkAx);
   if(!F) return null;
   const t = F.axis ? (y - iy*T2)/T2 : (x - ix*T2)/T2, gr = F.dz/T2;
   return { z: F.z0 + F.dz*t, gx: F.axis ? 0 : gr, gy: F.axis ? gr : 0, F, ix, iy };
 }
 /* a segment a -> b held to a convex screen polygon P (either winding); null when none of it is inside (Cyrus-Beck) */
+/* the convex hull of screen points (monotone chain) */
+function hullPts(P){
+  const Q = P.slice().sort((a, b) => a.x - b.x || a.y - b.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
+  const lo = [], hi = [];
+  for(const p of Q){ while(lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for(let i = Q.length - 1; i >= 0; i--){ const p = Q[i]; while(hi.length >= 2 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+  return lo.slice(0, -1).concat(hi.slice(0, -1));
+}
 function clipSegConvex(a, b, P){
   let t0 = 0, t1 = 1;
   const dx = b.x - a.x, dy = b.y - a.y, n = P.length;
@@ -15035,7 +15056,7 @@ function buildSidewalkGeometry(grid){
             const along = OVERSHOOT + (ai+0.5)*T2;
             const x = e.a.x + dv.x*along + rv.x*perp;
             const y = e.a.y + dv.y*along + rv.y*perp;
-            runs.push({ x, y, parity: paveParity(x, y), lane: t });
+            runs.push({ x, y, parity: paveParity(x, y), lane: t, ax: dv.x ? 0 : 1 });
           }
         }
     }
@@ -115139,7 +115160,7 @@ class WorldScene extends Phaser.Scene {
     const PA = PAVE_ART;
     const ix = Math.floor(wx/T2), iy = Math.floor(wy/T2), par = (ix + iy) & 1;
     if(lane !== undefined && this._slabFx && this._slabHas){        // a tilted slab: its light laid after the whole walk (paveTiltFlush)
-      const F = paveTilt(ix, iy, this._slabHas);
+      const F = paveTilt(ix, iy, this._slabHas, this._slabAx);
       if(F) this._slabFx.push({ pts, F, d, ix, iy, wx, wy });
     }
     const odd = paveRoll(ix, iy, 2);
@@ -115241,11 +115262,11 @@ class WorldScene extends Phaser.Scene {
       const lt = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), lk = Math.min(1, Math.abs(F.dz)/T.toneMax)*T.toneK;
       const col = lt >= 0 ? mixC(base, 0xffffff, lt*lk) : mixC(base, RA.shade, -lt*lk);
       const faceCol = lit => lit ? mixC(base, RA.shade, 0.12) : mixC(base, RA.shade, 0.3);
-      const joint = F.kind === 'lip' ? '' : (F.axis ? (F.first ? 'y1' : 'y0') : (F.first ? 'x1' : 'x0'));
+      const joint = (F.kind !== 'ridge' && F.kind !== 'valley') ? '' : (F.axis ? (F.first ? 'y1' : 'y0') : (F.first ? 'x1' : 'x0'));
       /* a line held to the slab's footprint while it is sunk (the walk in front stays in front) */
       const seg = (a, b) => {
         if(!sunk){ g.lineBetween(a.x, a.y, b.x, b.y); return; }
-        const c = clipSegConvex(a, b, pts); if(c) g.lineBetween(c[0].x, c[0].y, c[1].x, c[1].y);
+        const c = clipSegConvex(a, b, this.drawClip || pts); if(c) g.lineBetween(c[0].x, c[0].y, c[1].x, c[1].y);
       };
       /* 1. the shadow its raised near side throws on the walk (+y, a touch of -x: the city's light) */
       if(hMax > 0.5){
@@ -115257,7 +115278,9 @@ class WorldScene extends Phaser.Scene {
         if(joint !== 'y1') sh(C[3], C[2], 0, 1);
       }
       const dc0 = this.drawClip;
-      if(sunk) this.drawClip = pts;
+      /* held to its footprint and what stands above it: below the walk it is hidden by the walk in front (a rocked slab
+         is both: its proud end rises over the slab behind, its sunk end stays inside its own) */
+      if(sunk) this.drawClip = hullPts(pts.concat(C.map(c => this.W(c[0], c[1], Math.max(0, c[2])))));
       try {
         /* 2. sunk: the walk's wall down into it, on its far edges (they face the eye) */
         if(sunk) for(const [ea, eb, nx, ny, nm] of [[0, 1, 0, 1, 'y0'], [0, 3, 1, 0, 'x0']]){
@@ -115285,9 +115308,9 @@ class WorldScene extends Phaser.Scene {
         g.lineStyle(Math.max(1, K*0.7), lit, 0.9); seg(Pt(li, 1), Pt(li, li)); seg(Pt(li, li), Pt(1, li));
         /* 4. sunk: the walk's edge shades the low end of it (+y from its far edge) */
         if(sunk){
-          const A = C[0], B = C[1], wa = Math.max(0, -A[2])*0.9, wb = Math.max(0, -B[2])*0.9;
-          if(joint !== 'y0' && wa + wb > 0.5)
-            this.quadOn(g, [Pt(0, 0), Pt(1, 0), Pt(1, wb/T2), Pt(0, wa/T2)], RA.shade, 0.14);
+          const A = C[0], B = C[1], D = C[3], wa = Math.max(0, -A[2])*0.9, wb = Math.max(0, -B[2])*0.9, wd = Math.max(0, -D[2])*0.9;
+          if(joint !== 'y0' && wa + wb > 0.5) this.quadOn(g, [Pt(0, 0), Pt(1, 0), Pt(1, wb/T2), Pt(0, wa/T2)], RA.shade, 0.14);
+          if(joint !== 'x0' && wa + wd > 0.5) this.quadOn(g, [Pt(0, 0), Pt(wa/T2, 0), Pt(wd/T2, 1), Pt(0, 1)], RA.shade, 0.14);
         }
         /* 5. its sides where it stands above the walk, on the near edges (+y: c01-c11, +x: c10-c11): the slab's concrete in shade
            or in light, a dark foot where it stands on the walk, a lit arris along its top */
@@ -119428,7 +119451,7 @@ class WorldScene extends Phaser.Scene {
        check needed), fine classify()-verified cells only near actual
        intersections — the one place a cheap tile could be wrong. */
     /* broad phase: Manhattan hash on flatSpan. narrow phase: screen AABB. */
-    { const set = paveRunSet(r.grid); this._slabHas = (i, j) => set.has(i + ',' + j); this._slabFx = []; }
+    { const set = paveRunSet(r.grid); this._slabHas = (i, j) => set.has(i + ',' + j); this._slabAx = (i, j) => set.get(i + ',' + j); this._slabFx = []; }
     for(const rn of manhattanQuery(paveHash(r.grid, "sidewalkRuns", "swRunHash"),
                                    this.camX, this.camY, flatSpan, this._qRuns)){
       if(sierraInside(rn.x, rn.y)) continue;             // inside the wall the estate lays its own paving
