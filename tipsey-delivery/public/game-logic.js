@@ -5493,7 +5493,7 @@ function kerbLatticeJoints(a, b){
    tipsy to tilt forward and back"): one slab tipped whole about its middle, along the walk's own run, so one end stands
    proud of the walk and the other sinks under it -- a step up, the tilt, a drop off. Rolled only in groups the pairs and
    lips leave empty (pRock past p), so none of those moves. */
-const PAVE_TILT = { p: 1/8, pRock: 1/14, qRef: 0.6, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneMax: 16, shadowA: 0.16, feelK: 1.5,
+const PAVE_TILT = { p: 1/8, pRock: 1/14, qRef: 0.6, rootSide: 0.3, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneMax: 16, shadowA: 0.16, feelK: 1.5,
                     bump: 0.18, kick: 0.07, bumpMs: 140 };
 function paveRunSet(grid){
   if(grid._swRunSet) return grid._swRunSet;
@@ -113922,7 +113922,7 @@ class WorldScene extends Phaser.Scene {
     const L = this._slabFx; this._slabFx = null;
     if(!L || !L.length) return;
     L.sort((p, q) => (p.ix + p.iy) - (q.ix + q.iy));
-    const A = SLAB_ART, h2 = T2/2, O = this.W(0, 0, 0);
+    const A = SLAB_ART, T = PAVE_TILT, h2 = T2/2, O = this.W(0, 0, 0);
     const seen = (nx, ny) => (this.W(nx, ny, 0).y - O.y) > 1e-6;          // a face turned to the eye (as the slab prop asks)
     for(const { pts, F, d, ix, iy, wx, wy } of L){
       const x0 = wx - h2, y0 = wy - h2;
@@ -113974,13 +113974,19 @@ class WorldScene extends Phaser.Scene {
         }
         /* 3. the walls the eye sees where it stands above the walk, on its near edges: an end's wall in the slab's dark with
            the gap's line round it, a side's wedge in the end-wall tone */
-        for(const [ea, eb, nm] of [[3, 2, 'y1'], [1, 2, 'x1']]){
+        const sides = [];
+        for(const [ea, eb, nm, nx, ny] of [[3, 2, 'y1', 0, 1], [1, 2, 'x1', 1, 0]]){
           if(nm === joint) continue;
           const P = C[ea], Q = C[eb];
           if(Math.max(P[2], Q[2]) <= 0.3) continue;
           const pa = Math.max(0, P[2]), pb = Math.max(0, Q[2]);
           const wall = [this.W(P[0], P[1], pa), this.W(Q[0], Q[1], pb), this.W(Q[0], Q[1], 0), this.W(P[0], P[1], 0)];
           const isEnd = nm[0] === (F.axis ? 'y' : 'x');
+          /* a side wedge as the heaved slab's own sides are (Sir, 2026-11-26: "this type still needs its sides"): the opened
+             joint's soil along its foot, then the wedge; its pale arris goes on after the top, and now and then a root along
+             its foot (below) */
+          if(!isEnd) this.quadOn(g, [this.W(P[0], P[1], 0), this.W(Q[0], Q[1], 0), this.W(Q[0] + nx*4, Q[1] + ny*4, 0), this.W(P[0] + nx*4, P[1] + ny*4, 0)], A.gap, 0.45);
+          if(!isEnd) sides.push({ P, Q, pa, pb, nx, ny, k: sides.length });
           this.quadOn(g, wall, isEnd ? A.topDk : A.wallEnd);
           /* its edges: an end's in the gap's line; a side wedge's in the slab's dark -- its top, its foot, and where a pair's
              two wedges meet under the crest, the upright between them (Sir, 2026-11-26: "this pair is missing some edges") */
@@ -113990,6 +113996,24 @@ class WorldScene extends Phaser.Scene {
         const top = [this.W(C[0][0], C[0][1], C[0][2]), this.W(C[1][0], C[1][1], C[1][2]), this.W(C[2][0], C[2][1], C[2][2]), this.W(C[3][0], C[3][1], C[3][2])];
         this.quadOn(g, top, topCol);
         g.lineStyle(1, A.topDk, 1); line(top.concat([top[0]]));
+        /* 4b. each side wedge's pale arris along its top, and now and then the root that heaved it, along its foot -- rounded,
+           dark below, lit along its back, swelling where the slab stands highest (the heaved slab's root, run along a side) */
+        for(const sd2 of sides){
+          const { P, Q, pa, pb, nx, ny } = sd2;
+          const a1 = this.W(P[0], P[1], pa), b1 = this.W(Q[0], Q[1], pb);
+          g.lineStyle(1, A.arris, 0.85); g.lineBetween(a1.x, a1.y, b1.x, b1.y);
+          if(Math.max(pa, pb) > 2 && paveRoll(ix, iy, 33 + sd2.k) < T.rootSide){
+            const rb = sg.root, nR = rb.length - 1, hM = Math.max(pa, pb);
+            const at = (t, out, z) => this.W(P[0] + (Q[0] - P[0])*t + nx*out, P[1] + (Q[1] - P[1])*t + ny*out, z);
+            for(let i = 0; i < nR; i++){
+              const t0 = -0.06 + 1.12*i/nR, t1 = -0.06 + 1.12*(i + 1)/nR;
+              const zf = t => Math.max(0, pa + (pb - pa)*Math.min(1, Math.max(0, t)))/hM;
+              const h0 = rb[i]*(0.35 + 0.65*zf(t0)), h1 = rb[i + 1]*(0.35 + 0.65*zf(t1)), w0 = 1.5 + h0*0.9, w1 = 1.5 + h1*0.9, c = 4.5;
+              this.quadOn(g, [at(t0, c - w0, 0), at(t1, c - w1, 0), at(t1, c + w1, 0), at(t0, c + w0, 0)], A.rootB);
+              this.quadOn(g, [at(t0, c - w0*0.55, h0), at(t1, c - w1*0.55, h1), at(t1, c + w1*0.15, h1*0.8), at(t0, c + w0*0.15, h0*0.8)], A.rootA);
+            }
+          }
+        }
         /* 5. the arris along a raised edge the eye sees (the lip that catches a wheel) */
         if(upSeen && hiZ > 1 && hiName !== joint){
           const yA = sd*(TILE - 1.2), a = Wl(-TILE + 1, yA, Zb(yA) + 0.05), b = Wl(TILE - 1, yA, Zb(yA) + 0.05);
