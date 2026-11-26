@@ -5493,14 +5493,28 @@ function kerbLatticeJoints(a, b){
    tipsy to tilt forward and back"): one slab tipped whole about its middle, along the walk's own run, so one end stands
    proud of the walk and the other sinks under it -- a step up, the tilt, a drop off. Rolled only in groups the pairs and
    lips leave empty (pRock past p), so none of those moves. */
-const PAVE_TILT = { p: 1/8, pRock: 1/14, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneMax: 16, shadowA: 0.16, feelK: 1.5,
+const PAVE_TILT = { p: 1/8, pRock: 1/14, qRef: 0.6, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneMax: 16, shadowA: 0.16, feelK: 1.5,
                     bump: 0.18, kick: 0.07, bumpMs: 140 };
 function paveRunSet(grid){
   if(grid._swRunSet) return grid._swRunSet;
   /* each mid-block slab, and which way its walk runs (0: along x, 1: along y) */
   const m = new Map();
   for(const rn of (grid.sidewalkRuns || [])) m.set(Math.floor(rn.x/T2) + ',' + Math.floor(rn.y/T2), rn.ax);
+  /* a panel the city's own heaved slab stands on (drawProp's "slab", CITY_FURN) is that slab's: no tilt of ours there or
+     paired with it (Sir, 2026-11-26: the two kinds keep to the same panels' rules) */
+  for(const k of paveHeavedTiles(grid)) m.delete(k);
   return (grid._swRunSet = m);
+}
+/* every panel a city heaved slab stands on, once per grid */
+function paveHeavedTiles(grid){
+  if(grid._swHeaved) return grid._swHeaved;
+  const out = new Set();
+  if(typeof CITY_FURN !== "undefined" && CITY_FURN.on && grid.blocks){
+    cityFurnEdgeIndex(grid);
+    for(const ent of (grid._cfEdges || [])) for(const cp of cityFurnitureForEdgeCached(grid, ent))
+      if(cp.type === 'slab' && !cp.hjRole) out.add(Math.floor(cp.wx/T2) + ',' + Math.floor(cp.wy/T2));
+  }
+  return (grid._swHeaved = out);
 }
 /* the feature of slab (ix, iy), if it has one: { kind, axis (0: x, 1: y), z0, dz } -- its height z0 + dz*t across the slab
    along the axis (t 0..1 from its low-index edge) -- and lipS (+1 / -1: which edge stands proud) on a lip. has(ix, iy): is
@@ -5508,8 +5522,12 @@ function paveRunSet(grid){
 function paveTilt(ix, iy, has, walkAx){
   if(!has(ix, iy)) return null;
   const T = PAVE_TILT, sx = Math.floor(ix/2), sy = Math.floor(iy/2), r0 = paveRoll(sx, sy, 15);
-  if(r0 >= T.p){
-    if(r0 >= T.p + T.pRock || !walkAx) return null;
+  /* THE HOOD'S PAVEMENT, as the city's heaved slabs roll it (cityFurnitureForEdge: 0.18 + (1 - pave)*0.75): a rough hood
+     (Old Town) has far more moved slabs than a smooth one (The Flats). qRef the hood quality at which the base odds hold. */
+  const hd = hoodAtWorld((2*sx + 1)*T2, (2*sy + 1)*T2), q = (0.18 + (1 - (hd ? hd.pave : 0.5))*0.75)/T.qRef;
+  const pP = T.p*q, pR = T.pRock*q;
+  if(r0 >= pP){
+    if(r0 >= pP + pR || !walkAx) return null;
     const R = [2*sx + (paveRoll(sx, sy, 22) < 0.5 ? 0 : 1), 2*sy + (paveRoll(sx, sy, 23) < 0.5 ? 0 : 1)];
     if(ix !== R[0] || iy !== R[1]) return null;
     const axis = walkAx(ix, iy);
@@ -117764,6 +117782,17 @@ class WorldScene extends Phaser.Scene {
       this.paveSlabOn(g, pts, d, rn.x, rn.y, rn.lane);
     }
     this.paveTiltFlush(g);
+    /* THE CITY'S HEAVED SLABS, IN THE GROUND (Sir, 2026-11-26: "pull them into the street draw like the new slabs so they
+       arent props"): still and flat on the walk, so painted once by the ground cache with the paving, after the tilted
+       slabs; the live pass no longer queues them. Their contact (the lip, the ride up) is the prop record's, unchanged. */
+    if(CITY_FURN.on && r.grid){
+      const near = cityFurnitureNear(r.grid, this.camX, this.camY, flatSpan, (this._cfGroundScratch = this._cfGroundScratch || []));
+      for(const cp of near){
+        if(cp.type !== 'slab' || cp.hjRole) continue;
+        if(!this.visProp('slab', cp.wx, cp.wy)) continue;
+        this.drawProp(g, 'slab', cp.wx, cp.wy, 0, cp.f, 0, null, null, cp);
+      }
+    }
     for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
                                      this.camX, this.camY, flatSpan, this._qCorner)){
       if(sierraInside(cell.x, cell.y)) continue;
@@ -119637,6 +119666,7 @@ class WorldScene extends Phaser.Scene {
         this.queueHydrantFlood(groundVQ, g,
           worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0)), hz.f, hz);
       if(!GROUND_KINDS[hz.type] || hz.taken) continue;
+      if(hz.type === 'slab' && hz.cfRail && !hz.hjRole) continue;   // a city heaved slab a frozen course harvested: the ground cache paints the city's
       /* world-anchored ramps (turn crossings) carry their own wx/wy —
          they sit at the true curb lines, positions the route-s mapping
          can't express (the arc seg owns that s-range); everything else
@@ -119734,6 +119764,7 @@ class WorldScene extends Phaser.Scene {
          && !owCorridorHas(this.owCorridor, cp.wx, cp.wy))
         this.queueHydrantFlood(groundVQ, g, { x: cp.wx, y: cp.wy, z: 0 }, cp.f, cp);
       if(!GROUND_KINDS[cp.type]) continue;
+      if(cp.type === 'slab') continue;                       // in the ground cache now (drawGroundPass)
       if(r.cfTaken && r.cfTaken.has(cp.key)) continue;       // the route draws it
       if(owCorridorHas(this.owCorridor, cp.wx, cp.wy)) continue;   // swept by the course
       if(!this.visProp(cp.type, cp.wx, cp.wy)) continue;
