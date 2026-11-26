@@ -5475,7 +5475,11 @@ function kerbLatticeJoints(a, b){
    which way it falls, the ridge's joint a lit break-over, the valley's a dark crease, a lip's raised edge a lit arris and,
    where it faces the eye, its step face. owRampFeel reads the same planes (paveTiltAt): he pitches and leans over them, and a
    lip's step kicks him. Mid-block runs only (no corners, ramps or drives; a drive's apron over one is level). */
-const PAVE_TILT = { p: 1/8, ridge: 0.4, valley: 0.7, hRidge: [5, 8], hValley: [4, 7], hLip: [4, 6], toneK: 0.3,
+/* VARIABLE (Sir, 2026-11-26: "it's a more subtle angle ... id like some to be that much but it needs to show. id like to have
+   them variable"): each slab's height is rolled across a wide range, skewed so most are gentle and a few are steep (hr^1.6),
+   its light scales with its height up to toneMax (a steep slab reads steep), and the ride is weighted by feelK past the
+   ramps' so what he does matches what the slab shows. */
+const PAVE_TILT = { p: 1/8, ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneK: 0.5, toneMax: 16, feelK: 1.5,
                     bump: 0.18, kick: 0.07, bumpMs: 140 };
 function paveRunSet(grid){
   if(grid._swRunSet) return grid._swRunSet;
@@ -5491,7 +5495,7 @@ function paveTilt(ix, iy, has){
   const T = PAVE_TILT, sx = Math.floor(ix/2), sy = Math.floor(iy/2);
   if(paveRoll(sx, sy, 15) >= T.p) return null;
   const k = paveRoll(sx, sy, 16), axis = paveRoll(sx, sy, 17) < 0.5 ? 0 : 1, row = paveRoll(sx, sy, 18) < 0.5 ? 0 : 1;
-  const hr = paveRoll(sx, sy, 19), lerp = (r) => r[0] + (r[1] - r[0])*hr;
+  const hr = Math.pow(paveRoll(sx, sy, 19), 1.6), lerp = (r) => r[0] + (r[1] - r[0])*hr;
   if(k < T.valley){
     const A = axis ? [2*sx + row, 2*sy] : [2*sx, 2*sy + row], B = axis ? [A[0], A[1] + 1] : [A[0] + 1, A[1]];
     if(!has(A[0], A[1]) || !has(B[0], B[1])) return null;
@@ -9063,7 +9067,7 @@ function owRampFeel(scene, ow, W, dt){
   let slabZ = null;
   if(gx === null && W && W.grid){
     const P = paveTiltAt(W.grid, ow.px, ow.py);
-    if(P && !owOnDriveApron(W.grid, ow.px, ow.py)){ gx = P.gx; gy = P.gy; slabZ = P.z; }
+    if(P && !owOnDriveApron(W.grid, ow.px, ow.py)){ gx = P.gx*PAVE_TILT.feelK; gy = P.gy*PAVE_TILT.feelK; slabZ = P.z; }
   }
   const sz = slabZ === null ? 0 : slabZ, pz = ow._slabZ === undefined ? sz : ow._slabZ;
   if(Math.abs(sz - pz) > 1.5 && Math.abs(ow.vel) > 0.01){
@@ -9083,7 +9087,9 @@ function owRampFeel(scene, ow, W, dt){
     ow.rampPitch = Math.atan(OW_RAMP.pitch * (cs*gx + sn*gy));         // nose up facing uphill
     target = -OW_RAMP.roll * (cs*gy - sn*gx);                          // lean to the low side
   }
-  ow.rampPitch += ow.slabBump || 0;
+  /* the nose follows the ground over a short ease, so a ridge's crest or a slab's edge rocks him rather than snapping him */
+  ow.rampPitchE = (ow.rampPitchE || 0) + (ow.rampPitch - (ow.rampPitchE || 0))*Math.min(1, dt/OW_RAMP.easeMs);
+  ow.rampPitch = ow.rampPitchE + (ow.slabBump || 0);
   ow.slopeLean = (ow.slopeLean || 0) + (target - (ow.slopeLean || 0)) * Math.min(1, dt / OW_RAMP.easeMs);
   if(Math.abs(ow.slopeLean) < 1e-4 && !target) ow.slopeLean = 0;
   owLeanCompose(scene, ow);
@@ -11790,7 +11796,7 @@ function owStandUpAt(scene, x, y, yaw){
   if(ow.scoot && typeof scootDrop === "function") scootDrop(scene);   // (a teleport, a handed-back loan: the scooter stands where he was)
   ow.px = x; ow.py = y; ow.yaw = yaw; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
-  ow.leanS = 0; ow.leanI = 0; ow.slopeLean = 0; ow.slabBump = 0; ow._slabZ = undefined;   // stand him up on every channel
+  ow.leanS = 0; ow.leanI = 0; ow.slopeLean = 0; ow.slabBump = 0; ow._slabZ = undefined; ow.rampPitchE = 0;   // stand him up on every channel
   ow.sfcCommit = null;          // respawn must not charge a phantom crossing
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
@@ -113365,7 +113371,7 @@ class WorldScene extends Phaser.Scene {
       const p0 = pts[0], ex = pts[1].x - p0.x, ey = pts[1].y - p0.y, fx = pts[3].x - p0.x, fy = pts[3].y - p0.y;
       const X = (u, v) => ({ x: p0.x + ex*u + fx*v, y: p0.y + ey*u + fy*v });
       const sgn = -Math.sign(F.dz), sx = (F.axis ? fx : ex)*sgn, sy = (F.axis ? fy : ey)*sgn;   // downhill, on screen
-      const t = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), k = Math.min(1, Math.abs(F.dz)/6)*T.toneK;
+      const t = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), k = Math.min(1, Math.abs(F.dz)/T.toneMax)*T.toneK;
       this.quadOn(g, pts, t >= 0 ? 0xffffff : RA.shade, Math.abs(t)*k);
       const edge = (c) => F.axis ? [X(0, c), X(1, c)] : [X(c, 0), X(c, 1)];     // the slab's edge at t = c
       const K = this.K;
