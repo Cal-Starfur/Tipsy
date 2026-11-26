@@ -78932,7 +78932,7 @@ function houseCanopy(fn){
   })(),
   /* THE SALES HUT IS A WALK-IN (wk5, NURSERY_IN): its doorway, 76 across on the gate's axis, a live sliding pair set 6 back of the front; the doorway
      and the two windows show the shop (walkinThrough); a lantern either side of the door glows at night */
-  slideDoors: [{ a: 490+303.6, w: 76, b: -226, z0: 0, z1: 118, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 490+303.6, w: 76, b: -219.2, z0: 0, z1: 118, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane FB + 0.1 (hB0 + 0.6), the leaves at + 0.6)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#3f8a6a'); },
   see: true,
   lamps: [{ a: 771.6, b: -214, z: 132, r: 80, col: 0xffe2a8 }, { a: 891.6, b: -214, z: 132, r: 80, col: 0xffe2a8 }],
@@ -79163,16 +79163,12 @@ function houseCanopy(fn){
     F(hA0+4, hA1-4, 0, 20, shade(tim,.72), null, 0, FB);           // plinth
     for(let k=0;k<7;k++)                                            // boarding
       F(hA0+4, hA1-4, 24+k*17, 26+k*17, shade(tim,.86), null, 0, FB+0.2);
-    /* the doorway, on 525: 76 across (490..566), two jambs and a head round the opening, the shop behind it (NURSERY_IN) */
-    F(484+OA, 490+OA, 0, 126, shade(trim,.9), null, 0, FB+0.4);
-    F(566+OA, 572+OA, 0, 126, shade(trim,.9), null, 0, FB+0.4);
-    F(484+OA, 572+OA, 118, 126, shade(trim,.9), null, 0, FB+0.4);
-    if(SEE) HOLE([P(490+OA,hB0-6,118),P(566+OA,hB0-6,118),P(566+OA,hB0-6,0),P(490+OA,hB0-6,0)]);     // (the opening shows the shop; its live pair, slideDoors)
-    else {
-      F(490+OA, 566+OA, 0, 118, '#2b2118', null, 0, FB+0.4);
-      F(494+OA, 562+OA, 0, 82, trim, null, 0, FB+0.9);                // leaf
-      F(494+OA, 562+OA, 84, 114, 'rgba(122,158,178,.72)', null, 0, FB+0.7); // fanlight
-    }
+    /* the doorway, on 528: 76 across (490..566), 118 high, the shop behind it (NURSERY_IN) -- the KIT'S DOOR, not a frame by hand
+       (doors kit D0, as the mall's entrance): shopDoor's glazed pair as a walk-in's (SEE, just for it), its surround a frame round the
+       opening, the opening a hole onto the shop, the transom; its leaves the kit's sliding pair, live (slideDoors, on the same plane:
+       FB + 0.3) */
+    { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + FB + 0.1; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the slideDoors' -- see Dune Home & Garden's)
+      try { shopDoor(528+OA, trim, trim, null, 1e9, 0, { w: 76, h: 118, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
     for(const la of [468+OA, 588+OA]){ cyl(la, hB0+6, 126, 142, 4, trim); ball(la, hB0+6, 146, 6, '#fff0c8'); }   // a lantern either side
     for(const w0 of [405+OA, 645+OA]){                              // two windows
       slab(w0-30, w0+30, 44, 112, FB+1, FB-7, shade(trim,.9));
@@ -81015,7 +81011,7 @@ function houseCanopy(fn){
   ],
   /* THE TAP ROOM IS A WALK-IN (wk2, SALT_IN): its sliding pair, 120 across between the two windows, live; the windows and
      the doorway show the room (walkinThrough); the lanterns either side of the door glow at night */
-  slideDoors: [{ a: 664.6, w: 120, b: -33, z0: 0, z1: 108, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 664.6, w: 120, b: -33.7, z0: 0, z1: 118, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane FB + 6.1, the leaves at + 0.6)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#e0c88a'); },
   see: true,
   lamps: [{ a: 653, b: -32, z: 130, r: 90, col: 0xffe2a8 }, { a: 796, b: -32, z: 130, r: 90, col: 0xffe2a8 }],
@@ -81319,12 +81315,11 @@ function houseCanopy(fn){
     });
     /* the tap-room door (wk2): a surround, the opening (the tap room behind it: SALT_IN), its live sliding pair
        (slideDoors), 120 across between the two windows -- the way in; a lantern either side */
-    F(656.6, 792.6, 0, 128, shade(wall,1.14), null, 0, FB+6.4);
-    F(656.6, 664.6, 0, 128, shade(trim,.8), null, 0, FB+6.5); F(784.6, 792.6, 0, 128, shade(trim,.8), null, 0, FB+6.5);
-    F(656.6, 792.6, 118, 128, shade(trim,.8), null, 0, FB+6.5);
-    if(SEE) HOLE([P(664.6,FB+6.6,112),P(784.6,FB+6.6,112),P(784.6,FB+6.6,0),P(664.6,FB+6.6,0)]);
-    else F(664.6, 784.6, 0, 112, '#2b2119', null, 0, FB+6.8);
-    F(664.6, 784.6, 112, 118, 'rgba(200,214,224,.7)', null, 0, FB+7.2);
+    /* (the KIT'S DOOR, not a frame by hand -- doors kit D0, as the mall's entrance: shopDoor's glazed pair as a walk-in's (SEE, just for
+       it), its surround a frame round the opening (664.6..784.6, 0..118 -- SALT_IN), the opening a hole onto the tap room, the transom;
+       its leaves the kit's sliding pair, live (slideDoors, on the same plane: FB + 6.3)) */
+    { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + FB + 6.1; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the slideDoors' -- see Dune Home & Garden's)
+      try { shopDoor(724.6, shade(trim,.89), trim, null, 1e9, 0, { w: 120, h: 118, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
     for(const la of [653, 796]){ cyl(la, FB+8, 100, 124, 4, trim); ball(la, FB+8, 128, 6, '#fff0c8'); }
 
     slab(BA0, BA1, 156, 200, FB+6, FB, shade(wall,1.25), null, trim);  // fascia
@@ -83154,7 +83149,7 @@ function houseCanopy(fn){
      game for him and for the shoppers (shopDoorOpen). a, w: the pair's
      opening along lab a; b its plane; walk: where a shopper goes in. */
   /* (ONE PAIR, 150 across, the tower's width less its 30 piers: the way in -- DUNE_IN; the two 62 pairs were too narrow for him) */
-  slideDoors: [{ a: 663.6, w: 150, b: -784, z0: 20, z1: 124, walk: -772, glass: 'rgba(150,190,206,.38)' }],   // (b: the tower stands 30 out with the body; glass the store is seen through: W11)
+  slideDoors: [{ a: 663.6, w: 150, b: -784.8, z0: 20, z1: 124, walk: -772, glass: 'rgba(150,190,206,.38)' }],   // (b: the tower stands 30 out with the body -- the kit door's plane EB + 1.0, its leaves at + 0.6; glass the store is seen through: W11)
   see: true,   // (its entrance and its shopfront show the room inside: walkinThrough, DUNE_IN's openings)
   /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps): the car park's three light masts, two heads each (the draw's mast(): heads at a +-26, 172..180 up) */
   lamps: [[110, -630], [1570, -630], [1590, -260]].flatMap(([a, b]) => [-26, 26].map(d => ({ a: a + d, b, z: 176, r: 150, col: 0xfff0d0 }))),
@@ -83366,11 +83361,14 @@ function houseCanopy(fn){
       HOLE([P(EA0+14,EB+1.2,158),P(EA1-14,EB+1.2,158),P(EA1-14,EB+1.2,20),P(EA0+14,EB+1.2,20)]);
       F(EA0+14, EA1-14, 124, 158, glassSee, null, 0, EB+1.2);                // the transom
       F(EA0+14, EA0+30, 20, 124, glassSee, null, 0, EB+1.2); F(EA1-30, EA1-14, 20, 124, glassSee, null, 0, EB+1.2);   // the sidelights
-      F(EA0+14, EA1-14, 122, 125, shade(wall,.66), null, 0, EB+1.4);        // its rail over the pair (one pair, 150 across: its leaves live, slideDoors)
-    } else {
-      F(EA0+14, EA1-14, 20, 158, glass, null, 0, EB+1.2);
-      F(EA0+30, EA1-30, 20, 124, '#2b3138', null, 0, EB+1.6);              // one pair, 150 across (DUNE_IN)
-    }
+    } else F(EA0+14, EA1-14, 20, 158, glass, null, 0, EB+1.2);
+    /* (the pair the KIT'S DOOR, not a frame by hand -- doors kit D0, as the mall's entrance: shopDoor's glazed pair as a walk-in's (SEE,
+       just for it), its surround the screen's, the opening (EA0+30..EA1-30, 20..124, one pair 150 across -- DUNE_IN) a hole onto the
+       vestibule, the transom; its leaves the kit's sliding pair, live (slideDoors, on the same plane: EB + 1.2). NOT RECORDED (DOOR_REC
+       held off for the call): its leaves are the slideDoors', and a recorded see pair on a block walk-in reads to walkinAwayDoor as a
+       door facing away (shopDoorsOf skips block entries), so a second pair was drawn from inside while he was in -- 2026-11-26) */
+    { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + EB + 1.0; SEE = true; DOOR_REC = null;
+      try { shopDoor((EA0 + EA1)/2, shade(wall,.74), shade(wall,.66), null, 1e9, 20, { w: EA1 - EA0 - 60, h: 104, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
     F(EA0+14, EA1-14, 194, 272, band, null, 0, EB+1.2);                      // the sign panel
     for(let k=0;k<4;k++) F(EA0+30+k*46, EA0+66+k*46, 208, 258, shade(wall,.40), null, 0, EB+1.7);
     /* THE CANOPY WAS INVERTED, and it is the same fault this entry's
@@ -83508,7 +83506,7 @@ function houseCanopy(fn){
   name:'Pelican Drug', xh: 236, base:'Drugstore', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* its sliding pair, live (see Dune Home & Garden's slideDoors) */
   /* (110 across, the tower's width less its piers: the way in -- PELICAN_IN; it was 70, under him) */
-  slideDoors: [{ a: 581.6, w: 110, b: -808, z0: 20, z1: 124, walk: -796, glass: 'rgba(150,190,206,.38)' }],   // (glass the store is seen through: W11)
+  slideDoors: [{ a: 581.6, w: 110, b: -808.8, z0: 18, z1: 126, walk: -796, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane EB + 1.0, the leaves at + 0.6; glass the store is seen through: W11)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#b0aa9e'); },
   /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps): the car park's three light masts, two heads each (the draw's mast():
      heads at a +-24, 166..176 up) */
@@ -83828,11 +83826,12 @@ function houseCanopy(fn){
       HOLE([P(EA0+14,EB+1.2,154),P(EA1-14,EB+1.2,154),P(EA1-14,EB+1.2,18),P(EA0+14,EB+1.2,18)]);
       F(EA0+14, EA1-14, 126, 154, glassSee, null, 0, EB+1.2);             // the transom
       F(EA0+14, EA0+20, 18, 126, glassSee, null, 0, EB+1.2); F(EA1-20, EA1-14, 18, 126, glassSee, null, 0, EB+1.2);
-      F(EA0+14, EA1-14, 124, 127, trim, null, 0, EB+1.4);                 // its rail over the pair
-    } else {
-      F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
-      F(EA0 + 20, EA1 - 20, 18, 126, '#2b3138', null, 0, EB+1.6);        // one sliding pair, 110 across: its leaves live (slideDoors)
-    }
+    } else F(EA0+14, EA1-14, 18, 154, glass, null, 0, EB+1.2);
+    /* (the pair the KIT'S DOOR, not a frame by hand -- doors kit D0, as the mall's entrance: shopDoor's glazed pair as a walk-in's (SEE,
+       just for it), the opening (EA0+20..EA1-20, 18..126, one sliding pair 110 across -- PELICAN_IN) a hole onto the vestibule, the
+       transom; its leaves the kit's sliding pair, live (slideDoors, on the same plane: EB + 1.2)) */
+    { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + EB + 1.0; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the slideDoors' -- see Dune Home & Garden's)
+      try { shopDoor((EA0 + EA1)/2, shade(trim,1.06), trim, null, 1e9, 18, { w: EA1 - EA0 - 40, h: 108, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
     F(EA0+10, EA1-10, 190, 272, band, null, 0, EB+1.2);                   // sign panel
     for(let k=0;k<3;k++) F(EA0+28+k*42, EA0+62+k*42, 206, 256, shade(wall,1.14), null, 0, EB+1.7);
     slab(EA0-18, EA1+18, 160, 180, EB+32, EB+2, trim, null, shade(trim,1.16));
@@ -85895,7 +85894,7 @@ marinaEntry(),
   /* THE HALL IS A WALK-IN (wk7, HALL_IN): its great door, 110 across on the gable's middle, a live sliding pair set 8 back of the
      front (a, b in the lot's frame, world units -- the live pair is drawn unmirrored, the hl queue's frame; z in the entry's);
      the doorway shows the nave (walkinThrough); a lantern on each pier glows at night */
-  slideDoors: [{ a: (2392 - 230 - 55)*0.6923, w: 110*0.6923, b: -8*0.6923, z0: 0, z1: 118, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: (2392 - 230 - 55)*0.6923, w: 110*0.6923, b: 0.2*0.6923, z0: 0, z1: 120, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on the gable's plane (its leaves at 0.6): DW x DH)
   doorDraw(i, u){ const d = this.slideDoors[i], SC = 0.6923; slidePairDraw({ a: d.a/SC, w: d.w/SC, b: d.b/SC, z0: d.z0, z1: d.z1, glass: d.glass }, u, '#2f7f86'); },
   see: true,
   lamps: () => [(2392 - 164)*0.6923, (2392 - 296)*0.6923].map(a => ({ a, b: 2, z: 148, r: 80, col: 0xffe2a8 })),
@@ -86064,15 +86063,11 @@ marinaEntry(),
     for(const pa of [S0-18, S1+4])                          // the arch's piers
       slab(pa, pa+14, 10, SPR, 6, -1, shade(wall,1.06), null, shade(wall,1.2));
     for(const pa of [S0-11, S1+11]){ cyl(pa, 3, SPR, SPR+8, 4, shade(trim,.9)); ball(pa, 3, SPR+14, 6, '#fff0c8'); }   // a lantern on each pier (it glows at night: lamps)
-    /* the door: a painted surround and, SEE (a walk-in's), the opening a hole in this image -- the nave drawn under it, its live pair
-       (slideDoors) over -- else the shut leaves painted */
-    F(S0-4, S1+4, 0, DH+7, shade(wall,.90), null, 0, 0.3);
-    if(SEE) HOLE([P(S0,-8,DH),P(S1,-8,DH),P(S1,-8,0),P(S0,-8,0)]);
-    else {
-      F(S0, S1, 0, DH, '#2b2118', null, 0, 0.4);
-      F(S0+2, DMID-0.5, 0, DH-4, trim, null, 0, 0.6); F(DMID+0.5, S1-2, 0, DH-4, trim, null, 0, 0.6);
-    }
-    F(S0-4, S1+4, DH, DH+7, shade(wall,.78), null, 0, 0.5);   // the head over it
+    /* the door: the KIT'S DOOR, not a frame by hand (doors kit D0, as the mall's entrance) -- shopDoor's glazed pair as a walk-in's (SEE,
+       just for it): its surround a frame round the opening (S0..S1, 0..DH), the opening a hole in this image onto the nave drawn under
+       it, the transom; its leaves the kit's sliding pair, live (slideDoors, on the same plane, 0.2 -- in world units x SC) */
+    { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the slideDoors' -- see Dune Home & Garden's)
+      try { shopDoor(DMID, wall, trim, null, 1e9, 0, { w: DW, h: DH, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
     /* the arch springs at DH + 14, clear of the surround top (DH + 7) */
     const AX0 = S0-18, AX1 = S1+18, APEX = 200;
     const arc = (t, ox, oz) => { const u = 1-t;
