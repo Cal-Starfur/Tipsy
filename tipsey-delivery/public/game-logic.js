@@ -130603,11 +130603,14 @@ class WorldScene extends Phaser.Scene {
       tube([x, bbF, bbU + 6*s], [x, rearF, hubU + 2.6*s], 0.9*s, 0x50565e); tube([x, bbF, bbU - 6*s], [x, rearF, hubU - 2.6*s], 0.9*s, 0x50565e);
       disc(x, rearF, hubU, 2.8*s, 0x8d949c); };
     /* the rear end: its wheel and fender, the stays, the seat tube, the post and the saddle */
-    const rearGroup = () => { wheel(rearF); fender(rearF);
-      tube(RH, BBp, 2.2*s, paint); tube(RH, seatTop, 2*s, paint);
-      tube(BBp, seatTop, 3*s, paint); tube(seatTop, [0, -5*s, sit - 4.5*s], 2*s, METAL);
+    /* (the post and saddle are under the hips: with the back end nearer, the rest of it drawn after them, they go in with the far
+       crank, before the legs and body -- Sir, 2026-11-26, "seat is drawing over the rider") */
+    const saddle = () => { tube(seatTop, [0, -5*s, sit - 4.5*s], 2*s, METAL);
       const sd = [Wp(-3*s, -14*s, sit - 4*s), Wp(3*s, -14*s, sit - 4*s), Wp(4*s, -3*s, sit - 3*s), Wp(1.4*s, 6*s, sit - 3.4*s), Wp(-1.4*s, 6*s, sit - 3.4*s), Wp(-4*s, -3*s, sit - 3*s)];
       g.fillStyle(SADDLE, 1); g.fillPoints(sd, true); };
+    const rearGroup = late => { wheel(rearF); fender(rearF);
+      tube(RH, BBp, 2.2*s, paint); tube(RH, seatTop, 2*s, paint);
+      tube(BBp, seatTop, 3*s, paint); if(!late) saddle(); };
     /* the front end: its wheel and fender, the fork, the head tube, the stem and the swept-back bars to the hands */
     const frontGroup = () => { wheel(frontF); fender(frontF);
       for(const sx of [-1.8*s, 1.8*s]) tube([sx, frontF, hubU], [sx, htBot[1], htBot[2]], 1.8*s, paint);
@@ -130618,7 +130621,7 @@ class WorldScene extends Phaser.Scene {
       const lamp = Wp(0, steerF(barU - 9*s) + 3*s, barU - 9*s); g.fillStyle(0xf4efe0, 1); g.fillCircle(lamp.x, lamp.y, 1.6*s*K*0.42*1.4); };
     /* the frame's middle: the top and down tubes, the chain on its side, the cranks */
     const mid = stage => {
-      if(stage === 'under'){ crank(-nearS); return; }
+      if(stage === 'under'){ crank(-nearS); if(!frontNear && !noRider) saddle(); return; }
       if(nearS < 0) chain();
       tube(seatTop, htTop, 2.4*s, paint); tube(BBp, htBot, 3*s, paint);
       if(nearS > 0) chain();
@@ -130626,7 +130629,7 @@ class WorldScene extends Phaser.Scene {
     /* its shadow, an oval along it */
     { const o = []; for(let i = 0; i < 20; i++){ const w = i/20*Math.PI*2; o.push(Wp(Math.sin(w)*7*s, (rearF + frontF)/2 + Math.cos(w)*((frontF - rearF)/2 + R*0.8), 0)); }
       g.fillStyle(0x000000, 0.16); g.fillPoints(o, true); }
-    const far = frontNear ? rearGroup : frontGroup, near = frontNear ? frontGroup : rearGroup;
+    const far = frontNear ? () => rearGroup(false) : frontGroup, near = frontNear ? frontGroup : () => rearGroup(!noRider);
     far();
     if(noRider){   // its kickstand down to the side, then the middle
       tube([0, bbF - 6*s, bbU], [-nearS*5*s, bbF - 14*s, 0], 1.6*s, DARK);
