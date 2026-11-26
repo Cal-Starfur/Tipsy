@@ -27099,6 +27099,9 @@ function mallStreetBay(st){ const r = st && st.k >= 0 && MALL_PLAN.STREET[st.win
    the camera falls across the doors' glass transoms, never the doors) */
 const MALL_ENT = { AC: 4692, doors: [[4692 - 360, 4692 - 120], [4692 + 120, 4692 + 360]], H: 140, boff: 1.0,   // (boff: the kit door's set-back past BF)
                    can: { a0: 4192, a1: 5192, d: MALL_PLAN.CF - MALL_PLAN.BF, z: 292 }, door: MALL_PLAN.BF + 70 };
+/* AN ANCHOR'S TWO DOORWAYS (the kit's door, shopDoor -- Sir, 2026-11-26: "It should be using our door kit not being hand drawn"): each
+   d0..d1 from its portal's middle, the kit's frame round it (an opening 8 narrower, to H, its head to 112), on the plane BF + B */
+const MALL_ANCHOR_DOORS = [[-170, -20], [20, 170]], MALL_ANCHOR_DOOR_H = 105, MALL_ANCHOR_DOOR_B = 1.3;
 /* a store's door, lab a along the mall */
 function mallDoorA(st){
   const P = MALL_PLAN;
@@ -28742,6 +28745,8 @@ const PALMLINE_PLAN = { PF: -30, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426,
   DM: 1196, DPS: [1078, 1314], DH: 48, G0: 992, G1: 1400, GT: 156,
   LEN: 2392, DEP: 940, PB: -900, PH: 190,                       // the lot, the podium's back and its roof
   TA0: 340, TA1: 2052, TB: -820, TF: -300, TOP: 190 + 12*80, CROWN: 190 + 12*80 + 90 };   // the tower, set back on it (the draw and palmlineVol both read these)
+/* its doors' plane: the kit door (shopDoor, the lobby's pairs and the shops') stands PF + this, its leaves (slideDoors) on it */
+const PALMLINE_DOOR_B = 1.1;
 /* PALMLINE TOWER'S VOLUME (consistency pass b2): the podium and the tower are the solids; the forecourt in front of the shops is
    GROUND now (it was inside the run's one solid rect), so Tipsey drives up to the shops' glass and the lobby. The podium's foot is
    carried back to the lot's far edge (nobody drives round behind it); its two 60-wide side strips stay open to the forecourt. */
@@ -54053,7 +54058,7 @@ function houseCanopy(fn){
          the glass over the bulkhead show the room (walkinThrough); the tower's nine tiles are `shell` and fade round him */
       ...(k === 2 ? {
         see: true,
-        slideDoors: [{ a: C.coffee.door - C.coffee.half, w: C.coffee.half*2, b: 25024 - 27232 - C.coffee.out - 0.4, z0: 0, z1: 112, sense: -60, glass: 'rgba(150,190,206,.38)' }],
+        slideDoors: [{ a: C.coffee.door - 48, w: 96, b: -(736 + 1656 - COVE_FLUSH) - 1.6 + 0.2, z0: 0, z1: 113, sense: -60, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's leaves: its opening, on its plane -- the flush face's, B(PLY), out 1.6; shopDoor's 0.6 in)
         doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); } } : {}),
       draw(p){
         const H = C.H, GT = 190, FH = 80;
@@ -54088,14 +54093,16 @@ function houseCanopy(fn){
           if(!faceView(f, u0, u1, zb, zb + 160, 40)) return;
           const col = st.col, g0 = u0 + 22, g1 = u1 - 22, dm = (u0 + u1)/2;
           faceQ(f, u0 - 8, u0 + 8, zb, GT, stoneD, 0.6); faceQ(f, u1 - 8, u1 + 8, zb, GT, stoneD, 0.6);
-          faceQ(f, g0, g1, zb, zb + 14, shade(stone, .78), 0.8);
           const wk = st.cvc && SEE;       // (a walk-in's, CVC_IN: the doorway and the glass over the bulkhead are holes, the room drawn under them -- W11)
-          if(wk){
+          if(wk){                         // (round its doorway, never across it: D4 -- the kit's door below)
             const hq = (h0, h1, z0, z1, o) => HOLE([facePt(f, h0, o, z1), facePt(f, h1, o, z1), facePt(f, h1, o, z0), facePt(f, h0, o, z0)]);
-            faceQ(f, g0, g1, zb + 14, zb + 46, shade(col, .62), 0.8);                       // the bulkhead under the glass (the room's low near wall stands behind it)
+            const by = (z0, z1, c) => { faceQ(f, g0, dm - 52, z0, z1, c, 0.8); faceQ(f, dm + 52, g1, z0, z1, c, 0.8); };
+            by(zb, zb + 14, shade(stone, .78));
+            by(zb + 14, zb + 46, shade(col, .62));                                            // the bulkhead under the glass (the room's low near wall stands behind it)
             hq(g0 + 8, dm - 52, zb + 46, zb + 112, 0.8); hq(dm + 52, g1 - 8, zb + 46, zb + 112, 0.8);
-            faceQ(f, g0, g1, zb + 46, zb + 120, 'rgba(112,134,146,.38)', 0.8);
+            by(zb + 46, zb + 120, 'rgba(112,134,146,.38)'); faceQ(f, dm - 52, dm + 52, zb + 113, zb + 120, 'rgba(112,134,146,.38)', 0.8);
           } else {
+            faceQ(f, g0, g1, zb, zb + 14, shade(stone, .78), 0.8);
             const [r0, r1] = clip(f, g0, g1);
             if(r1 > r0) shopRoomPaint((u, d, z) => facePt(f, u, -d, zb + z), r0, r1, 14, 120, col, dm, st.span ? st.span[0] % 7 : 0);   // (a lit shop behind the glass, not a black pane)
             faceQ(f, g0, g1, zb + 14, zb + 120, 'rgba(112,134,146,.30)', 0.8);
@@ -54104,10 +54111,17 @@ function houseCanopy(fn){
           for(let u = dm - 52 - 150; u > g0 + 40; u -= 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
           for(let u = dm + 52 + 150; u < g1 - 40; u += 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
           if(wk){
-            /* the doorway: the frame's two posts and its head round a hole 94 across (the live pair, slideDoors, is 6 back) */
-            HOLE([facePt(f, dm - 47, 1.2, zb + 115), facePt(f, dm + 47, 1.2, zb + 115), facePt(f, dm + 47, 1.2, zb), facePt(f, dm - 47, 1.2, zb)]);
-            faceQ(f, dm - 52, dm - 47, zb, zb + 120, '#2b3540', 1.4); faceQ(f, dm + 47, dm + 52, zb, zb + 120, '#2b3540', 1.4);
-            faceQ(f, dm - 52, dm + 52, zb + 115, zb + 120, '#2b3540', 1.4);
+            /* the doorway THE KIT'S DOOR, not a frame by hand (Sir, 2026-11-26: "It should be using our door kit not being hand drawn"):
+               shopDoor's glazed pair as a walk-in's, its frame round the opening (dm -+ 52, to 120), the opening a hole onto the room
+               (W11); its leaves the live slideDoors, on its plane. Once, in the tile that holds it (the face is
+               drawn tile by tile, CLIPA); on a front face only (shopDoor draws on the front plane), whose out is -1 here: its plane
+               out from the face by 1.6, so the kit's own steps in (+0.3 .. +0.7) keep it all proud of the face, as the frame was
+               (1.4). Not recorded (DOOR_REC): the slideDoors draw the leaves, and a recorded walk-in door would read as the room's
+               away door (walkinAwayDoor) */
+            if(f.pl === 'F' && inClip(f, dm)){
+              const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + f.at + f.out*1.6; SEE = true; DOOR_REC = null;
+              try { shopDoor(dm, '#2b3540', '#2b3540', null, 1e9, zb, { w: 96, h: 113, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; }
+            }
           } else {
           faceQ(f, dm - 52, dm - 47, zb, zb + 120, '#2b3540', 1.4); faceQ(f, dm + 47, dm + 52, zb, zb + 120, '#2b3540', 1.4); faceQ(f, dm - 52, dm + 52, zb + 115, zb + 120, '#2b3540', 1.4);
           faceQ(f, dm - 47, dm - 2, zb + 3, zb + 115, 'rgba(170,206,220,.28)', 1.8);
@@ -54319,7 +54333,7 @@ function houseCanopy(fn){
               /* the awnings over what is below them */
               if(r === n - 1){
                 for(const sh of (T.podium === 'S' ? COVE_PLAZA_SHOPS : COVE_STORES))
-                  if(C.towers[sh.tower] === T && !sh.lobby && (T.podium === 'S' || sh.face === 'S')) awning(coveFlushE(sh) ? southP : southF, A(sh.span[0]), A(sh.span[1]), zbS, sh);
+                  if(C.towers[sh.tower] === T && !sh.lobby && !sh.cvc && (T.podium === 'S' || sh.face === 'S')) awning(coveFlushE(sh) ? southP : southF, A(sh.span[0]), A(sh.span[1]), zbS, sh);   // (not the walk-in's: its own piece, below)
               }
               if(c === n - 1){
                 for(const sh of (T.podium === 'E' ? COVE_PLAZA_SHOPS : COVE_STORES))
@@ -54348,6 +54362,13 @@ function houseCanopy(fn){
                 ball(A(mx), B(my), CROWN + 266, 7, '#d8483a', '#ff8a7a');
               }
             }});
+          }
+          /* THE WALK-IN'S AWNING, ITS OWN PIECE (CVC_IN, Seaglass Coffee): out over its live door (the kit's, its leaves the entry's
+             slideDoors), so it sorts after them -- keyed at its nearest corner, as Palmline Tower's are (CLAUDE.md: anything that stands
+             out over a live door sorts after it); drawn whole, not tile by tile. Shell: it fades with the tower round him */
+          for(const sh of COVE_STORES) if(sh.cvc && C.towers[sh.tower] === T && sh.face === 'S'){
+            const f = coveFlushE(sh) ? southP : southF;
+            items.push({ a: A(sh.span[1]) - 28, b: f.at - 40, z: 0, shell: true, draw: () => awning(f, A(sh.span[0]), A(sh.span[1]), zbS, sh) });
           }
         });
         /* the ramps' handrails, one down each side on posts, rising with
@@ -89031,7 +89052,7 @@ marinaEntry(),
   /* THE ANCHORS' SLIDING PAIRS, live (Sir, 2026-10-22: "they dont seem like they work for customers ... the exterior
      and interior versions ... should match"): each anchor's two pairs, either side of its portal's middle, as the
      inside's (fx 'slide') -- the leaves part for whoever comes up to them */
-  slideDoors: [1200, 8184].flatMap(m => [[m - 170, m - 20], [m + 20, m + 170]]).map(([d0, d1]) => ({ a: d0 + 8, w: d1 - d0 - 16, b: MALL_PLAN.BF + 2.2, z0: 4, z1: 104, walk: MALL_PLAN.BF + 40 }))
+  slideDoors: [1200, 8184].flatMap(m => MALL_ANCHOR_DOORS.map(([d0, d1]) => [m + d0, m + d1])).map(([d0, d1]) => ({ a: d0 + 4, w: d1 - d0 - 8, b: MALL_PLAN.BF + MALL_ANCHOR_DOOR_B + 0.2, z0: 0, z1: MALL_ANCHOR_DOOR_H, walk: MALL_PLAN.BF + 40 }))   // (the kit door's leaves: its opening, on its plane -- shopDoor's 0.6)
     /* AND THE PLAZA'S OWN DOORS (MALL_ENT), the main entrance's two pairs (the census, 2026-10-30: painted shut, the
        crowd and Tipsey walked through the glass): they part for the crowd, and for him once he has the password
        (ent: POCKET_GATES' rule); their glass as see-through as the painted pair was */
@@ -89039,7 +89060,7 @@ marinaEntry(),
     /* AND THE FRONT ROW'S SIX STREET DOORS (the census's O2, 2026-11-09: painted, a black rectangle that only opened for
        the pickup worker, and the shop behind it nothing): the same sliding pair as the anchors', parting for the crowd and
        the pickup worker (not for him: he cannot go in -- bay), the shop seen through it */
-    .concat(['W', 'E'].flatMap(w => MALL_PLAN.STREET[w].map(([, , , dm]) => ({ a: dm - 48, w: 96, b: MALL_PLAN.CF + 1.2, z0: 3, z1: 115, walk: MALL_PLAN.CF + 40, bay: true, glass: 'rgba(170,210,224,.34)' })))),
+    .concat(['W', 'E'].flatMap(w => MALL_PLAN.STREET[w].map(([, , , dm]) => ({ a: dm - 48, w: 96, b: MALL_PLAN.CF + 1.2, z0: 0, z1: 113, walk: MALL_PLAN.CF + 40, bay: true, glass: 'rgba(170,210,224,.34)' })))),   // (the kit door's opening, on its plane: CF + 1.0 + 0.2)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#27313a'); },
   vol: mallVol(),
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
@@ -89211,7 +89232,9 @@ marinaEntry(),
         const n = Math.max(2, Math.round((s1 - s0)/150));
         for(let k = 0; k < n; k++) wins.push([s0 + (s1 - s0)*(k + 0.2)/n, s0 + (s1 - s0)*(k + 0.8)/n, 26, 136]);
       }
-      let holes = wins.concat([[mid - pw + 26, mid + pw - 26, 12, HA - 110]]);
+      /* (its doorways cut out of the stone and the portal's trim to the floor -- nothing painted across an opening, even drawn live: D4) */
+      const doorHoles = MALL_ANCHOR_DOORS.map(([d0, d1]) => [mid + d0 + 4, mid + d1 - 4, 0, MALL_ANCHOR_DOOR_H]);
+      let holes = wins.concat([[mid - pw + 26, mid + pw - 26, 12, HA - 110]], doorHoles);
       const holed = (u0, u1, z0, z1, c, o) => {                                    // a face u0..u1 x z0..z1 on BF + o, less the holes
         const zs = [z0, z1]; for(const h of holes){ if(h[2] > z0 && h[2] < z1) zs.push(h[2]); if(h[3] > z0 && h[3] < z1) zs.push(h[3]); }
         zs.sort((p, q) => p - q);
@@ -89255,17 +89278,22 @@ marinaEntry(),
       }
       if(c1 <= mid - pw || c0 >= mid + pw) return;                                  // (the portal's is the middle strip)
       /* the portal: a frame round its whole curtain, the glass, its mullions, the doorways' frames, its name */
-      holes = [[mid - pw + 26, mid + pw - 26, 12, HA - 110]];
+      holes = [[mid - pw + 26, mid + pw - 26, 12, HA - 110]].concat(doorHoles);
       holed(mid - pw, mid + pw, 0, zc(HA - 20), trim, 0.6);
       { const gl = (u0, u1, z0, z1) => Fc(u0, u1, z0, zc(z1), 'rgba(150,196,214,.30)', null, 0, BF + 1.0);
         gl(mid - pw + 26, mid + pw - 26, 112, HA - 110); gl(mid - pw + 26, mid - 170, 12, 112); gl(mid - 20, mid + 20, 12, 112); gl(mid + 170, mid + pw - 26, 12, 112); }
-      for(let a = mid - pw + 26; a <= mid + pw - 26 + 0.1; a += (2*pw - 52)/6) Fc(a - 3, a + 3, 12, zc(HA - 110), mull, null, 0, BF + 1.4);
+      for(let a = mid - pw + 26; a <= mid + pw - 26 + 0.1; a += (2*pw - 52)/6)                // (over a doorway: from its head up, never across it)
+        Fc(a - 3, a + 3, MALL_ANCHOR_DOORS.some(([d0, d1]) => a + 3 > mid + d0 && a - 3 < mid + d1) ? 112 : 12, zc(HA - 110), mull, null, 0, BF + 1.4);
       for(let z = 110; z < zc(HA - 110); z += 70) Fc(mid - pw + 26, mid + pw - 26, z - 2, z + 2, mull, null, 0, BF + 1.4);
       if(low){ Tc(mid - pw, mid + pw, BF - 30, BF + 0.6, LOWZ, shade(trim, 1.15)); }   // (its cap, the portal's colour)
-      for(const [d0, d1] of [[mid - 170, mid - 20], [mid + 20, mid + 170]]){
-        /* its frame round the doorway (open: the store inside it, MALL_THROUGH), the track; its leaves live (slideDoors) */
-        Fc(d0, d0 + 8, 0, 112, '#27313a', null, 0, BF + 1.6); Fc(d1 - 8, d1, 0, 112, '#27313a', null, 0, BF + 1.6); Fc(d0, d1, 104, 112, '#27313a', null, 0, BF + 1.6);
-        Fc(d0 + 8, d1 - 8, 0, 4, '#c9cfd4', null, 0, BF + 1.9);
+      /* (each doorway the KIT'S DOOR, not a frame by hand -- as the main entrance's, MALL_ENT): shopDoor's glazed pair as a walk-in's (SEE,
+         just for it), its surround in the portal's dark: a frame round the opening (d0..d1 to the head, 112), the opening a hole onto the
+         store behind (MALL_THROUGH); its leaves the kit's sliding pair, live (the entry's slideDoors, on the same plane). Not recorded
+         (DOOR_REC): nothing swings these, the slideDoors draw them */
+      for(const [d0, d1] of MALL_ANCHOR_DOORS){
+        const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + BF + MALL_ANCHOR_DOOR_B; SEE = true; DOOR_REC = null;
+        try { shopDoor(mid + (d0 + d1)/2, '#27313a', '#27313a', null, 1e9, 0, { w: d1 - d0 - 8, h: MALL_ANCHOR_DOOR_H, pair: true }); }
+        finally { BOFF = b0; SEE = s0; DOOR_REC = r0; }
       }
       if(!low) blockWordIn(st.sign, mid - pw + 30, mid + pw - 30, HA - 96, HA - 30, BF + 1, signCol, null, 13);
     };
@@ -89334,10 +89362,11 @@ marinaEntry(),
            worker standing in it. Now a pair of glass leaves from the
            ground to the transom, 104 across by 180 -- a shop's double
            door, about one and a half times the person in it. */
-        {                                                                          // the doorway: its frame only -- the leaves are live (slideDoors), the shop shows through
-          F(dm - 52, dm - 47, 0, 120, '#2b3540', null, 0, BF + 1.2); F(dm + 47, dm + 52, 0, 120, '#2b3540', null, 0, BF + 1.2);
-          F(dm - 52, dm + 52, 115, 120, '#2b3540', null, 0, BF + 1.2);
-          F(dm - 47, dm + 47, 0, 3, '#c9cfd4', null, 0, BF + 1.4); }              // the track
+        /* (the doorway the KIT'S DOOR, not a frame by hand -- as the main entrance's, MALL_ENT): shopDoor's glazed pair as a walk-in's (SEE,
+           just for it), its surround the frame round the bay's hole (dm -+ 52, to 120), the opening a hole onto the shop behind; the leaves
+           live (the entry's slideDoors, bay, on the same plane). Not recorded (DOOR_REC): the slideDoors draw them */
+        { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + BF + 1.0; SEE = true; DOOR_REC = null;
+          try { shopDoor(dm, '#2b3540', '#2b3540', null, 1e9, 0, { w: 96, h: 113, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
         F(b0 + 40, b1 - 24, 138, 166, col, null, 0, BF + 1.0);                     // sign board
         if(st.sign) blockWordIn(st.sign, b0 + 52, b1 - 36, 143, 161, BF + 0.4, '#fbf7ee', null, 4);
         /* (no goods painted in the window: the shop's own fittings are behind the glass now) */
@@ -89966,10 +89995,10 @@ marinaEntry(),
      him), the shops' shares ghost (`ghost`, SHELL_GHOST: they stand over the room on screen, W26); the lobby's glass is a HOLE onto the live
      room (see), and its two pairs slide (slideDoors, live) */
   see: true,
-  slideDoors: PALMLINE_PLAN.DPS.map(c => ({ a: c - PALMLINE_PLAN.DH, w: PALMLINE_PLAN.DH*2, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 117, glass: 'rgba(170,206,220,.30)', over: 'canopy', share: 'L' }))
+  slideDoors: PALMLINE_PLAN.DPS.map(c => ({ a: c - PALMLINE_PLAN.DH, w: PALMLINE_PLAN.DH*2, b: PALMLINE_PLAN.PF + PALMLINE_DOOR_B + 0.2, z0: 0, z1: 117, glass: 'rgba(170,206,220,.30)', over: 'canopy', share: 'L' }))   // (the kit door's leaves: its opening, on its plane -- shopDoor's 0.6)
     /* (and the two shops' pairs, walk-ins now -- pt2: CORAL_IN, MARINA_IN -- each under its own awning) */
     .concat(RIM_STORES.filter(st => st.site === 'Palmline Tower').map(st => { const r = palmlineStoreSpan(st), dm = (r[0] + r[1])/2;
-      return { a: dm - 47, w: 94, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 115, glass: 'rgba(170,206,220,.30)', over: st.name, share: st.side }; })),
+      return { a: dm - 48, w: 96, b: PALMLINE_PLAN.PF + PALMLINE_DOOR_B + 0.2, z0: 0, z1: 113, glass: 'rgba(170,206,220,.30)', over: st.name, share: st.side }; })),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); },
   /* ITS LAMPS AT NIGHT (pt6, the lamp kit: queueLandmarkLamps): downlights under the lobby's canopy, and two under each shop's awning --
      their pools on the forecourt; the rooms behind the glass are lit by the walk-in kit (walkinThrough's glow, the night boxes, W25) */
@@ -90167,22 +90196,23 @@ marinaEntry(),
         if(!inView(a0, a1, PF, PF + 2, 0, GH)) return;
         F(a0 - 8, a0 + 8, 0, GH, stoneD, null, 0, PF + 0.6);                     // the piers
         F(a1 - 8, a1 + 8, 0, GH, stoneD, null, 0, PF + 0.6);
-        F(g0, g1, 0, 14, shade(stone, .78), null, 0, PF + 0.8);                   // the stall riser
+        F(g0, dm - 52, 0, 14, shade(stone, .78), null, 0, PF + 0.8); F(dm + 52, g1, 0, 14, shade(stone, .78), null, 0, PF + 0.8);   // the stall riser (not across the doorway: D4)
         /* A WALK-IN NOW (pt2: CORAL_IN, MARINA_IN): its glass and doorway are HOLEs onto the live room (walkinThrough), not a painted shop;
            its pair slides, live (the entry's slideDoors) */
         if(SEE){ HOLE([P(g0, PF + 0.7, 112), P(dm - 52, PF + 0.7, 112), P(dm - 52, PF + 0.7, 14), P(g0, PF + 0.7, 14)]);
-                 HOLE([P(dm + 52, PF + 0.7, 112), P(g1, PF + 0.7, 112), P(g1, PF + 0.7, 14), P(dm + 52, PF + 0.7, 14)]);
-                 HOLE([P(dm - 47, PF + 0.7, 115), P(dm + 47, PF + 0.7, 115), P(dm + 47, PF + 0.7, 0), P(dm - 47, PF + 0.7, 0)]); }
+                 HOLE([P(dm + 52, PF + 0.7, 112), P(g1, PF + 0.7, 112), P(g1, PF + 0.7, 14), P(dm + 52, PF + 0.7, 14)]); }   // (the doorway's: the kit door's, below)
         else shopRoomPaint((u, d, z) => P(u, PF - d, z), g0, g1, 14, 120, col, dm, k);
         F(g0, dm - 52, 14, 112, 'rgba(112,134,146,.24)', null, 0, PF + 0.8); F(dm + 52, g1, 14, 112, 'rgba(112,134,146,.24)', null, 0, PF + 0.8);   // the glass, light
         F(g0, g1, 112, 120, sMull, null, 0, PF + 1.2);                             // the transom bar
         /* the bays: mullions out from the door each way */
         for(let a = dm - 52 - 150; a > g0 + 40; a -= 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
         for(let a = dm + 52 + 150; a < g1 - 40; a += 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
-        /* the doors, to a person's scale (the mall's: 104 across, to the transom): the frame, the leaves clear glass over the room */
-        F(dm - 52, dm - 47, 0, 120, '#2b3540', null, 0, PF + 1.4); F(dm + 47, dm + 52, 0, 120, '#2b3540', null, 0, PF + 1.4); F(dm - 52, dm + 52, 115, 120, '#2b3540', null, 0, PF + 1.4);
-        if(!SEE){ for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]]) F(l0, l1, 3, 115, 'rgba(170,206,220,.28)', null, 0, PF + 1.8);
-                  for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2); }   // (its leaves: the live slideDoors)
+        /* the doors, to a person's scale (the mall's: 104 across, to the transom): THE KIT'S DOOR, not a frame by hand (Sir, 2026-11-26: "It
+           should be using our door kit not being hand drawn") -- shopDoor's glazed pair as a walk-in's (SEE, just for it): its frame round
+           the opening (dm -+ 52, to 120), the opening a hole onto the room; its leaves the live slideDoors on its plane. Not recorded
+           (DOOR_REC): the slideDoors draw the leaves, and a recorded walk-in door would read as the room's away door (walkinAwayDoor) */
+        { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + PF + PALMLINE_DOOR_B; SEE = true; DOOR_REC = null;
+          try { shopDoor(dm, '#2b3540', '#2b3540', null, 1e9, 0, { w: 96, h: 113, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
         /* the sign board and its name */
         F(a0 + 30, a1 - 30, 126, GH - 2, col, null, 0, PF + 1.0);
         F(a0 + 30, a1 - 30, GH - 4, GH - 2, shade(col, 1.3), null, 0, PF + 1.1);
@@ -90200,7 +90230,8 @@ marinaEntry(),
         F(LOB0 - 8, G0, 0, PH, stoneD, null, 0, PF + 0.6);                      // the piers
         F(G1, LOB1 + 8, 0, PH, stoneD, null, 0, PF + 0.6);
         if(SEE) HOLE([P(G0, PF + 0.7, GT), P(G1, PF + 0.7, GT), P(G1, PF + 0.7, 0), P(G0, PF + 0.7, 0)]);   // (the lobby behind the glass: W11)
-        F(G0, G1, 0, GT, 'rgba(112,134,146,.22)', null, 0, PF + 0.8);            // the glass wall, light
+        { const gw = (u0, u1, z0, z1) => F(u0, u1, z0, z1, 'rgba(112,134,146,.22)', null, 0, PF + 0.8);   // the glass wall, light (round the doorways: D4)
+          gw(G0, Q.DPS[0] - Q.DH, 0, 121); gw(Q.DPS[0] + Q.DH, Q.DPS[1] - Q.DH, 0, 121); gw(Q.DPS[1] + Q.DH, G1, 0, 121); gw(G0, G1, 121, GT); }
         F(G0, G1, 0, GT, null, lMull, 1.2, PF + 1.0);
         for(const z of [120, 150]) F(G0, G1, z - 3, z + 3, lMull, null, 0, PF + 1.2);   // the transoms
         /* the mullions: at the glass's ends, either side of the drum, and between each pair and the wall's end */
@@ -90210,10 +90241,11 @@ marinaEntry(),
         F(mid - 62, mid - 56, 0, 117, '#2b3540', null, 0, PF + 1.4); F(mid + 56, mid + 62, 0, 117, '#2b3540', null, 0, PF + 1.4); F(mid - 62, mid + 62, 112, 117, '#2b3540', null, 0, PF + 1.4);
         F(mid - 56, mid + 56, 3, 112, 'rgba(170,206,220,.24)', null, 0, PF + 1.8);
         for(const a of [mid - 28, mid, mid + 28]) F(a - 1.5, a + 1.5, 3, 112, '#8fa3ad', null, 0, PF + 2.0);
-        /* the frame of each pair (its leaves are the live slideDoors) */
+        /* each pair THE KIT'S DOOR (as the shops'): its frame round the opening (DH each side, to 117), the opening a hole onto the lobby;
+           its leaves the live slideDoors on its plane (not recorded, DOOR_REC: see the shops') */
         for(const dm of Q.DPS){
-          const h = Q.DH;
-          F(dm - h - 4, dm - h, 0, 121, '#2b3540', null, 0, PF + 1.4); F(dm + h, dm + h + 4, 0, 121, '#2b3540', null, 0, PF + 1.4); F(dm - h - 4, dm + h + 4, 117, 121, '#2b3540', null, 0, PF + 1.4);
+          const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + PF + PALMLINE_DOOR_B; SEE = true; DOOR_REC = null;
+          try { shopDoor(dm, '#2b3540', '#2b3540', null, 1e9, 0, { w: Q.DH*2, h: 117, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; }
         }
         /* the name band, proud of the wall */
         slab(LOB0 - 8, LOB1 + 8, GT, PH - 6, PF + 6, PF, teal, shade(teal, .72), shade(teal, 1.2));
