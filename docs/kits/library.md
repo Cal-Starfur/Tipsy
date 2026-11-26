@@ -72,6 +72,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | Aircraft, boats, drones | `drawAircraft`, `drawPlane`, `drawJet`, `drawHeli`, `drawAutoBoat`, `drawDrone` | | |
 | Soapbox karts | `soapKartS`, `soapWheel` | | Tidewater Kart Works |
 | Scooters | `drawProp('scooter')`, `drawScooterRider` | part-built: `stage` 0..7, `'7h'` (head lamp on, no tail light); one piece alone: `'rear'`, `'p2'`..`'p7'`, `'p6s'` (one grip), `'p7t'` (the tail light) | Kickstand Scooter Co. (the line's pieces: `PIECE` / `PSETP`) |
+| Bike riders | `drawBikeRider` (a cruiser sized to its rider, them pedalling on it: `pose.pedal` + `pose.between`; `noRider` stood on its kickstand) | `BIKE_BRANDS` paints; `riderBrand(seed)` gives a rider a bike for `BIKE_RIDE.share` of seeds -- any rider's scooter call with a bike brand draws the bike | street riders, pavement riders |
 
 ## Building parts and street props
 

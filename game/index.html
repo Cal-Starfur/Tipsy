@@ -3158,7 +3158,20 @@ const BRANDS = [
 /* share 0.22 -> 0.08 (Sir, 2026-10-12: "we need fewer people on scooters;
    some of them need to be street walking people looking for a scooter" --
    see SEEKERS) */
-const RIDER = { deck: 12, wheelA: 26, wheelR: 7, riderA: -8, lift: 0.6, paveSpeed: 0.10, pausMs: 500, share: 0.08 };   // (0.07 -> 0.10 with the walkers' 0.02 -> 0.065: a scooter still passes a walker)
+const RIDER = { deck: 12, wheelA: 26, wheelR: 7, riderA: -8, lift: 0.6, paveSpeed: 0.10, pausMs: 500, share: 0.08 };
+/* BIKE RIDERS (Sir, 2026-11-26: "we want to replace some of our scooter riders with bike riders"): a share of the riders -- on the
+   pavement and in the road -- ride a bicycle instead, Palmline Bikes' cruisers (drawBikeRider). The bike is a "brand" with bike set, so
+   every place a rider's scooter is drawn (riding, stood by the kerb, gone over with them) draws the bike; a parked bike is not a prop to
+   knock or hop on. share: of the riders; lift: the arms to the bars; paints: the frames */
+const BIKE_RIDE = { share: 0.5, lift: 0.48,
+  paints: [[0x7fc8b4, 0x4f9480], [0xe8715f, 0xa94436], [0x5f9ed6, 0x3a6c9e], [0xf0cc5a, 0xb08a2a], [0x33373e, 0x1f2227], [0xc9413a, 0x8a2622], [0xe9dfc8, 0xb3a78c]] };
+const BIKE_BRANDS = BIKE_RIDE.paints.map(([c, cDk], i) => ({ name: 'bike', bike: true, c, cDk, i }));
+/* the rider's ride for a seed: a bike for BIKE_RIDE.share of them, else their scooter brand as before (BRANDS[seed % n]) */
+function riderBrand(seed){
+  seed = seed >>> 0;
+  const r = (Math.imul(seed ^ 0xb1c7, 2246822519) >>> 0) / 4294967296;
+  return r < BIKE_RIDE.share ? BIKE_BRANDS[(seed >>> 4) % BIKE_BRANDS.length] : BRANDS[seed % BRANDS.length];
+}   // (0.07 -> 0.10 with the walkers' 0.02 -> 0.065: a scooter still passes a walker)
 /* HOW FAST PEOPLE WALK THE PAVEMENT (Sir, 2026-10-17: "this fella walking down
    the side walk ... seems to be moving too slowly, the shoppers all seem to
    function properly"). The pavement walkers went 0.02 a ms -- a quarter of
@@ -10460,6 +10473,7 @@ const SAY = {
   riderWait: ["Excuse me!", "Coming through!", "On your left!", "Scooch, robot!", "Ding ding!"],
   riderBump: ["Hey! Watch it!", "Whoa!", "Not cool, robot!", "Sorry, sorry!", "Eek!"],
   riderDown: ["Ow! My knee!", "You knocked me over!", "Seriously, robot?!", "My scooter!", "Aaah!"],
+  riderDownBike: ["Ow! My knee!", "You knocked me over!", "Seriously, robot?!", "My bike!", "Aaah!"],
   riderUp:   ["I'm okay... I think.", "Unbelievable.", "Watch it next time!", "Who programs these things?!"],
   riderMad:  ["You knocked me clean off!", "Do you even have brakes?!", "Look what you did!", "Who's your manager, robot?!", "I could've been hurt!"],
   riderLeave: ["Hmph. Watch it.", "Unbelievable.", "Robots...", "Look where you're going next time!"],
@@ -27735,7 +27749,8 @@ function parkedScootersNow(sc){
     const sp = peopleSpotAt(t, h);
     if(!sp || !sp.foot || !sp.park || peopleFleeAt(t, h)){ h._pp = null; continue; }   // (back on it: the next call's is a new one)
     const w = hazSpotWorld(h, sp.park.a, sp.park.b);
-    if(w){ const pp = parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]); if(!pp.taken) list.push(pp); }
+    const br = riderBrand(h.peopleSeed || 0); if(br.bike) continue;   // (a bike stood by the kerb: drawn with its rider, not a prop -- BIKE_RIDE)
+    if(w){ const pp = parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, br); if(!pp.taken) list.push(pp); }
   }
   sc._parkScoot = { t, list };
   return list;
@@ -121749,7 +121764,7 @@ class WorldScene extends Phaser.Scene {
             return W0.call(this, x + nx*(s2 - sd), y + ny*(s2 - sd), Math.max(0, z2)); };
         }
         /* the scooter (alone while they are off it), and them: going over, down, getting up, or lifting it */
-        this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, BRANDS[rd.seed % BRANDS.length], tt, startle, moving && !roll ? at.trS*0.28 : null, noRider);
+        this.drawScooterRider.call(me, layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, riderBrand(rd.seed), tt, startle, moving && !roll ? at.trS*0.28 : null, noRider);
         if(body) this.drawFallenHull(layerFor(rx, ry), rx, ry, at.wp.z || 0, thW, build, sk, sh, pa, ha, so, rd.fallSide || 1, rd.fallImp, body.down, body.off, body.rise, undefined, null, L.dress, rd.seed, body.land);
         if(lifter) this.drawPersonHull(layerFor(lifter.x, lifter.y), lifter.x, lifter.y, 0, lifter.th - Math.PI/2, build, sk, sh, pa, ha, so, 0, false, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       } });
@@ -132274,7 +132289,85 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 1);
       for(let i = 0; i < 16; i++){ const u = ((i*0.618034) % 1)*0.96 + 0.02, v = (((i*0.7548777) % 1) - 0.5)*2*(M - 0.8), q = at(u, v); g.fillCircle(q.x, q.y, (i % 3 === 0 ? 0.9 : 0.55)*this.K*0.42*1.4); } }
   }
+  /* BIKE_RIDE's ---------- */
+  /* A BIKE RIDER (BIKE_RIDE): Palmline Bikes' cruiser, side-on in its own frame (f forward, u up, x across -- the rider's own G), sized to
+     the rider (s: their legs to an adult's 52), and them sat on it pedalling (pose.pedal: the feet round the cranks, the exercise bike's,
+     pose.between: what is between the legs). The saddle under the hips, the cranks where the legs reach (the lowest pedal 0.95 of a leg
+     from the hip), the bars where the hands come (lift, the arms straight); the wheels, frame and bars from there. Drawn back to front
+     by which end is nearer: the far end's group (its wheel, and the saddle's post or the fork and bars) before them, the near end's after,
+     the frame's tubes and the cranks between the legs. noRider: the bike alone, on its kickstand. */
+  drawBikeRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni){
+    const fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd), K = this.K, z0 = z || 0;
+    const B = build || PEOPLE_BUILD[0], s = Math.max(0.55, Math.min(1.1, B.legH/52));
+    const Wp = (x, f, u) => this.W(ax + x*fs + f*fc, ay - x*fc + f*fs, z0 + u);
+    const lw = w => Math.max(1, w*K*0.42*1.6);   // (its tubes as thick as they read: the vehicles' line weight read spindly on a bike)
+    const tube = (p, q, w, col) => { const A = Wp(p[0], p[1], p[2]), C = Wp(q[0], q[1], q[2]); g.lineStyle(lw(w), col, 1); g.lineBetween(A.x, A.y, C.x, C.y); };
+    const arcPts = (x, cf, cu, r, a0, a1, n) => { const o = []; for(let i = 0; i <= n; i++){ const a = a0 + (a1 - a0)*i/n; o.push(Wp(x, cf + Math.cos(a)*r, cu + Math.sin(a)*r)); } return o; };
+    const disc = (x, cf, cu, r, col) => { g.fillStyle(col, 1); g.fillPoints(arcPts(x, cf, cu, r, 0, Math.PI*2, 16), true); };
+    const ring = (x, cf, cu, r, w, col, n) => { g.lineStyle(lw(w), col, 1); g.strokePoints(arcPts(x, cf, cu, r, 0, Math.PI*2, n || 20), true); };
+    const arc = (x, cf, cu, r, a0, a1, w, col) => { g.lineStyle(lw(w), col, 1); g.strokePoints(arcPts(x, cf, cu, r, a0, a1, 10), false); };
+    /* which side and which end are nearer the eye, read off the projection (screen y grows toward it) */
+    const O = Wp(0, 0, 0), nearS = Wp(1, 0, 0).y > Wp(-1, 0, 0).y ? 1 : -1, frontNear = Wp(0, 1, 0).y > Wp(0, -1, 0).y;
+    const paint = brand.c, paintDk = brand.cDk, TYRE = 0x262a30, RIM = 0xc9ced4, METAL = 0x9aa1aa, DARK = 0x2f3338, SADDLE = 0x5a3a26, GRIP = 0x3a2a20;
+    /* THE GEOMETRY, from the rider: the wheel, the bottom bracket a touch under the hubs and 14 ahead of the hips, the crank's reach */
+    const R = 21*s, hubU = R, bbF = 14*s, bbU = R - 3*s, cr = 9*s, legReach = 0.95*B.legH;
+    const ankLow = bbU + 7.8 - cr, sit = ankLow + Math.sqrt(Math.max(100, legReach*legReach - (bbF - 2.5)*(bbF - 2.5)));
+    const th = BIKE_RIDE.lift*LIFT_MAX_ANGLE, shU = sit + B.torsoH - 1, handF = B.armLen*Math.sin(th), barU = shU - B.armLen*Math.cos(th), hb = B.torsoW/2 - 1;
+    const rake = 0.36, steerF = u => frontF - (u - hubU)*rake, frontF = handF + 4*s + (barU - hubU)*rake, rearF = bbF - 26*s;
+    const seatTop = [0, -4*s, sit - 12*s], htTop = [0, steerF(barU - 12*s), barU - 12*s], htBot = [0, steerF(hubU + 22*s), hubU + 22*s];
+    const BBp = [0, bbF, bbU], RH = [0, rearF, hubU], FH = [0, frontF, hubU];
+    /* the wheels turn as it goes (the scooter's wheelPhase, its little wheels: ours in step with the ground), the cranks a third as fast */
+    const wAng = wheelPhase != null ? -wheelPhase*(RIDER.wheelR/R) : 0, cAng = wheelPhase != null ? wAng*0.42 : Math.PI*0.08;
+    const wheel = cf => {
+      for(let k = 0; k < 12; k++){ const a = wAng + k*Math.PI/6, p = Wp(0, cf + Math.cos(a)*(R - 2.4*s), hubU + Math.sin(a)*(R - 2.4*s)), q = Wp(0, cf, hubU);
+        g.lineStyle(Math.max(0.6, 0.45*K*0.42), 0xb8bec6, 0.9); g.lineBetween(q.x, q.y, p.x, p.y); }
+      ring(0, cf, hubU, R - 2.2*s, 1.2*s, RIM, 20);
+      ring(0, cf, hubU, R - 0.6*s, 3.2*s, TYRE, 24);
+      disc(0, cf, hubU, 1.8*s, METAL);
+    };
+    const fender = cf => arc(0, cf, hubU, R + 2.4*s, cf === rearF ? Math.PI*0.35 : Math.PI*0.2, cf === rearF ? Math.PI*0.95 : Math.PI*0.7, 2.6*s, paintDk);
+    const crank = side => { const a = cAng + (side > 0 ? 0 : Math.PI), pf = bbF + Math.cos(a)*cr, pu = bbU + Math.sin(a)*cr;
+      tube([side*3*s, bbF, bbU], [side*3*s, pf, pu], 1.8*s, DARK);
+      const P4 = [Wp(side*3*s, pf - 3*s, pu), Wp(side*8.5*s, pf - 3*s, pu), Wp(side*8.5*s, pf + 3*s, pu), Wp(side*3*s, pf + 3*s, pu)];
+      g.fillStyle(0x4a5056, 1); g.fillPoints(P4, true); g.lineStyle(lw(1.6*s), 0x4a5056, 1); g.strokePoints(P4, true); };
+    const chain = () => { const x = 2.2*s; disc(x, bbF, bbU, 6*s, 0x8d949c); disc(x, bbF, bbU, 4.2*s, DARK); disc(x, bbF, bbU, 2*s, METAL);
+      tube([x, bbF, bbU + 6*s], [x, rearF, hubU + 2.6*s], 0.9*s, 0x50565e); tube([x, bbF, bbU - 6*s], [x, rearF, hubU - 2.6*s], 0.9*s, 0x50565e);
+      disc(x, rearF, hubU, 2.8*s, 0x8d949c); };
+    /* the rear end: its wheel and fender, the stays, the seat tube, the post and the saddle */
+    const rearGroup = () => { wheel(rearF); fender(rearF);
+      tube(RH, BBp, 2.2*s, paint); tube(RH, seatTop, 2*s, paint);
+      tube(BBp, seatTop, 3*s, paint); tube(seatTop, [0, -5*s, sit - 4.5*s], 2*s, METAL);
+      const sd = [Wp(-3*s, -14*s, sit - 4*s), Wp(3*s, -14*s, sit - 4*s), Wp(4*s, -3*s, sit - 3*s), Wp(1.4*s, 6*s, sit - 3.4*s), Wp(-1.4*s, 6*s, sit - 3.4*s), Wp(-4*s, -3*s, sit - 3*s)];
+      g.fillStyle(SADDLE, 1); g.fillPoints(sd, true); };
+    /* the front end: its wheel and fender, the fork, the head tube, the stem and the swept-back bars to the hands */
+    const frontGroup = () => { wheel(frontF); fender(frontF);
+      for(const sx of [-1.8*s, 1.8*s]) tube([sx, frontF, hubU], [sx, htBot[1], htBot[2]], 1.8*s, paint);
+      tube(htBot, htTop, 3.4*s, paint);
+      const stemTop = [0, steerF(barU - 2*s), barU - 2*s]; tube(htTop, stemTop, 2*s, METAL);
+      for(const sb of [-1, 1]){ tube(stemTop, [sb*hb*0.6, handF + 6*s, barU], 1.6*s, METAL); tube([sb*hb*0.6, handF + 6*s, barU], [sb*hb, handF + 1*s, barU], 1.6*s, METAL);
+        tube([sb*hb, handF + 1.6*s, barU], [sb*hb, handF - 3*s, barU], 2.6*s, GRIP); }
+      const lamp = Wp(0, steerF(barU - 9*s) + 3*s, barU - 9*s); g.fillStyle(0xf4efe0, 1); g.fillCircle(lamp.x, lamp.y, 1.6*s*K*0.42*1.4); };
+    /* the frame's middle: the top and down tubes, the chain on its side, the cranks */
+    const mid = stage => {
+      if(stage === 'under'){ crank(-nearS); return; }
+      if(nearS < 0) chain();
+      tube(seatTop, htTop, 2.4*s, paint); tube(BBp, htBot, 3*s, paint);
+      if(nearS > 0) chain();
+      crank(nearS); };
+    /* its shadow, an oval along it */
+    { const o = []; for(let i = 0; i < 20; i++){ const w = i/20*Math.PI*2; o.push(Wp(Math.sin(w)*7*s, (rearF + frontF)/2 + Math.cos(w)*((frontF - rearF)/2 + R*0.8), 0)); }
+      g.fillStyle(0x000000, 0.16); g.fillPoints(o, true); }
+    const far = frontNear ? rearGroup : frontGroup, near = frontNear ? frontGroup : rearGroup;
+    far();
+    if(noRider){   // its kickstand down to the side, then the middle
+      tube([0, bbF - 6*s, bbU], [-nearS*5*s, bbF - 14*s, 0], 1.6*s, DARK);
+      mid('under'); mid('mid'); near(); return; }
+    const pose = { sit: sit - (B.legH - B.legH), pedal: { ph: cAng, c: [bbF - 2.5, bbU + 7.8 - sit + B.legH], r: cr }, between: (gg, G, st) => { const g0 = g; g = gg || g; try { mid(st); } finally { g = g0; } } };
+    this.drawPersonHull(g, ax, ay, z0, thW, B, pSkin, pShirt, pPants, pHair, pShoe, 0, false, startleAlpha || 0, BIKE_RIDE.lift, null, uni || null, true, pose);
+    near();
+  }
   drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni, stage){
+    if(brand && brand.bike) return this.drawBikeRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni);   // (BIKE_RIDE: a bike instead)
     /* (stage: the scooter part-built, as Kickstand Scooter Co.' line builds it -- 0 the deck alone, 1 + the rear wheel, 2 + the front wheel and fork,
        3 + the grip tape, 4 + the stem, 5 + the bars, 6 + the grips, 7 + the lamps; none: the whole scooter. Sir, 2026-11-20: "build the actual
        in-game scooter") */
@@ -140898,20 +140991,20 @@ class WorldScene extends Phaser.Scene {
       const thW = fdir*Math.PI/2 + spotTh;
       const ax = x + dv.x*spotA + rv.x*spotB, ay = y + dv.y*spotA + rv.y*spotB;
       /* (who they are and where, for knockDown; down, they are drawn there) */
-      if(data){ data._look = [build, pSkin, pShirt, pPants, pHair, pShoe]; data._at = { x: ax, y: ay, thW, t }; data._brand = BRANDS[pSeed % BRANDS.length]; data._uni = L.uniform || null; data._dress = L.dress || null; }   // (their uniform and dress: up again after a knock, in their own chair or on their own cane)
+      if(data){ data._look = [build, pSkin, pShirt, pPants, pHair, pShoe]; data._at = { x: ax, y: ay, thW, t }; data._brand = riderBrand(pSeed); data._uni = L.uniform || null; data._dress = L.dress || null; }   // (their uniform and dress: up again after a knock, in their own chair or on their own cane)
       if(data && data.knock) return;
       const moving = walkAmt > 0.05;
       const walkPhase = moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
       const startleAlpha = (flee && flee.u < 0.4) ? 1 - flee.u/0.4 : 0;
 
       if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
-        const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park, pp = data._pp;
+        const brand = riderBrand(pSeed), pk = spot.park, pp = data._pp;
         if(pp && pp.taken){ /* (the humanoid rode it off) */ }
         else if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
         else this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
         if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
       } else if(data && data.ride){                                  // a rider, on their e-scooter
-        const brand = BRANDS[pSeed % BRANDS.length];
+        const brand = riderBrand(pSeed);
         this.drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, moving ? t*0.02 : null);
       } else if(data && data.kickT !== undefined){
         /* KICKING (PED_KICK): where they stood, turned to him, the leg as William's */
@@ -150584,7 +150677,7 @@ class WorldScene extends Phaser.Scene {
     if(KNOCK_CHAIR[ak] && !K.z && K.kind !== "mall" && K.kind !== "staff" && K.kind !== "cast" && rescueSendForAid(this, K)){ K.van = this._rescueVan; K.wait = true; }
     const md = o.mood;
     if(o.chair) this.npcSay(K, null, sayPick(md === 'polite' ? SAY.chairBumpKind : SAY.chairBumpMad), 2200, md === 'polite' ? undefined : "mad", 160);
-    else this.npcSay(K, null, sayPick(o.scoot ? SAY.riderDown : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad", 110);
+    else this.npcSay(K, null, sayPick(o.scoot ? (K.brand && K.brand.bike ? SAY.riderDownBike : SAY.riderDown) : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad", 110);
     if(o.chair && typeof sfxThump === "function") sfxThump(0.25);               // (a fall's thump comes as they land: updateKnocks)
     /* the bump he feels, as a rider's */
     if(!o.noBump){                                     // (a route walker's bump is the hazard pass's own)
@@ -152045,7 +152138,7 @@ class WorldScene extends Phaser.Scene {
           rd.fallT = t; rd.upSaid = false; rd.v = 0;
           rd.fallSide = (bx*-hy + by*hx) > 0 ? -1 : 1;
           rd.fallImp = { x: -bx, y: -by };                // the way he knocked them (drawFallenHull's pose)
-          this.npcSay(rd, riderPos, sayPick(SAY.riderDown), 2200, "mad");
+          this.npcSay(rd, riderPos, sayPick(riderBrand(rd.seed).bike ? SAY.riderDownBike : SAY.riderDown), 2200, "mad");
           if(typeof sfxThump === "function") sfxThump(0.25);
           /* hit hard by a big fleet vehicle: the police deal with it, not the rider (POLICE_CALL) */
           if(this.ow && this.ow.on && fleetPhys().big && this.speed > POLICE_CALL.hardV){
