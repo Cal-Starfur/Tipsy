@@ -46057,6 +46057,9 @@ function rollTrafficKind(tr){
     else if(r < M.pickupShare + M.truckShare) tr.kind = pick(M.trucks); }
   tr.len = vehLen(tr.kind);
 }
+/* the street's green bike lanes (BIKE LANES, road pass): their half-width about STREET_RIDER.lane, the white edge lines' width, how far
+   short of a junction's mouth they stop, the shortest run worth painting, a stencil every so far, its wheels' radius and line */
+const BIKE_LANE = { half: 34, line: 5, end: 60, min: 240, every: 900, wheel: 9, stroke: 2.2, green: 0x3e9a5c };
 const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 12000,   // was 7000: fewer on the street (see RIDER.share)
   activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500,
   /* KNOCKED OFF (Sir, 2026-10-12: "they don't get knocked down if I hit
@@ -120090,6 +120093,42 @@ class WorldScene extends Phaser.Scene {
           this.W(sx + dv.x*s1 + rv.x*LINE_HALF, sy + dv.y*s1 + rv.y*LINE_HALF, 3),
           this.W(sx + dv.x*s0 + rv.x*LINE_HALF, sy + dv.y*s0 + rv.y*LINE_HALF, 3)
         ], d.roadLine, roadPaintWear(sx + dv.x*s0, sy + dv.y*s0));
+      }
+    }
+    /* BIKE LANES (Sir, 2026-11-26: "a green bike lane in the road -- now that we have bikes and scooters"): each side of every street, on
+       the riders' own line (STREET_RIDER.lane off the centre, between the moving cars and the kerb-parked ones -- BIKE_LANE), green paint
+       between two white lines, a white bike stencil now and then; mid-block only, as the centre dashes are, and stopped short of a
+       crossing's zebra. Flat paint in the road pass (the ground cache) */
+    { const BL = BIKE_LANE, h = BL.half, o0 = STREET_RIDER.lane - h, o1 = STREET_RIDER.lane + h;
+      for(const edge of r.grid.edges){
+        if(!nearSeg(edge.a, edge.b, cullSpan) || edge.harbor) continue;
+        const dv = DIRV[edge.f], rv = DIRV[(edge.f+1)%4];
+        let { sx, sy, len } = midRun(edge.a, edge.b, dv);
+        if(edge.a.svGate){ const cut = sierraGeo().round.r - ROAD_HALF; sx += dv.x*cut; sy += dv.y*cut; len -= cut; }
+        const zs = r.grid._zebraAt, zAt = (x, y) => !!zs && zs.has(Math.round(x/10) + ',' + Math.round(y/10));
+        const run0 = Math.hypot(sx - edge.a.x, sy - edge.a.y), zw = ZEBRA.half + ZEBRA.gap + ZEBRA.w + 10;
+        const s0 = zAt(edge.a.x + dv.x*WORLD_RAMP.cross, edge.a.y + dv.y*WORLD_RAMP.cross) ? Math.max(BL.end, WORLD_RAMP.cross + zw - run0) : BL.end;
+        const s1 = Math.min(len - BL.end, zAt(edge.b.x - dv.x*WORLD_RAMP.cross, edge.b.y - dv.y*WORLD_RAMP.cross) ? Math.hypot(edge.b.x - edge.a.x, edge.b.y - edge.a.y) - WORLD_RAMP.cross - zw - run0 : 1e9);
+        if(s1 - s0 < BL.min) continue;
+        const at = (u, t) => this.W(sx + dv.x*u + rv.x*t, sy + dv.y*u + rv.y*t, 2.9);
+        for(const sd of [-1, 1]){
+          const t0 = sd*o0, t1 = sd*o1, wear = 0.55 + 0.45*roadPaintWear(sx + dv.x*s0 + rv.x*t1, sy + dv.y*s0 + rv.y*t1);
+          this.quadOn(g, [at(s0, t0), at(s1, t0), at(s1, t1), at(s0, t1)], BL.green, 0.82*wear);
+          for(const t of [t0, t1]){ const a = t - BL.line/2, b = t + BL.line/2;
+            this.quadOn(g, [at(s0, a), at(s1, a), at(s1, b), at(s0, b)], d.roadLine, wear); }
+          /* the stencil: a bike side on along the lane, heading with its traffic (keeping right: +rv's side goes +dv), at each end and
+             every BL.every between */
+          const n = Math.max(1, Math.round((s1 - s0)/BL.every)), hd = sd > 0 ? 1 : -1, tc = sd*STREET_RIDER.lane;
+          for(let k = 0; k < n; k++){ const uc = s0 + (s1 - s0)*(k + 0.5)/n, R = BL.wheel, wb = R*2.6;
+            const P = (f, x) => this.W(sx + dv.x*(uc + hd*f) + rv.x*(tc + x), sy + dv.y*(uc + hd*f) + rv.y*(tc + x), 3);
+            const ring = (fc) => { const o = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; o.push(P(fc + Math.cos(w)*R, Math.sin(w)*R)); } return o; };
+            g.lineStyle(Math.max(1, BL.stroke*this.K*0.42), 0xf2f0ea, 0.9*wear);
+            g.strokePoints(ring(-wb/2), true); g.strokePoints(ring(wb/2), true);
+            const L = (a, b) => { const A = P(a[0], a[1]), B = P(b[0], b[1]); g.lineBetween(A.x, A.y, B.x, B.y); };
+            const rh = [-wb/2, 0], fh = [wb/2, 0], bb = [-wb*0.05, 0], st = [-wb*0.2, -R*1.3], ht = [wb*0.32, -R*1.3];
+            L(rh, bb); L(bb, st); L(st, rh); L(st, ht); L(bb, ht); L(ht, fh);
+            L([st[0] - R*0.35, st[1] - R*0.1], [st[0] + R*0.35, st[1] - R*0.1]); L(ht, [ht[0] + R*0.1, ht[1] - R*0.45]); L([ht[0] - R*0.15, ht[1] - R*0.45], [ht[0] + R*0.4, ht[1] - R*0.45]); }
+        }
       }
     }
     /* ZEBRA CROSSINGS (Sir, 2026-10-14, on the mall's street: "this cross
