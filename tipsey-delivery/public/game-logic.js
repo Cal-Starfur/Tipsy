@@ -5505,6 +5505,14 @@ function paveRunSet(grid){
   for(const k of paveHeavedTiles(grid)) m.delete(k);
   return (grid._swRunSet = m);
 }
+/* WHICH BREAK A MOVED SLAB SHOWS (Sir, 2026-11-26: "so they don't all look like they have the same crack"): from its own
+   roll r -- the crack and spur across it, a piece broken off it (the sidewalk crack's spall), both, or none */
+function slabCrackKind(r, noSpall){
+  if(r < 0.38) return 'hair';
+  if(r < 0.66) return noSpall ? 'hair' : 'spall';
+  if(r < 0.8) return noSpall ? 'hair' : 'both';
+  return 'none';
+}
 /* the city's still ground pieces, painted by the ground pass (drawGroundPass) rather than queued live */
 const CF_IN_GROUND = { slab: 1, crack: 1 };
 /* every panel a city heaved slab stands on, once per grid */
@@ -113644,10 +113652,17 @@ class WorldScene extends Phaser.Scene {
           const a = F.axis ? top[3] : top[1], b = top[2];
           g.lineStyle(1, F.kind === 'ridge' ? A.arris : A.crack, 0.9); line([a, b]);
         }
-        /* 7. the crack across it and its spur (most of them) */
-        if(paveRoll(ix, iy, 27) < 0.75){
+        /* 7. its break (slabCrackKind): the crack across it and its spur, a piece broken off it, both, or none -- not every
+           slab the same crack. A sunk slab keeps to the crack (its spall's lines would not be held to its footprint). */
+        const ck = slabCrackKind(paveRoll(ix, iy, 27), sunk);
+        if(ck === 'hair' || ck === 'both'){
           g.lineStyle(1.2, A.crack, 0.9);
           for(const ln of sg.cracks){ const P = []; for(let k = 0; k < ln.length; k += 2) P.push(Wl(ln[k], ln[k + 1], Zb(ln[k + 1]) + 0.1)); line(P); }
+        }
+        if(ck === 'spall' || ck === 'both'){
+          const Wp = (lx, ly, z) => this.W(wx + lx, wy + ly, z + zt(F.axis ? (ly + TILE)/(2*TILE) : (lx + TILE)/(2*TILE)));
+          const Wf = (lx, ly, z) => this.W(wx + lx, wy + ly, z);
+          this.spallOn(g, Wp, wx + 0.5, wy, { len: ck === 'both' ? 24 + paveRoll(ix, iy, 29)*20 : 34 + paveRoll(ix, iy, 29)*36, surface: 'sidewalk' }, Wf);
         }
       } finally { this.drawClip = dc0; }
       if(root && upSeen) drawRoot();                                     // in front of the raised wall: after it
@@ -139158,13 +139173,18 @@ class WorldScene extends Phaser.Scene {
 
       if(D.root && upSeen) drawRoot();                              // in front of the raised wall: after it
 
-      /* the crack across it, and its spur */
-      g.lineStyle(1.2, A.crack, 0.9);
-      for(const ln of sg.cracks){
-        g.beginPath();
-        for(let k = 0; k < ln.length; k += 2){ const q = W(ln[k], ln[k + 1], ZT(ln[k + 1]) + 0.1); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
-        g.strokePath();
+      /* its break (slabCrackKind, rolled off its place): the crack across it and its spur, a piece broken off it, both, or none */
+      const ck = slabCrackKind(paveRoll(Math.round(x), Math.round(y), 31), false);
+      if(ck === 'hair' || ck === 'both'){
+        g.lineStyle(1.2, A.crack, 0.9);
+        for(const ln of sg.cracks){
+          g.beginPath();
+          for(let k = 0; k < ln.length; k += 2){ const q = W(ln[k], ln[k + 1], ZT(ln[k + 1]) + 0.1); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
+          g.strokePath();
+        }
       }
+      if(ck === 'spall' || ck === 'both')
+        this.spallOn(g, (lx, ly, z) => W(lx, ly, z + ZT(ly)), x + 0.5, y, { len: ck === 'both' ? 24 + paveRoll(Math.round(x), Math.round(y), 32)*20 : 34 + paveRoll(Math.round(x), Math.round(y), 32)*36, surface: 'sidewalk' }, W);
     } else if(kind === "sidewalkend"){
       /* approved in sidewalkend lab: ADA curb ramp, exactly 2x3 sidewalk
          tiles (184 along-travel x 276 cross-width). Ground decal only,
@@ -139545,53 +139565,61 @@ class WorldScene extends Phaser.Scene {
          - the hairlines run on from the fracture into the intact slab; the rubble lies flat on the piece (quads in its
            plane, not screen ellipses).
          The shape is seeded off the position and built once (CRACK_GEO), so a frame only projects it. */
-      const pal = (data && data.surface === "road") ? CRACK_ART.road : CRACK_ART.sidewalk;
-      const cg = crackGeo(x, y, data && data.len);
-      const ZT = 0.5, drop = cg.drop, poly = cg.poly, n = poly.length;
-      /* which walls the eye sees: the face into the hole (inward normal) turned toward the eye */
-      const o = W(0, 0, 0), vis = cg.vis || (cg.vis = new Array(n)), zv = cg.zv || (cg.zv = new Array(n));
-      for(let i = 0; i < n; i++){
-        const p = poly[i], q = poly[(i + 1) % n];
-        const ex = q.x - p.x, ey = q.y - p.y, nx = -ey*cg.inS, ny = ex*cg.inS;
-        vis[i] = (W(nx, ny, 0).y - o.y) > 1e-6;
-      }
-      for(let i = 0; i < n; i++) zv[i] = (vis[i] || vis[(i + n - 1) % n]) ? ZT - drop : ZT;   // the near rim keeps the floor up at grade
-      /* the floor: the broken piece */
-      const fl = [];
-      for(let i = 0; i < n; i++) fl.push(W(poly[i].x, poly[i].y, zv[i]));
-      this.quadOn(g, fl, pal.piece);
-      /* a hairline across a big piece, and the rubble lying on it */
-      if(cg.hair){
-        const h0 = W(cg.hair[0], cg.hair[1], ZT - drop*0.6), h1 = W(cg.hair[2], cg.hair[3], ZT - drop*0.6);
-        g.lineStyle(1, pal.core, 0.8); g.lineBetween(h0.x, h0.y, h1.x, h1.y);
-      }
-      for(const c of cg.chips){
-        const r = c.r, zc = ZT - drop + 0.3;
-        this.quadOn(g, [W(c.x - r, c.y, zc), W(c.x, c.y - r*0.7, zc + 0.4), W(c.x + r*0.8, c.y, zc), W(c.x, c.y + r*0.7, zc)], c.dk ? pal.crack : pal.rubble);
-      }
-      /* the walls the eye sees, far first; left-facing lit, right-facing shaded */
-      const order = cg.order || (cg.order = []);
-      order.length = 0;
-      for(let i = 0; i < n; i++) if(vis[i]) order.push(i);
-      const mid = i => { const p = poly[i], q = poly[(i + 1) % n]; return W((p.x + q.x)/2, (p.y + q.y)/2, 0).y; };
-      order.sort((a, b) => mid(a) - mid(b));
-      for(const i of order){
-        const j = (i + 1) % n, p = poly[i], q = poly[j];
-        const ex = q.x - p.x, ey = q.y - p.y, sx2 = W(-ey*cg.inS, ex*cg.inS, 0).x - o.x;
-        this.quadOn(g, [W(p.x, p.y, ZT), W(q.x, q.y, ZT), W(q.x, q.y, zv[j]), W(p.x, p.y, zv[i])],
-                    sx2 < 0 ? pal.wall : pal.wallDk);
-      }
-      /* the broken edge at grade: the fracture's lip, and the hairlines running on into the slab */
-      g.lineStyle(1.3, pal.crack, 1);
+      this.spallOn(g, W, x, y, data, W);
+    }
+  }
+
+  /* A BROKEN-OFF PIECE IN ITS HOLE (drawProp's "crack", the crack lab's spall), drawn in a frame W(lx, ly, z) about (x, y):
+     a crack prop's own, or a tilted slab's plane (Sir, 2026-11-26: "get that type of crack / missing piece to the slabs so they
+     don't all look like they have the same crack"). Wd is the same frame flat, for which way a wall faces. data: { len,
+     surface }. */
+  spallOn(g, W, x, y, data, Wd){
+    const pal = (data && data.surface === "road") ? CRACK_ART.road : CRACK_ART.sidewalk;
+    const cg = crackGeo(x, y, data && data.len);
+    const ZT = 0.5, drop = cg.drop, poly = cg.poly, n = poly.length;
+    /* which walls the eye sees: the face into the hole (inward normal) turned toward the eye */
+    const o = Wd(0, 0, 0), vis = cg.vis || (cg.vis = new Array(n)), zv = cg.zv || (cg.zv = new Array(n));
+    for(let i = 0; i < n; i++){
+      const p = poly[i], q = poly[(i + 1) % n];
+      const ex = q.x - p.x, ey = q.y - p.y, nx = -ey*cg.inS, ny = ex*cg.inS;
+      vis[i] = (Wd(nx, ny, 0).y - o.y) > 1e-6;
+    }
+    for(let i = 0; i < n; i++) zv[i] = (vis[i] || vis[(i + n - 1) % n]) ? ZT - drop : ZT;   // the near rim keeps the floor up at grade
+    /* the floor: the broken piece */
+    const fl = [];
+    for(let i = 0; i < n; i++) fl.push(W(poly[i].x, poly[i].y, zv[i]));
+    this.quadOn(g, fl, pal.piece);
+    /* a hairline across a big piece, and the rubble lying on it */
+    if(cg.hair){
+      const h0 = W(cg.hair[0], cg.hair[1], ZT - drop*0.6), h1 = W(cg.hair[2], cg.hair[3], ZT - drop*0.6);
+      g.lineStyle(1, pal.core, 0.8); g.lineBetween(h0.x, h0.y, h1.x, h1.y);
+    }
+    for(const c of cg.chips){
+      const r = c.r, zc = ZT - drop + 0.3;
+      this.quadOn(g, [W(c.x - r, c.y, zc), W(c.x, c.y - r*0.7, zc + 0.4), W(c.x + r*0.8, c.y, zc), W(c.x, c.y + r*0.7, zc)], c.dk ? pal.crack : pal.rubble);
+    }
+    /* the walls the eye sees, far first; left-facing lit, right-facing shaded */
+    const order = cg.order || (cg.order = []);
+    order.length = 0;
+    for(let i = 0; i < n; i++) if(vis[i]) order.push(i);
+    const mid = i => { const p = poly[i], q = poly[(i + 1) % n]; return Wd((p.x + q.x)/2, (p.y + q.y)/2, 0).y; };
+    order.sort((a, b) => mid(a) - mid(b));
+    for(const i of order){
+      const j = (i + 1) % n, p = poly[i], q = poly[j];
+      const ex = q.x - p.x, ey = q.y - p.y, sx2 = Wd(-ey*cg.inS, ex*cg.inS, 0).x - o.x;
+      this.quadOn(g, [W(p.x, p.y, ZT), W(q.x, q.y, ZT), W(q.x, q.y, zv[j]), W(p.x, p.y, zv[i])],
+                  sx2 < 0 ? pal.wall : pal.wallDk);
+    }
+    /* the broken edge at grade: the fracture's lip, and the hairlines running on into the slab */
+    g.lineStyle(1.3, pal.crack, 1);
+    g.beginPath();
+    for(let i = 0; i < cg.nf; i++){ const q = W(poly[i].x, poly[i].y, ZT); if(i) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
+    g.strokePath();
+    for(const br of cg.branches){
+      g.lineStyle(1, pal.crack, 0.9);
       g.beginPath();
-      for(let i = 0; i < cg.nf; i++){ const q = W(poly[i].x, poly[i].y, ZT); if(i) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
+      for(let k = 0; k < br.length; k += 2){ const q = W(br[k], br[k + 1], ZT); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
       g.strokePath();
-      for(const br of cg.branches){
-        g.lineStyle(1, pal.crack, 0.9);
-        g.beginPath();
-        for(let k = 0; k < br.length; k += 2){ const q = W(br[k], br[k + 1], ZT); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
-        g.strokePath();
-      }
     }
   }
 
