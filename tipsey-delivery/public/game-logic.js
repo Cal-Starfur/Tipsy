@@ -45157,6 +45157,9 @@ function errandPersonRaw(e, t){
    wheel, seen through its glass (data.cabin, as Palmline Garage's customers are). Who: rolled off the kind, its paint and one of
    VEH_DRIVER.variants -- so a moving car's sprite (kind, paint, heading) has only so many drivers to bake, and the one who gets out on an
    errand is the one who was at the wheel. A work vehicle's driver in their work clothes (types); a driverless one none */
+/* THE DRIVER'S SIDE (Sir, 2026-11-26: "Let's keep the driver on the American driver side and not move them"): the left of the vehicle's
+   heading, its own -b -- whichever flank the eye sees. drawCar, drawVan and drawRig seat them there; the errands' door is that side's */
+const DRIVER_B = -1;
 const VEH_DRIVER = { variants: 4, none: new Set(['tipseyvan']), police: new Set(['policecar', 'policewagon']), cops: new WeakMap(),
   types: { mailtruck: 'postie', ambulance: 'scrubs', garbagetruck: 'worker', recycletruck: 'worker', mixertruck: 'worker', dumptruck: 'worker',
            cranetruck: 'worker', buckettruck: 'worker', sweeper: 'worker', towtruck: 'worker', movingtruck: 'worker', fueltruck: 'worker', flatbed: 'worker', beertruck: 'worker' } };
@@ -45176,6 +45179,14 @@ function trafficDriverLook(kind, colorSeed){
   if(!VEH_DRIVER.police.has(kind)) return L;
   let P = VEH_DRIVER.cops.get(L); if(!P){ const U = POLICE_UNIFORM; P = Object.assign({}, L, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }); VEH_DRIVER.cops.set(L, P); }
   return P;
+}
+/* SEE-THROUGH GLASS EVERYWHERE (Sir, 2026-11-26: "The parked cars windows are still the old version"): every car, van and truck is
+   drawn with its cab seen through its glass -- the parked ones too, empty (data.cabin { rider: null }) -- wherever it is drawn from (a
+   kerb, a lot, a garage deck, a shop's cached picture). drawCar, drawVan, drawRig and drawWorkTruck take data through this. The crew's
+   van keeps its own glass */
+function vehGlassData(kind, data){
+  if(kind === 'tipseyvan' || (data && data.cabin)) return data;
+  return Object.assign({}, data || null, { cabin: { rider: null } });
 }
 /* a moving vehicle's data: its driver at the wheel (or null: none to draw) */
 function trafficDriverData(kind, colorSeed){ return vehHasDriver(kind) ? { cabin: { rider: trafficDriverLook(kind, colorSeed) } } : null; }
@@ -45296,14 +45307,16 @@ function errandStart(tr, lp, site, J, t, at, plan){
     let pts = [from];
     if(st.exit) pts.push({ x: q.x + hy*62 + hx*st.exit, y: q.y - hx*62 + hy*st.exit });
     pts.push(...(st.via || []), st.door);
-    /* OUT OF ITS DOOR (WHO DRIVES): where the car has a door drawCar opens, the driver gets out of it -- the near one, the side the
-       eye sees and they sit on -- round it, and along that side to the end the walk goes by (exit), or straight on where the car's
-       own side is the way; a narrow bay opens it less (lotAng). Drawn heading: backed in, the way it faced arriving turned round */
+    /* OUT OF ITS DOOR (WHO DRIVES): where the car has a door drawCar opens, the driver gets out of it -- the driver's, on the left
+       (DRIVER_B), the side this walk was always laid from -- round it, and on by the old way; a narrow bay opens it less (lotAng).
+       Drawn heading: backed in, the way it faced arriving turned round. On the far flank the door swings out behind the car, drawn
+       before it (a van's only on its near flank: none there) */
     const ki = path.stops.indexOf(st), hd = q.h + (ki > 0 && path.stops[ki - 1].rev ? Math.PI : 0), ch = Math.cos(hd), sh = Math.sin(hd), eb = ch - sh;
-    const DWY = Math.abs(eb) > 0.3 ? carDoorWay(tr.kind, /^kerb/.test(site.id || '') ? ERRAND_DOOR.ang : ERRAND_DOOR.lotAng) : null;
+    const dNear = (eb > 0 ? 1 : -1) === DRIVER_B, vanK = !CAR_KINDS[tr.kind];
+    const DWY = Math.abs(eb) > 0.3 && (dNear || !vanK) ? carDoorWay(tr.kind, /^kerb/.test(site.id || '') ? ERRAND_DOOR.ang : ERRAND_DOOR.lotAng) : null;
     let dw = null, dc = 0, dmid = null;   // (dmid: where the open door is queued -- its nearest corner, the largest x + y it covers, so whoever is in the wedge behind it sorts under it)
     if(DWY){
-      const nb = eb > 0 ? 1 : -1, Wp = ([a, o]) => ({ x: q.x + a*ch - nb*o*sh, y: q.y + a*sh + nb*o*ch });
+      const nb = DRIVER_B, Wp = ([a, o]) => ({ x: q.x + a*ch - nb*o*sh, y: q.y + a*sh + nb*o*ch });
       const way = DWY.path.map(Wp), last = DWY.path[DWY.path.length - 1];
       for(let k = 1; k < way.length; k++) dc += Math.hypot(way[k].x - way[k - 1].x, way[k].y - way[k - 1].y);
       /* the old way's side (the car's left, hy, -hx) the same as the door's? on from its second point; else along this side to the
@@ -45313,7 +45326,9 @@ function errandStart(tr, lp, site, J, t, at, plan){
       if(!left && st.exit){ const e2 = Math.sign(st.exit)*Math.max(Math.abs(st.exit), DWY.hl + 24); via.push(Wp([e2, Math.max(last[1], 62)])); rest.shift(); }
       pts = way.concat(via, rest);
       dw = { nb, fdir: hd/(Math.PI/2), ang: DWY.ang };
-      { const h = Wp(DWY.hinge), tp = Wp(DWY.tip), m = h.x + h.y >= tp.x + tp.y ? h : tp; dmid = { x: m.x + 0.5, y: m.y + 0.5 }; }
+      /* (queued at its nearest corner on the near flank -- whoever is in the wedge behind it under it; at its farthest on the far flank,
+         before the car and whoever stands at it) */
+      { const h = Wp(DWY.hinge), tp = Wp(DWY.tip), hi = h.x + h.y >= tp.x + tp.y, m = dNear ? (hi ? h : tp) : (hi ? tp : h), e = dNear ? 0.5 : -0.5; dmid = { x: m.x + e, y: m.y + e }; }
     }
     const cum = [0];
     for(let k = 1; k < pts.length; k++) cum.push(cum[k - 1] + Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y));
@@ -132131,6 +132146,7 @@ class WorldScene extends Phaser.Scene {
     finally { this.drawClip = c0; }
   }
   drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    data = vehGlassData(kind, data);   // (the glass see-through, the cab empty unless someone is in it)
     /* what this kind is: a body from CAR_BODIES, a paint scheme, its add-ons (see CAR_KINDS) */
     const CK = CAR_KINDS[kind] || CAR_KINDS.car, CR = CARC, isPolice = CK.livery === "police", has = k => CK.add.includes(k);
     const seed = colorSeed !== null
@@ -132592,14 +132608,17 @@ class WorldScene extends Phaser.Scene {
         const base = (sa, b0, b1) => solid(prismH([[sa - 10, b0], [sa + 6, b0], [sa + 6, b1], [sa - 10, b1]], fl, Zc), 0xa8977f);
         const back = (sa, b0, b1) => solid(prismH([[sa - 13, b0], [sa - 8, b0], [sa - 8, b1], [sa - 13, b1]], fl, deck + 14), 0x96866f);
         const fs = GH.f0 - 34, rs = fs - 46, dash = () => solid(prismH([[GH.f0 - 6, -wb], [GH.f0 + 2, -wb], [GH.f0 + 2, wb], [GH.f0 - 6, wb]], deck - 10, deck + 2), 0x3c3f45);
-        const bc = nearB*(hw - 5)/2, aW = fs + 28, hW = deck + 2;
+        const bc = DRIVER_B*(hw - 5)/2, aW = fs + 28, hW = deck + 2, dNear = DRIVER_B === nearB;   // (the driver's seat: DRIVER_B, the far one or the near)
         const wheel = () => { for(let k = 0; k < 12; k++){ const p0 = k/12*Math.PI*2, p1 = (k + 1)/12*Math.PI*2, r0 = 8, r1 = 6;
           Q([P(aW, bc + Math.cos(p0)*r0, hW + Math.sin(p0)*r0), P(aW, bc + Math.cos(p1)*r0, hW + Math.sin(p1)*r0), P(aW, bc + Math.cos(p1)*r1, hW + Math.sin(p1)*r1), P(aW, bc + Math.cos(p0)*r1, hW + Math.sin(p0)*r1)], 0x232528); } };
         const driver = () => { if(data.cabin.rider) this.vehRider(g, x, y, z + lift, fdir, fs - 2, bc, fl, data.cabin.rider, { sit: Zc - fl, reach: [aW - fs - 1, data.cabin.rider.build.legH + hW - Zc] }, hull); };
         const rear = () => { base(rs, -wb + 2, wb - 2); back(rs, -wb + 2, wb - 2); };
+        /* the far seat's group, then the near one's: each its back, and the driver and the wheel where they sit */
+        const sideB = sg => sg > 0 ? [4, wb - 2] : [-wb + 2, -4], grp = sg => { const [b0, b1] = sideB(sg), d = sg === DRIVER_B;
+          if(nose){ back(fs, b0, b1); if(d){ driver(); wheel(); } } else { if(d){ wheel(); driver(); } back(fs, b0, b1); } };
         const front = () => { base(fs, -wb + 2, -4); base(fs, 4, wb - 2);
-          if(nose){ back(fs, -wb + 2, -4); back(fs, 4, wb - 2); driver(); wheel(); dash(); }
-          else { dash(); wheel(); driver(); back(fs, -wb + 2, -4); back(fs, 4, wb - 2); } };
+          if(nose){ grp(-nearB); grp(nearB); dash(); }
+          else { dash(); grp(-nearB); grp(nearB); } };
         if(nose){ rear(); front(); } else { front(); rear(); }
       } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; }
     };
@@ -132663,7 +132682,10 @@ class WorldScene extends Phaser.Scene {
       const uD = (GH.f0 - aT)/(GH.f0 - GH.r0), u0 = pn[0], u1 = Math.min(pn[1], uD - 0.02), v1 = pn[2] || 0.87;
       const W3 = [on(fq, u0, 0), on(fq, u1, 0), on(fq, u1, v1), on(fq, u0, v1)];        // (the window's hole: [a, b, h] on the face)
       const pieces = [[P(aT, fb, H(30)), P(aH, fb, H(30)), P(aH, fb, deck), P(aT, fb, deck)], W3.map(p => P(p[0], p[1], p[2]))];
-      for(const op of pieces){
+      /* THE DRIVER'S DOOR (DRIVER_B: Sir, 2026-11-26, "keep the driver on the American driver side"): on the near flank the opening and
+         the cab in it, as before; on the far flank only the door, swung out behind the car -- drawn before it, through data.doorOut */
+      const dNear = DRIVER_B === nearB, sD = DRIVER_B, fbD = sD*(hw + 0.4);
+      for(const op of dNear ? pieces : []){
         this._paintHole = true; try { Q(op, 0x4a443e); } finally { this._paintHole = false; }   // (the opening: a hole, for props kit SP13's test)
         const hull = op.map(q => ({ x: q.x, y: q.y })), own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
         this.quadOn = (gg, pts, col, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, col, aa); };
@@ -132684,21 +132706,22 @@ class WorldScene extends Phaser.Scene {
             Q([P(aW, bc + Math.cos(p0)*r0, hW + Math.sin(p0)*r0), P(aW, bc + Math.cos(p1)*r0, hW + Math.sin(p1)*r0), P(aW, bc + Math.cos(p1)*r1, hW + Math.sin(p1)*r1), P(aW, bc + Math.cos(p0)*r1, hW + Math.sin(p0)*r1)], 0x232528); }
         } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; } }
       /* the door, swung: u along it from its front hinge, out from the flank; its upper part the same window, with its frame round it */
-      const D = (u, h, o) => P(aH - u*ca, fb + nearB*(u*sa + (o || 0)), h);
+      const D = (u, h, o) => P(aH - u*ca, fbD + sD*(u*sa + (o || 0)), h), outer = sees(sa, sD*ca, 0);   // (outer: its outside to the eye, or its inside)
       const lerpP = (A, B, k) => ({ x: A.x + (B.x - A.x)*k, y: A.y + (B.y - A.y)*k });
       const DW = (p, du, dh, o) => D(aH - p[0] + (du || 0), p[2] + (dh || 0), o);         // (a point of the window's hole, on the swung door)
       const drawDoor = gg => { const Q = (pts, c) => this.quadOn(gg, pts, c);
-      Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], col.body);                           // the panel, sill to belt
+      const pan = outer ? col.body : 0x6a625a;
+      Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], pan);                                // the panel, sill to belt
       /* the window's frame, a ring round the glass; the glass SEE-THROUGH as the car's own (Sir, 2026-11-20: "when the door closes it
          doesnt look like it has a see through window"), the opening and the cab behind it showing through */
       const fo = [D(0, deck), D(dw, deck), DW(W3[2], 3, 3), DW(W3[3], -3, 3)], fi = [DW(W3[0], 0, 2), DW(W3[1], 0, 2), DW(W3[2]), DW(W3[3])];
-      for(let k = 0; k < 4; k++){ const k1 = (k + 1) % 4; Q([fo[k], fo[k1], fi[k1], fi[k]], col.body); }
+      for(let k = 0; k < 4; k++){ const k1 = (k + 1) % 4; Q([fo[k], fo[k1], fi[k1], fi[k]], pan); }
       this.quadOn(gg, fi, CR.glass, 0.38);                                                        // its glass
       this.quadOn(gg, [DW(W3[0], 3, 3, 0.1), lerpP(DW(W3[0], 0, 3, 0.1), DW(W3[1], 0, 3, 0.1), 0.4), lerpP(DW(W3[3], 0, -2, 0.1), DW(W3[2], 0, -2, 0.1), 0.25), DW(W3[3], 3, -2, 0.1)], 0xc6e0ea, 0.25);   // a glint
-      Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);   // the handle
+      if(outer) Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);   // the handle
       Q([D(dw, H(29)), D(dw, deck), DW(W3[2], 3, 3), DW(W3[2], 3, 3, -2.5), D(dw, deck, -2.5), D(dw, H(29), -2.5)], col.bodyDk);   // its rear edge, its thickness
       };
-      if(data.doorOut) data.doorOut.fn = drawDoor; else drawDoor(g);
+      if(data.doorOut) data.doorOut.fn = drawDoor; else if(dNear) drawDoor(g);
     }
 
     /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
@@ -132727,7 +132750,7 @@ class WorldScene extends Phaser.Scene {
   vanCabSeat(k){
     const { hw, hH, aC, aB, h0 } = k;
     const fl = hH - 54, Zc = fl + 16, fs = Math.max(aB + 10, aC - 44), aWh = Math.min(fs + 26, aC - 14), hWh = hH + 6;
-    return { fl, Zc, fs, aWh, hWh, aBk: fs - 20, wb: hw - 7, bc: k.nearB*(hw - 19), hTop: Zc + 34 };
+    return { fl, Zc, fs, aWh, hWh, aBk: fs - 20, wb: hw - 7, bc: DRIVER_B*(hw - 19), hTop: Zc + 34 };
   }
   /* the cab's inside, painted clipped to a convex screen hull (a pane, or the open door's hole), back to front: the hole's dark, the floor,
      the far side's inside and its window, the headliner, the far end, the two seats, the driver (data.cabin.rider), the wheel and the dash */
@@ -132753,11 +132776,11 @@ class WorldScene extends Phaser.Scene {
         Q([P(aWh, bc + Math.cos(p0)*r0, hWh + Math.sin(p0)*r0), P(aWh, bc + Math.cos(p1)*r0, hWh + Math.sin(p1)*r0), P(aWh, bc + Math.cos(p1)*r1, hWh + Math.sin(p1)*r1), P(aWh, bc + Math.cos(p0)*r1, hWh + Math.sin(p0)*r1)], 0x232528); } };
       const R = data && data.cabin && data.cabin.rider;
       const driver = () => { if(R) this.vehRider(g, x, y, z, fdir, fs - 2, bc, fl, R, { sit: Zc - fl, reach: [aWh - fs - 1, R.build.legH + hWh - Zc] }, hull); };
-      /* the far seat first, then the near one (the driver's) */
-      const seats = nearB > 0 ? [[-wb + 2, -4], [4, wb - 2]] : [[4, wb - 2], [-wb + 2, -4]];
+      /* the far seat first, then the near one; the driver (DRIVER_B) and the wheel with their own seat */
+      const seats = (nearB > 0 ? [[-wb + 2, -4, -1], [4, wb - 2, 1]] : [[4, wb - 2, 1], [-wb + 2, -4, -1]]).map(q => [q[0], q[1], q[2] === DRIVER_B]);
       for(const s of seats) base(s[0], s[1]);
-      if(noseSeen){ for(const s of seats) back(s[0], s[1]); driver(); wheel(); dash(); }
-      else { dash(); wheel(); driver(); for(const s of seats) back(s[0], s[1]); }
+      if(noseSeen){ for(const s of seats){ back(s[0], s[1]); if(s[2]){ driver(); wheel(); } } dash(); }
+      else { dash(); for(const s of seats){ if(s[2]){ wheel(); driver(); } back(s[0], s[1]); } }
     } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; }
   }
   /* data.doorOpen (0..1): THE DRIVER'S CAB DOOR SWUNG OPEN on its front hinge (drawCar's door on the van). The opening is the door's
@@ -132787,6 +132810,7 @@ class WorldScene extends Phaser.Scene {
     if(data.doorOut) data.doorOut.fn = drawDoor; else drawDoor(g);
   }
   drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    data = vehGlassData(kind, data);   // (the glass see-through, the cab empty unless someone is in it)
     /* VK: a batch 4 van's row (VAN_KINDS); null for the van, the work van
        and the ambulance, which draw exactly as they always have */
     const VK = VAN_KINDS[kind] || null, add = VK && VK.add || [], has = f => add.includes(f);
@@ -134827,6 +134851,7 @@ class WorldScene extends Phaser.Scene {
      (VANC's bonnet, rake and pillar) in white on a long chassis, an
      octagonal tank lofted behind it. Same wheels as the cars, a size up. */
   drawWorkTruck(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    data = vehGlassData(kind, data);   // (the glass see-through, the cab empty unless someone is in it)
     const V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q, shadeC } = V;
     const fire = kind === "firetruck", beer = kind === "beertruck", flat = kind === "flatbed" || beer;
     const len = fire ? 400 : flat ? 280 : 420, wid = fire ? 104 : 100, hl = len/2, hw = wid/2, r = flat ? 24 : 28, cz = r;
@@ -135083,7 +135108,7 @@ class WorldScene extends Phaser.Scene {
     if(!(data && data.cabin) || Math.abs(V.eye[1]) < 0.12) return null;
     const { P, sees, solid, prismH, shadeC } = V, Q = (pts, c) => this.quadOn(g, pts, c), R = data.cabin.rider;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0);
-    const { a0, a1, aT, hT, fl, Zc, foot, wb } = K, fs = a1 - (K.back || 36), aWh = Math.min(fs + 28, a1 - 9), hW = Zc + 30, bc = nearB*(wb - 2)*0.4, fb2 = -nearB*wb;
+    const { a0, a1, aT, hT, fl, Zc, foot, wb } = K, fs = a1 - (K.back || 36), aWh = Math.min(fs + 28, a1 - 9), hW = Zc + 30, bc = DRIVER_B*(wb - 2)*0.4, fb2 = -nearB*wb;
     const WALL = 0x8a7f72, SEAT = 0xa8977f, SEATB = 0x96866f, DAY = 0xb4c4cc;
     const span = (s, u0, u1) => [Math.min(s*u0, s*u1), Math.max(s*u0, s*u1)];
     const base = (sa, s) => { const [b0, b1] = span(s, 4, wb - 2); solid(prismH([[sa - 10, b0], [sa + 6, b0], [sa + 6, b1], [sa - 10, b1]], fl, Zc), SEAT); };
@@ -135102,10 +135127,13 @@ class WorldScene extends Phaser.Scene {
         if(nose) Q([P(a0, -wb, fl), P(a0, wb, fl), P(a0, wb, hT), P(a0, -wb, hT)], shadeC(WALL, 0.9));                // the back wall's inside
         else { Q([P(a1, -wb, fl), P(a1, wb, fl), P(a1, wb, foot), P(a1, -wb, foot)], shadeC(WALL, 0.9));              // the front's inside, under the screen
           Q([P(a1, -wb, foot), P(a1, wb, foot), P(aT, wb, hT), P(aT, -wb, hT)], DAY); }                              // and the screen from inside
-        base(fs, -nearB); back(fs, -nearB);                                                                            // the passenger's seat, empty
         const driver = () => { if(R) this.vehRider(g, x, y, z, fdir, fs - 2, bc, fl, R, { sit: Zc - fl, reach: [aWh - fs - 1, R.build.legH + hW - Zc] }, pts); };
-        if(nose){ base(fs, nearB); back(fs, nearB); driver(); wheel(); dashF(); }
-        else { dashF(); wheel(); base(fs, nearB); driver(); back(fs, nearB); }
+        /* the far seat, then the near one; the driver (DRIVER_B) in theirs, the passenger's empty */
+        if(!nose) dashF();
+        for(const sg of [-nearB, nearB]){ const d = sg === DRIVER_B;
+          if(nose){ base(fs, sg); back(fs, sg); if(d){ driver(); wheel(); } }
+          else { if(d) wheel(); base(fs, sg); if(d) driver(); back(fs, sg); } }
+        if(nose) dashF();
       } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; }
       this.quadOn(g, pts, colr, 0.38);
     };
@@ -135115,6 +135143,7 @@ class WorldScene extends Phaser.Scene {
      far first and its near wheels last; the van cab is dressed as the
      tanker's (cabTrim), the cab-over as the fire engine's. ---- */
   drawRig(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    data = vehGlassData(kind, data);   // (the glass see-through, the cab empty unless someone is in it)
     const RG = RIGS[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, oct, loftSeg, wheel, line, paint, Q, shadeC } = V;
     if(RG.cab === "pod") V.outline = FLEET_OUTLINE;                                                // (the driverless ones)
     const seed = colorSeed !== null && colorSeed !== undefined ? (colorSeed ^ 0x9c31) >>> 0
