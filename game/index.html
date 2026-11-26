@@ -12850,7 +12850,10 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   const out = CARC.wid/2 + C.doorOut;
   /* (Sir, 2026-11-06: "no one gets out from the driver side"): the driver's door is on the far side of the van from the
      side door, and the driver walks round the nose to his side of him (and back round it) */
-  const doors = [{ x: P.x - n.x*out + T.x*30, y: P.y - n.y*out + T.y*30 },     // the cab door, the driver's
+  /* (Sir, 2026-11-26: "keep the driver on the American driver side"): the cab door is the driver's, on the left of the van (DRIVER_B)
+     -- lf +1 where that side faces him, -1 where it is the far one and he walks round the nose */
+  const lf = (T.y*n.x - T.x*n.y) > 0 ? 1 : -1;
+  const doors = [{ x: P.x + n.x*out*lf + T.x*30, y: P.y + n.y*out*lf + T.y*30 },   // the cab door, the driver's
                  { x: P.x + n.x*out - T.x*70, y: P.y + n.y*out - T.y*70 }];    // the side door
   const nose = (k) => ({ x: P.x + T.x*(CARC.len/2 + 40) + n.x*out*k, y: P.y + T.y*(CARC.len/2 + 40) + n.y*out*k });
   const roundNose = (path) => [path[0], nose(-1), nose(1), ...path.slice(1)];
@@ -12881,7 +12884,7 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   /* a walk found round what is in the way (OFF THE GRID): the shared way,
      past the van's side and short of him; each goes on to their own spot */
   const mid = !via && plan.walk ? plan.walk.slice(1, -1) : null;
-  const pathOut = [0, 1].map(i => { const l = lane(i); const q = l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; return i ? q : roundNose(q); });
+  const pathOut = [0, 1].map(i => { const l = lane(i); const q = l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; return i || lf > 0 ? q : roundNose(q); });
   const far = Math.max(polyLen(pathOut[0]), polyLen(pathOut[1]));
   /* the cap is for open ground; the walk round through an alley, or a
      found one, is paced to its real length -- jogged when it is long */
@@ -12899,7 +12902,7 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   }
   const wayBack = mid ? mid.slice().reverse() : null;
   const pathBack = [0, 1].map(i => { const l = lane(i); const q = l ? [spots[i], l[1], l[0], ends[i]] : wayBack ? [spots[i], ...wayBack, ends[i]] : [spots[i], ends[i]];
-    return i || loads ? q : [...q.slice(0, -1), nose(1), nose(-1), q[q.length - 1]]; });   // (a tow: the rear doors, not his door)
+    return i || loads || lf > 0 ? q : [...q.slice(0, -1), nose(1), nose(-1), q[q.length - 1]]; });   // (a tow: the rear doors, not his door)
   /* a tow carried out through the alley (or along a found walk): him down
      its middle, one of them ahead and one behind -- three abreast does not
      fit an alley, nor a dock */
@@ -12909,7 +12912,7 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   const backMs = !via && !mid ? walkMs : Math.max(C.walkMinMs,
     (via ? (L => L / C.walkSpeed * 1000) : rescuePaceMs)(Math.max(polyLen(pathBack[0]), polyLen(pathBack[1]), carry && tow ? polyLen(carry) : 0)));
   const back0 = lift1 + C.backDelayMs, back1 = back0 + backMs;
-  return { doors, ends, rear, spots, fx, fy, walkMs, arrive, exit, at, fish, lift0, lift1, back0, back1, tow: !!tow,
+  return { doors, ends, rear, spots, fx, fy, walkMs, arrive, exit, at, fish, lift0, lift1, back0, back1, tow: !!tow, cabDoor: true,
            pace: far / Math.max(1, walkMs) * 1000 / C.walkSpeed,
            standMs: lift1, leaveMs: back1 + C.boardMs, via, pathOut, pathBack, carry };
 }
@@ -47145,10 +47148,9 @@ function trafficDriverLook(kind, colorSeed){
 }
 /* SEE-THROUGH GLASS EVERYWHERE (Sir, 2026-11-26: "The parked cars windows are still the old version"): every car, van and truck is
    drawn with its cab seen through its glass -- the parked ones too, empty (data.cabin { rider: null }) -- wherever it is drawn from (a
-   kerb, a lot, a garage deck, a shop's cached picture). drawCar, drawVan, drawRig and drawWorkTruck take data through this. The crew's
-   van keeps its own glass */
+   kerb, a lot, a garage deck, a shop's cached picture). drawCar, drawVan, drawRig and drawWorkTruck take data through this. */
 function vehGlassData(kind, data){
-  if(kind === 'tipseyvan' || (data && data.cabin)) return data;
+  if(data && data.cabin) return data;
   return Object.assign({}, data || null, { cabin: { rider: null } });
 }
 /* a moving vehicle's data: its driver at the wheel (or null: none to draw) */
@@ -47160,7 +47162,7 @@ function trafficDriverData(kind, colorSeed){ return vehHasDriver(kind) ? { cabin
 function carDoorWay(kind, ang){
   const CK = CAR_KINDS[kind];
   /* a van's cab door (drawVan's vanDoorOpen): hinged at the cab's front (aC), back to the screen pillar's foot (aB - 2) */
-  if(!CK && (kind === 'van' || kind === 'ambulance' || VAN_KINDS[kind])){
+  if(!CK && (kind === 'van' || kind === 'tipseyvan' || kind === 'ambulance' || VAN_KINDS[kind])){
     const VK = VAN_KINDS[kind] || null, V = VK && VK.v ? Object.assign({}, VANC, VK.v) : VANC, hl = (VK && VK.len || CARC.len)/2, hw = (VK && VK.wid || CARC.wid)/2;
     const aH = hl - V.hoodLen, aT = aH - V.rake - V.pillar - 2;
     return doorWayAt(aH, aH - aT, hl, hw, ang);
@@ -47192,6 +47194,23 @@ function errandCab(e, t){
   if(el < D.out + Tc + D.shutMs) door = Math.min(sm((el - D.open[0])/(D.open[1] - D.open[0])), 1 - sm((el - D.out - Tc)/D.shutMs));
   else if(L < D.in + Tc + D.shutMs) door = Math.min(sm((D.in + Tc + D.shutMs - L)/D.shutMs), 1 - sm((D.in - 100 - L)/D.shutMs));
   return { door: Math.max(0, door), rider: el < D.out || L <= D.in, W };
+}
+/* THE CREW'S VAN (Sir, 2026-11-26: "The tipsey crew needs to be open to. The door and have the windows updated"): the crew's driver at
+   the wheel, seen through its glass, while they are aboard (on a street call, the crew member who leaves by the cab door: crew 0),
+   and that door -- the driver's, on the left (DRIVER_B) -- swung open as they get out and back in. { rider, door 0..1 } */
+const CREW_DOOR = { before: 500, open: 450, after: 650, shut: 500 };
+function crewDriverLook(){
+  if(!crewDriverLook.c){ const b = rosterBody(0x7c0e), U = withAid(TIPSY_CREW_UNIFORM, b);
+    crewDriverLook.c = { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; }
+  return crewDriverLook.c;
+}
+function rescueVanCab(v, t){
+  const L = crewDriverLook(), c = v && v.crew, u = rescueClock(v, t);
+  if(!c || !c.cabDoor || v.trip || v.aidCrew) return { rider: c && u > c.exit && !(u > c.back1) ? null : L, door: 0 };
+  const D = CREW_DOOR, sm = k => { k = Math.max(0, Math.min(1, k)); return k*k*(3 - 2*k); };
+  const oOut = Math.min(sm((u - (c.exit - D.before))/D.open), 1 - sm((u - (c.exit + D.after))/D.shut));
+  const b = c.back1, oIn = Math.min(sm((u - (b - D.before - D.open))/D.open), 1 - sm((u - (b + 150))/D.shut));
+  return { rider: u < c.exit || u > b ? L : null, door: Math.max(0, oOut, oIn) };
 }
 /* off the site and on to the loop it joins, its hold set so the loop has
    it exactly where the path left it at tEnd */
@@ -47273,10 +47292,10 @@ function errandStart(tr, lp, site, J, t, at, plan){
     /* OUT OF ITS DOOR (WHO DRIVES): where the car has a door drawCar opens, the driver gets out of it -- the driver's, on the left
        (DRIVER_B), the side this walk was always laid from -- round it, and on by the old way; a narrow bay opens it less (lotAng).
        Drawn heading: backed in, the way it faced arriving turned round. On the far flank the door swings out behind the car, drawn
-       before it (a van's only on its near flank: none there) */
+       before it */
     const ki = path.stops.indexOf(st), hd = q.h + (ki > 0 && path.stops[ki - 1].rev ? Math.PI : 0), ch = Math.cos(hd), sh = Math.sin(hd), eb = ch - sh;
-    const dNear = (eb > 0 ? 1 : -1) === DRIVER_B, vanK = !CAR_KINDS[tr.kind];
-    const DWY = Math.abs(eb) > 0.3 && (dNear || !vanK) ? carDoorWay(tr.kind, /^kerb/.test(site.id || '') ? ERRAND_DOOR.ang : ERRAND_DOOR.lotAng) : null;
+    const dNear = (eb > 0 ? 1 : -1) === DRIVER_B;
+    const DWY = Math.abs(eb) > 0.3 ? carDoorWay(tr.kind, /^kerb/.test(site.id || '') ? ERRAND_DOOR.ang : ERRAND_DOOR.lotAng) : null;
     let dw = null, dc = 0, dmid = null;   // (dmid: where the open door is queued -- its nearest corner, the largest x + y it covers, so whoever is in the wedge behind it sorts under it)
     if(DWY){
       const nb = DRIVER_B, Wp = ([a, o]) => ({ x: q.x + a*ch - nb*o*sh, y: q.y + a*sh + nb*o*ch });
@@ -121403,8 +121422,23 @@ class WorldScene extends Phaser.Scene {
     if(this._rescueVan){
       const v = this._rescueVan.route === r ? rescueVanAt(this._rescueVan, this.time.now) : null;
       if(!v){ if(this._rescueVan.route !== r || rescueClock(this._rescueVan, this.time.now) > 1000) this._rescueVan = null; }
-      else if(this.visProp("tipseyvan", v.x, v.y, v.z || 0))
-        blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, v.z || 0, v.wheel, null, { beacon: true }) });
+      else if(this.visProp("tipseyvan", v.x, v.y, v.z || 0)){
+        /* its driver at the wheel and the cab door (rescueVanCab); the open door after the van at its nearest corner on the near flank,
+           before it at its farthest on the far one (as an errand car's) */
+        const cab = rescueVanCab(this._rescueVan, this.time.now), vdat = { beacon: true, cabin: { rider: cab.rider } };
+        let dAt = null;
+        if(cab.door > 0.001){
+          const DW = carDoorWay("tipseyvan", 1.05), th = v.fdir*Math.PI/2, ch = Math.cos(th), sh = Math.sin(th), eb = ch - sh;
+          if(DW && Math.abs(eb) > 0.12){
+            const Wp = ([a, o]) => ({ x: v.x + a*ch - DRIVER_B*o*sh, y: v.y + a*sh + DRIVER_B*o*ch }), hp = Wp(DW.hinge), tp = Wp(DW.tip);
+            const near = (eb > 0 ? 1 : -1) === DRIVER_B, hi = hp.x + hp.y >= tp.x + tp.y, m = near ? (hi ? hp : tp) : (hi ? tp : hp), e = near ? 0.5 : -0.5;
+            vdat.doorOpen = cab.door; vdat.doorOut = {}; dAt = { x: m.x + e, y: m.y + e };
+          }
+        }
+        blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, v.z || 0, v.wheel, null, vdat) });
+        if(dAt) blockVQ.push({ depth: dAt.x + dAt.y, fn: (g, tt) => { if(!vdat.doorOut.fn) this.vehDoorPrime("tipseyvan", v.x, v.y, v.z || 0, tt, v.fdir, v.wheel, null, vdat);
+          if(vdat.doorOut.fn) vdat.doorOut.fn(layerFor(dAt.x, dAt.y)); } });
+      }
       /* ...and its crew, while they are out of it */
       const crew = v && rescueCrewAt(this._rescueVan, this.time.now);
       if(crew) crew.forEach((m, i) => {
@@ -121485,7 +121519,8 @@ class WorldScene extends Phaser.Scene {
       blockVQ.push({ depth: pdep, fn:(g,t)=>this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs, pdat) });
       /* (its open door: after the car, at the door's middle -- the driver in the wedge behind it) */
       if(p.doorAt && pdat && pdat.doorOut){ const dx = p.doorAt.x, dy = p.doorAt.y;
-        blockVQ.push({ depth: dx + dy, fn: () => { if(pdat.doorOut.fn) pdat.doorOut.fn(layerFor(dx, dy)); } }); }
+        blockVQ.push({ depth: dx + dy, fn: (g, t) => { if(!pdat.doorOut.fn) this.vehDoorPrime(pk, pwx, pwy, pwz, t, pf, pwp2, pcs, pdat);   // (the far door: before its car)
+          if(pdat.doorOut.fn) pdat.doorOut.fn(layerFor(dx, dy)); } }); }
     }
     /* THROUGH THE DOOR, NOT POPPING (Sir, 2026-10-13: "they again are
        disappearing and appearing all at once"): anyone on foot inside a
@@ -134547,6 +134582,12 @@ class WorldScene extends Phaser.Scene {
       0, false, 0, 0, null, L.uniform, false, Object.assign({ noShadow: true, dress: L.dress }, pose)); }
     finally { this.drawClip = c0; }
   }
+  /* A DOOR DRAWN BEFORE ITS VEHICLE (the driver's door on the far flank, data.doorOut): its drawer is set while the vehicle draws, so
+     the door's own queue item, which comes first, has the vehicle drawn once into a graphics that is never shown to set it */
+  vehDoorPrime(kind, x, y, z, t, fdir, wheel, seed, data){
+    const ng = this._doorPrimeG || (this._doorPrimeG = this.make.graphics({}, false));
+    ng.clear(); this.drawProp(ng, kind, x, y, t, fdir, z, wheel, seed, data); ng.clear();
+  }
   drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     data = vehGlassData(kind, data);   // (the glass see-through, the cab empty unless someone is in it)
     /* what this kind is: a body from CAR_BODIES, a paint scheme, its add-ons (see CAR_KINDS) */
@@ -135196,10 +135237,14 @@ class WorldScene extends Phaser.Scene {
     const lows = []; if(aN > aD0 + 1) lows.push([aD0, aN, hS]); if(aN < aC - 1) lows.push([aN, aC, hA]);
     const winAH = [[aD0, h0], [aRake(h0) - 5, h0], [aRake(h1) - 5, h1], [aD0, h1]];
     const pieces = lows.map(([a0, a1, hb]) => [[a0, hb], [a1, hb], [a1, h0], [a0, h0]]).concat([winAH]);
-    for(const pc of pieces) this.vanCabIn(g, KV, k, pc.map(([a, h]) => P(a, fb, h)), true);
+    /* THE DRIVER'S DOOR (DRIVER_B, the left): on the near flank the opening and the cab in it; on the far flank the door alone, swung
+       out behind the van -- drawn before it through data.doorOut (as drawCar's), or not at all */
+    const sD = DRIVER_B, dNear = sD === nearB, fbD = sD*Math.abs(fb);
+    if(!dNear && !data.doorOut) return;
+    if(dNear) for(const pc of pieces) this.vanCabIn(g, KV, k, pc.map(([a, h]) => P(a, fb, h)), true);
     const ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang);
-    const D = (a, h, o) => { const u = aH - a; return P(aH - u*ca, fb + nearB*(u*sa + (o || 0)), h); };
-    const outer = sees(sa, nearB*ca, 0);                                                      // (its outside to the eye, or its inside)
+    const D = (a, h, o) => { const u = aH - a; return P(aH - u*ca, fbD + sD*(u*sa + (o || 0)), h); };
+    const outer = sees(sa, sD*ca, 0);                                                         // (its outside to the eye, or its inside)
     const drawDoor = gg => { const Q = (pts, c, aa) => this.quadOn(gg, pts, c, aa);
       for(const [a0, a1, hb] of lows) Q([D(a0, hb), D(a1, hb), D(a1, h0), D(a0, h0)], outer ? L.body : 0x6a625a);   // the panel, sill to the window
       const gi = [[aB, h0 + 2], [aRake(h0 + 2) - 8, h0 + 2], [aRake(h1 - 2) - 8, h1 - 2], [aB, h1 - 2]];             // the glass, in its frame
@@ -135375,7 +135420,7 @@ class WorldScene extends Phaser.Scene {
       /* the mirror, on the door's front corner */
       const m = [P(aC - 6, fb + nearB*7, hH + 8), P(aC - 1, fb + nearB*7, hH + 8),
                  P(aC - 1, fb + nearB*7, hH + 20), P(aC - 6, fb + nearB*7, hH + 20)];
-      if(!door) Q(m, trim);                                    // (an open door carries it: vanDoorOpen)
+      if(!door || DRIVER_B !== nearB) Q(m, trim);              // (an open door on this flank carries it: vanDoorOpen)
     }
 
     /* ---- the windscreen, inset in its frame ---- */
