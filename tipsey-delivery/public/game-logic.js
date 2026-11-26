@@ -128700,8 +128700,11 @@ class WorldScene extends Phaser.Scene {
         if(aid && aid.cast === side){ A = [thL + 22, hipH - shin*0.45];                       // (in plaster: the leg out straight in front, the heel down)
           limb(aC, [A[0], A[1] - 2], ext(Kp, A, -2), legW*1.3, legD*1.3, PLASTER.c, PLASTER.dk, 1.1, 0); }
         else {
-        shoeOf(aC, A, legW, legD);
-        limb(aC, [A[0], A[1] - 2], ext(Kp, A, 2.5), legW/1.15, legD/1.15, shC.c, shC.dk, 1.15, 1);   // (its knee end capped: open, its filled silhouette showed there as a flat lid -- people_depth.js)
+        /* (pedalling, the foot is up off the floor: its shoe in two passes round the shin, as a standing leg's -- all of it first, the shin
+           laid over it and the shoe gone, Sir 2026-11-26: "their shoes aren't being drawn") */
+        shoeOf(aC, A, legW, legD, pose.pedal ? 1 : undefined);
+        limb(aC, [A[0], A[1] - 2], ext(Kp, A, 2.5), legW/1.15, legD/1.15, shC.c, shC.dk, 1.15, 1);
+        if(pose.pedal) shoeOf(aC, A, legW, legD, 2);   // (its knee end capped: open, its filled silhouette showed there as a flat lid -- people_depth.js)
         }
       }
       if(pose.part !== 'shins') limb(aC, ext(Kp, [0, hC], 2.5), [0, hC], legW, legD, thC.c, thC.dk, 1.18, hC < hipH ? 3 : 2);   // (the knee end capped, as the shin's -- and the hip end, let down under the body: from the side or behind it shows under the hips, open)
@@ -130586,7 +130589,8 @@ class WorldScene extends Phaser.Scene {
     const seatTop = [0, -4*s, sit - 12*s], htTop = [0, steerF(barU - 12*s), barU - 12*s], htBot = [0, steerF(hubU + 22*s), hubU + 22*s];
     const BBp = [0, bbF, bbU], RH = [0, rearF, hubU], FH = [0, frontF, hubU];
     /* the wheels turn as it goes (the scooter's wheelPhase, its little wheels: ours in step with the ground), the cranks a third as fast */
-    const wAng = wheelPhase != null ? -wheelPhase*(RIDER.wheelR/R) : 0, cAng = wheelPhase != null ? wAng*0.42 : Math.PI*0.08;
+    const wAng = wheelPhase != null ? -(t || 0)*0.02*(RIDER.wheelR/R) : 0,   /* (off the clock, not the wheelPhase handed in: a street rider's is their distance along the loop, which runs down on half the lanes -- they pedalled backwards, Sir 2026-11-26) */
+      cAng = wheelPhase != null ? wAng*0.42 : Math.PI*0.08;
     const wheel = cf => {
       for(let k = 0; k < 12; k++){ const a = wAng + k*Math.PI/6, p = Wp(0, cf + Math.cos(a)*(R - 2.4*s), hubU + Math.sin(a)*(R - 2.4*s)), q = Wp(0, cf, hubU);
         g.lineStyle(Math.max(0.6, 0.45*K*0.42), 0xb8bec6, 0.9); g.lineBetween(q.x, q.y, p.x, p.y); }
