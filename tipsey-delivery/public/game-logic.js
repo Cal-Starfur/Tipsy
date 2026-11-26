@@ -5463,6 +5463,56 @@ function kerbLatticeJoints(a, b){
   return out;
 }
 /* a slab's seeded roll, 0..1: stable per slab (its T2 index) and per purpose (salt) */
+/* SLABS THAT TILT (Sir, 2026-11-26: "create up and downs in the sidewalk.. similar to our slabs but tilting forward and back";
+   "there is no lip on the slopes ... i also like the lip idea to give it some variation so we should be able to do both").
+   Roots and settling move the odd slab of a mid-block walk. The slabs are rolled by 2 x 2 groups (so two features never
+   claim one slab): about one group in eight has one, of three kinds --
+     - a RIDGE: two neighbouring slabs heaved at their shared joint, each rising from its outer edge to the joint (no lip:
+       smooth up and over, as a drive's mouth is);
+     - a VALLEY: the same pair sunk at their joint (smooth down and up);
+     - a LIP: one slab heaved along one edge, standing proud of its neighbour there -- a little step that knocks him.
+   The ground is drawn flat, so a tilt is told by the light, as the ramps' are (THE SLOPE READS AS A SLOPE): each slab toned by
+   which way it falls, the ridge's joint a lit break-over, the valley's a dark crease, a lip's raised edge a lit arris and,
+   where it faces the eye, its step face. owRampFeel reads the same planes (paveTiltAt): he pitches and leans over them, and a
+   lip's step kicks him. Mid-block runs only (no corners, ramps or drives; a drive's apron over one is level). */
+const PAVE_TILT = { p: 1/8, ridge: 0.4, valley: 0.7, hRidge: [5, 8], hValley: [4, 7], hLip: [4, 6], toneK: 0.3,
+                    bump: 0.18, kick: 0.07, bumpMs: 140 };
+function paveRunSet(grid){
+  if(grid._swRunSet) return grid._swRunSet;
+  const m = new Set();
+  for(const rn of (grid.sidewalkRuns || [])) m.add(Math.floor(rn.x/T2) + ',' + Math.floor(rn.y/T2));
+  return (grid._swRunSet = m);
+}
+/* the feature of slab (ix, iy), if it has one: { kind, axis (0: x, 1: y), z0, dz } -- its height z0 + dz*t across the slab
+   along the axis (t 0..1 from its low-index edge) -- and lipS (+1 / -1: which edge stands proud) on a lip. has(ix, iy): is
+   that slab a mid-block run's. */
+function paveTilt(ix, iy, has){
+  if(!has(ix, iy)) return null;
+  const T = PAVE_TILT, sx = Math.floor(ix/2), sy = Math.floor(iy/2);
+  if(paveRoll(sx, sy, 15) >= T.p) return null;
+  const k = paveRoll(sx, sy, 16), axis = paveRoll(sx, sy, 17) < 0.5 ? 0 : 1, row = paveRoll(sx, sy, 18) < 0.5 ? 0 : 1;
+  const hr = paveRoll(sx, sy, 19), lerp = (r) => r[0] + (r[1] - r[0])*hr;
+  if(k < T.valley){
+    const A = axis ? [2*sx + row, 2*sy] : [2*sx, 2*sy + row], B = axis ? [A[0], A[1] + 1] : [A[0] + 1, A[1]];
+    if(!has(A[0], A[1]) || !has(B[0], B[1])) return null;
+    const h = k < T.ridge ? lerp(T.hRidge) : -lerp(T.hValley), kind = k < T.ridge ? 'ridge' : 'valley';
+    if(ix === A[0] && iy === A[1]) return { kind, axis, z0: 0, dz: h, first: true };
+    if(ix === B[0] && iy === B[1]) return { kind, axis, z0: h, dz: -h, first: false };
+    return null;
+  }
+  const L = [2*sx + row, 2*sy + (paveRoll(sx, sy, 20) < 0.5 ? 0 : 1)];
+  if(ix !== L[0] || iy !== L[1]) return null;
+  const h = lerp(T.hLip), lipS = paveRoll(sx, sy, 21) < 0.5 ? -1 : 1;
+  return { kind: 'lip', axis, z0: lipS > 0 ? 0 : h, dz: lipS > 0 ? h : -h, lipS };
+}
+/* the walk's height at world (x, y) from a tilted slab, and the slab's uphill gradient; null on the level */
+function paveTiltAt(grid, x, y){
+  const set = paveRunSet(grid), has = (i, j) => set.has(i + ',' + j);
+  const ix = Math.floor(x/T2), iy = Math.floor(y/T2), F = paveTilt(ix, iy, has);
+  if(!F) return null;
+  const t = F.axis ? (y - iy*T2)/T2 : (x - ix*T2)/T2, gr = F.dz/T2;
+  return { z: F.z0 + F.dz*t, gx: F.axis ? 0 : gr, gy: F.axis ? gr : 0, F, ix, iy };
+}
 function paveRoll(ix, iy, salt){
   let h = (Math.imul(ix | 0, 0x27d4eb2d) ^ Math.imul(iy | 0, 0x165667b1) ^ Math.imul(salt | 0, 0x9e3779b1)) >>> 0;
   h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b) >>> 0; h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0; h ^= h >>> 16;
@@ -9009,11 +9059,31 @@ function owRampFeel(scene, ow, W, dt){
     const q = driveFrame(M.d, ow.px, ow.py), G = driveGrad(M.d, q.al, q.lat);
     if(G){ const e = M.d.e; gx = G.dal*e.dv.x + G.dlat*e.rv.x; gy = G.dal*e.dv.y + G.dlat*e.rv.y; break; }
   }
+  /* ...and a tilted slab of the walk (PAVE_TILT), where no drive's apron lies over it; a lip's step knocks him */
+  let slabZ = null;
+  if(gx === null && W && W.grid){
+    const P = paveTiltAt(W.grid, ow.px, ow.py);
+    if(P && !owOnDriveApron(W.grid, ow.px, ow.py)){ gx = P.gx; gy = P.gy; slabZ = P.z; }
+  }
+  const sz = slabZ === null ? 0 : slabZ, pz = ow._slabZ === undefined ? sz : ow._slabZ;
+  if(Math.abs(sz - pz) > 1.5 && Math.abs(ow.vel) > 0.01){
+    /* a step: up onto a lip, or down off one. The nose bumps (up climbing, down dropping) and, met at a slant, the wheel that
+       takes it first throws him toward that side, as a kerb does but smaller */
+    const T = PAVE_TILT, sp = Math.min(1, Math.abs(ow.vel)/0.15), up = sz > pz ? 1 : -1;
+    const P0 = paveTiltAt(W.grid, ow.px, ow.py) || { F: { axis: Math.abs(ow.px - ow._slabX) > Math.abs(ow.py - ow._slabY) ? 0 : 1 } };
+    const nx = P0.F.axis ? 0 : 1, ny = P0.F.axis ? 1 : 0, dir = Math.sign(ow.vel) || 1;
+    const hx = Math.cos(ow.yaw)*dir, hy = Math.sin(ow.yaw)*dir, across = hx*ny - hy*nx, along = Math.sign(hx*nx + hy*ny) || 1;
+    ow.slabBump = up * T.bump * sp;
+    owLeanKick(scene, ow, -up * along * across * T.kick * sp);
+  }
+  ow._slabZ = sz; ow._slabX = ow.px; ow._slabY = ow.py;
+  if(ow.slabBump){ ow.slabBump *= Math.exp(-dt/PAVE_TILT.bumpMs); if(Math.abs(ow.slabBump) < 0.003) ow.slabBump = 0; }
   if(gx !== null){
     const cs = Math.cos(ow.yaw), sn = Math.sin(ow.yaw);
     ow.rampPitch = Math.atan(OW_RAMP.pitch * (cs*gx + sn*gy));         // nose up facing uphill
     target = -OW_RAMP.roll * (cs*gy - sn*gx);                          // lean to the low side
   }
+  ow.rampPitch += ow.slabBump || 0;
   ow.slopeLean = (ow.slopeLean || 0) + (target - (ow.slopeLean || 0)) * Math.min(1, dt / OW_RAMP.easeMs);
   if(Math.abs(ow.slopeLean) < 1e-4 && !target) ow.slopeLean = 0;
   owLeanCompose(scene, ow);
@@ -9121,6 +9191,14 @@ function owAtRampMouth(grid, x, y, cx, cy){
     if(x < M.x0 || x > M.x1 || y < M.y0 || y > M.y1) continue;
     const d = M.d, q = driveFrame(d, x, y);
     if(q.al >= M.a0 && q.al <= M.a1 && Math.abs(q.lat - SIDEWALK_W) <= T2) return true;
+  }
+  return false;
+}
+/* is (x, y) on a drive's apron, lot line to kerb (its walk is level there: PAVE_TILT) */
+function owOnDriveApron(grid, x, y){
+  for(const d of hoodDrivewaysOf(grid)){
+    const q = driveFrame(d, x, y), lo = Math.min(d.al0, d.al1), hi = Math.max(d.al0, d.al1);
+    if(q.lat >= -T2 && q.lat <= SIDEWALK_W && q.al >= lo - T2 && q.al <= hi + T2) return true;
   }
   return false;
 }
@@ -11712,7 +11790,7 @@ function owStandUpAt(scene, x, y, yaw){
   if(ow.scoot && typeof scootDrop === "function") scootDrop(scene);   // (a teleport, a handed-back loan: the scooter stands where he was)
   ow.px = x; ow.py = y; ow.yaw = yaw; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
-  ow.leanS = 0; ow.leanI = 0; ow.slopeLean = 0;   // stand him up on every channel
+  ow.leanS = 0; ow.leanI = 0; ow.slopeLean = 0; ow.slabBump = 0; ow._slabZ = undefined;   // stand him up on every channel
   ow.sfcCommit = null;          // respawn must not charge a phantom crossing
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
@@ -112777,6 +112855,10 @@ class WorldScene extends Phaser.Scene {
   paveSlabOn(g, pts, d, wx, wy, lane){
     const PA = PAVE_ART;
     const ix = Math.floor(wx/T2), iy = Math.floor(wy/T2), par = (ix + iy) & 1;
+    if(lane !== undefined && this._slabFx && this._slabHas){        // a tilted slab: its light laid after the whole walk (paveTiltFlush)
+      const F = paveTilt(ix, iy, this._slabHas);
+      if(F) this._slabFx.push({ pts, F, d, ix, iy });
+    }
     const odd = paveRoll(ix, iy, 2);
     const weathered = odd < PA.weatherP, patched = !weathered && odd > 1 - PA.patchP;
     let t = (par ? 1 - PA.calm : PA.calm) + (paveRoll(ix, iy, 1) - 0.5)*2*PA.jit;
@@ -112846,6 +112928,40 @@ class WorldScene extends Phaser.Scene {
     g.beginPath(); g.moveTo(X(li, 1), Y(li, 1)); g.lineTo(X(li, li), Y(li, li)); g.lineTo(X(1, li), Y(1, li)); g.strokePath();
   }
 
+  /* SLABS THAT TILT, their light (see PAVE_TILT): over the whole walk, so a lip's step face and a joint's line are not
+     painted over by the next slab. Each slab toned by which way it falls (lit toward the light, shaded away), the ridge's
+     joint a lit break-over and the valley's a dark crease (drawn by the pair's first slab), a lip's raised edge a lit arris
+     and -- where it faces the eye (its +x or +y edge: pts[0] is the far corner) -- its step face below it. Ground pass. */
+  paveTiltFlush(g){
+    const L = this._slabFx; this._slabFx = null;
+    if(!L || !L.length) return;
+    const T = PAVE_TILT, RA = RAMP_ART, zPx = this.W(0, 0, 1).y - this.W(0, 0, 0).y;
+    for(const { pts, F, d } of L){
+      const p0 = pts[0], ex = pts[1].x - p0.x, ey = pts[1].y - p0.y, fx = pts[3].x - p0.x, fy = pts[3].y - p0.y;
+      const X = (u, v) => ({ x: p0.x + ex*u + fx*v, y: p0.y + ey*u + fy*v });
+      const sgn = -Math.sign(F.dz), sx = (F.axis ? fx : ex)*sgn, sy = (F.axis ? fy : ey)*sgn;   // downhill, on screen
+      const t = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), k = Math.min(1, Math.abs(F.dz)/6)*T.toneK;
+      this.quadOn(g, pts, t >= 0 ? 0xffffff : RA.shade, Math.abs(t)*k);
+      const edge = (c) => F.axis ? [X(0, c), X(1, c)] : [X(c, 0), X(c, 1)];     // the slab's edge at t = c
+      const K = this.K;
+      if(F.kind !== 'lip'){
+        if(!F.first) continue;
+        const [a, b] = edge(1);
+        if(F.kind === 'ridge'){ g.lineStyle(Math.max(1, K*0.9), RA.lit, 0.8); }
+        else { g.lineStyle(Math.max(1, K*0.9), shadeN(d.paveEdge, 0.7), 0.75); }
+        g.lineBetween(a.x, a.y, b.x, b.y);
+        continue;
+      }
+      let c = F.lipS > 0 ? 1 : 0, [a, b] = edge(c), h = Math.abs(F.dz)*Math.abs(zPx);
+      let ta = a, tb = b;
+      if(F.lipS > 0 && h > 0.6){                                   // the step face, turned to the eye: from the raised top down to the walk
+        ta = { x: a.x, y: a.y - h }; tb = { x: b.x, y: b.y - h };
+        this.quadOn(g, [ta, tb, b, a], shadeN(d.paveEdge, 0.82), 0.9);
+      }
+      a = ta; b = tb;
+      g.lineStyle(Math.max(1, K*0.9), RA.lit, 0.9); g.lineBetween(a.x, a.y, b.x, b.y);
+    }
+  }
   /* THE TACTILE PAD of a kerb ramp (pavement pass, 2026-11-23): the yellow landing and its truncated domes. The domes were
      screen-flat 1.5px dots on the pad's corners and edges; each is now a dome on a 6 x 6 grid set in from the edge, drawn in
      the pad's own plane through Wf (so it foreshortens and turns with it): its round foot in the darker yellow, a lit cap
@@ -116964,6 +117080,7 @@ class WorldScene extends Phaser.Scene {
        check needed), fine classify()-verified cells only near actual
        intersections — the one place a cheap tile could be wrong. */
     /* broad phase: Manhattan hash on flatSpan. narrow phase: screen AABB. */
+    { const set = paveRunSet(r.grid); this._slabHas = (i, j) => set.has(i + ',' + j); this._slabFx = []; }
     for(const rn of manhattanQuery(paveHash(r.grid, "sidewalkRuns", "swRunHash"),
                                    this.camX, this.camY, flatSpan, this._qRuns)){
       if(sierraInside(rn.x, rn.y)) continue;             // inside the wall the estate lays its own paving
@@ -116975,6 +117092,7 @@ class WorldScene extends Phaser.Scene {
       if(!onScreen(pts)) continue;
       this.paveSlabOn(g, pts, d, rn.x, rn.y, rn.lane);
     }
+    this.paveTiltFlush(g);
     for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
                                      this.camX, this.camY, flatSpan, this._qCorner)){
       if(sierraInside(cell.x, cell.y)) continue;
