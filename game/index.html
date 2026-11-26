@@ -2482,21 +2482,28 @@ const BLEND = ["hill","pave","litter","palms"].reduce((o,k) => {
 
 /* ---------- deterministic rng ---------- */
 function hashStr(s){ let h = 1779033703; for(let i=0;i<s.length;i++){ h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); } return h >>> 0; }
+/* (perf, 2026-11-26: a fifth of a person's draw was here, ~70 small hulls a person a frame. The same hull, point for point:
+   a small set put in order by insertion -- stable, as the sort is, so ties come out as they did -- and the chains built
+   without a closure or a second array to join) */
 function convexHull(pts){
-  const P2 = pts.slice().sort((a,b) => a.x - b.x || a.y - b.y);
-  const cross = (o, a, b) => (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x);
-  const lo = [], hi = [];
-  for(const p of P2){
-    while(lo.length >= 2 && cross(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop();
-    lo.push(p);
-  }
-  for(let i = P2.length-1; i >= 0; i--){
-    const p = P2[i];
-    while(hi.length >= 2 && cross(hi[hi.length-2], hi[hi.length-1], p) <= 0) hi.pop();
-    hi.push(p);
-  }
-  lo.pop(); hi.pop();
-  return lo.concat(hi);
+  const n = pts.length, P2 = pts.slice();
+  if(n > 48) P2.sort((a,b) => a.x - b.x || a.y - b.y);
+  else for(let i = 1; i < n; i++){ const p = P2[i]; let j = i - 1;
+    while(j >= 0){ const q = P2[j]; if((q.x - p.x || q.y - p.y) > 0){ P2[j + 1] = q; j--; } else break; }
+    P2[j + 1] = p; }
+  const out = [];
+  for(let i = 0; i < n; i++){ const p = P2[i];
+    while(out.length >= 2){ const o = out[out.length - 2], a = out[out.length - 1];
+      if((a.x - o.x)*(p.y - o.y) - (a.y - o.y)*(p.x - o.x) <= 0) out.pop(); else break; }
+    out.push(p); }
+  out.pop();
+  const b = out.length;
+  for(let i = n - 1; i >= 0; i--){ const p = P2[i];
+    while(out.length - b >= 2){ const o = out[out.length - 2], a = out[out.length - 1];
+      if((a.x - o.x)*(p.y - o.y) - (a.y - o.y)*(p.x - o.x) <= 0) out.pop(); else break; }
+    out.push(p); }
+  out.pop();
+  return out;
 }
 /* (the one the review's fill check leaves alone: a piece that is a deliberate filled shape -- a flame, a pouch's silhouette -- calls this, not convexHull) */
 const convexHullKeep = convexHull;
@@ -3483,6 +3490,9 @@ const PEOPLE_ART = { walkStride: 8, walkSpeed: 0.006, shadow: 0x000000 };
      ghost   only people who matter to play (keyPerson: whoever talks to him or is within keyR of him, mission
              givers and targets, a lost thing's owner, the lost dog's, William) ghost when their head is hidden -- and
              then are drawn ONCE, as the ghost; anyone else wholly hidden is not drawn at all */
+/* HAIR_LOFT: each hair shell's shape in the head's own frame, kept by the look (drawPersonHullBodyAt's hairShell); on: false
+   builds it every frame, as before, for a side-by-side */
+const HAIR_LOFT = { on: true, map: new Map(), max: 4000 };
 const PERSON_DRAW = {
   lodK1: 1.0,     // K at or over this: view 1's level (nearLod)
   lodK2: 0.45,    // K at or over this, under lodK1: the fused level (1); under it the far level (2)
@@ -113624,7 +113634,13 @@ class WorldScene extends Phaser.Scene {
     const fan = wide ? XRAY.fan : [0];
     const needHits = wide ? (needOverride || XRAY.hits) : 1;
     let hits = 0;
+    /* ONE MISS SETTLES IT (perf, 2026-11-26: this march was ~15% of a frame at view 3 by the mall -- five rays of up to fifty
+       builtHeightAt samples each, every frame, and he is usually in the open, so every ray ran its full length): once the
+       rays left cannot reach needHits the answer is 0 whatever they find, so they are not marched. The debug readout
+       (OW_DBG's "xray n/5") still counts every ray, on the frames it is refreshed (owDbgDraw: every 160 ms) */
+    const all = wide && typeof OW_DBG !== "undefined" && OW_DBG && !(this._owDbgAt && Date.now() - this._owDbgAt < 150);
     for(let i = 0; i < fan.length; i++){
+      if(!all && hits + fan.length - i < needHits) break;
       const u = fan[i];
       /* u is depth-preserving, so every ray in the fan is at the same
          forward distance s and the height test holds for all of them
@@ -129625,44 +129641,62 @@ class WorldScene extends Phaser.Scene {
          womans hair"): cut at the band they were an open ring -- the shell's side with no top, the floor seen through it (a flat lid there was the
          dark circle on the back of every hat, 2026-10-28). Moved down by what rose over the band, they come out from under it, whole */
       const hatDrop = top => cut == null ? 0 : Math.max(0, top - (cut - 0.6));
+      /* THE SHELL'S SHAPE, WORKED OUT ONCE A LOOK (people's maths, perf 2026-11-26: the hair was ~15% of a person's draw, its
+         points, normals and tones rebuilt every frame though they hang only on the look). Each loft's points in the head's own
+         frame (a, b, h), and each face's normal, its middle and its tone, are kept in HAIR_LOFT by the look (style, head, heights,
+         the hat's cut, the colours, the LOD) and the loft's place in the style; what turns with the person -- the projection (G),
+         which faces the eye sees, which pass a face is in, the back-to-front order -- is still done every frame, as before */
+      const hk = HAIR_LOFT.on ? [hs, r, z0, z1, cut, hairHash, hairPair.c, hairPair.dk, pSkin.c, pSkin.dk, LOD].join('|') : null;
+      let loftIx = 0;
       const loft = (o) => {
-        const n = LOD ? 8 : 12, K = LOD ? Math.min(o.K || 5, LOD === 1 ? 4 : 3) : o.K || 5, rampC = o.col ? rampOf(o.col) : ramp, P = [];   // (8 a ring, 4 rings, 3 far: PERSON_DRAW's LOD)
-        for(let k = 0; k < K; k++){ const u = k/(K - 1), row = [], off = o.off ? o.off(u) : [0, 0];
-          for(let i = 0; i < n; i++){ const th = (i + 0.5)/n*Math.PI*2, c = Math.cos(th), sn = Math.sin(th), R = o.rad(th, u, c, sn), z = o.z(th, u, c, sn);
-            row.push({ a: o.ca + off[0] + c*R, b: o.cb + off[1] + sn*R, h: cut == null ? z : Math.min(z, cut) }); }
-          P.push(row); }
+        const ck = hk && hk + '|' + (loftIx++);
+        let C = ck ? HAIR_LOFT.map.get(ck) : null;
+        if(!C){
+          const n = LOD ? 8 : 12, K = LOD ? Math.min(o.K || 5, LOD === 1 ? 4 : 3) : o.K || 5, rampC = o.col ? rampOf(o.col) : ramp, P = [];   // (8 a ring, 4 rings, 3 far: PERSON_DRAW's LOD)
+          for(let k = 0; k < K; k++){ const u = k/(K - 1), row = [], off = o.off ? o.off(u) : [0, 0];
+            for(let i = 0; i < n; i++){ const th = (i + 0.5)/n*Math.PI*2, c = Math.cos(th), sn = Math.sin(th), R = o.rad(th, u, c, sn), z = o.z(th, u, c, sn);
+              row.push({ a: o.ca + off[0] + c*R, b: o.cb + off[1] + sn*R, h: cut == null ? z : Math.min(z, cut) }); }
+            P.push(row); }
+          const off5 = o.off ? o.off(0.5) : [0, 0], F = [];
+          for(let k = 0; k < K - 1; k++) for(let i = 0; i < n; i++){ const j = (i + 1) % n, q0 = P[k][i], q1 = P[k][j], q2 = P[k + 1][j], q3 = P[k + 1][i];
+            /* UNDER A HAT, NOTHING FLATTENED ONTO ITS BAND (Sir, 2026-10-28: "all of our hats have this little circle in the
+               back"): what rose above the band was pressed down onto it, a flat disc there -- a bun, a tail's top -- and the
+               back's hair, painted after the head, laid it over the cap as a dark ring. That is all under the hat: left out */
+            if(cut != null && q0.h >= cut - 0.01 && q1.h >= cut - 0.01 && q2.h >= cut - 0.01 && q3.h >= cut - 0.01) continue;
+            const mh = (q0.h + q1.h + q2.h + q3.h)/4, mbb = (q0.b + q2.b)/2 - o.cb;
+            const e1 = [q1.a - q0.a, q1.b - q0.b, q1.h - q0.h], e2 = [q3.a - q0.a, q3.b - q0.b, q3.h - q0.h];
+            let nx = e1[1]*e2[2] - e1[2]*e2[1], ny = e1[2]*e2[0] - e1[0]*e2[2], nz = e1[0]*e2[1] - e1[1]*e2[0];
+            const ma = (q0.a + q2.a)/2 - o.ca - off5[0], mb = (q0.b + q2.b)/2 - o.cb - off5[1];
+            if(nx*ma + ny*mb + nz*0.2 < 0){ nx = -nx; ny = -ny; nz = -nz; }                      // outward, away from the shell's axis
+            const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
+            const lit = Math.max(0, Math.min(1, 0.1 + 0.55*Math.abs(ny) + 1.0*Math.max(0, nz) + (o.behind ? 0.3 : -0.1)*Math.abs(nx)));   // (a tail, a bun: lit from the side too, or it hung as a flat slab)
+            F.push({ k, i, j, nx, ny, nz, ma, mb, mh, mbb, col: rampC[Math.round((1 - lit)*10)], sa: q0.a + q2.a, sb: q0.b + q2.b, sh: q0.h + q2.h });
+          }
+          C = { K, n, P, F, top: rampC[0], behind: !!o.behind, noTop: o.top === false };
+          if(ck){ if(HAIR_LOFT.map.size > HAIR_LOFT.max) HAIR_LOFT.map.clear(); HAIR_LOFT.map.set(ck, C); }
+        }
+        const { K, P, F } = C;
         const S = P.map(row => row.map(p => G(p.a, p.b, p.h)));
-        const face = (q0, q1, q2, q3, s0, s1, s2, s3) => {
-          /* UNDER A HAT, NOTHING FLATTENED ONTO ITS BAND (Sir, 2026-10-28: "all of our hats have this little circle in the
-             back"): what rose above the band was pressed down onto it, a flat disc there -- a bun, a tail's top -- and the
-             back's hair, painted after the head, laid it over the cap as a dark ring. That is all under the hat: left out */
-          if(cut != null && q0.h >= cut - 0.01 && q1.h >= cut - 0.01 && q2.h >= cut - 0.01 && q3.h >= cut - 0.01) return;
-          const mh = (q0.h + q1.h + q2.h + q3.h)/4, mbb = (q0.b + q2.b)/2 - o.cb;
-          const e1 = [q1.a - q0.a, q1.b - q0.b, q1.h - q0.h], e2 = [q3.a - q0.a, q3.b - q0.b, q3.h - q0.h];
-          let nx = e1[1]*e2[2] - e1[2]*e2[1], ny = e1[2]*e2[0] - e1[0]*e2[2], nz = e1[0]*e2[1] - e1[1]*e2[0];
-          const ma = (q0.a + q2.a)/2 - o.ca - (o.off ? o.off(0.5)[0] : 0), mb = (q0.b + q2.b)/2 - o.cb - (o.off ? o.off(0.5)[1] : 0);
-          if(nx*ma + ny*mb + nz*0.2 < 0){ nx = -nx; ny = -ny; nz = -nz; }                      // outward, away from the shell's axis
-          const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
+        /* (back to front: a shell bent by its style -- curls, a flare, a parting's tilt -- is not convex, and in ring order a face went over a
+           nearer one of its own; sorted by depth toward the eye, people_depth.js, Sir, 2026-11-20, "fix them all") */
+        const FQ = [];
+        for(const f of F){
           /* what hangs below the ears behind the head, or a whole loft behind it (a tail, a bun), goes before the head and the body -- but not
              the hair over the back of the head's side between the chin and the ears, turned out to the side and not well behind the head from the
              eye: the head is inside it there, and drawn before the head the back of its jaw lay over it (Sir, 2026-11-20, "the rear of the head is
              drawing over this hair piece"). (A face turned down, a bob's flared underside, stays: after the head it lay over the chin) */
-          const dv = ma*(cs + sn) + mb*(cs - sn);                                                  // (its depth from the eye against the head's middle: the world's a + b)
-          const sideOver = mh >= z0 && nz > -0.15 && dv > -r*0.35;
-          const low = o.behind || (mh < earZ && mbb < 0 && !sideOver);
-          if(pass === 'low' ? !low : low) return;                                              // ...belongs to the other pass
-          if(!sees3(nx, ny, nz)) return;
-          const lit = Math.max(0, Math.min(1, 0.1 + 0.55*Math.abs(ny) + 1.0*Math.max(0, nz) + (o.behind ? 0.3 : -0.1)*Math.abs(nx)));   // (a tail, a bun: lit from the side too, or it hung as a flat slab)
+          const dv = f.ma*(cs + sn) + f.mb*(cs - sn);                                              // (its depth from the eye against the head's middle: the world's a + b)
+          const sideOver = f.mh >= z0 && f.nz > -0.15 && dv > -r*0.35;
+          const low = C.behind || (f.mh < earZ && f.mbb < 0 && !sideOver);
+          if(pass === 'low' ? !low : low) continue;                                            // ...belongs to the other pass
+          if(!sees3(f.nx, f.ny, f.nz)) continue;
+          const s0 = S[f.k][f.i], s1 = S[f.k][f.j], s2 = S[f.k + 1][f.j], s3 = S[f.k + 1][f.i];
           const cx = (s0.x + s1.x + s2.x + s3.x)/4, cy = (s0.y + s1.y + s2.y + s3.y)/4;
-          const dep = eye3[0]*(q0.a + q2.a) + eye3[1]*(q0.b + q2.b) + eye3[2]*(q0.h + q2.h);   // (its depth toward the eye)
-          FQ.push([dep, [s0, s1, s2, s3].map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.6, y: p.y + dy/d*0.6 }; }), rampC[Math.round((1 - lit)*10)]]);
-        };
-        /* (back to front: a shell bent by its style -- curls, a flare, a parting's tilt -- is not convex, and in ring order a face went over a
-           nearer one of its own; sorted by depth toward the eye, people_depth.js, Sir, 2026-11-20, "fix them all") */
-        const FQ = [];
-        for(let k = 0; k < K - 1; k++) for(let i = 0; i < n; i++){ const j = (i + 1) % n; face(P[k][i], P[k][j], P[k + 1][j], P[k + 1][i], S[k][i], S[k][j], S[k + 1][j], S[k + 1][i]); }
+          const dep = eye3[0]*f.sa + eye3[1]*f.sb + eye3[2]*f.sh;                               // (its depth toward the eye)
+          FQ.push([dep, [s0, s1, s2, s3].map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.6, y: p.y + dy/d*0.6 }; }), f.col]);
+        }
         FQ.sort((x, y) => x[0] - y[0]); for(const f of FQ) this.quadOn(g, f[1], f[2]);
-        if(o.top !== false && cut == null && (o.behind ? pass === 'low' : pass !== 'low') && sees3(0, 0, 1)) this.quadOn(g, S[K - 1], rampC[0]);   // (its top only toward the eye: see prism's)
+        if(!C.noTop && cut == null && (C.behind ? pass === 'low' : pass !== 'low') && sees3(0, 0, 1)) this.quadOn(g, S[K - 1], C.top);   // (its top only toward the eye: see prism's)
       };
       /* the hairline round the head: fF on the brow, fS over the ears, fB at the nape (fractions of the head's height
          over the chin; below 0 hangs below it), blended by where round the head */
