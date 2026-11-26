@@ -115728,8 +115728,18 @@ class WorldScene extends Phaser.Scene {
           const E = (t, z) => this.W(P[0] + (Q[0] - P[0])*t, P[1] + (Q[1] - P[1])*t, z);
           const zt2 = t => pa + (pb - pa)*t, bot = t => Math.max(0, zt2(t) - TH);
           const tv = ts.filter(t => bot(t) > 0.05 || (t > 0 && t < 1));
-          if(tv.some(t => bot(t) > 0.05))                               // the void under it: where its foot is off the walk
+          if(tv.some(t => bot(t) > 0.05)){                              // the void under it: where its foot is off the walk
             this.quadOn(g, tv.map(t => E(t, 0)).concat(tv.slice().reverse().map(t => E(t, bot(t)))), A.gap, 0.85);
+            /* ...FILLED WITH THE ROOTS THAT LIFTED IT (Sir, 2026-11-26: "we want to fill the space with the roots"): the root
+               mass in the slab's dark root brown up to most of the gap, its back lit in the root's light tone along the middle,
+               and a soil line left at the top -- thinning out with the gap toward the low end, seeded wobble per slab */
+            const rk = paveRoll(ix, iy, 40 + sides.length), wob = t => 0.82 + 0.1*Math.sin((t*3.1 + rk*6.3)*Math.PI);
+            const ta = tv[0], tb = tv[tv.length - 1], td = [];
+            for(let i = 0; i <= 10; i++) td.push(ta + (tb - ta)*i/10);
+            const hiP = f => td.slice().reverse().map(t => E(t, bot(t)*f(t)));
+            this.quadOn(g, td.map(t => E(t, 0)).concat(hiP(wob)), A.rootB);
+            this.quadOn(g, td.map(t => E(t, bot(t)*0.38)).concat(hiP(t => wob(t)*0.72)), A.rootA);
+          }
           const band = [E(0, zt2(0)), E(1, zt2(1))].concat(ts.slice().reverse().map(t => E(t, bot(t))));
           this.quadOn(g, band, isEnd ? A.topDk : A.wallEnd);
           /* its edges: an end's in the gap's line; a side's in the slab's dark -- its top, its foot, and where a pair's two
