@@ -15787,7 +15787,9 @@ function walkinAwayDoor(scene){
   if(pk._awayDoor !== undefined) return pk._awayDoor;
   let out = null;
   const rec = LIB.doorOf(lib), L = landmarkLabWorld(lib), ent = LIB.get(lib);
-  if(rec && rec.length && L && ent && !shopDoorsOf(grid).some(d => d.lib === lib)){
+  /* (not an entry whose pairs slide live, its slideDoors: those are its doors from inside and out -- a kit door recorded on its street
+     front was taken for one facing away and drawn a second time, full height, over him in the doorway: the museum, 2026-11-26) */
+  if(rec && rec.length && L && ent && !ent.slideDoors && !shopDoorsOf(grid).some(d => d.lib === lib)){
     const dr = rec.find(r => r.see && r.pair) || null;
     if(dr){
       const SC = ent.sc || 1, o = L(0, 0), pa = L(1, 0), pb = L(0, 1), na = Math.hypot(pa.x - o.x, pa.y - o.y) || 1, nb = Math.hypot(pb.x - o.x, pb.y - o.y) || 1;
@@ -51980,8 +51982,12 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
   if(SEE && pair){
     HOLE([P(a0,0.4,z+dH),P(a1,0.4,z+dH),P(a1,0.4,z),P(a0,0.4,z)]);
-    F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
-    F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);  // transom rail
+    /* (opts.transom false: none in the opening -- a low doorway, whose transom rail would cross it at head height (D4: Sun Deck
+       Airfield Terminal's, 88 high), or one under a transom of the building's own (the Tidewater Museum's screen)) */
+    if(!(opts && opts.transom === false)){
+      F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
+      F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);  // transom rail
+    }
     return { a0, a1, dH, pair };
   }
   F(a0, a1, z, z+dH, '#2b2118', null, 0, 0.4);                    // opening
@@ -55957,7 +55963,7 @@ function houseCanopy(fn){
                 if(A(TM.door[0]) - 4 >= CLIPA[0] && A(TM.door[1]) + 4 <= CLIPA[1]){
                   /* (not recorded, DOOR_REC: its leaves are its slideDoors' alone, D5 -- as the museum's) */
                   const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + B(TM.y1) + TM.dpl; SEE = true; DOOR_REC = null;
-                  try { shopDoor(A(dm), '#2f3a46', '#2b3540', null, 1e9, 0, { w: TM.door[1] - TM.door[0], h: TM.dH, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
+                  try { shopDoor(A(dm), '#2f3a46', '#2b3540', null, 1e9, 0, { w: TM.door[1] - TM.door[0], h: TM.dH, pair: true, transom: false }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
                 fq(tS, A(TM.x0), A(TM.x1), 94, TOP, blue, 0.6);
                 fword(tS, 'SUN DECK AIR', A(TM.x0) + 120, A(TM.x1) - 120, 97, TOP - 3, '#ffffff', 0.9);
               }
@@ -86646,7 +86652,7 @@ marinaEntry(),
       /* (not recorded, DOOR_REC: its leaves are its slideDoors' alone (D5) -- recorded, a walk-in's see pair was taken by walkinAwayDoor for a
          door facing away and drawn a second time from inside, full height, over him in the doorway) */
       { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + N(MUS_IN.DPL); SEE = true; DOOR_REC = null;
-        try { shopDoor(A((D0 + D1)/2), bronze, bronze, null, 1e9, 0, { w: D1 - D0, h: DZ, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
+        try { shopDoor(A((D0 + D1)/2), bronze, bronze, null, 1e9, 0, { w: D1 - D0, h: DZ, pair: true, transom: false }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
       /* THE BANNERS, one to each gallery inside, on the piers either side of the portico: EGYPT to the west (u high),
          the dinosaur to the east */
       banner(fr, BW - 222, '#2f4f8f', 'EGYPT', (f, uc, n) => {
