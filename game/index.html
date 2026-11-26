@@ -7236,6 +7236,8 @@ function paveRunSet(grid){
   for(const k of paveHeavedTiles(grid)) m.delete(k);
   return (grid._swRunSet = m);
 }
+/* the city's still ground pieces, painted by the ground pass (drawGroundPass) rather than queued live */
+const CF_IN_GROUND = { slab: 1, crack: 1 };
 /* every panel a city heaved slab stands on, once per grid */
 function paveHeavedTiles(grid){
   if(grid._swHeaved) return grid._swHeaved;
@@ -119513,15 +119515,16 @@ class WorldScene extends Phaser.Scene {
       this.paveSlabOn(g, pts, d, rn.x, rn.y, rn.lane);
     }
     this.paveTiltFlush(g);
-    /* THE CITY'S HEAVED SLABS, IN THE GROUND (Sir, 2026-11-26: "pull them into the street draw like the new slabs so they
-       arent props"): still and flat on the walk, so painted once by the ground cache with the paving, after the tilted
-       slabs; the live pass no longer queues them. Their contact (the lip, the ride up) is the prop record's, unchanged. */
+    /* THE CITY'S HEAVED SLABS AND ITS CRACKS AND POTHOLES, IN THE GROUND (Sir, 2026-11-26: "pull them into the street draw
+       like the new slabs so they arent props"; "sidewalk and street crack/ pot holes ... too"): still and flat on the walk and
+       the road, so painted once by the ground cache with the paving, after the tilted slabs; the live pass no longer queues
+       them. Their contact (a slab's lip and ride up, a crack's jolt) is the prop record's, unchanged. */
     if(CITY_FURN.on && r.grid){
       const near = cityFurnitureNear(r.grid, this.camX, this.camY, flatSpan, (this._cfGroundScratch = this._cfGroundScratch || []));
       for(const cp of near){
-        if(cp.type !== 'slab' || cp.hjRole) continue;
-        if(!this.visProp('slab', cp.wx, cp.wy)) continue;
-        this.drawProp(g, 'slab', cp.wx, cp.wy, 0, cp.f, 0, null, null, cp);
+        if(!CF_IN_GROUND[cp.type] || cp.hjRole) continue;
+        if(!this.visProp(cp.type, cp.wx, cp.wy)) continue;
+        this.drawProp(g, cp.type, cp.wx, cp.wy, 0, cp.f, 0, null, null, cp);
       }
     }
     for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
@@ -121397,7 +121400,7 @@ class WorldScene extends Phaser.Scene {
         this.queueHydrantFlood(groundVQ, g,
           worldOf(hz.s + (hz.slide || 0), hazardOffset(hz) + (hz.slideB || 0)), hz.f, hz);
       if(!GROUND_KINDS[hz.type] || hz.taken) continue;
-      if(hz.type === 'slab' && hz.cfRail && !hz.hjRole) continue;   // a city heaved slab a frozen course harvested: the ground cache paints the city's
+      if(CF_IN_GROUND[hz.type] && hz.cfRail && !hz.hjRole) continue;   // a city slab or crack a frozen course harvested: the ground cache paints the city's
       /* world-anchored ramps (turn crossings) carry their own wx/wy —
          they sit at the true curb lines, positions the route-s mapping
          can't express (the arc seg owns that s-range); everything else
@@ -121495,7 +121498,7 @@ class WorldScene extends Phaser.Scene {
          && !owCorridorHas(this.owCorridor, cp.wx, cp.wy))
         this.queueHydrantFlood(groundVQ, g, { x: cp.wx, y: cp.wy, z: 0 }, cp.f, cp);
       if(!GROUND_KINDS[cp.type]) continue;
-      if(cp.type === 'slab') continue;                       // in the ground cache now (drawGroundPass)
+      if(CF_IN_GROUND[cp.type]) continue;                    // in the ground cache now (drawGroundPass)
       if(r.cfTaken && r.cfTaken.has(cp.key)) continue;       // the route draws it
       if(owCorridorHas(this.owCorridor, cp.wx, cp.wy)) continue;   // swept by the course
       if(!this.visProp(cp.type, cp.wx, cp.wy)) continue;
