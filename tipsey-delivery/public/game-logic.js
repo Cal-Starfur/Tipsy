@@ -5479,7 +5479,7 @@ function kerbLatticeJoints(a, b){
    them variable"): each slab's height is rolled across a wide range, skewed so most are gentle and a few are steep (hr^1.6),
    its light scales with its height up to toneMax (a steep slab reads steep), and the ride is weighted by feelK past the
    ramps' so what he does matches what the slab shows. */
-const PAVE_TILT = { p: 1/8, ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneK: 0.5, toneMax: 16, feelK: 1.5,
+const PAVE_TILT = { p: 1/8, ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneK: 0.3, toneMax: 16, feelK: 1.5,
                     bump: 0.18, kick: 0.07, bumpMs: 140 };
 function paveRunSet(grid){
   if(grid._swRunSet) return grid._swRunSet;
@@ -5516,6 +5516,23 @@ function paveTiltAt(grid, x, y){
   if(!F) return null;
   const t = F.axis ? (y - iy*T2)/T2 : (x - ix*T2)/T2, gr = F.dz/T2;
   return { z: F.z0 + F.dz*t, gx: F.axis ? 0 : gr, gy: F.axis ? gr : 0, F, ix, iy };
+}
+/* a segment a -> b held to a convex screen polygon P (either winding); null when none of it is inside (Cyrus-Beck) */
+function clipSegConvex(a, b, P){
+  let t0 = 0, t1 = 1;
+  const dx = b.x - a.x, dy = b.y - a.y, n = P.length;
+  let area = 0;
+  for(let i = 0; i < n; i++){ const p = P[i], q = P[(i + 1) % n]; area += p.x*q.y - q.x*p.y; }
+  const s = area > 0 ? 1 : -1;
+  for(let i = 0; i < n; i++){
+    const p = P[i], q = P[(i + 1) % n], ex = q.x - p.x, ey = q.y - p.y;
+    const num = s*(ex*(a.y - p.y) - ey*(a.x - p.x)), den = s*(ex*dy - ey*dx);   // inside: num >= 0 along the segment
+    if(Math.abs(den) < 1e-9){ if(num < 0) return null; continue; }
+    const t = -num/den;
+    if(den > 0){ if(t > t0) t0 = t; } else { if(t < t1) t1 = t; }
+    if(t0 > t1) return null;
+  }
+  return [{ x: a.x + dx*t0, y: a.y + dy*t0 }, { x: a.x + dx*t1, y: a.y + dy*t1 }];
 }
 function paveRoll(ix, iy, salt){
   let h = (Math.imul(ix | 0, 0x27d4eb2d) ^ Math.imul(iy | 0, 0x165667b1) ^ Math.imul(salt | 0, 0x9e3779b1)) >>> 0;
@@ -113459,59 +113476,90 @@ class WorldScene extends Phaser.Scene {
     const L = this._slabFx; this._slabFx = null;
     if(!L || !L.length) return;
     L.sort((p, q) => (p.ix + p.iy) - (q.ix + q.iy));
-    const T = PAVE_TILT, RA = RAMP_ART, PA = PAVE_ART, h2 = T2/2, O = this.W(0, 0, 0);
+    const T = PAVE_TILT, RA = RAMP_ART, PA = PAVE_ART, h2 = T2/2, O = this.W(0, 0, 0), K = this.K;
     const litOf = (nx, ny) => { const q = this.W(nx, ny, 0); return (q.x - O.x) < 0; };   // a face turned screen-left is lit (SP13)
     for(const { pts, F, d, ix, iy, wx, wy } of L){
-      const x0 = wx - h2, y0 = wy - h2, x1 = wx + h2, y1 = wy + h2;
+      const x0 = wx - h2, y0 = wy - h2;
       const zt = t => F.z0 + F.dz*t;
-      /* corner heights: c00 (x0, y0), c10 (x1, y0), c11 (x1, y1), c01 (x0, y1) */
+      /* corner heights: c00 (x0, y0), c10 (x1, y0), c11 (x1, y1), c01 (x0, y1); the slab's point at (u, v) in 0..1, at its height */
       const z00 = zt(0), z10 = F.axis ? zt(0) : zt(1), z11 = zt(1), z01 = F.axis ? zt(1) : zt(0);
-      const C = [[x0, y0, z00], [x1, y0, z10], [x1, y1, z11], [x0, y1, z01]];
-      const sunk = Math.min(z00, z10, z11, z01) < 0;
-      const par = (ix + iy) & 1, odd = paveRoll(ix, iy, 2);
+      const C = [[x0, y0, z00], [x0 + T2, y0, z10], [x0 + T2, y0 + T2, z11], [x0, y0 + T2, z01]];
+      const Pt = (u, v) => this.W(x0 + u*T2, y0 + v*T2, zt(F.axis ? v : u));
+      const sunk = Math.min(z00, z10, z11, z01) < 0, hMax = Math.max(z00, z10, z11, z01, 0);
+      /* the slab's own concrete, as paveSlabOn tones it, lit or shaded by how it falls -- gently, by how steep */
+      const par = (ix + iy) & 1, weathered = paveRoll(ix, iy, 2) < PA.weatherP;
       let tc = (par ? 1 - PA.calm : PA.calm) + (paveRoll(ix, iy, 1) - 0.5)*2*PA.jit;
-      if(odd < PA.weatherP) tc += 0.55;
-      const col = mixC(d.pave, d.paveB, tc), face = (lit) => lit ? shadeN(col, 0.9) : shadeN(col, 0.72);
-      /* which edge is the pair's joint (no face there): 'x1'/'y1' on the first slab, 'x0'/'y0' on the second */
+      if(weathered) tc += 0.55;
+      const base = mixC(d.pave, d.paveB, tc);
+      const sgn = -Math.sign(F.dz), q = this.W(F.axis ? 0 : sgn, F.axis ? sgn : 0, 0), sx = q.x - O.x, sy = q.y - O.y;
+      const lt = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), lk = Math.min(1, Math.abs(F.dz)/T.toneMax)*T.toneK;
+      const col = lt >= 0 ? mixC(base, 0xffffff, lt*lk) : mixC(base, RA.shade, -lt*lk);
+      const faceCol = lit => lit ? mixC(base, RA.shade, 0.12) : mixC(base, RA.shade, 0.3);
       const joint = F.kind === 'lip' ? '' : (F.axis ? (F.first ? 'y1' : 'y0') : (F.first ? 'x1' : 'x0'));
+      /* a line held to the slab's footprint while it is sunk (the walk in front stays in front) */
+      const seg = (a, b) => {
+        if(!sunk){ g.lineBetween(a.x, a.y, b.x, b.y); return; }
+        const c = clipSegConvex(a, b, pts); if(c) g.lineBetween(c[0].x, c[0].y, c[1].x, c[1].y);
+      };
+      /* 1. the shadow its raised near side throws on the walk (+y, a touch of -x: the city's light) */
+      if(hMax > 0.5){
+        const sh = (A, B, nx, ny) => {
+          const wa = Math.max(0, A[2])*0.9, wb = Math.max(0, B[2])*0.9;
+          if(wa + wb < 0.5) return;
+          this.quadOn(g, [this.W(A[0], A[1], 0), this.W(B[0], B[1], 0), this.W(B[0] + nx*wb - wb*0.3, B[1] + ny*wb, 0), this.W(A[0] + nx*wa - wa*0.3, A[1] + ny*wa, 0)], RA.shade, 0.16);
+        };
+        if(joint !== 'y1') sh(C[3], C[2], 0, 1);
+      }
       const dc0 = this.drawClip;
       if(sunk) this.drawClip = pts;
       try {
-        /* the walk's wall down into a sunk slab, on its far edges (they face the eye) */
-        if(sunk){
-          for(const [ea, eb, nx, ny, nm] of [[0, 1, 0, 1, 'y0'], [0, 3, 1, 0, 'x0']]){
-            if(nm === joint) continue;
-            const A = C[ea], B = C[eb];
-            if(Math.min(A[2], B[2]) >= 0) continue;
-            this.quadOn(g, [this.W(A[0], A[1], 0), this.W(B[0], B[1], 0), this.W(B[0], B[1], Math.min(0, B[2])), this.W(A[0], A[1], Math.min(0, A[2]))], face(litOf(nx, ny)));
+        /* 2. sunk: the walk's wall down into it, on its far edges (they face the eye) */
+        if(sunk) for(const [ea, eb, nx, ny, nm] of [[0, 1, 0, 1, 'y0'], [0, 3, 1, 0, 'x0']]){
+          if(nm === joint) continue;
+          const A = C[ea], B = C[eb];
+          if(Math.min(A[2], B[2]) >= 0) continue;
+          this.quadOn(g, [this.W(A[0], A[1], 0), this.W(B[0], B[1], 0), this.W(B[0], B[1], Math.min(0, B[2])), this.W(A[0], A[1], Math.min(0, A[2]))], faceCol(litOf(nx, ny)));
+        }
+        /* 3. the top: its concrete, its outline, the frontage's quarter scoring and the control joint along its far edges (groove,
+           lit lip) -- the walk's own detail, laid in the tilted plane */
+        const top = [Pt(0, 0), Pt(1, 0), Pt(1, 1), Pt(0, 1)];
+        this.quadOn(g, top, col);
+        const groove = shadeN(d.paveEdge, PA.grooveK), lit = mixC(col, 0xffffff, PA.lipAdd/Math.max(1, 255 - ((col >> 8) & 255)));
+        g.lineStyle(1, d.paveEdge, 1);
+        for(let k = 0; k < 4; k++) seg(top[k], top[(k + 1) % 4]);
+        if(paveRoll(Math.floor(wx/BLOCK), Math.floor(wy/BLOCK), 9) < 0.5){
+          const o = 1.3/T2;
+          for(const [c, d0] of [[groove, 0], [lit, o]]){
+            g.lineStyle(1, c, PA.scoreA);
+            seg(Pt(0.5 + d0, 0.02), Pt(0.5 + d0, 0.98)); seg(Pt(0.02, 0.5 + d0), Pt(0.98, 0.5 + d0));
           }
         }
-        /* the top, at its corners' heights */
-        const top = C.map(c => this.W(c[0], c[1], c[2]));
-        this.quadOn(g, top, col);
-        const sgn = -Math.sign(F.dz), dx = F.axis ? 0 : sgn, dy = F.axis ? sgn : 0;
-        const q = this.W(dx, dy, 0), sx = q.x - O.x, sy = q.y - O.y;
-        const lt = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), k = Math.min(1, Math.abs(F.dz)/T.toneMax)*T.toneK;
-        this.quadOn(g, top, lt >= 0 ? 0xffffff : RA.shade, Math.abs(lt)*k);
-        if(!sunk){ g.lineStyle(1, d.paveEdge, 1); g.strokePoints(top.map(p => new Phaser.Geom.Point(p.x, p.y)), true); }
-        /* its sides where it stands above the walk, on the near edges (+y: c01-c11, +x: c10-c11) */
+        const gi = 0.8/T2, li = 2.4/T2;
+        g.lineStyle(Math.max(1, K*0.9), groove, 1); seg(Pt(gi, 1), Pt(gi, gi)); seg(Pt(gi, gi), Pt(1, gi));
+        g.lineStyle(Math.max(1, K*0.7), lit, 0.9); seg(Pt(li, 1), Pt(li, li)); seg(Pt(li, li), Pt(1, li));
+        /* 4. sunk: the walk's edge shades the low end of it (+y from its far edge) */
+        if(sunk){
+          const A = C[0], B = C[1], wa = Math.max(0, -A[2])*0.9, wb = Math.max(0, -B[2])*0.9;
+          if(joint !== 'y0' && wa + wb > 0.5)
+            this.quadOn(g, [Pt(0, 0), Pt(1, 0), Pt(1, wb/T2), Pt(0, wa/T2)], RA.shade, 0.14);
+        }
+        /* 5. its sides where it stands above the walk, on the near edges (+y: c01-c11, +x: c10-c11): the slab's concrete in shade
+           or in light, a dark foot where it stands on the walk, a lit arris along its top */
         for(const [ea, eb, nx, ny, nm] of [[3, 2, 0, 1, 'y1'], [1, 2, 1, 0, 'x1']]){
           if(nm === joint) continue;
           const A = C[ea], B = C[eb];
           if(Math.max(A[2], B[2]) <= 0.3) continue;
           const pa = Math.max(0, A[2]), pb = Math.max(0, B[2]);
-          this.quadOn(g, [this.W(A[0], A[1], 0), this.W(B[0], B[1], 0), this.W(B[0], B[1], pb), this.W(A[0], A[1], pa)], face(litOf(nx, ny)));
-          g.lineStyle(1, RA.lit, 0.8); const u = this.W(A[0], A[1], pa), v = this.W(B[0], B[1], pb); g.lineBetween(u.x, u.y, v.x, v.y);
+          const a0 = this.W(A[0], A[1], 0), b0 = this.W(B[0], B[1], 0), a1 = this.W(A[0], A[1], pa), b1 = this.W(B[0], B[1], pb);
+          this.quadOn(g, [a0, b0, b1, a1], faceCol(litOf(nx, ny)));
+          g.lineStyle(1, shadeN(d.paveEdge, 0.85), 0.9); g.lineBetween(a0.x, a0.y, b0.x, b0.y);
+          g.lineStyle(Math.max(1, K*0.7), RA.lit, 0.75); g.lineBetween(a1.x, a1.y, b1.x, b1.y);
         }
-        /* the crest's break-over / the valley's crease, drawn once by the pair's first slab; a lip's raised edge its lit arris */
-        const K = this.K;
+        /* 6. the crest's break-over (lit) or the valley's crease (dark), soft, drawn once by the pair's first slab */
         if(F.kind !== 'lip' && F.first){
           const a = F.axis ? top[3] : top[1], b = top[2];
-          g.lineStyle(Math.max(1, K*0.9), F.kind === 'ridge' ? RA.lit : shadeN(d.paveEdge, 0.7), F.kind === 'ridge' ? 0.85 : 0.75);
-          g.lineBetween(a.x, a.y, b.x, b.y);
-        } else if(F.kind === 'lip'){
-          const [a, b] = F.lipS > 0 ? (F.axis ? [top[3], top[2]] : [top[1], top[2]]) : (F.axis ? [top[0], top[1]] : [top[0], top[3]]);
-          g.lineStyle(Math.max(1, K*0.9), RA.lit, 0.9); g.lineBetween(a.x, a.y, b.x, b.y);
+          g.lineStyle(Math.max(1, K*0.8), F.kind === 'ridge' ? RA.lit : shadeN(d.paveEdge, 0.75), 0.6);
+          seg(a, b);
         }
       } finally { this.drawClip = dc0; }
     }
