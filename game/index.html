@@ -10723,19 +10723,27 @@ function owNearestCrossing(W, x, y){
 }
 function owRampFeel(scene, ow, W, dt){
   ow.rampPitch = 0; ow.padJitter = 0;
-  let target = 0;
+  let target = 0, gx = null, gy = null;
   const c = owNearestCrossing(W, ow.px, ow.py);
   if(c){
     const dv = DIRV[c.r.f], rv = DIRV[(c.r.f + 1) % 4];
     const dx = ow.px - c.r.x, dy = ow.py - c.r.y;
     const G = owRampGrad(dx*dv.x + dy*dv.y, dx*rv.x + dy*rv.y);
     if(G){
-      const gx = G.du*dv.x + G.dv*rv.x, gy = G.du*dv.y + G.dv*rv.y;   // uphill, in the world
-      const cs = Math.cos(ow.yaw), sn = Math.sin(ow.yaw);
-      ow.rampPitch = Math.atan(OW_RAMP.pitch * (cs*gx + sn*gy));       // nose up facing uphill
-      target = -OW_RAMP.roll * (cs*gy - sn*gx);                        // lean to the low side
+      gx = G.du*dv.x + G.dv*rv.x; gy = G.du*dv.y + G.dv*rv.y;          // uphill, in the world
       if(G.pad && Math.abs(ow.vel) > 0.01) ow.padJitter = (Math.random() - 0.5) * OW_RAMP.jitter;
     }
+  }
+  /* ...and a drive's mouth and flares (driveGrad), the same planes */
+  if(gx === null && W && W.grid) for(const M of owDriveMouths(W.grid)){
+    if(ow.px < M.x0 || ow.px > M.x1 || ow.py < M.y0 || ow.py > M.y1) continue;
+    const q = driveFrame(M.d, ow.px, ow.py), G = driveGrad(M.d, q.al, q.lat);
+    if(G){ const e = M.d.e; gx = G.dal*e.dv.x + G.dlat*e.rv.x; gy = G.dal*e.dv.y + G.dlat*e.rv.y; break; }
+  }
+  if(gx !== null){
+    const cs = Math.cos(ow.yaw), sn = Math.sin(ow.yaw);
+    ow.rampPitch = Math.atan(OW_RAMP.pitch * (cs*gx + sn*gy));         // nose up facing uphill
+    target = -OW_RAMP.roll * (cs*gy - sn*gx);                          // lean to the low side
   }
   ow.slopeLean = (ow.slopeLean || 0) + (target - (ow.slopeLean || 0)) * Math.min(1, dt / OW_RAMP.easeMs);
   if(Math.abs(ow.slopeLean) < 1e-4 && !target) ow.slopeLean = 0;
@@ -21034,11 +21042,10 @@ function hoodShopVolBlocked(grid, blk, x, y, R){
    them too". The apron was one flat plate with a triangle at each end -- and a 45-degree triangle's long side, (+1 along,
    +1 out), projects to a VERTICAL line on screen at one end of every drive (which end depends on the street's heading), so
    the paving beside it read as the side face of a raised box: a step where there is none. Now:
-   - THE WINGS ARE LOW WEDGES: from the drive's side 0.4 FL back to the kerb flare's top end, FL along (the same reach
-     along the kerb as before, so the dropped kerb and the paving still meet corner to corner), so their long side lies
-     well off the vertical at every heading. (A curve was tried: in this projection it read as a curled page.) Each wing
-     is a slope down to the mouth, toned as a face turned that way (SP13: turned to screen-left lit, to screen-right
-     dark), its crease with the level paving a soft seam.
+   - THE WINGS ARE A CROSSING'S FLARES (2026-11-25; they were low wedges 0.4 FL deep, kept off the screen's vertical so
+     they did not read as a step -- the crossing's flare reads as a slope by its light instead, so the drive's now match
+     it): a tile back and a tile along, and the last tile of the apron is the mouth's run down to the gutter (see THE
+     MOUTH AND ITS FLARES in cityDriveApron). Paired drives share one mouth (driveJoin).
    - CONCRETE IS SLABS: tooled joints across it (and down it on a wide drive), each slab a lighter broom-finished field
      inside a smooth trowelled margin, a little tone jitter slab to slab. Asphalt (a garage's lane) stays one sheet.
    - ITS EDGES ARE CUT IN: a fine dark seam where the apron meets the footway, so it reads as a pour, not a decal.
@@ -21047,8 +21054,8 @@ function hoodShopVolBlocked(grid, blk, x, y, R){
      wheels; the paint itself is laid a touch translucent, in the ground's plane.
    Ground pass (cached), never live. P(al, lat) is the caller's: along the kerb and out from the lot line, at z = 0. */
 const DRIVE_ART = { margin: 7, field: 1.035, jit: 0.018, joint: 0.8, jointA: 0.6, broom: 0.93, broomA: 0.16, seam: 0.62,
-                    seamA: 0.5, wingLit: 1.045, wingDark: 0.91, track: 0.55, trackA: 0.035, oil: 0x2a2824, oilA: 0.16,
-                    paint: 0xd9d5c6, paintA: 0.86, slab: 125, slabAl: 190, wing: 0.4 };
+                    seamA: 0.5, track: 0.55, trackA: 0.035, oil: 0x2a2824, oilA: 0.16,
+                    paint: 0xd9d5c6, paintA: 0.86, slab: 125, slabAl: 190 };
 function driveSeed(d, k){
   const e = d.e, x = Math.round(e.ox + e.dv.x*d.al0), y = Math.round(e.oy + e.dv.y*d.al0);
   return natHash(((x*73856093) ^ (y*19349663) ^ (k*83492791)) >>> 0);
@@ -21073,21 +21080,23 @@ function cityDriveApron(S, g, d, P, FL, SW){
   /* a lane's run-on laps back 8 over the lot's own tarmac: butted at the lot line, the paving showed through the join */
   const L0 = d.lane ? -8 : 0;
   const quad = (a0, l0, a1, l1, col, al) => S.quadOn(g, [P(a0, l0), P(a1, l0), P(a1, l1), P(a0, l1)], col, al);
-  /* the wing, side s (-1 at lo, +1 at hi): from the drive's side WD back from the kerb to the kerb FL along -- a long, low
-     wedge (WD = 0.4 FL), whose long side runs well off the screen's vertical at every heading */
-  const WD = FL*DRIVE_ART.wing;
-  const wingPts = (a, s) => [P(a, SW - WD), P(a + s*FL, SW)];
-  /* 1. the sheet, and its wings */
+  /* THE MOUTH AND ITS FLARES, AS A CROSSING'S (Sir, 2026-11-25: "that wedge needs to match first ... add a short slope at
+     the mouth"). The last MB (= T2) of the apron before the kerb is the mouth's run, falling from the walk to the gutter as
+     a crossing's pad does; the rest of the drive is level. Each outer end has the crossing's flare: the triangle from the
+     run's back corner to the kerb a tile along, the plane through walk / gutter / walk, in the flares' poured concrete,
+     lit by how it falls (THE SLOPE READS AS A SLOPE), broomed along its contours, a tooled joint with the walk. A side
+     shared with a neighbour (d.joinLo / joinHi: driveJoin) has no flare: the run carries on to the middle of the gap. */
+  const MB = T2, RA = RAMP_ART, jLo = d.joinLo || 0, jHi = d.joinHi || 0, mLo = lo - jLo/2, mHi = hi + jHi/2;
+  const lightOf = (da, dl) => {                                   // + lit, - shaded: a fall line's screen direction against the light
+    const o = P(0, 0), q = P(da, dl), sx = q.x - o.x, sy = q.y - o.y, m = Math.hypot(sx, sy) || 1;
+    return (-sx - sy)/(m*Math.SQRT2);
+  };
+  const tone = (base, t, k) => t >= 0 ? mixC(base, 0xffffff, t*k) : mixC(base, RA.shade, -t*k);
+  const flareOn = s => wings && !(s < 0 ? jLo : jHi);
+  /* 1. the sheet, and the shared mouth's run across the gap */
   quad(lo, L0, hi, SW, APRON);
-  if(wings){
-    const O = P(0, 0), X = P(1, 0), alRight = X.x - O.x > 0;     // +along runs to screen-right
-    for(const [a, s] of [[lo, -1], [hi, 1]]){
-      const pts = wingPts(a, s);
-      pts.push(P(a, SW));
-      /* the slope falls toward the mouth (-s along): turned to screen-right it is in shade */
-      S.quadOn(g, pts, shadeN(APRON, (alRight ? -s : s) > 0 ? A.wingDark : A.wingLit));
-    }
-  }
+  if(jLo) quad(mLo, SW - MB, lo, SW, APRON);
+  if(jHi) quad(hi, SW - MB, mHi, SW, APRON);
   /* 2. slabs: margins, broom-finished fields, tooled joints */
   if(conc){
     const nL = Math.max(2, Math.round(SW/A.slab)), nA = Math.max(1, Math.round(w/A.slabAl)), M = A.margin;
@@ -21107,13 +21116,38 @@ function cityDriveApron(S, g, d, P, FL, SW){
     for(let i = 1; i < nL; i++){ const p = P(lo, i*dl), q = P(hi, i*dl); g.lineBetween(p.x, p.y, q.x, q.y); }
     for(let j = 1; j < nA; j++){ const p = P(lo + j*da, 0), q = P(lo + j*da, SW); g.lineBetween(p.x, p.y, q.x, q.y); }
   }
-  /* 3. the seam with the footway, down each side and round its wing to the kerb */
+  /* 3. the mouth's run, toned as a face falling to the gutter, with the lit break-over at its back edge where the drive
+     tips into it; then each outer flare */
+  { const t = lightOf(0, 1);
+    quad(mLo, SW - MB, mHi, SW, t >= 0 ? 0xffffff : RA.shade, Math.abs(t)*RA.padK);
+    const b0 = P(mLo, SW - MB - RA.lip), b1 = P(mHi, SW - MB - RA.lip);
+    g.lineStyle(Math.max(1, S.K*0.9), RA.lit, 0.7); g.lineBetween(b0.x, b0.y, b1.x, b1.y); }
+  for(const [a, s] of [[lo, -1], [hi, 1]]){
+    if(!flareOn(s)) continue;
+    S.quadOn(g, [P(a, SW - MB), P(a, SW), P(a + s*FL, SW)], tone(RA.flare, lightOf(-s, 1), RA.flareK));
+    /* the broom grooves, along the contours (x + k = const): from the run's side to the kerb */
+    g.lineStyle(1, RA.groove, RA.grooveA);
+    for(let k = 1; k < RA.grooves; k++){
+      const c = MB*k/RA.grooves, p = P(a, SW - MB + c), q = P(a + s*(MB - c), SW);
+      g.lineBetween(p.x, p.y, q.x, q.y);
+    }
+    /* the joint with the walk: groove on the line, the walk's lit lip just outside it; the valley crease where it meets the run */
+    const j0 = P(a, SW - MB), j1 = P(a + s*FL, SW);
+    g.lineStyle(Math.max(1, S.K*0.9), RA.joint, 1); g.lineBetween(j0.x, j0.y, j1.x, j1.y);
+    const l0 = P(a + s*RA.lip, SW - MB - RA.lip), l1 = P(a + s*(FL + RA.lip), SW - RA.lip);
+    g.lineStyle(1, RA.lit, 0.8); g.lineBetween(l0.x, l0.y, l1.x, l1.y);
+    const c0 = P(a, SW - MB), c1 = P(a, SW);
+    g.lineStyle(Math.max(1, S.K*0.8), shadeN(APRON, 0.8), 0.7); g.lineBetween(c0.x, c0.y, c1.x, c1.y);
+  }
+  /* 4. the seam with the footway: down each side to the run (a flare's joint takes it from there), or on along the run's
+     back edge to the middle of a shared mouth; a flat drive's straight to the kerb */
   g.lineStyle(1, shadeN(APRON, A.seam), A.seamA);
   for(const [a, s] of [[lo, -1], [hi, 1]]){
+    const j = s < 0 ? jLo : jHi;
     g.beginPath();
     const p0 = P(a, L0); g.moveTo(p0.x, p0.y);
-    if(wings){ for(const q of wingPts(a, s)) g.lineTo(q.x, q.y); }
-    else { const q = P(a, SW); g.lineTo(q.x, q.y); }
+    const pts = !wings ? [P(a, SW)] : j ? [P(a, SW - MB), P(a + s*j/2, SW - MB)] : [P(a, SW - MB)];
+    for(const q of pts) g.lineTo(q.x, q.y);
     g.strokePath();
   }
   /* A GARAGE'S LANE: the forecourt's worn asphalt carried on to the kerb by the same painter, its marks seeded off the
@@ -21274,7 +21308,48 @@ function hoodDrivewaysOf(grid){
   /* ...and the fleet's bays (FLEET_BAY_DRIVES), on whichever street their doors face */
   for(const dw of FLEET_BAY_DRIVES)
     out.push({ col: "#a9a7a0", lines: false, arrows: "none", lane: true, blockKey: "fleet", edge: -1, e: dw.e, al0: dw.al0, al1: dw.al1 });
+  driveJoin(out);
   return (grid._drives = out);
+}
+/* PAIRED DRIVES SHARE ONE MOUTH (Sir, 2026-11-25: "a shared mouth would be best for the paired drives"). Two houses' drives
+   side by side on one kerb stand 68 apart, and each wanted a flare a tile long on that side: their wings and kerb flares
+   crossed in the gap. Where two winged drives on the same kerb line are closer than two flares (2*T2), the gap between
+   them is one dropped mouth: the kerb stays down across it (the kerb pass's rampCuts), the mouth's slope runs on across it
+   (each drive paints its own half), and only the pair's two outer ends get a flare. d.joinLo / d.joinHi: the gap on that
+   side (al falling / rising), 0 where the drive stands alone. */
+function driveJoin(list){
+  const SW = SIDEWALK_W, kerbPt = (d, al) => ({ x: d.e.ox + d.e.dv.x*al + d.e.rv.x*SW, y: d.e.oy + d.e.dv.y*al + d.e.rv.y*SW });
+  for(const d of list){ d.joinLo = 0; d.joinHi = 0; }
+  for(const A of list){
+    if(A.wings === false) continue;
+    const lo = Math.min(A.al0, A.al1), hi = Math.max(A.al0, A.al1);
+    for(const B of list){
+      if(B === A || B.wings === false) continue;
+      if(Math.abs(A.e.dv.x*B.e.dv.x + A.e.dv.y*B.e.dv.y) < 0.99) continue;
+      const ends = [B.al0, B.al1].map(al => { const q = kerbPt(B, al), dx = q.x - A.e.ox, dy = q.y - A.e.oy;
+        return { al: dx*A.e.dv.x + dy*A.e.dv.y, lat: dx*A.e.rv.x + dy*A.e.rv.y }; });
+      if(ends.some(q => Math.abs(q.lat - SW) > 2)) continue;
+      const b0 = Math.min(ends[0].al, ends[1].al), b1 = Math.max(ends[0].al, ends[1].al);
+      if(b0 >= hi && b0 - hi < 2*T2) A.joinHi = b0 - hi;
+      if(b1 <= lo && lo - b1 < 2*T2) A.joinLo = lo - b1;
+    }
+  }
+}
+/* a drive's ground slope at (al, lat) in its own frame (owRampFeel): the uphill gradient { dal, dlat } on its mouth's run
+   (the last T2 before the kerb, across the drive and its share of a shared mouth) or on a flare at an outer end; null on
+   the level. The planes are cityDriveApron's: the run falls to the gutter, a flare to the gutter and the mouth at once. */
+function driveGrad(d, al, lat){
+  const g = OW_RAMP.grade, MB = T2, FL = T2, k = SIDEWALK_W - lat;
+  if(k < 0 || k > MB) return null;
+  const lo = Math.min(d.al0, d.al1), hi = Math.max(d.al0, d.al1);
+  if(al >= lo - d.joinLo/2 && al <= hi + d.joinHi/2) return { dal: 0, dlat: -g };
+  if(d.wings === false) return null;
+  for(const [a, s, j] of [[lo, -1, d.joinLo], [hi, 1, d.joinHi]]){
+    if(j) continue;
+    const x = s*(al - a);
+    if(x >= 0 && x + k <= FL) return { dal: s*g, dlat: -g };
+  }
+  return null;
 }
 /* LOT DRIVES (Sir, 2026-11-24: "lets look at drive ways.. id like to upgrade them too"). The paving INSIDE a lot, from
    the lot front (b1, where the street apron takes over -- see hoodDrivewaysOf) back to the garage door or carport (b0):
@@ -119004,7 +119079,7 @@ class WorldScene extends Phaser.Scene {
         const out = [];
         for(const c of raw){
           const last = out[out.length-1];
-          if(last && c[0] - last[1] <= 8){ last[1] = Math.max(last[1], c[1]); last[2] = !!(last[2] && c[2]); last[3] = !!(last[3] && c[3]); }
+          if(last && (c[0] - last[1] <= 8 || (last[3] && c[3] && !last[2] && !c[2] && c[0] - last[1] < 2*T2))){ /* (paired drives: one shared mouth, driveJoin) */ last[1] = Math.max(last[1], c[1]); last[2] = !!(last[2] && c[2]); last[3] = !!(last[3] && c[3]); }
           else out.push(c);
         }
         r.grid._kerbCuts.set(ck, out);
