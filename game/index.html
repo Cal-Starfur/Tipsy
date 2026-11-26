@@ -126365,7 +126365,14 @@ class WorldScene extends Phaser.Scene {
             /* (eased with it now, withFade: they went at half way, in one frame) */
             if(_e.slideDoors && _hsk > 0.002) _e.slideDoors.forEach((d, i) => {
               const q = toW(d.a + d.w/2, d.b), u = this.shopDoorOpen(_lk + "|d" + i, q.x, q.y, null, !walkinLibLocked(this, lib));   // (locked: not for him -- THE ROOM'S DAY)
-              vq.push({ depth: q.x + q.y + 0.5, fn: (g) => this.withFade(g, _hsk, () => LIB.drawItem(lib, g, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true)) });
+              /* (sorted against him by the pair's own footprint, lmDepth, as a hood landmark's are -- keyed at the doorway's middle alone, a leaf
+                 slid aside painted over him standing in front of it beside the door: KTDE, 2026-11-26) */
+              const draw = gg => LIB.drawItem(lib, gg, G, this.K, { draw: () => _e.doorDraw(i, u) }, flank, true);
+              const M = this._sdFp || (this._sdFp = new Map()), fk = _lk + "|d" + i;   // (by placement: one entry can stand in more than one place)
+              let it = M.get(fk);
+              if(!it){ const c0 = toW(d.a, d.b), c1 = toW(d.a + d.w, d.b);
+                M.set(fk, it = { _fp: { x0: Math.min(c0.x, c1.x) - 40, x1: Math.max(c0.x, c1.x) + 40, y0: Math.min(c0.y, c1.y) - 3, y1: Math.max(c0.y, c1.y) + 3, z1: d.z1 } }); }
+              vq.push({ depth: this.lmDepth(q.x + q.y + 0.5, it, draw), fn: (g) => this.withFade(g, _hsk, () => draw(g)) });
             });
             /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps -- Pelican Drug's car-park masts) */
             if(_e.lamps) this.queueLandmarkLamps(vq, _e, toW);
