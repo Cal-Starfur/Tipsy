@@ -33322,7 +33322,7 @@ walkinLife(PE_IN.name, { keep: [[0, 2000, 376, 448]], looks: [
    Lab frame (the shop's, a south-edge shop's mirror undone): a east along the frontage from its west end, b south (0 the wall, negative into
    the block). Room frame a east, b south, world units: the front (south) wall b 700; the door a 687..791 in it; the window a 546..679 */
 const CC_IN = { name: 'Cove Creamery Interior', x0: 1060000, y0: 400000, WALL: 30/1.3, ROOM_A0: 230 - 860/1.3, ROOM_A1: 230, ROOM_BACK: -760/1.3, H: 300, LH: 66,
-  DOOR: [120, 200], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [12, 114], WZ: [30, 92] };   // (the shop's door and window, lab a; the window's sill and head, lab z)
+  DOOR: [120, 200], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [12, 114], WZ: [30, 92], SIDE: [-168, -48] };   // (SIDE: the east side's window, lab b)   // (the shop's door and window, lab a; the window's sill and head, lab z)
 CC_IN.ra = la => (la - CC_IN.ROOM_A0 - CC_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's a
 const CC_PLAN = walkinDefine({ name: CC_IN.name, from: 'Cove Creamery', x0: CC_IN.x0, y0: CC_IN.y0,
   lab: [CC_IN.ROOM_A0 + CC_IN.WALL, CC_IN.ROOM_A1 - CC_IN.WALL, CC_IN.ROOM_BACK + CC_IN.WALL, -CC_IN.WALL], body: [[0, 230, -276, 0]],
@@ -33330,7 +33330,8 @@ const CC_PLAN = walkinDefine({ name: CC_IN.name, from: 'Cove Creamery', x0: CC_I
   /* (its way to and from the street, THE ROOM'S DAY: out onto the south pavement, along it west, or round the corner up the east one) */
   street: { to: [160, 150], routes: [[[-1500, 150]], [[330, 150], [330, -1600]]] },
   /* (seen through, W11: the open doorway and the window) */
-  openings: [{ lab: [[CC_IN.DOOR[0], 0], [CC_IN.DOOR[1], 0]], z: [0, CC_IN.DZ] }, { lab: [[CC_IN.WIN[0], 0], [CC_IN.WIN[1], 0]], z: CC_IN.WZ, glass: true }] });
+  openings: [{ lab: [[CC_IN.DOOR[0], 0], [CC_IN.DOOR[1], 0]], z: [0, CC_IN.DZ] }, { lab: [[CC_IN.WIN[0], 0], [CC_IN.WIN[1], 0]], z: CC_IN.WZ, glass: true },
+    { lab: [[230, CC_IN.SIDE[0]], [230, CC_IN.SIDE[1]]], z: CC_IN.WZ, glass: true }] });   // (and the east side's window, on the corner)
 /* (W31: what it covers -- Palmline Bikes' and Pelican Photo's backs, Pelican Pets, Cove Pottery's south end -- and what stands over it on screen) */
 POCKETS[POCKETS.length - 1].ghosts = ['Palmline Bikes', 'Pelican Photo', 'Pelican Pets', 'Cove Pottery'];
 POCKETS[POCKETS.length - 1].displace = true;
@@ -65750,6 +65751,8 @@ function houseCanopy(fn){
       /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's cream and its sky-blue trim -- the near walls' outer faces are the building's
          own; its hatch window cut in at its own sill (the exterior's: lab a 12..114, z 30, x1.95 -- 58.5, under the low wall's 66) */
       winS: [[ra(CC_IN.WIN[0]), ra(CC_IN.WIN[1]), CC_IN.WZ[0]*1.95]],
+      /* (the east side's window, on the corner: lab b -168..-48 -- the room's b is D + lab b x1.3, the room's front wall at b D) */
+      winE: [[D + CC_IN.SIDE[0]*1.3 + 30, D + CC_IN.SIDE[1]*1.3 + 30, CC_IN.WZ[0]*1.95]],
       glass: 'rgba(188,221,226,.32)', frame: shade(extT, 0.85),
       low: [shade(extW, 1.0), extW, shade(extW, 0.88)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#f4ecd6' });
 
@@ -71879,7 +71882,9 @@ function houseCanopy(fn){
        stays full width -- that one is a cornice. (The frieze first, the
        cornice over it after: it hangs under it -- W37.) */
     slab(12, W-12, H-14, H, -1, -6, '#fbf3f5');
-    slab(0,W, H, H+10, -1, -12, trim);
+    /* THE PARAPET'S CAP round the corner, one piece (a corner is one piece, pathRun): along the front and on down the east side (Sir,
+       2026-11-26: "give this side of the building the same character as its front") */
+    pathRun([[0, -6.5], [W - 6.5, -6.5], [W - 6.5, -D]], 5.5, H, H + 10, shade(trim, 1.12), trim, shade(trim, .86));
     /* (a walk-in's hatch window, W11: narrowed to 12..114 for the door kit's 80-wide leaf, moved west to 120..200 -- the shop's east end is
        the corner's pavement line, where the room's east wall stands -- and a hole onto the room, the parlour's window table seen through it;
        the painted panel only where no room is drawn under it) */
@@ -71909,6 +71914,32 @@ function houseCanopy(fn){
        So: a top face, a front edge where the underside used to show,
        and the near end only. */
     if(state.part === 'body') awning(4, VS, 0, 5, false); else awning(4, W-4, 0, 10, true);
+    /* ================= THE EAST SIDE, ON THE CORNER =================
+       It was a blank wall to the corner (Sir, 2026-11-26: "give this side of the building the same character as its front so it matches.
+       no door just window and awning and roof line detail"). The front's language carried round: the cream fascia band under the cap,
+       a hatch window as the front's (its reveal, the glass, its mullions, the blue header over it) -- a walk-in's, a hole onto the parlour
+       (CC_IN's openings and winE) -- and its own scalloped awning over it, out over the east pavement. On the face a = W (it faces +a, the
+       eye's side); b 0 at the front, negative back. */
+    { const SB0 = -168, SB1 = -48, sz0 = 30, sz1 = 92, aw = W, d = 6;
+      S(aw + 0.3, -D + 12, -12, H - 14, H, '#fbf3f5');
+      /* the window: its hole (the reveal's jamb at its north edge, the sill), the glass, the mullions, the header */
+      if(SEE){ const q = [P(aw, SB0, sz1), P(aw, SB1, sz1), P(aw, SB1, sz0), P(aw, SB0, sz0)];
+        ctx.save(); poly(q); ctx.clip(); HOLE(q); F(aw - d, aw, sz0, sz1, shade('#2e4a5a', .84), null, 0, SB0); T(aw - d, aw, SB0, SB1, sz0, shade('#2e4a5a', .72)); ctx.restore(); }
+      else { S(aw + 0.2, SB0, SB1, sz0, sz1, '#bcdde2'); S(aw + 0.25, SB0 + 6, SB1 - 6, 36, 52, '#fbf3f5'); }
+      S(aw + 0.4, SB0, SB1, sz0, sz1, SEE ? WALKIN_PANE : 'rgba(188,221,226,.3)');
+      for(const gb of [SB0 + 20, SB0 + 64]) poly([P(aw + 0.5, gb, sz0 + 6), P(aw + 0.5, gb + 6, sz0 + 6), P(aw + 0.5, gb + 18, sz1 - 6), P(aw + 0.5, gb + 12, sz1 - 6)], 'rgba(255,255,255,.22)');
+      S(aw + 0.6, SB0, SB1, sz0 - 3, sz0, shade(trim, .85)); S(aw + 0.6, SB0, SB0 + 3, sz0, sz1, shade(trim, .85)); S(aw + 0.6, SB1 - 3, SB1, sz0, sz1, shade(trim, .85));
+      for(let k = 1; k < 3; k++){ const mb = SB0 + (SB1 - SB0)*k/3; S(aw + 0.7, mb - 1.5, mb + 1.5, sz0, sz1, shade(wall, 1.05)); }
+      box(aw, aw + 7, SB0 - 4, SB1 + 4, 88, 98, shade(trim, 1.1), shade(trim, .9), trim);
+      /* the awning over it, out over the pavement: its top, its edge, the near (south) end, the scallops along its edge */
+      const AB0 = SB0 - 16, AB1 = SB1 + 16;
+      poly([P(aw, AB0, cz+18), P(aw, AB1, cz+18), P(aw+out, AB1, cz), P(aw+out, AB0, cz)], '#fbf3f5');
+      poly([P(aw+out, AB0, cz), P(aw+out, AB1, cz), P(aw+out, AB1, cz-th), P(aw+out, AB0, cz-th)], shade('#fbf3f5', .86));
+      poly([P(aw, AB1, cz+18), P(aw+out, AB1, cz), P(aw+out, AB1, cz-th), P(aw, AB1, cz+18-th)], shade(trim, 1.1));
+      for(let i = 0; i < 7; i++){ const b0 = AB0 + (AB1 - AB0)*i/7, b1 = AB0 + (AB1 - AB0)*(i+1)/7;
+        const l = P(aw+out, b0, cz), r = P(aw+out, b1, cz), m = P(aw+out, (b0+b1)/2, cz-14);
+        ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.quadraticCurveTo(m.x,m.y+6,r.x,r.y); ctx.closePath();
+        ctx.fillStyle = i%2 ? trim : '#fbf3f5'; ctx.fill(); } }
     if(state.roof){
       /* ================= THE CONE =================
          It was a flat triangle -- three points and some strokes ruled
