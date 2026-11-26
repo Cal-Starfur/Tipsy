@@ -7224,7 +7224,7 @@ function kerbLatticeJoints(a, b){
    tipsy to tilt forward and back"): one slab tipped whole about its middle, along the walk's own run, so one end stands
    proud of the walk and the other sinks under it -- a step up, the tilt, a drop off. Rolled only in groups the pairs and
    lips leave empty (pRock past p), so none of those moves. */
-const PAVE_TILT = { p: 1/8, pRock: 1/14, qRef: 0.6, rootSide: 0.3, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneMax: 16, shadowA: 0.16, feelK: 1.5,
+const PAVE_TILT = { p: 1/8, pRock: 1/14, qRef: 0.6, rootSide: 0.3, thick: 6, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneMax: 16, shadowA: 0.16, feelK: 1.5,
                     bump: 0.18, kick: 0.07, bumpMs: 140 };
 function paveRunSet(grid){
   if(grid._swRunSet) return grid._swRunSet;
@@ -115718,10 +115718,23 @@ class WorldScene extends Phaser.Scene {
              its foot (below) */
           if(!isEnd) this.quadOn(g, [this.W(P[0], P[1], 0), this.W(Q[0], Q[1], 0), this.W(Q[0] + nx*4, Q[1] + ny*4, 0), this.W(P[0] + nx*4, P[1] + ny*4, 0)], A.gap, 0.45);
           if(!isEnd) sides.push({ P, Q, pa, pb, nx, ny, k: sides.length });
-          this.quadOn(g, wall, isEnd ? A.topDk : A.wallEnd);
-          /* its edges: an end's in the gap's line; a side wedge's in the slab's dark -- its top, its foot, and where a pair's
-             two wedges meet under the crest, the upright between them (Sir, 2026-11-26: "this pair is missing some edges") */
-          this.edgeOn(g, wall, isEnd ? A.gap : shadeN(A.topDk, 0.78), 1);
+          /* A SLAB IS A PLATE (Sir, 2026-11-26: "they still have triangle ramp sides instead of a line matching the thickness of
+             the other heaved slabs"): its edge shows the concrete's own thickness, a band thick under its top edge, and where it
+             stands higher than that, the dark void under it down to the walk -- not a face filled to the ground. The band's foot
+             is max(0, top - thick) along the edge, so it runs into the walk where the slab is low. */
+          const TH = T.thick, ts = [0];
+          if((pa - TH)*(pb - TH) < 0) ts.push((TH - pa)/(pb - pa));
+          ts.push(1);
+          const E = (t, z) => this.W(P[0] + (Q[0] - P[0])*t, P[1] + (Q[1] - P[1])*t, z);
+          const zt2 = t => pa + (pb - pa)*t, bot = t => Math.max(0, zt2(t) - TH);
+          const tv = ts.filter(t => bot(t) > 0.05 || (t > 0 && t < 1));
+          if(tv.some(t => bot(t) > 0.05))                               // the void under it: where its foot is off the walk
+            this.quadOn(g, tv.map(t => E(t, 0)).concat(tv.slice().reverse().map(t => E(t, bot(t)))), A.gap, 0.85);
+          const band = [E(0, zt2(0)), E(1, zt2(1))].concat(ts.slice().reverse().map(t => E(t, bot(t))));
+          this.quadOn(g, band, isEnd ? A.topDk : A.wallEnd);
+          /* its edges: an end's in the gap's line; a side's in the slab's dark -- its top, its foot, and where a pair's two
+             sides meet under the crest, the upright between them (Sir, 2026-11-26: "this pair is missing some edges") */
+          this.edgeOn(g, band, isEnd ? A.gap : shadeN(A.topDk, 0.78), 1);
         }
         /* 4. the top, outlined in the slab's dark */
         const top = [this.W(C[0][0], C[0][1], C[0][2]), this.W(C[1][0], C[1][1], C[1][2]), this.W(C[2][0], C[2][1], C[2][2]), this.W(C[3][0], C[3][1], C[3][2])];
