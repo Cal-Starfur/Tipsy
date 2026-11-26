@@ -78746,9 +78746,9 @@ function houseCanopy(fn){
     const DA0 = CA-38, DA1 = CA+38, DN = nB0-30;
     return { foot: [[nA0,nB0],[DA0,nB0],[DA0,DN],[DA1,DN],[DA1,nB0],[tA1,nB0],[tA1,tB1],[nA1,tB1],[nA1,nB1],[nA0,nB1]], h: 300, solids };
   })(),
-  /* THE NAVE IS A WALK-IN (wk4, CHAPEL_IN): the great door, 76 across, a live sliding pair set 6 back of the west front; the doorway shows
+  /* THE NAVE IS A WALK-IN (wk4, CHAPEL_IN): the great door, 76 across, the kit's door (shopDoor) on the west front, its live sliding pair; the doorway shows
      the nave (walkinThrough); a lantern either side of the door glows at night */
-  slideDoors: [{ a: 790.6, w: 76, b: -176, z0: 0, z1: 142, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 790.6, w: 76, b: -170 + 0.2, z0: 0, z1: 142, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane: the west front, nB0 -- shopDoor's leaves at + 0.6)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#5a7f95'); },
   see: true,
   lamps: [{ a: 766.6, b: -164, z: 150, r: 90, col: 0xffe2a8 }, { a: 890.6, b: -164, z: 150, r: 90, col: 0xffe2a8 }],
@@ -79014,22 +79014,13 @@ function houseCanopy(fn){
     const FB = nB0 + 0.5;
     slab(nA0, nA1, 168, 178, nB0, nB0-9, shade(wall,.86));    // string course
     slab(nA0, nA1, 286, 296, nB0, nB0-11, shade(wall,.86));   // eaves course
-    /* The great door is drawn by hand, not by shopDoor. The kit draws
-       at b 0 -- the frontage plane -- and this west front is 170 back
-       in its own churchyard, so shopDoor would have stood a door on the
-       grass in front of it. Same gap the Bathhouse found; it wants a
-       depth argument. */
+    /* THE GREAT DOOR IS THE KIT'S (doors kit D0 -- Sir, 2026-11-26: "It should be using our door kit not being hand drawn"):
+       shopDoor's glazed pair as a walk-in's, on the west front (BOFF to its plane, nB0: this front stands 170 back in its
+       churchyard), its surround in the trim -- a frame round the opening, the opening a hole onto the nave (CHAPEL_IN), the
+       transom; its leaves the kit's sliding pair, live (the entry's slideDoors, on the same plane) */
     const dm = CA;
-    F(dm-46, dm-38, 0, 152, shade(trim,1.1), null,0, nB0-0.4);      // the surround: two jambs and a head round the opening (the nave behind it: CHAPEL_IN)
-    F(dm+38, dm+46, 0, 152, shade(trim,1.1), null,0, nB0-0.4);
-    F(dm-46, dm+46, 142, 152, shade(trim,1.1), null,0, nB0-0.4);
-    if(SEE) HOLE([P(dm-38,nB0-6,142),P(dm+38,nB0-6,142),P(dm+38,nB0-6,0),P(dm-38,nB0-6,0)]);     // (the opening shows the nave; its live pair, slideDoors)
-    else {
-      F(dm-38, dm+38, 0, 142, shade(wall,.34), null,0, nB0-0.8);
-      F(dm-36, dm-2,  8, 134, shade(trim,.85), null,0, nB0-1.2);
-      F(dm+2,  dm+36, 8, 134, shade(trim,.85), null,0, nB0-1.2);
-      F(dm-3,  dm+3,  8, 134, shade(trim,.6),  null,0, nB0-1.4);
-    }
+    { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + nB0; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the entry's slideDoors -- a recorded see pair made the room take it for a door facing away, walkinAwayDoor)
+      try { shopDoor(dm, shade(trim, 1.1/0.9), '#5a7f95', null, 1e9, 0, { w: 76, h: 142, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
     for(const la of [dm-62, dm+62]){ cyl(la, nB0+6, 120, 142, 4, trim); ball(la, nB0+6, 146, 6, '#fff0c8'); }   // a lantern either side
     /* the arch over it: rise = half-span, which is what makes a round
        head rather than a pointed wedge. Half-span 58, so za = 152+116. */
@@ -80000,7 +79991,7 @@ function houseCanopy(fn){
   })(),
   /* THE HALL IS A WALK-IN (wk3, LAGOON_IN): the front portal's door, 76 across, a live sliding pair; the doorway shows the hall
      (walkinThrough); a lantern either side of the portal glows at night */
-  slideDoors: [{ a: 790, w: 76, b: -141.2, z0: 0, z1: 132, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 790, w: 76, b: -130 - 11 + 0.2, z0: 0, z1: 132, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane: the portal's recess, bb0 - 11 -- shopDoor's leaves at + 0.6)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2f8f9e'); },
   see: true,
   lamps: [{ a: 766, b: -124, z: 150, r: 90, col: 0xffe2a8 }, { a: 890, b: -124, z: 150, r: 90, col: 0xffe2a8 }],
@@ -80206,27 +80197,13 @@ function houseCanopy(fn){
       const g = arcAZ(k/4, ax0+14, ax1-14, 152, 284);
       F(g.a-2.5, g.a+2.5, 152, g.z, trim, null,0, bb0-12);
     }
-    /* THE DOOR CANNOT BE shopDoor HERE, and that is worth stating. The
-       kit's shopDoor draws at b 0 -- the frontage plane -- because every
-       other building in this file has its face there. This one is set
-       back 130 into its own yard, so shopDoor put a door standing on
-       the grass 130 in front of the wall it belongs to. Drawn by hand
-       on the recessed face instead.
-
-       It also wants to be bigger than a shop door: 92 across and 142
-       tall against SHOP_DOOR_W 66.2, because this is the principal
-       entrance of a civic building at the head of a flight of steps,
-       not a shop doorway. */
-    F(CA-46, CA-38, 0, 142, shade(trim,1.1), null,0, bb0-10.6);                 // the surround: two jambs and a head round the opening (the hall behind it: LAGOON_IN)
-    F(CA+38, CA+46, 0, 142, shade(trim,1.1), null,0, bb0-10.6);
-    F(CA-46, CA+46, 132, 142, shade(trim,1.1), null,0, bb0-10.6);
-    if(SEE) HOLE([P(CA-38,bb0-11.0,132),P(CA+38,bb0-11.0,132),P(CA+38,bb0-11.0,0),P(CA-38,bb0-11.0,0)]);     // (the opening shows the hall; its live pair, slideDoors)
-    else {
-      F(CA-38, CA+38, 0, 132, shade(wall,.32), null,0, bb0-11.0);
-      F(CA-36, CA-2,  8, 124, shade(trim,.85), null,0, bb0-11.4);
-      F(CA+2,  CA+36, 8, 124, shade(trim,.85), null,0, bb0-11.4);
-      F(CA-3,  CA+3,  8, 124, shade(trim,.6),  null,0, bb0-11.6);
-    }
+    /* THE DOOR IS THE KIT'S (doors kit D0 -- Sir, 2026-11-26: "It should be using our door kit not being hand drawn"). It was
+       drawn by hand because shopDoor drew at b 0 and this front is set back 130 in its yard; BOFF puts the kit's door on its own
+       plane, the portal's recess (bb0 - 11). The principal entrance of a civic building, 76 by 132 (bigger than SHOP_DOOR_W):
+       shopDoor's glazed pair as a walk-in's -- its surround in the trim, a frame round the opening, the opening a hole onto the
+       hall (LAGOON_IN), the transom; its leaves the kit's sliding pair, live (the entry's slideDoors, on the same plane) */
+    { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + bb0 - 11; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the entry's slideDoors -- a recorded see pair made the room take it for a door facing away, walkinAwayDoor)
+      try { shopDoor(CA, shade(trim, 1.1/0.9), '#2f8f9e', null, 1e9, 0, { w: 76, h: 132, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
     for(const la of [CA-62, CA+62]){ cyl(la, bb0+6, 120, 142, 4, trim); ball(la, bb0+6, 146, 6, '#fff0c8'); }   // a lantern either side
 
     /* ---- the other three entrances ----
@@ -85703,7 +85680,7 @@ function houseCanopy(fn){
      lamps (the lamp kit). Lab z x1.5 in the world. */
   name:'Sun Deck Motor Lodge', xh: 248, base:'Motor lodge', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* the office's glass pair, live (as Pelican Drug's): 110 across, the walk-in's door */
-  slideDoors: [{ a: 115, w: 110, b: -230.8, z0: 0, z1: 100, walk: -218, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 115, w: 110, b: -230 + 0.2, z0: 0, z1: 100, walk: -218, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane: the office's front, MOTEL_PLAN's sh.b1 -- shopDoor's leaves at + 0.6)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2f9e9a'); },
   see: true,   // (the office's door, storefront and picture window show the lobby inside: MOTEL_IN's openings)
   /* ITS LAMPS AT NIGHT (the lamp kit): a sconce at every other door along both walkways, the pylon's starburst and
@@ -85969,10 +85946,11 @@ function houseCanopy(fn){
       /* the base: flagstone to the sills */
       F(Os.a0, Os.a1, 0, 16, fl, null, 0, Os.b1 + 0.4); S(Os.a1 + 0.4, Os.b0, Os.b1, 0, 16, shade(fl, 0.9));
       for(let x = Os.a0 + 18; x < Os.a1; x += 38) F(x, x + 2, 0, 16, shade(fl, 0.8), null, 0, Os.b1 + 0.6);
-      /* the door: its turquoise surround, the opening (the lobby behind it: W11), its live pair (slideDoors) */
-      F(O.door[0] - 8, O.door[1] + 8, 0, 108, trim, null, 0, Os.b1 + 0.5);
-      if(SEE) HOLE([P(O.door[0], Os.b1 + 0.6, 100), P(O.door[1], Os.b1 + 0.6, 100), P(O.door[1], Os.b1 + 0.6, 0), P(O.door[0], Os.b1 + 0.6, 0)]);
-      else F(O.door[0], O.door[1], 0, 100, '#2b3138', null, 0, Os.b1 + 0.6);
+      /* THE DOOR, THE KIT'S (doors kit D0 -- Sir, 2026-11-26: "It should be using our door kit not being hand drawn"): shopDoor's
+         glazed pair as a walk-in's, on the office's front (BOFF to Os.b1): its turquoise surround a frame round the opening, the
+         opening a hole onto the lobby (W11), the transom; its leaves the kit's sliding pair, live (the entry's slideDoors) */
+      { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + Os.b1; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the entry's slideDoors -- a recorded see pair made the room take it for a door facing away, walkinAwayDoor)
+        try { shopDoor((O.door[0] + O.door[1])/2, shade(trim, 1/0.9), '#2f9e9a', null, 1e9, 0, { w: O.door[1] - O.door[0], h: 100, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
       /* the storefront: framed glass, three mullions */
       { const [w0, w1] = O.glassS;
         F(w0 - 6, w1 + 6, 12, 108, trim, null, 0, Os.b1 + 0.5);
@@ -86048,7 +86026,7 @@ function houseCanopy(fn){
      beacon and the ON AIR light (live), the night's lamps (the lamp kit). Lab z x1.5 in the world. */
   name:'KTDE 98.1 The Tide', xh: 252, base:'Radio station', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* the lobby's glass pair, live (as the motor lodge's office): 90 across */
-  slideDoors: [{ a: 560, w: 90, b: -40.8, z0: 0, z1: 100, walk: -28, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 560, w: 90, b: -40 + 0.2, z0: 0, z1: 100, walk: -28, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane: the front, KTDE.B.b1 -- shopDoor's leaves at + 0.6)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#1f7a8c'); },
   see: true,   // (the lobby's doors and the studio's glass show the room inside: KTDE_IN's openings)
   /* ITS LAMPS AT NIGHT (the lamp kit): the canopy's downlight, the studio's glow on the paving, the ribbon windows lit,
@@ -86145,10 +86123,11 @@ function houseCanopy(fn){
       F(240, 480, 30, 100, teal, null, 0, B.b1 + 0.4);
       if(SEE) HOLE([P(244, B.b1 + 0.6, 97), P(476, B.b1 + 0.6, 97), P(476, B.b1 + 0.6, 33), P(244, B.b1 + 0.6, 33)]);
       F(244, 476, 33, 97, SEE ? glassSee : glass, null, 0, B.b1 + 0.6);
-      /* THE LOBBY'S DOOR: a teal surround, the opening (the lobby behind it: W11), its live pair (slideDoors) */
-      F(K.door[0] - 8, K.door[1] + 8, 0, 108, teal, null, 0, B.b1 + 0.5);
-      if(SEE) HOLE([P(K.door[0], B.b1 + 0.6, 100), P(K.door[1], B.b1 + 0.6, 100), P(K.door[1], B.b1 + 0.6, 0), P(K.door[0], B.b1 + 0.6, 0)]);
-      else F(K.door[0], K.door[1], 0, 100, '#2b3138', null, 0, B.b1 + 0.6);
+      /* THE LOBBY'S DOOR, THE KIT'S (doors kit D0 -- Sir, 2026-11-26: "It should be using our door kit not being hand drawn"):
+         shopDoor's glazed pair as a walk-in's, on the front (BOFF to B.b1): its teal surround a frame round the opening, the
+         opening a hole onto the lobby (W11), the transom; its leaves the kit's sliding pair, live (the entry's slideDoors) */
+      { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + B.b1; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the entry's slideDoors -- a recorded see pair made the room take it for a door facing away, walkinAwayDoor)
+        try { shopDoor((K.door[0] + K.door[1])/2, shade(teal, 1/0.9), '#1f7a8c', null, 1e9, 0, { w: K.door[1] - K.door[0], h: 100, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
       /* THE STUDIO'S GLASS: a big pane in a teal frame, two mullions (the on-air studio behind it: W11) */
       { const [w0, w1] = K.studio;
         F(w0 - 7, w1 + 7, 10, 116, teal, null, 0, B.b1 + 0.5);
@@ -86160,10 +86139,8 @@ function houseCanopy(fn){
       /* the porthole between the doors and the studio: a round window, Streamline's mark */
       { const pa = 760, pz = 64, pts = [], pin = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; pts.push(P(pa + Math.cos(q)*24, B.b1 + 0.5, pz + Math.sin(q)*24/ZSCALE)); pin.push(P(pa + Math.cos(q)*18, B.b1 + 0.7, pz + Math.sin(q)*18/ZSCALE)); }
         poly(pts, teal); poly(pin, glass); }
-      /* THE CANOPY over the lobby's doors, and THE GLASS-BLOCK STAIR TOWER at the west end (attachments: drawn with the
-         building, one piece -- never keyed apart from their host) */
-      box(K.door[0] - 30, K.door[1] + 30, B.b1, B.b1 + 44, 108, 114, '#f8f5ee', shade(wall, 0.86), shade(wall, 0.78));
-      F(K.door[0] - 30, K.door[1] + 30, 108, 114, teal, null, 0, B.b1 + 44.4);
+      /* THE GLASS-BLOCK STAIR TOWER at the west end (an attachment: drawn with the building, one piece -- never keyed apart from
+         its host). (The canopy over the lobby's doors is its own piece, below: it stands out over the live door) */
       { const S0 = K.stair, bf = B.b1 + S0.out, top = S0.top;
         box(S0.a0, S0.a1, B.b1 - 20, bf, 0, top, shade(wall, 1.04), wall, wallS);
         F(S0.a0 + 10, S0.a1 - 10, 16, top - 18, '#c4dde2', null, 0, bf + 0.4);
@@ -86171,6 +86148,13 @@ function houseCanopy(fn){
         for(let z = 16; z <= top - 18 + 0.1; z += 10) F(S0.a0 + 10, S0.a1 - 10, z - 0.6, z + 0.6, '#9fbcc4', null, 0, bf + 0.6);
         S(S0.a1 + 0.4, B.b1 + 2, bf - 2, 16, top - 18, '#b2ced4');
         box(S0.a0 - 4, S0.a1 + 4, B.b1 - 24, bf + 4, top, top + 8, shade(teal, 1.2), teal, tealD); }
+    }});
+    /* ---- THE CANOPY over the lobby's doors: its own piece, keyed at its nearest corner (the largest a + b it covers), so it sorts
+       after the door's live leaves, which painted over its front with the canopy inside the building's piece (CLAUDE.md: what stands
+       out over a live door sorts AFTER it -- overDoors); with the shell, as the building ---- */
+    items.push({ a: K.door[1] + 30, b: B.b1 + 44, shell: true, overDoors: true, draw: () => {
+      box(K.door[0] - 30, K.door[1] + 30, B.b1, B.b1 + 44, 108, 114, '#f8f5ee', shade(wall, 0.86), shade(wall, 0.78));
+      F(K.door[0] - 30, K.door[1] + 30, 108, 114, teal, null, 0, B.b1 + 44.4);
     }});
     /* ---- THE MAST: its own tall piece, keyed over the roof (z: it sorts after the building it stands on) ---- */
     items.push({ a: K.mast.a, b: K.mast.b, z: 420, shell: true, draw: () => ktdeMastCached() });   // (on the roof: it goes with the shell)
@@ -89336,8 +89320,8 @@ marinaEntry(),
   /* and the arch is reached from the road, like a house's garage */
   drive:[{ side:'front', from:1404, to:1724, col:'#bdb299', arrows:'none' }],   // the carriage path's width and colour
   /* THE COTTAGE BY THE GATEHOUSE IS A WALK-IN (wk8, CTG_IN): its door, 62 across (a 2005.8..2067.8), a live
-     pair set 6 back of the front (b -742); the doorway and the window show the room (walkinThrough); the lantern by the door already glows at night (lamps) */
-  slideDoors: [{ a: 2036.8 - 31, w: 62, b: -742, z0: 0, z1: 112, glass: 'rgba(150,190,206,.38)' }],
+     pair, the kit's door (shopDoor) on the plinth's face (b -732); the doorway and the window show the room (walkinThrough); the lantern by the door already glows at night (lamps) */
+  slideDoors: [{ a: 2036.8 - 31, w: 62, b: -736 + 4 + 0.2, z0: 0, z1: 112, glass: 'rgba(150,190,206,.38)' }],   // (the kit door's opening, on its plane: the plinth's face, CB1 + 4 -- shopDoor's leaves at + 0.6)
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#4d7f95'); },
   see: true,
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground: one range-and-towers building round a court',
@@ -89479,14 +89463,19 @@ marinaEntry(),
       for(let k = 0; k < 7; k++){ const u = c - ww/2 - 4 + k*(ww + 8)/6; fc.r(u - 3, u + 3, z - 6, z + 3 + (k % 2)*3, k % 3 === 1 ? leaf2 : cols[k % 4], 1.2); }
     };
     const doorway = (fc, c, flip, see) => {
-      fc.r(c - 40, c + 40, 0, 156, shade(stone, 1.1), 0.2);                                                // the stone surround
-      if(see && SEE){
-        /* A WALK-IN'S DOOR (wk8, CTG_IN): the round-headed opening a hole in the image, the room drawn under it, its live pair (slideDoors) over; a fanlight tint on its head */
-        const pts = [[c - 31, 0], [c - 31, 112]];
-        for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([c + 31*Math.cos(t), 112 + 30*Math.sin(t)]); }
-        pts.push([c + 31, 112], [c + 31, 0]);
-        HOLE(pts.map(([u, z]) => fc.dp(u, z, 6)));
-        headed(fc, c, 31, 112, 112, 30, 'rgba(176,208,222,.34)', 0.8);
+      if(!(see && SEE && fc.kind === 'b' && fc.nrm > 0)) fc.r(c - 40, c + 40, 0, 156, shade(stone, 1.1), 0.2);   // the stone surround (a walk-in's: a frame, below)
+      if(see && SEE && fc.kind === 'b' && fc.nrm > 0){
+        /* A WALK-IN'S DOOR (wk8, CTG_IN), THE KIT'S (doors kit D0 -- Sir, 2026-11-26: "It should be using our door kit not being
+           hand drawn"): the stone surround a frame round the round-headed opening, never a sheet across it; the fanlight's arch a
+           hole in the image (the room under it) with a tint; under it shopDoor's glazed pair as a walk-in's, on the plinth's face
+           (BOFF to the face + 4, so the leaves slide out in front of the plinth, never under it): its frame, the opening a hole onto
+           the room, the transom; its leaves the kit's sliding pair, live (the entry's slideDoors, on the same plane) */
+        const DP = 4, arc = (z1, r) => { const q = []; for(let k = 1; k < 10; k++){ const t = Math.PI*(k/10); q.push([c + 31*Math.cos(t), z1 + r*Math.sin(t)]); } return q; };
+        fc.pl([[c - 40, 0], [c - 40, 156], [c + 40, 156], [c + 40, 0], [c + 31, 0], [c + 31, 112], ...arc(112, 30), [c - 31, 112], [c - 31, 0]].map(([u, z]) => [u, z, 0.2]), shade(stone, 1.1));   // the stone surround, round the opening
+        HOLE([[c + 31, 112], ...arc(112, 30), [c - 31, 112]].map(([u, z]) => fc.pt(u, z, DP + 0.4)));
+        headed(fc, c, 31, 112, 112, 30, 'rgba(176,208,222,.34)', DP + 0.45);
+        { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + fc.plane + DP; SEE = true; DOOR_REC = null;   // (not recorded: its leaves are the entry's slideDoors -- a recorded see pair made the room take it for a door facing away, walkinAwayDoor)
+          try { shopDoor(c, stone, trim, null, 1e9, 0, { w: 62, h: 112, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
       } else {
       headed(fc, c, 31, 0, 112, 30, dark, 0.5);                                                            // the opening
       headed(fc, c, 27, 0, 110, 26, door, 0.8, shade(door, .7), 1);                                        // the door in it
@@ -89676,7 +89665,7 @@ marinaEntry(),
         /* THE WALK-IN COTTAGE'S DOOR FURNITURE, apart from its wall (wk8): the step a flat stone plate on the ground (he drives over it to the glass), the hood and its
            two brackets overhead, each its own piece, `shell` so they fade with the room's shell */
         const dc = (x0 + x1)/2 + (x1 - x0)*0.2;
-        it(dc, CB1 + 11, () => { T(dc - 52, dc + 52, CB1, CB1 + 22, 0.5, shade(stone, 1.12)); T(dc - 52, dc + 52, CB1 + 19, CB1 + 22, 0.7, stone); }, 0, true);
+        it(dc, CB1 + 11, () => { T(dc - 52, dc + 52, CB1 + 4, CB1 + 22, 0.5, shade(stone, 1.12)); T(dc - 52, dc + 52, CB1 + 19, CB1 + 22, 0.7, stone); }, 0, true);
         it(dc, CB1 + 18, () => { const fc = RG('a', x0, x1, CB1 - RD, CB1).fc;
           for(const sg of [-1, 1]) fc.proj(dc + sg*42 - 3, dc + sg*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD);   // (the brackets before the hood they hold up, W37)
           fc.proj(dc - 52, dc + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD); }, 0, true);
