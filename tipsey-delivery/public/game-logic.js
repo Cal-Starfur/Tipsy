@@ -113594,6 +113594,7 @@ class WorldScene extends Phaser.Scene {
           if(Math.min(P[2], Q[2]) >= 0) continue;
           const wall = [this.W(P[0], P[1], 0), this.W(Q[0], Q[1], 0), this.W(Q[0], Q[1], Math.min(0, Q[2])), this.W(P[0], P[1], Math.min(0, P[2]))];
           this.quadOn(g, wall, nm[0] === (F.axis ? 'y' : 'x') ? A.topDk : A.wallEnd);
+          g.lineStyle(1, A.topDk, 1); line(wall.concat([wall[0]]));
         }
         /* 3. the walls the eye sees where it stands above the walk, on its near edges: an end's wall in the slab's dark with
            the gap's line round it, a side's wedge in the end-wall tone */
@@ -113605,7 +113606,9 @@ class WorldScene extends Phaser.Scene {
           const wall = [this.W(P[0], P[1], pa), this.W(Q[0], Q[1], pb), this.W(Q[0], Q[1], 0), this.W(P[0], P[1], 0)];
           const isEnd = nm[0] === (F.axis ? 'y' : 'x');
           this.quadOn(g, wall, isEnd ? A.topDk : A.wallEnd);
-          if(isEnd) this.edgeOn(g, wall, A.gap, 1);
+          /* its edges: an end's in the gap's line; a side wedge's in the slab's dark -- its top, its foot, and where a pair's
+             two wedges meet under the crest, the upright between them (Sir, 2026-11-26: "this pair is missing some edges") */
+          this.edgeOn(g, wall, isEnd ? A.gap : shadeN(A.topDk, 0.78), 1);
         }
         /* 4. the top, outlined in the slab's dark */
         const top = [this.W(C[0][0], C[0][1], C[0][2]), this.W(C[1][0], C[1][1], C[1][2]), this.W(C[2][0], C[2][1], C[2][2]), this.W(C[3][0], C[3][1], C[3][2])];
