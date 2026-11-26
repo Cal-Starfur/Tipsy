@@ -7224,7 +7224,7 @@ function kerbLatticeJoints(a, b){
    tipsy to tilt forward and back"): one slab tipped whole about its middle, along the walk's own run, so one end stands
    proud of the walk and the other sinks under it -- a step up, the tilt, a drop off. Rolled only in groups the pairs and
    lips leave empty (pRock past p), so none of those moves. */
-const PAVE_TILT = { p: 1/8, pRock: 1/14, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneK: 0.3, toneMax: 16, feelK: 1.5,
+const PAVE_TILT = { p: 1/8, pRock: 1/14, hRock: [6, 16], ridge: 0.4, valley: 0.7, hRidge: [3, 18], hValley: [3, 15], hLip: [3, 9], toneMax: 16, shadowA: 0.16, feelK: 1.5,
                     bump: 0.18, kick: 0.07, bumpMs: 140 };
 function paveRunSet(grid){
   if(grid._swRunSet) return grid._swRunSet;
@@ -7272,6 +7272,16 @@ function paveTiltAt(grid, x, y){
   return { z: F.z0 + F.dz*t, gx: F.axis ? 0 : gr, gy: F.axis ? gr : 0, F, ix, iy };
 }
 /* a segment a -> b held to a convex screen polygon P (either winding); null when none of it is inside (Cyrus-Beck) */
+/* THE WALK'S LIGHT (ONE SLAB, ONE STYLE): a slab turned toward the light (k > 0) or away (k < 0) moves within the walk's own
+   palette -- toward its paler concrete lifted a little, or past its darker concrete -- never toward white or a foreign brown */
+function paveLight(d, col, k){
+  if(!k) return col;
+  return k > 0 ? mixC(col, mixC(d.pave, 0xffffff, 0.3), Math.min(1, k)*0.55) : mixC(col, shadeN(d.paveB, 0.72), Math.min(1, -k)*0.6);
+}
+/* the joint's two lines for a slab of colour col: its groove (paveEdge darkened) and its lit lip (the slab's tone lifted) */
+function paveLines(d, col){
+  return { groove: shadeN(d.paveEdge, PAVE_ART.grooveK), lit: mixC(col, 0xffffff, PAVE_ART.lipAdd/Math.max(1, 255 - ((col >> 8) & 255))) };
+}
 /* the convex hull of screen points (monotone chain) */
 function hullPts(P){
   const Q = P.slice().sort((a, b) => a.x - b.x || a.y - b.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
@@ -115172,23 +115182,32 @@ class WorldScene extends Phaser.Scene {
      (u along pts[0]->pts[1], v along pts[0]->pts[3]) map to the screen affinely: no W per detail. Ground pass only (the ground
      cache paints it once). In order: the slab's tone, its outline (the walk's edge and the joints), a patch or a stain, the
      quarter scoring, a utility cover, and last the control joint along its two far edges -- a dark groove with a lit lip. */
-  paveSlabOn(g, pts, d, wx, wy, lane){
+  paveSlabOn(g, pts, d, wx, wy, lane, opt){
+    /* ONE SLAB, ONE STYLE (Sir, 2026-11-26: "the art seems different for these slabs vs the originals ... get some consistent
+       style to them"): a tilted slab (paveTiltFlush) is drawn by this same drawer on its tilted corners -- opt { light: -1..1,
+       how its fall turns it to the light; clip: the screen polygon its lines are held to } -- so its concrete, joints, scoring,
+       stains, patches and covers are the walk's own, and only its light differs, within the walk's own palette (paveLight). */
     const PA = PAVE_ART;
     const ix = Math.floor(wx/T2), iy = Math.floor(wy/T2), par = (ix + iy) & 1;
-    if(lane !== undefined && this._slabFx && this._slabHas){        // a tilted slab: its light laid after the whole walk (paveTiltFlush)
+    if(!opt && lane !== undefined && this._slabFx && this._slabHas){        // a tilted slab: laid again after the whole walk (paveTiltFlush)
       const F = paveTilt(ix, iy, this._slabHas, this._slabAx);
-      if(F) this._slabFx.push({ pts, F, d, ix, iy, wx, wy });
+      if(F) this._slabFx.push({ pts, F, d, ix, iy, wx, wy, lane });
     }
     const odd = paveRoll(ix, iy, 2);
     const weathered = odd < PA.weatherP, patched = !weathered && odd > 1 - PA.patchP;
     let t = (par ? 1 - PA.calm : PA.calm) + (paveRoll(ix, iy, 1) - 0.5)*2*PA.jit;
     if(weathered) t += 0.55;                                 // a shade past paveB: older, dirtier concrete
-    const col = mixC(d.pave, d.paveB, t);
+    const col = paveLight(d, mixC(d.pave, d.paveB, t), opt ? opt.light : 0);
     this.quadOn(g, pts, col);
-    if(this.drawClip){ this.edgeOn(g, pts, d.paveEdge, 1); return; }
+    if(!opt && this.drawClip){ this.edgeOn(g, pts, d.paveEdge, 1); return; }
+    const clip = opt && opt.clip;
+    const seg = (ax, ay, bx, by) => {
+      if(!clip){ g.lineBetween(ax, ay, bx, by); return; }
+      const c = clipSegConvex({ x: ax, y: ay }, { x: bx, y: by }, clip); if(c) g.lineBetween(c[0].x, c[0].y, c[1].x, c[1].y);
+    };
     const p0 = pts[0], p1 = pts[1], p2 = pts[2], p3 = pts[3];
     g.lineStyle(1, d.paveEdge, 1);
-    g.beginPath(); g.moveTo(p0.x, p0.y); g.lineTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.lineTo(p3.x, p3.y); g.closePath(); g.strokePath();
+    seg(p0.x, p0.y, p1.x, p1.y); seg(p1.x, p1.y, p2.x, p2.y); seg(p2.x, p2.y, p3.x, p3.y); seg(p3.x, p3.y, p0.x, p0.y);
     const span = (p2.y - p0.y)*0.5;
     if(span < 6) return;                                     // far out: detail would only grey the slab
     const ex = p1.x - p0.x, ey = p1.y - p0.y, fx = p3.x - p0.x, fy = p3.y - p0.y;
@@ -115196,9 +115215,8 @@ class WorldScene extends Phaser.Scene {
     const Q = (u0, u1, v0, v1) => [{ x: X(u0, v0), y: Y(u0, v0) }, { x: X(u1, v0), y: Y(u1, v0) },
                                    { x: X(u1, v1), y: Y(u1, v1) }, { x: X(u0, v1), y: Y(u0, v1) }];
     const K = this.K, lw = Math.max(1, K*0.7);
-    const lit = mixC(col, 0xffffff, PA.lipAdd/Math.max(1, 255 - ((col >> 8) & 255)));
-    const groove = shadeN(d.paveEdge, PA.grooveK);
-    const line = (u0, v0, u1, v1) => { g.beginPath(); g.moveTo(X(u0, v0), Y(u0, v0)); g.lineTo(X(u1, v1), Y(u1, v1)); g.strokePath(); };
+    const { lit, groove } = paveLines(d, col);
+    const line = (u0, v0, u1, v1) => seg(X(u0, v0), Y(u0, v0), X(u1, v1), Y(u1, v1));
     /* the odd slab: a part re-poured (paler, cooler, its own sawn joint), or weathered with a soft stain */
     if(patched){
       const alongU = paveRoll(ix, iy, 3) < 0.5, cut = 0.38 + paveRoll(ix, iy, 4)*0.3;
@@ -115218,11 +115236,9 @@ class WorldScene extends Phaser.Scene {
     /* quarter scoring, by frontage: a block's pour is scored or it is not */
     if(paveRoll(Math.floor(wx/BLOCK), Math.floor(wy/BLOCK), 9) < 0.5){
       const o = 1.3/T2;
-      for(const [c, d0] of [[groove, 0], [lit, o]]){         // the groove, then its lip: one path each
-        g.lineStyle(1, c, PA.scoreA); g.beginPath();
-        g.moveTo(X(0.5 + d0, 0.02), Y(0.5 + d0, 0.02)); g.lineTo(X(0.5 + d0, 0.98), Y(0.5 + d0, 0.98));
-        g.moveTo(X(0.02, 0.5 + d0), Y(0.02, 0.5 + d0)); g.lineTo(X(0.98, 0.5 + d0), Y(0.98, 0.5 + d0));
-        g.strokePath();
+      for(const [c, d0] of [[groove, 0], [lit, o]]){         // the groove, then its lip
+        g.lineStyle(1, c, PA.scoreA);
+        line(0.5 + d0, 0.02, 0.5 + d0, 0.98); line(0.02, 0.5 + d0, 0.98, 0.5 + d0);
       }
     }
     /* a utility cover, off the kerb row: an iron meter lid, or a concrete pull box in an iron frame */
@@ -115234,7 +115250,7 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, Q(cu - hu, cu + hu, cv - hv, cv + hv), PA.ironDk);
       this.quadOn(g, Q(u0, u1, v0, v1), box ? PA.boxLid : PA.iron);
       g.lineStyle(1, PA.ironLit, 1);                          // the lid's far edges catch the light
-      g.beginPath(); g.moveTo(X(u0, v1), Y(u0, v1)); g.lineTo(X(u0, v0), Y(u0, v0)); g.lineTo(X(u1, v0), Y(u1, v0)); g.strokePath();
+      line(u0, v1, u0, v0); line(u0, v0, u1, v0);
       if(span > 12){                                          // the two lifting holes
         const s = 1.6/T2, du = alongU || !box ? hu*0.5 : 0, dv = alongU || !box ? 0 : hv*0.5;
         for(const k of [-1, 1]) this.quadOn(g, Q(cu + k*du - s, cu + k*du + s, cv + k*dv - s, cv + k*dv + s), PA.slot);
@@ -115243,60 +115259,49 @@ class WorldScene extends Phaser.Scene {
     /* the control joint: the groove just inside the far edges, its lit lip beside it */
     const gi = 0.8/T2, li = 2.4/T2;
     g.lineStyle(Math.max(1, K*0.9), groove, 1);
-    g.beginPath(); g.moveTo(X(gi, 1), Y(gi, 1)); g.lineTo(X(gi, gi), Y(gi, gi)); g.lineTo(X(1, gi), Y(1, gi)); g.strokePath();
+    line(gi, 1, gi, gi); line(gi, gi, 1, gi);
     g.lineStyle(lw, lit, 0.9);
-    g.beginPath(); g.moveTo(X(li, 1), Y(li, 1)); g.lineTo(X(li, li), Y(li, li)); g.lineTo(X(1, li), Y(1, li)); g.strokePath();
+    line(li, 1, li, li); line(li, li, 1, li);
   }
 
-  /* SLABS THAT TILT, DRAWN TILTED (see PAVE_TILT; Sir, 2026-11-26: "the art doesnt correspond it looks the same"). After the
-     whole walk, far to near, each moved slab is laid again at its corners' real heights, so a steep one stands up as steep as
-     he rides it: its top (its own concrete, toned by which way it falls, its joint outline), and the faces the eye sees --
-     where it stands above the walk, its side on a near edge (+x or +y: pts[0] is the far corner), the triangle along a side
-     or a lip's whole step; where it is sunk, the walk's own wall on its far edges, down to it. A pair's shared joint has no
-     face (the two meet there). A sunk slab is held to its own footprint, so the walk in front stays in front of it. The
-     ridge's crest gets a lit break-over, the valley's a dark crease. Ground pass. */
+  /* SLABS THAT TILT, DRAWN TILTED (see PAVE_TILT). After the whole walk, far to near, each moved slab is laid again at its
+     corners' real heights by paveSlabOn itself (ONE SLAB, ONE STYLE), lit by how it falls (paveLight), and the faces the eye
+     sees are added in the walk's own palette: where it stands above the walk, its side on a near edge (+x or +y: pts[0] is
+     the far corner) -- the slab's concrete in light or shade, its foot the joint's groove, its top edge the joint's lit lip;
+     where it is sunk, the walk's own wall on its far edges down to it. A pair's shared joint has no face. A sunk slab is held
+     to its footprint and what stands above it, so the walk in front stays in front. A raised near side throws a soft shadow
+     on the walk, a sunk slab lies in the walk's edge's shadow; the crest of a ridge is a lit lip, a valley's floor a groove.
+     Ground pass. */
   paveTiltFlush(g){
     const L = this._slabFx; this._slabFx = null;
     if(!L || !L.length) return;
     L.sort((p, q) => (p.ix + p.iy) - (q.ix + q.iy));
-    const T = PAVE_TILT, RA = RAMP_ART, PA = PAVE_ART, h2 = T2/2, O = this.W(0, 0, 0), K = this.K;
+    const T = PAVE_TILT, PA = PAVE_ART, h2 = T2/2, O = this.W(0, 0, 0), K = this.K;
     const litOf = (nx, ny) => { const q = this.W(nx, ny, 0); return (q.x - O.x) < 0; };   // a face turned screen-left is lit (SP13)
-    for(const { pts, F, d, ix, iy, wx, wy } of L){
+    for(const { pts, F, d, ix, iy, wx, wy, lane } of L){
       const x0 = wx - h2, y0 = wy - h2;
       const zt = t => F.z0 + F.dz*t;
-      /* corner heights: c00 (x0, y0), c10 (x1, y0), c11 (x1, y1), c01 (x0, y1); the slab's point at (u, v) in 0..1, at its height */
       const z00 = zt(0), z10 = F.axis ? zt(0) : zt(1), z11 = zt(1), z01 = F.axis ? zt(1) : zt(0);
       const C = [[x0, y0, z00], [x0 + T2, y0, z10], [x0 + T2, y0 + T2, z11], [x0, y0 + T2, z01]];
       const Pt = (u, v) => this.W(x0 + u*T2, y0 + v*T2, zt(F.axis ? v : u));
       const sunk = Math.min(z00, z10, z11, z01) < 0, hMax = Math.max(z00, z10, z11, z01, 0);
-      /* the slab's own concrete, as paveSlabOn tones it, lit or shaded by how it falls -- gently, by how steep */
       const par = (ix + iy) & 1, weathered = paveRoll(ix, iy, 2) < PA.weatherP;
       let tc = (par ? 1 - PA.calm : PA.calm) + (paveRoll(ix, iy, 1) - 0.5)*2*PA.jit;
       if(weathered) tc += 0.55;
-      const base = mixC(d.pave, d.paveB, tc);
-      const sgn = -Math.sign(F.dz), q = this.W(F.axis ? 0 : sgn, F.axis ? sgn : 0, 0), sx = q.x - O.x, sy = q.y - O.y;
-      const lt = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2), lk = Math.min(1, Math.abs(F.dz)/T.toneMax)*T.toneK;
-      const col = lt >= 0 ? mixC(base, 0xffffff, lt*lk) : mixC(base, RA.shade, -lt*lk);
-      const faceCol = lit => lit ? mixC(base, RA.shade, 0.12) : mixC(base, RA.shade, 0.3);
+      const base = mixC(d.pave, d.paveB, tc), { lit, groove } = paveLines(d, base), shadow = shadeN(d.paveEdge, 0.7);
+      const faceCol = isLit => paveLight(d, base, isLit ? -0.35 : -1);
       const joint = (F.kind !== 'ridge' && F.kind !== 'valley') ? '' : (F.axis ? (F.first ? 'y1' : 'y0') : (F.first ? 'x1' : 'x0'));
-      /* a line held to the slab's footprint while it is sunk (the walk in front stays in front) */
-      const seg = (a, b) => {
-        if(!sunk){ g.lineBetween(a.x, a.y, b.x, b.y); return; }
-        const c = clipSegConvex(a, b, this.drawClip || pts); if(c) g.lineBetween(c[0].x, c[0].y, c[1].x, c[1].y);
-      };
+      /* how its fall turns it to the light (screen up-left), by how steep */
+      const sgn = -Math.sign(F.dz), q = this.W(F.axis ? 0 : sgn, F.axis ? sgn : 0, 0), sx = q.x - O.x, sy = q.y - O.y;
+      const light = (-sx - sy)/((Math.hypot(sx, sy) || 1)*Math.SQRT2)*Math.min(1, Math.abs(F.dz)/T.toneMax);
       /* 1. the shadow its raised near side throws on the walk (+y, a touch of -x: the city's light) */
-      if(hMax > 0.5){
-        const sh = (A, B, nx, ny) => {
-          const wa = Math.max(0, A[2])*0.9, wb = Math.max(0, B[2])*0.9;
-          if(wa + wb < 0.5) return;
-          this.quadOn(g, [this.W(A[0], A[1], 0), this.W(B[0], B[1], 0), this.W(B[0] + nx*wb - wb*0.3, B[1] + ny*wb, 0), this.W(A[0] + nx*wa - wa*0.3, A[1] + ny*wa, 0)], RA.shade, 0.16);
-        };
-        if(joint !== 'y1') sh(C[3], C[2], 0, 1);
+      if(hMax > 0.5 && joint !== 'y1'){
+        const A = C[3], B = C[2], wa = Math.max(0, A[2])*0.9, wb = Math.max(0, B[2])*0.9;
+        if(wa + wb > 0.5) this.quadOn(g, [this.W(A[0], A[1], 0), this.W(B[0], B[1], 0), this.W(B[0] - wb*0.3, B[1] + wb, 0), this.W(A[0] - wa*0.3, A[1] + wa, 0)], shadow, T.shadowA);
       }
+      const clip = sunk ? hullPts(pts.concat(C.map(c => this.W(c[0], c[1], Math.max(0, c[2]))))) : null;
       const dc0 = this.drawClip;
-      /* held to its footprint and what stands above it: below the walk it is hidden by the walk in front (a rocked slab
-         is both: its proud end rises over the slab behind, its sunk end stays inside its own) */
-      if(sunk) this.drawClip = hullPts(pts.concat(C.map(c => this.W(c[0], c[1], Math.max(0, c[2])))));
+      if(clip) this.drawClip = clip;
       try {
         /* 2. sunk: the walk's wall down into it, on its far edges (they face the eye) */
         if(sunk) for(const [ea, eb, nx, ny, nm] of [[0, 1, 0, 1, 'y0'], [0, 3, 1, 0, 'x0']]){
@@ -115305,31 +115310,16 @@ class WorldScene extends Phaser.Scene {
           if(Math.min(A[2], B[2]) >= 0) continue;
           this.quadOn(g, [this.W(A[0], A[1], 0), this.W(B[0], B[1], 0), this.W(B[0], B[1], Math.min(0, B[2])), this.W(A[0], A[1], Math.min(0, A[2]))], faceCol(litOf(nx, ny)));
         }
-        /* 3. the top: its concrete, its outline, the frontage's quarter scoring and the control joint along its far edges (groove,
-           lit lip) -- the walk's own detail, laid in the tilted plane */
+        /* 3. the top: the walk's own slab, on its tilted corners */
         const top = [Pt(0, 0), Pt(1, 0), Pt(1, 1), Pt(0, 1)];
-        this.quadOn(g, top, col);
-        const groove = shadeN(d.paveEdge, PA.grooveK), lit = mixC(col, 0xffffff, PA.lipAdd/Math.max(1, 255 - ((col >> 8) & 255)));
-        g.lineStyle(1, d.paveEdge, 1);
-        for(let k = 0; k < 4; k++) seg(top[k], top[(k + 1) % 4]);
-        if(paveRoll(Math.floor(wx/BLOCK), Math.floor(wy/BLOCK), 9) < 0.5){
-          const o = 1.3/T2;
-          for(const [c, d0] of [[groove, 0], [lit, o]]){
-            g.lineStyle(1, c, PA.scoreA);
-            seg(Pt(0.5 + d0, 0.02), Pt(0.5 + d0, 0.98)); seg(Pt(0.02, 0.5 + d0), Pt(0.98, 0.5 + d0));
-          }
-        }
-        const gi = 0.8/T2, li = 2.4/T2;
-        g.lineStyle(Math.max(1, K*0.9), groove, 1); seg(Pt(gi, 1), Pt(gi, gi)); seg(Pt(gi, gi), Pt(1, gi));
-        g.lineStyle(Math.max(1, K*0.7), lit, 0.9); seg(Pt(li, 1), Pt(li, li)); seg(Pt(li, li), Pt(1, li));
-        /* 4. sunk: the walk's edge shades the low end of it (+y from its far edge) */
+        this.paveSlabOn(g, top, d, wx, wy, lane, { light, clip });
+        /* 4. sunk: the walk's edge shades the high end of the hole (in from its far edges) */
         if(sunk){
-          const A = C[0], B = C[1], D = C[3], wa = Math.max(0, -A[2])*0.9, wb = Math.max(0, -B[2])*0.9, wd = Math.max(0, -D[2])*0.9;
-          if(joint !== 'y0' && wa + wb > 0.5) this.quadOn(g, [Pt(0, 0), Pt(1, 0), Pt(1, wb/T2), Pt(0, wa/T2)], RA.shade, 0.14);
-          if(joint !== 'x0' && wa + wd > 0.5) this.quadOn(g, [Pt(0, 0), Pt(wa/T2, 0), Pt(wd/T2, 1), Pt(0, 1)], RA.shade, 0.14);
+          const wa = Math.max(0, -C[0][2])*0.9, wb = Math.max(0, -C[1][2])*0.9, wd = Math.max(0, -C[3][2])*0.9;
+          if(joint !== 'y0' && wa + wb > 0.5) this.quadOn(g, [Pt(0, 0), Pt(1, 0), Pt(1, wb/T2), Pt(0, wa/T2)], shadow, T.shadowA);
+          if(joint !== 'x0' && wa + wd > 0.5) this.quadOn(g, [Pt(0, 0), Pt(wa/T2, 0), Pt(wd/T2, 1), Pt(0, 1)], shadow, T.shadowA);
         }
-        /* 5. its sides where it stands above the walk, on the near edges (+y: c01-c11, +x: c10-c11): the slab's concrete in shade
-           or in light, a dark foot where it stands on the walk, a lit arris along its top */
+        /* 5. its sides where it stands above the walk, on the near edges (+y: c01-c11, +x: c10-c11) */
         for(const [ea, eb, nx, ny, nm] of [[3, 2, 0, 1, 'y1'], [1, 2, 1, 0, 'x1']]){
           if(nm === joint) continue;
           const A = C[ea], B = C[eb];
@@ -115337,14 +115327,14 @@ class WorldScene extends Phaser.Scene {
           const pa = Math.max(0, A[2]), pb = Math.max(0, B[2]);
           const a0 = this.W(A[0], A[1], 0), b0 = this.W(B[0], B[1], 0), a1 = this.W(A[0], A[1], pa), b1 = this.W(B[0], B[1], pb);
           this.quadOn(g, [a0, b0, b1, a1], faceCol(litOf(nx, ny)));
-          g.lineStyle(1, shadeN(d.paveEdge, 0.85), 0.9); g.lineBetween(a0.x, a0.y, b0.x, b0.y);
-          g.lineStyle(Math.max(1, K*0.7), RA.lit, 0.75); g.lineBetween(a1.x, a1.y, b1.x, b1.y);
+          g.lineStyle(1, groove, 1); g.lineBetween(a0.x, a0.y, b0.x, b0.y);
+          g.lineStyle(Math.max(1, K*0.7), lit, 0.9); g.lineBetween(a1.x, a1.y, b1.x, b1.y);
         }
-        /* 6. the crest's break-over (lit) or the valley's crease (dark), soft, drawn once by the pair's first slab */
-        if(F.kind !== 'lip' && F.first){
+        /* 6. a ridge's crest a lit lip, a valley's floor a groove, drawn once by the pair's first slab */
+        if(F.kind === 'ridge' || F.kind === 'valley') if(F.first){
           const a = F.axis ? top[3] : top[1], b = top[2];
-          g.lineStyle(Math.max(1, K*0.8), F.kind === 'ridge' ? RA.lit : shadeN(d.paveEdge, 0.75), 0.6);
-          seg(a, b);
+          g.lineStyle(Math.max(1, K*0.8), F.kind === 'ridge' ? lit : groove, 0.9);
+          const c = clip ? clipSegConvex(a, b, clip) : [a, b]; if(c) g.lineBetween(c[0].x, c[0].y, c[1].x, c[1].y);
         }
       } finally { this.drawClip = dc0; }
     }
