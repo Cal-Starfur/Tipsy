@@ -78,7 +78,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 
 | Thing | Drawer / kit | Notes |
 |---|---|---|
-| Shop doors (every door) | `drawShopDoor`, `shopDoor` looks `SHOP_DOOR_LOOKS` (six, panel, lite, french, bank, ...) | `docs/kits/doors.md` -- leaves, half doors, away doors |
+| Shop doors (every door) | `drawShopDoor`, `shopDoor` looks `SHOP_DOOR_LOOKS` (six, panel, lite, french, bank, ...); the sliding glass pair `slideLeavesKit` (every `slideDoors` entry through `slidePairDraw(d, u, trim, look)`), its looks `SLIDE_LEAF_LOOKS` (unset: the plain glazed leaf; bronze: a tall kick plate and a long pull -- the Tidewater Museum's) | `docs/kits/doors.md` -- leaves, half doors, away doors |
 | Houses | `drawHouseUnit`, `labs/houses.js` | `docs/kits/houses.md` -- no house lawns |
 | Shopfronts | `drawStoreUnit`, `drawCornerStoreUnit`, `labs/flats-shops.js` | `docs/kits/shops.md` |
 | Lamps, signals, hydrants, bins, cones, planters, palms, trash | `drawProp(kind)`: `lamp`, `signalpost`, `signalhead`, `hydrant`, `bin`, `cone`, `planter`, `palm`, `palmDwarf`, `trash`, `paper`, `can`; `drawLampHull`, `drawPlant`, `drawAgave`, `drawCypress`; `arcStrip` (a band, collar or shaded side round a round prop: only the arc the eye sees, asked of the normal in world -- the cone's collars, the bin's band) | `docs/kits/props.md` (SP1: one registry) |

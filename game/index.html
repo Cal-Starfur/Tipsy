@@ -36314,7 +36314,7 @@ walkinLife(BB_IN.name, { keep: [[362, 474, 416, 836], [130, 506, 446, 500]], loo
    The room's frame is the world's (a east, b south), so the street's offset is all it takes. */
 const MUS_IN = { name: 'Tidewater Museum Interior', x0: 450000, y0: 400000, LAB: [834, 2294, -2296, -1440], H: 340,
   PORT: [280, 1180], PD: 176, BAY: [580, 880], SCREEN: [600, 860], DOOR: [660, 800],
-  EGYPT: [0, 560], LOBBY: [560, 900], DINO: [900, 1460], OUT: 100, DZ: 150, TZ: 194 };
+  EGYPT: [0, 560], LOBBY: [560, 900], DINO: [900, 1460], OUT: 100, DZ: 150, TZ: 194, DPL: -9.6 };   // (DPL: the kit door's plane, off the front: in the screen)
 MUS_IN.W = MUS_IN.LAB[1] - MUS_IN.LAB[0]; MUS_IN.D = MUS_IN.LAB[3] - MUS_IN.LAB[2];
 function TIDEWATER_MUSEUM_GEOM(){ return (typeof window !== 'undefined' && window.__TIDEWATER_MUSEUM) || null; }
 let _musShift;
@@ -37700,7 +37700,7 @@ const AIR = (() => {
                  links: [[23050, 23160], [28150, 28260], [33140, 33250]] };
   const apron = [23540, 25900, 20110, 20900];                  // the heart's apron: the hangar's doors to the terminal's west wall
   const hangar = { x0: 22720, x1: 23540, y0: 20180, y1: 21000, wall: 150, rise: 90, door: [20260, 20920], label: 'HANGAR 1' };
-  const terminal = { x0: 25980, x1: 27300, y0: 20420, y1: 21160, top: 120, door: [26420, 26620] };
+  const terminal = { x0: 25980, x1: 27300, y0: 20420, y1: 21160, top: 120, door: [26420, 26620], dH: 88, dpl: -1.0 };   // (dH, dpl: the kit door's opening height and its plane off the face, lab b)
   /* THE WALK-IN (wk10, TERM_IN): the terminal's one hall. The room is the shell's footprint less the walls' 30 on every side (W22: x 26010..27270,
      y 20450..21130 -- 1260 x 680); its door is the shell's own (200 across, x 26420..26620, in the front face at y 21160) */
   const termIn = { x0: 26010, x1: 27270, y0: 20450, y1: 21130, door: 26520, half: 100 };   // its front on the pavement line (Sir: "on the sidewalk line not in from it")
@@ -51632,10 +51632,25 @@ function runPiece(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){
    goes 0 (shut) to 1 (open): a frame of the trim round the glass -- stiles, a top rail, a deep bottom rail -- a glint by the meeting
    stile and a pull. L(a0, a1, z0, z1, fill, off) lays a face on the door's plane (off: proud of it); pick: one leaf only (D12), or null.
    A walk-in's glazed pair (shopDoorOpen) and every entry's slideDoors (slidePairDraw) are drawn by it */
-function slideLeavesKit(L, a0, a1, z0, z1, trim, glass, t, pick){
-  const half = (a1 - a0)/2, sh = (half - 3)*Math.max(0, Math.min(1, t));
+/* (look, D15/D16 -- a leaf's face; unset, the plain glazed leaf every caller had: 'bronze' (the Tidewater Museum's): the frame in the trim
+   (a bronze), a tall kick plate of the trim darkened across its foot with a light edge over it, and a long pull bar up the meeting stile, its
+   two end blocks dark) */
+const SLIDE_LEAF_LOOKS = { bronze: { kick: 22, pull: [0.30, 0.70] } };
+function slideLeavesKit(L, a0, a1, z0, z1, trim, glass, t, pick, look){
+  const half = (a1 - a0)/2, sh = (half - 3)*Math.max(0, Math.min(1, t)), LK = look ? SLIDE_LEAF_LOOKS[look] : null;
   for(const [l0, l1, s] of [[a0 + 2, a0 + half, -1], [a0 + half, a1 - 2, 1]].filter((x, i) => pick == null || i === pick)){
     const A0 = l0 + s*sh, A1 = l1 + s*sh, meet = s < 0 ? A1 : A0, ms = s < 0 ? -1 : 1;   // (meet: the edge at the middle)
+    if(LK){
+      const k = z0 + LK.kick, pz0 = z0 + (z1 - z0)*LK.pull[0], pz1 = z0 + (z1 - z0)*LK.pull[1], hx = meet + ms*9;
+      L(A0 + 5, A1 - 5, k, z1 - 7, glass);
+      L(meet + ms*10, meet + ms*22, k + 6, z1 - 12, 'rgba(255,255,255,.16)', 0.1);
+      L(A0, A0 + 5, z0, z1, trim); L(A1 - 5, A1, z0, z1, trim);
+      L(A0, A1, z1 - 7, z1, trim); L(A0, A1, z0, k, shade(trim, 0.68));            // the head rail; the kick plate
+      L(A0, A1, k - 1, k, shade(trim, 1.42), 0.1);
+      L(Math.min(hx, hx + ms*3), Math.max(hx, hx + ms*3), pz0, pz1, shade(trim, 1.42), 0.5);   // the long pull
+      for(const zz of [pz0, pz1]) L(Math.min(hx, hx + ms*3) - 1, Math.max(hx, hx + ms*3) + 1, zz - 2, zz + 1.5, shade(trim, 0.68), 0.4);
+      continue;
+    }
     L(A0 + 5, A1 - 5, z0 + 12, z1 - 6, glass);
     L(A0, A0 + 5, z0, z1, trim); L(A1 - 5, A1, z0, z1, trim);
     L(A0, A1, z1 - 6, z1, trim); L(A0, A1, z0, z0 + 12, trim);
@@ -51644,8 +51659,8 @@ function slideLeavesKit(L, a0, a1, z0, z1, trim, glass, t, pick){
   }
 }
 /* an entry's sliding pair (its slideDoors), live: the kit's leaves on its plane d.b, the frame colour its trim */
-function slidePairDraw(d, u, frame){
-  slideLeavesKit((a0, a1, za, zb, fill, off) => F(a0, a1, za, zb, fill, null, 0, d.b + 0.4 + (off || 0)), d.a, d.a + d.w, d.z0, d.z1, frame, d.glass || 'rgba(150,190,206,.80)', u, null);
+function slidePairDraw(d, u, frame, look){
+  slideLeavesKit((a0, a1, za, zb, fill, off) => F(a0, a1, za, zb, fill, null, 0, d.b + 0.4 + (off || 0)), d.a, d.a + d.w, d.z0, d.z1, frame, d.glass || 'rgba(150,190,206,.80)', u, null, look);
 }
 function T(a0,a1,b0,b1,z,fill,stroke,lw){
   poly([P(a0,b0,z),P(a1,b0,z),P(a1,b1,z),P(a0,b1,z)], fill, stroke, lw);
@@ -54662,23 +54677,7 @@ const TIDEWATER_MUSEUM = (() => {
            PLINTHS, TREES, HEDGES, LAMPS, vol };
 })();
 if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;
-/* THE MUSEUM'S DOORS, a sliding pair of bronze-framed glass (its entry's slideDoors): two leaves on the plane d.b
-   meeting on the opening's middle, each sliding out over the fixed sidelight beside it as u goes 0 (shut) to 1 (open);
-   a stile, rails and a pull handle in bronze, the glass between. Lab units, the landmark's frame. */
-function museumDoorLeaves(d, u){
-  const half = d.w/2, sh = (half - 6)*u, bz = '#8a6a3a', bzD = '#5e4626', bzL = '#c49a58', z0 = d.z0, z1 = d.z1;
-  for(const s of [-1, 1]){
-    const l0 = (s < 0 ? d.a : d.a + half) + s*sh, l1 = l0 + half;
-    F(l0 + 5, l1 - 5, z0 + 12, z1 - 7, 'rgba(160,196,206,.40)', null, 0, d.b + 0.4);   // (a glass leaf: the hall seen through it, W11)
-    F(l0 + 7, l0 + 18, z0 + 16, z1 - 12, 'rgba(255,255,255,.16)', null, 0, d.b + 0.5);
-    F(l0, l0 + 5, z0, z1, bz, null, 0, d.b + 0.6); F(l1 - 5, l1, z0, z1, bz, null, 0, d.b + 0.6);
-    F(l0, l1, z1 - 7, z1, bz, null, 0, d.b + 0.6); F(l0, l1, z0, z0 + 12, bzD, null, 0, d.b + 0.6);
-    F(l0, l1, z0 + 11, z0 + 12, bzL, null, 0, d.b + 0.7);
-    const hx = s < 0 ? l1 - 12 : l0 + 9;                                    // the pull, on the meeting stile
-    F(hx, hx + 3, 54, 104, bzL, null, 0, d.b + 0.9);
-    F(hx - 1, hx + 4, 52, 55, bzD, null, 0, d.b + 0.8); F(hx - 1, hx + 4, 103, 106, bzD, null, 0, d.b + 0.8);
-  }
-}   // (its plan for the room inside, MUS_IN: outside the library)
+/* (its plan for the room inside, MUS_IN: outside the library; its doors' leaves are the kit's, slideLeavesKit's bronze look) */
 
   /* ---- THE HOUSE KIT, labs/houses.js VERBATIM (2026-09-22) ----
      Everything houses.js adds to the shop kit: convex face-culled roofs,
@@ -57461,7 +57460,9 @@ function houseCanopy(fn){
          whoever comes up to them (THE GETAWAY's newlyweds, out to him and back in) and shut behind them */
       ...(cell.name === 'Sun Deck Airfield Terminal' ? {
         see: true,      // (wk10: the doorway and the glass over the bulkhead show the room inside: walkinThrough, TERM_IN's openings)
-        slideDoors: [{ a: A(TM.door[0]) + 6, w: TM.door[1] - TM.door[0] - 12, b: B(TM.y1) - 1.2, z0: 2, z1: 86, sense: -60, glass: 'rgba(170,206,220,.75)' }],
+        /* (the kit door's leaves, Sir, 2026-11-26: "It should be using our door kit not being hand drawn": its opening, on its plane --
+           TM.dpl off the face, toward the street -- b the plane + 0.2, as the mall's) */
+        slideDoors: [{ a: A(TM.door[0]), w: TM.door[1] - TM.door[0], b: B(TM.y1) + TM.dpl + 0.2, z0: 0, z1: TM.dH, sense: -60, glass: 'rgba(170,206,220,.75)' }],
         doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#e9eef0'); } } : {}),
       draw(p){
         const asph = '#55585e', taxiC = '#5f6268', conc = '#bdb8ad', concJ = '#aaa59a', paint = '#f2efe6', yel = '#e8b54a', red = '#c8352e';
@@ -57666,20 +57667,28 @@ function houseCanopy(fn){
               roofDeck(A(TM.x0), A(TM.x1), B(TM.y1), B(TM.y0), TOP, null, null, '#c4c6c4', { win: [A(tx0), A(tx1), B(ty1), B(ty0)] });   // (the roof pass: the terminal's one deck, this tile's share)
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               if(r === ny - 1){
-                fq(tS, A(TM.x0), A(TM.x1), 0, TOP, wall, 0);
+                /* (its wall round the doorway, never a sheet across it: drawn live -- the cache full -- a HOLE cuts nothing, and the sheet
+                   stood in the opening, a white block; the kit door's frame meets it at the jambs and head) */
+                fq(tS, A(TM.x0), A(TM.door[0]), 0, TOP, wall, 0); fq(tS, A(TM.door[1]), A(TM.x1), 0, TOP, wall, 0);
+                fq(tS, A(TM.door[0]), A(TM.door[1]), TM.dH, TOP, wall, 0);
                 /* (wk10, TERM_IN: the doorway and the glass over the bulkhead are holes, the room drawn under them -- W11; the bulkhead under the glass stays solid) */
                 const hq = (u0, u1, z0, z1, o) => { [u0, u1] = clip(tS, u0, u1); if(u1 <= u0) return;
                   HOLE([P(u0, tS.at + tS.out*o, z1), P(u1, tS.at + tS.out*o, z1), P(u1, tS.at + tS.out*o, z0), P(u0, tS.at + tS.out*o, z0)]); };
-                fq(tS, A(TM.x0) + 40, A(TM.x1) - 40, 14, 46, shade(blue, .7), 0.3);
-                if(SEE){ hq(A(TM.x0) + 40, A(TM.door[0]) - 6, 46, 88, 0.3); hq(A(TM.door[1]) + 6, A(TM.x1) - 40, 46, 88, 0.3); }
-                fq(tS, A(TM.x0) + 40, A(TM.x1) - 40, 46, 88, SEE ? 'rgba(95,143,163,.40)' : glass, 0.3);
+                /* (the bulkhead and its glass either side of the doorway, never across it: D4) */
+                for(const [g0, g1] of [[A(TM.x0) + 40, A(TM.door[0]) - 6], [A(TM.door[1]) + 6, A(TM.x1) - 40]]){
+                  fq(tS, g0, g1, 14, 46, shade(blue, .7), 0.3);
+                  if(SEE) hq(g0, g1, 46, 88, 0.3);
+                  fq(tS, g0, g1, 46, 88, SEE ? 'rgba(95,143,163,.40)' : glass, 0.3); }
                 for(let x = TM.x0 + 40 + 80; x < TM.x1 - 40; x += 80){ if(x > TM.door[0] - 8 && x < TM.door[1] + 8) continue; fq(tS, A(x) - 3, A(x) + 3, 14, 88, mull, 0.5); }
                 const dm = (TM.door[0] + TM.door[1])/2;
-                /* the doorway: a hole 200 across (the live pair, slideDoors, is 6 back), the frame's two posts and its head round it */
-                if(SEE) hq(A(TM.door[0]), A(TM.door[1]), 0, 88, 0.6);
-                else fq(tS, A(TM.door[0]), A(TM.door[1]), 0, 88, '#2b3540', 0.6);
-                fq(tS, A(TM.door[0]) - 5, A(TM.door[0]), 0, 94, '#2b3540', 0.8); fq(tS, A(TM.door[1]), A(TM.door[1]) + 5, 0, 94, '#2b3540', 0.8);
-                fq(tS, A(TM.door[0]) - 5, A(TM.door[1]) + 5, 88, 94, '#2b3540', 0.8);
+                /* THE DOORWAY, THE KIT'S DOOR (Sir, 2026-11-26: "It should be using our door kit not being hand drawn"): shopDoor's glazed
+                   pair as a walk-in's (SEE, just for it), on its plane TM.dpl: its surround round the opening 200 across, the opening a hole
+                   onto the hall (TERM_IN), the transom; its leaves the kit's sliding pair, live (slideDoors, on the same plane). In the
+                   tile that holds it (its frame inside the tile's own a) */
+                if(A(TM.door[0]) - 4 >= CLIPA[0] && A(TM.door[1]) + 4 <= CLIPA[1]){
+                  /* (not recorded, DOOR_REC: its leaves are its slideDoors' alone, D5 -- as the museum's) */
+                  const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + B(TM.y1) + TM.dpl; SEE = true; DOOR_REC = null;
+                  try { shopDoor(A(dm), '#2f3a46', '#2b3540', null, 1e9, 0, { w: TM.door[1] - TM.door[0], h: TM.dH, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
                 fq(tS, A(TM.x0), A(TM.x1), 94, TOP, blue, 0.6);
                 fword(tS, 'SUN DECK AIR', A(TM.x0) + 120, A(TM.x1) - 120, 97, TOP - 3, '#ffffff', 0.9);
               }
@@ -88223,9 +88232,11 @@ marinaEntry(),
   /* ITS DOORS, live (Sir, 2026-10-30: "the door way doesnt have a door"): one sliding pair of bronze-framed glass in the
      bronze screen at the head of the entrance bay, parting for him (shopDoorOpen) over the fixed sidelights either side
      and shutting behind him; they go with the shell as he goes in (the hl queue's slideDoors) */
-  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.SB1 - 7, z0: 0, z1: 150,
-                 walk: TIDEWATER_MUSEUM.SB1 + 40, sense: 70 }],
-  doorDraw(i, u){ museumDoorLeaves(this.slideDoors[i], u); },
+  /* (the kit's door, Sir, 2026-11-26: "It should be using our door kit not being hand drawn": the leaves slideLeavesKit's bronze look, on the
+     plane of the kit door drawn in the screen -- MUS_IN.DPL, its opening DOOR wide and DZ high; b its plane + 0.2, as the mall's) */
+  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.SB1 + MUS_IN.DPL + 0.2, z0: 0, z1: MUS_IN.DZ,
+                 walk: TIDEWATER_MUSEUM.SB1 + 40, sense: 70, glass: 'rgba(160,196,206,.40)' }],
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#8a6a3a', 'bronze'); },
   /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps; Sir, 2026-10-30: "YES add this"): the walk's four lamp standards (their
      lanterns 156..180 up) and the two bronze lanterns on the bay's cheek pedestals (PZ + 116..144) -- the draw's own numbers */
   lamps: () => { const T = TIDEWATER_MUSEUM, [B0, B1] = MUS_IN.BAY;
@@ -88357,10 +88368,16 @@ marinaEntry(),
       R(fr, S0 + 6, S0 + 22, DZ + 8, TZ - 6, -9.4, 'rgba(255,255,255,.14)');
       const bz = (u0, u1, z0, z1) => R(fr, u0, u1, z0, z1, -9, bronze);
       bz(S0, S0 + 5, 0, TZ); bz(S1 - 5, S1, 0, TZ); bz(S0, S1, TZ - 5, TZ); bz(S0, S1, DZ, DZ + 6);
-      bz(D0 - 4, D0, 0, DZ); bz(D1, D1 + 4, 0, DZ);
       R(fr, S0, D0, 0, 6, -9, bronzeD); R(fr, D1, S1, 0, 6, -9, bronzeD);
       for(let k = 1; k < 6; k++){ const u = S0 + (S1 - S0)*k/6; bz(u - 1.5, u + 1.5, DZ + 6, TZ - 5); }
       R(fr, S0, S1, DZ + 6, DZ + 7, -8.8, bronzeL);
+      /* THE DOOR IN IT, THE KIT'S (Sir, 2026-11-26: "It should be using our door kit not being hand drawn"): shopDoor's glazed pair as a
+         walk-in's (SEE, just for it), in the screen's plane (MUS_IN.DPL): its surround in the bronze round the opening, the opening a hole
+         onto the hall, the transom; its leaves the kit's sliding pair in its bronze look, live (slideDoors, on the same plane) */
+      /* (not recorded, DOOR_REC: its leaves are its slideDoors' alone (D5) -- recorded, a walk-in's see pair was taken by walkinAwayDoor for a
+         door facing away and drawn a second time from inside, full height, over him in the doorway) */
+      { const b0 = BOFF, s0 = SEE, r0 = DOOR_REC; BOFF = b0 + N(MUS_IN.DPL); SEE = true; DOOR_REC = null;
+        try { shopDoor(A((D0 + D1)/2), bronze, bronze, null, 1e9, 0, { w: D1 - D0, h: DZ, pair: true }); } finally { BOFF = b0; SEE = s0; DOOR_REC = r0; } }
       /* THE BANNERS, one to each gallery inside, on the piers either side of the portico: EGYPT to the west (u high),
          the dinosaur to the east */
       banner(fr, BW - 222, '#2f4f8f', 'EGYPT', (f, uc, n) => {
@@ -88721,7 +88738,10 @@ marinaEntry(),
         bandF(fr, x0-5, x1+5, 132, 140, 4, -1, shade(wall,1.04));
       }
       if(fr !== FR_FRONT) { doorF(fr, DMID, wall, trim); return; }
-      doorF(fr, DMID, wall, trim, true);                        // (the way in: recorded, so it swings: swingDoors)
+      /* THE WAY IN, THE KIT'S DOOR (Sir, 2026-11-26: "It should be using our door kit not being hand drawn"): shopDoor itself, set to the
+         front by BOFF (as the Animal Shelter's), not wallFrames' doorF copy of it -- recorded, so it swings (swingDoors: LIB.drawDoorOpen) */
+      { const b0 = BOFF; BOFF = b0 + B1;
+        try { shopDoor(A0 + DMID, wall, trim, null, 1e9, 0); } finally { BOFF = b0; } }
       for(let k=0;k<2;k++)                                     // poster frames
         bandF(fr, DMID + (k ? 150 : -230), DMID + (k ? 230 : -150), 40, 128, 6, -1,
               ['#8a2f3c','#2f5a6b'][k], null, trim);
