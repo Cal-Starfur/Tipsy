@@ -135246,12 +135246,14 @@ class WorldScene extends Phaser.Scene {
     const D = (a, h, o) => { const u = aH - a; return P(aH - u*ca, fbD + sD*(u*sa + (o || 0)), h); };
     const outer = sees(sa, sD*ca, 0);                                                         // (its outside to the eye, or its inside)
     const drawDoor = gg => { const Q = (pts, c, aa) => this.quadOn(gg, pts, c, aa);
-      for(const [a0, a1, hb] of lows) Q([D(a0, hb), D(a1, hb), D(a1, h0), D(a0, h0)], outer ? L.body : 0x6a625a);   // the panel, sill to the window
+      /* the panel, sill to the window, whole: swung out it is clear of the arch, so no step over it (Sir, 2026-11-27: "There is a gap in
+         the door") */
+      Q([D(aD0, hS), D(aC, hS), D(aC, h0), D(aD0, h0)], outer ? L.body : 0x6a625a);
       const gi = [[aB, h0 + 2], [aRake(h0 + 2) - 8, h0 + 2], [aRake(h1 - 2) - 8, h1 - 2], [aB, h1 - 2]];             // the glass, in its frame
       for(let i = 0; i < 4; i++){ const j = (i + 1) % 4; Q([D(...winAH[i]), D(...winAH[j]), D(...gi[j]), D(...gi[i])], L.body); }
       Q(gi.map(([a, h]) => D(a, h)), CR.glass, 0.38);
       if(outer) Q([D(aC - 18, k.hH + 2, 0.4), D(aC - 27, k.hH + 2, 0.4), D(aC - 27, k.hH + 5, 0.4), D(aC - 18, k.hH + 5, 0.4)], 0x8d959c);   // the handle
-      Q([D(aD0, lows.length ? lows[0][2] : h0), D(aD0, h1), D(aD0, h1, -2.5), D(aD0, lows.length ? lows[0][2] : h0, -2.5)], L.bodyDk);   // its rear edge, its thickness
+      Q([D(aD0, hS), D(aD0, h1), D(aD0, h1, -2.5), D(aD0, hS, -2.5)], L.bodyDk);   // its rear edge, its thickness
       Q([D(aC - 6, k.hH + 8, 7), D(aC - 1, k.hH + 8, 7), D(aC - 1, k.hH + 20, 7), D(aC - 6, k.hH + 20, 7)], k.trim);   // the mirror, on its front corner
     };
     if(data.doorOut) data.doorOut.fn = drawDoor; else drawDoor(g);
