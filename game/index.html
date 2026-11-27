@@ -54268,8 +54268,11 @@ function turned(w, d, fn){
    The Flats Charging 4, behind Brew & Bolt, over the kart track */
 const DEPOT_MURALS = { '1,4': 'racing' };
 const DEPOT_GEOM = (() => {
-  const WW = 295.6, DD = 276, H = 300, CW = 150;
-  const DOOR = [0.10, 0.90], DH = 168;
+  /* (H 300 -> 216, DH 168 -> 120: as tall as Marina Optical beside it, 166 at sc 1.3 -- Sir, 2026-11-27: "shorten the tipsey garage to
+     match the height of the eye glass store"; the door down with it so its roll-up housing and the TIPSEY board still sit under the
+     fascia, H-18) */
+  const WW = 295.6, DD = 276, H = 216, CW = 150;
+  const DOOR = [0.10, 0.90], DH = 120;
   const ROOM = { a0:40, a1:WW - 6, b0:-244, b1:-6 };      // RA0 RA1 RB0 RB1
   const WALL = 6;                                          // shell thickness: front and flank
   /* THE CHAMFER IS A SKIN, not a 6-thick wall. draw() builds the jambs as
@@ -61622,7 +61625,7 @@ function houseCanopy(fn){
   },
 
 {
-  name:'Charge depot', xh: 300, tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
+  name:'Charge depot', xh: 216, tall:true, corner:true, ww: DEPOT_GEOM.WW, dd: DEPOT_GEOM.DD,
   vol: DEPOT_GEOM.vol, geom: DEPOT_GEOM,
   wTodo:'a CORNER LOT: the game already defines one as (HOUSE_DEPTH + T2*0.3) - CORNER_LOT_INSET = 295.6 by STORE_DEPTH = 276, at the end of one edge turning onto the other. The packer emits frontage slots only',
   cTodo:'the mass is a volume, but the ROOM IS NOT -- the bay must be carved out of the block rect or Tipsy cannot drive in. solidAt is a plain rectangle test today with no notion of an opening. This is the one engine change the depot needs',
@@ -62022,10 +62025,10 @@ function houseCanopy(fn){
         }
         poly(pts.map(([d,z]) => q(d,z,k0)), front);
       };
-      poly([P3(cpt(DOOR[0],-8),DH+36), P3(cpt(DOOR[1],-8),DH+36),
-            P3(cpt(DOOR[1],-8),DH+82), P3(cpt(DOOR[0],-8),DH+82)], trim);
+      poly([P3(cpt(DOOR[0],-8),DH+33), P3(cpt(DOOR[1],-8),DH+33),
+            P3(cpt(DOOR[1],-8),DH+77), P3(cpt(DOOR[0],-8),DH+77)], trim);   // (its top 1 under the fascia's foot, H-18)
       { const GL = TIPSEY_GLYPHS;
-        const ink = brand, d0 = DOOR[0]*LCH + 5.4, z0 = DH + 42;
+        const ink = brand, d0 = DOOR[0]*LCH + 5.4, z0 = DH + 39;
         'TIPSEY'.split('').forEach((ch, i) => {
           const g = GL[ch], sh = ([u,v]) => [d0 + i*27 + u, z0 + v];
           cprism(g.out.map(sh), -15, -8.4, ink, shade(ink,.66), shade(ink,1.22));
