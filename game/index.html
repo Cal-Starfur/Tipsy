@@ -54259,6 +54259,7 @@ function turned(w, d, fn){
 /* A DEPOT'S MURAL (Sir, 2026-11-14: "a racing mural on the back of this specific Tipsey charging depot"): by the depot's block key --
    The Flats Charging 4, behind Brew & Bolt, over the kart track */
 const DEPOT_MURALS = { '1,4': 'racing' };
+const DEPOT_WIN = [112, 180];   // (the depot's four windows, foot and head: under its fascia, DEPOT_GEOM.H - 18)
 const DEPOT_GEOM = (() => {
   /* (H 300 -> 216, DH 168 -> 120: as tall as Marina Optical beside it, 166 at sc 1.3 -- Sir, 2026-11-27: "shorten the tipsey garage to
      match the height of the eye glass store"; the door down with it so its roll-up housing and the TIPSEY board still sit under the
@@ -62146,13 +62147,15 @@ function houseCanopy(fn){
     for(let i=0;i<2;i++){
       const x0 = 14 + i*66, x1 = x0 + 50;
       if(!PT('front') || !hits(x0-5, x1+5)) continue;
-      reveal(x0, x1, 190, 258, 9, shade(wall,.6));
-      glaze(x0, x1, 190, 258, shade(wall,1.3), glassT);
-      slab(x0-5, x1+5, 183, 190, 4, -1, shade(wall,1.12));
+      /* (z 112..180, was 190..258: down under the fascia, H-18, once the depot came down to Marina Optical's height -- Sir, 2026-11-27:
+         "we crushed its windows lets move them down") */
+      reveal(x0, x1, DEPOT_WIN[0], DEPOT_WIN[1], 9, shade(wall,.6));
+      glaze(x0, x1, DEPOT_WIN[0], DEPOT_WIN[1], shade(wall,1.3), glassT);
+      slab(x0-5, x1+5, DEPOT_WIN[0] - 7, DEPOT_WIN[0], 4, -1, shade(wall,1.12));
     }
     if(PT('flank')) for(let i=0;i<2;i++){
       const q0 = -158 - i*66, q1 = -202 - i*66;
-      if(hits(q1-5, q0+5)) FW(q0, q1, 190, 258);
+      if(hits(q1-5, q0+5)) FW(q0, q1, DEPOT_WIN[0], DEPOT_WIN[1]);
     }
     /* ---- THE FASCIA TURNS BOTH CORNERS ----
        It ran the front face only, which on a terrace unit is right and on
