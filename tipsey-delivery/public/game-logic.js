@@ -158382,10 +158382,17 @@ function blWarmThen(done){
   };
   requestAnimationFrame(tick);
 }
+/* the loader's video turns only while it is up: paused once it has faded (its .28 s), played again when the route spinner reuses it */
+function blVidPlay(on){
+  const v = document.getElementById("blVid");
+  if(!v) return;
+  try { if(on){ const p = v.play(); if(p && p.catch) p.catch(() => {}); } else setTimeout(() => { const el = document.getElementById("bootLoader"); if(el && el.classList.contains("done")) v.pause(); }, 400); } catch(e){}
+}
 function _bootLoaderFade(){
   const el = document.getElementById("bootLoader");
   if(!el) return;
   el.classList.add("done");
+  blVidPlay(false);
   /* NOT el.remove() anymore (2026-08-10): this used to destroy the
      element 400ms after the first dismissal, which was fine when
      nothing else ever needed a "Tipsey is thinking" indicator again.
@@ -158429,10 +158436,12 @@ function tpShowRouteLoading(text){
   const t = document.getElementById("blText");
   if(t && text) t.textContent = text;
   el.classList.remove("done");
+  blVidPlay(true);
 }
 function tpHideRouteLoading(){
   const el = document.getElementById("bootLoader");
   if(el) el.classList.add("done");
+  blVidPlay(false);
 }
 /* ---------- EXPLORABLE MAP: names, landmarks, free camera ---------- */
 /* one source for the map's park naming — the draw pass and the search
