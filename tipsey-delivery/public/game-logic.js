@@ -3260,6 +3260,10 @@ const WHEEL_POLISH = { wall: _pmix(CARC.wheel, CARC.hubFace, 0.3), lip: _pmix(CA
 const CHAMFER = { min: 18, k: 0.11, max: 10, bev: 0.85, straight: -0.82 };
 const FLEET_OUTLINE = 0x30343d;   // Tipsey's stock outline, round the autonomous fleet's bodies (vehKit's outline)
 const TRAFFIC_SPRITE = { headings: 48, max: 480, spin: 5 };
+/* a turning car's front wheels (see ITS FRONT WHEELS INTO A TURN): how far ahead its turn is read (ms), its wheelbase, gain (the
+   true angle on the town's wide corners is ~7 degrees, unseen at its size: shown 2.5x), the most they steer (radians), and which way
+   + is in the drawer's frame (+ turns them as the heading turns: checked drawn still, the wheels into the turn) */
+const TRAFFIC_STEER = { dt: 120, base: 70, gain: 2.5, max: 0.55, sign: 1 };
 /* the street's paints (Sir, 2026-10-11: "give each car the ability to have
    various colors"): every everyday car rolls one of these by its seed */
 const CAR_COLORS = [
@@ -119838,6 +119842,17 @@ class WorldScene extends Phaser.Scene {
         data = Object.assign(data || {}, { cabin: { rider: (!cab || cab.rider) && !(vend > 0.01) && vehHasDriver(tr.kind) ? trafficDriverLook(tr.kind, tr.colorSeed) : null } });
         if(cab && cab.door > 0.001 && cab.W.dw){ data.doorOpen = cab.door*cab.W.dw.ang/1.05; data.doorOut = {}; doorAt = cab.W.dmid; }
       }
+      /* ITS FRONT WHEELS INTO A TURN (Sir, 2026-11-27: "does the front wheels rotate in the direction of the turn"): mid-corner (its
+         heading off a quarter turn -- on a straight it is a sprite, wheels ahead), the steer its turning asks: the heading's change over
+         the ground covered a moment on, atan(wheelbase x that), as the fleet's own steer (data.steer, FLEET_STEER) */
+      if(Math.abs(fc - Math.round(fc)) > 1e-3){
+        const a2 = trafficWorldAt(tr, t + TRAFFIC_STEER.dt), ds = a2.trS - trS;
+        if(!a2.hidden && ds > 0.5){
+          let df = a2.fc - fc; df -= 4*Math.round(df/4);
+          const st = Math.max(-TRAFFIC_STEER.max, Math.min(TRAFFIC_STEER.max, Math.atan(TRAFFIC_STEER.base*df*(Math.PI/2)/ds)*TRAFFIC_STEER.gain*TRAFFIC_STEER.sign));
+          if(Math.abs(st) > 0.01) data = Object.assign(data || Object.assign({}, trafficDriverData(tr.kind, tr.colorSeed) || {}), { steer: st });
+        }
+      }
       trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false, data, doorAt });
     }
     /* the Tipsy Crew's van (see RESCUE_VAN): moving, so live, and only
@@ -133076,7 +133091,7 @@ class WorldScene extends Phaser.Scene {
     /* a flat shape on the near flank, (a, h) pairs */
     const fb = nearB*(hw + 0.4);
     const flank = (pts, colr, bb) => Q(pts.map(([a, h]) => P(a, bb === undefined ? fb : bb, h)), colr);
-    const wheel = (a, sb) => KW.wheel(a, sb*wB, r, wW, r, wheelPhase);
+    const wheel = (a, sb) => KW.wheel(a, sb*wB, r, wW, r, wheelPhase, undefined, a > 0 ? (data && data.steer) || 0 : 0);   // (the front pair steer: data.steer -- a street car into a turn, ITS FRONT WHEELS INTO A TURN)
 
     this.drawVehicleShadow(g, KW.P, hl, hw);
 
@@ -133733,7 +133748,7 @@ class WorldScene extends Phaser.Scene {
 
     this.drawVehicleShadow(g, P, hl, hw);
 
-    const wheel = (a0, r, side) => KV.wheel(a0, side*(hw - 2.5), r, 7.5, cz, wheelPhase);
+    const wheel = (a0, r, side) => KV.wheel(a0, side*(hw - 2.5), r, 7.5, cz, wheelPhase, undefined, a0 > 0 ? (data && data.steer) || 0 : 0);   // (the front pair steer: data.steer)
 
     /* a convex prism: profile CCW in (a, h), swept b in [-w, w]. Each
        face is painted when it faces the eye; colOf(i) colours profile
