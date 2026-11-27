@@ -158414,9 +158414,24 @@ function blVidPlay(on){
   if(!v) return;
   try { if(on){ const p = v.play(); if(p && p.catch) p.catch(() => {}); } else setTimeout(() => { const el = document.getElementById("bootLoader"); if(el && el.classList.contains("done")) v.pause(); }, 400); } catch(e){}
 }
+/* where the loader's Tipsey is in his turn, as a heading (front square to the camera, PI/4, at the start; a turn in its loop):
+   the video while it plays, else the strip's step. null if neither can say */
+function blTurnYaw(){
+  try {
+    const v = document.getElementById("blVid"), c = document.getElementById("blRobotCard");
+    let f = null;
+    if(v && c && c.classList.contains("blVid") && v.duration > 0) f = (v.currentTime % v.duration)/v.duration;
+    else { const sh = document.getElementById("blSheet"), an = sh && sh.getAnimations ? sh.getAnimations()[0] : null;
+      if(an && an.currentTime != null){ const T = 14000; f = Math.floor(((an.currentTime % T)/T)*48)/48; } }
+    return f == null ? null : Math.PI/4 + f*Math.PI*2;
+  } catch(e){ return null; }
+}
 function _bootLoaderFade(){
   const el = document.getElementById("bootLoader");
   if(!el) return;
+  /* SEAMLESS INTO THE GARAGE (Sir, 2026-11-27: "the speed doesn't match and when the garage loads he's always facing forward
+     and not in motion"): the turntable takes him at the loader's angle, turning at its speed (both 14 s a turn) */
+  { const y = blTurnYaw(); if(y != null && typeof window.garageSpinAt === "function") window.garageSpinAt(y); }
   el.classList.add("done");
   blVidPlay(false);
   /* NOT el.remove() anymore (2026-08-10): this used to destroy the
@@ -170800,6 +170815,8 @@ requestTpProfile();
     return _openProfile.apply(this, arguments);
   };
 
+  /* turning already, from this heading (the boot loader hands over its own turn: blTurnYaw) -- not facing the door, still */
+  window.garageSpinAt = y => { if (!open) return; setYaw(y); vel = 0; lastTouch = -1e9; };
   window.garageOpen = () => garageOpen(scn());
   window.garageClose = garageClose;
 })();
