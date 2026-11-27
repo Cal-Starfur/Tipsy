@@ -116146,7 +116146,24 @@ class WorldScene extends Phaser.Scene {
       gc.rdKey = r.dateStr + "|" + r.grid.cols + "x" + r.grid.rows + "|" + JSON.stringify(r.pal) + "|" + JSON.stringify(this.d);
     }
     const key = K + "|" + gc.rdKey;
-    if(gc.key !== key){ this.groundCacheClear(); gc.key = key; }
+    /* a zoom change keeps the last view's tiles aside (gc.stash) and takes them back on the way out again -- the garage's
+       close-up and the street he drives out onto (Play used to repaint the street from nothing: ~4 s of live ground) */
+    if(gc.key !== key){
+      const st = gc.stash;
+      for(const c of gc.chunks.values()) c.rt.setVisible(false);
+      if(st && st.key === key){ gc.stash = { key: gc.key, chunks: gc.chunks }; gc.chunks = st.chunks; }
+      else {
+        if(st) for(const c of st.chunks.values()) c.rt.destroy();
+        gc.stash = gc.key != null && gc.key.slice(gc.key.indexOf("|")) === key.slice(key.indexOf("|")) ? { key: gc.key, chunks: gc.chunks } : null;
+        if(!gc.stash) for(const c of gc.chunks.values()) c.rt.destroy();
+        else {   // (at most half of max kept aside, the last used: the GPU holds one view and a spare, not two full sets)
+          const old = [...gc.stash.chunks.entries()].sort((p, q) => q[1].used - p[1].used);
+          for(const [k, c] of old.slice(GC.max >> 1)){ c.rt.destroy(); gc.stash.chunks.delete(k); }
+        }
+        gc.chunks = new Map();
+      }
+      gc.key = key;
+    }
     const S = GC.S, gw = this.scale.gameSize.width, gh = this.scale.gameSize.height;
     const Ox = Math.round(this.cx - (this.camX - this.camY)*K);
     const Oy = Math.round(this.cy - ((this.camX + this.camY)/2 - this.camZ)*K);
@@ -116223,6 +116240,7 @@ class WorldScene extends Phaser.Scene {
     if(!gc) return;
     for(const c of gc.chunks.values()) c.rt.destroy();
     gc.chunks.clear();
+    if(gc.stash){ for(const c of gc.stash.chunks.values()) c.rt.destroy(); gc.stash = null; }
     if(gc.pool){ for(const rt of gc.pool) rt.destroy(); gc.pool = null; }
   }
 
@@ -159956,6 +159974,7 @@ function drawRobotMarker(ctx, x, y, yaw){
    uncover a half-drawn screen. */
 let blDismissed = false;
 let blDismissScheduled = false;
+let blGarage = false;
 const BL_SHOWN_AT = Date.now();
 const BL_MIN_MS   = 420;   /* see below */
 function bootLoaderDone(){
@@ -160048,9 +160067,38 @@ function _bootLoaderDismiss(){
       if(!s0._doorTs) s0._doorTs = new Map();
       s0._doorTs.set(_lp.key, 0);
       s0._doorShutFrom = 0; s0._doorShutT0 = performance.now(); s0._doorShut = _lp.key;
-      window.garageOpen();
+      blGarage = true;
     }
   }
+  /* (the street he drives out onto is painted first, at its own zoom, then the garage's over it: both are kept -- the ground
+     cache's last view (gc.stash), the building cache's images by zoom -- so Play does not start a second warm-up) */
+  if(blGarage){ blWarmThen(() => { window.garageOpen(); blWarmThen(_bootLoaderFade); }); return; }
+  /* HELD UNTIL THE VIEW IS PAINTED (Sir, 2026-11-27: "why is the game launching with 10 fps and building up from there i
+     thought thats why we had the load screen"). The loader used to leave the moment the city was set up -- and the city's
+     caches (the ground tiles, every building's image) only start painting then, a few ms a frame, so the first seconds
+     after it were drawn live and ran at a fraction of the frame rate (headless: ~4 s at a third). Now it waits for BL_WARM's
+     test -- a frame with no ground tile missing and no building drawn live for want of its image -- with the painting
+     budgets raised while nobody is watching, and leaves then (or at maxMs, whatever is left). */
+  blWarmThen(_bootLoaderFade);
+}
+const BL_WARM = { maxMs: 6000, quiet: 3, gcMs: 60, bcMs: 60 };
+function blWarmThen(done){
+  const s = (typeof scn === "function") ? scn() : null;
+  if(!s || ATTRACT_BARE){ done(); return; }
+  const t0 = performance.now(), gc0 = GROUND_CACHE.budgetMs, bc0 = BUILDING_CACHE.budgetMs;
+  GROUND_CACHE.budgetMs = BL_WARM.gcMs; BUILDING_CACHE.budgetMs = BL_WARM.bcMs;
+  let last = null, quiet = 0;
+  const finish = () => { GROUND_CACHE.budgetMs = gc0; BUILDING_CACHE.budgetMs = bc0; done(); };
+  const tick = () => {
+    const gc = s._gc, bc = s._bc;
+    const now = gc && bc ? gc.live + "|" + bc.live + "|" + bc.painted + "|" + gc.painted : null;
+    quiet = now !== null && now === last ? quiet + 1 : 0; last = now;
+    if(quiet >= BL_WARM.quiet || performance.now() - t0 > BL_WARM.maxMs){ finish(); return; }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function _bootLoaderFade(){
   const el = document.getElementById("bootLoader");
   if(!el) return;
   el.classList.add("done");
