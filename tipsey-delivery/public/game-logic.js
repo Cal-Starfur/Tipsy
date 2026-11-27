@@ -38769,7 +38769,9 @@ function lostItemTick(scene, ow){
     const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
     LOSTIT.meet = { id: it.id, kind: it.kind, it, M, dog: dogName, door: d, done: false };
     ow.vel = 0;
-    lostItemNavClear(scene, it.id);
+    /* ARRIVED: whatever the GPS was guiding to (with two in the bag it can be the other owner's door, next door -- "100 ft"
+       while the owner stood talking to him), it stops here; lostItemDone routes on to the other one after */
+    lostItemNavClear(scene);
     if(typeof sfxThump === "function") sfxThump(0.2);
     return;
   }
@@ -121199,7 +121201,7 @@ class WorldScene extends Phaser.Scene {
         }});
       }
       if(!storyFocus()) for(const it of lostItemsCarried()){
-        if(LOSTIT.meet && LOSTIT.meet.id === it.id) continue;
+        const meeting = !!(LOSTIT.meet && LOSTIT.meet.id === it.id);   // (the owner out: the mat stays, lit, marking the spot; no beacon over the talk)
         const gt = lostItemGate(this, it);
         if(gt && this.visProp("chargestation", gt.x, gt.y)){
           /* the owner's path: the pickup's own glowing box on the pavement (drawPickupBayCached + drawMatHighlight, the mat
@@ -121210,7 +121212,7 @@ class WorldScene extends Phaser.Scene {
             hazVQ.push({ depth: gt.x + gt.y - T2, fn: (gg, tt) => { const lg = layerFor(gt.x, gt.y);
               this.drawPickupBayCached(lg, sp.ax, sp.ay, dv, rv, null, false); this.drawMatHighlight(this.g, sp.ax, sp.ay, dv, rv, 0, 0, hl, tt); }});
           }
-          queueBeacon(gt.x, gt.y, it.icon, { s: 1.3, a: 1, dz: -28, spin: 0, shA: 1 });
+          if(!meeting) queueBeacon(gt.x, gt.y, it.icon, { s: 1.3, a: 1, dz: -28, spin: 0, shA: 1 });
         }
       }
     }
