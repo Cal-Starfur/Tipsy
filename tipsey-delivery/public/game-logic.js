@@ -116890,7 +116890,9 @@ class WorldScene extends Phaser.Scene {
       if(f.kind === 'lamp'){
         if(!this.visProp('lamp', x, y)) continue;
         const ld = { lampSeed: f.seed, armSign: -1, mal: f.mal };          // (fdir 1: +b toward the road, the arm reaching in over the walk)
-        vq.push({ depth: x + y, fn: (g, t) => this.drawProp(g, 'lamp', x, y, t, 1, 0, null, null, ld) });
+        /* (by day a still piece, cached as the harbor's and the mirador's are; at night live, for its own flicker and glow) */
+        vq.push({ depth: x + y, fn: (g, t) => isNightNow() ? this.drawProp(g, 'lamp', x, y, t, 1, 0, null, null, ld)
+                                               : this.bcDraw(g, "hb|seam|lamp|" + x + "," + y, x, y, gg => this.drawProp(gg, 'lamp', x, y, 0, 1, 0, null, null, ld)) });
       } else if(f.kind === 'palm' || f.kind === 'palmDwarf'){
         if(!this.visProp(f.kind, x, y)) continue;
         /* its grate (PALM_WELL), flat: keyed at its far corner so nothing standing on the walk is under it */
