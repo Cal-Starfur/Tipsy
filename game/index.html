@@ -36104,7 +36104,8 @@ const KTDE_ROOM = { W: 1516, D: 1516, LH: 66,
   newsDesks: [[1060, 1220], [1260, 1420]], newsB: [240, 290], newsCouch: [1080, 1300, 680, 720],
   recep: [210, 1195, Math.PI/2], dj: [940, 1405, Math.PI/2], prod: [1170, 1070, Math.PI/2], prodShelf: [860, 1075, -Math.PI/2],
   eng: [750, 310, Math.PI/2], news: [1140, 210, Math.PI/2],
-  lobbyBay: [350, 1340], studioBay: [1055, 1290] };              // (the studio's bay: across the screen from the DJ, a + b the same)
+  lobbyBay: [350, 1340], studioBay: [1055, 1290],
+  lobbyWin: { radio: [150, 208, 1442, 1472], easel: [244, 292, 1460, 1478], mic: [226, 1474] } };   // (the lobby's window display, just inside its glass: winS 174..406)              // (the studio's bay: across the screen from the DJ, a + b the same)
 /* the station's people (W15: one to a station, staff only): the receptionist at the desk, the DJ at the mic in the
    booth (busy hands: the records, the faders), the producer stepping between the board and the studio's record shelf,
    the engineer at Studio B's console, the newsreader at her desk */
@@ -70673,6 +70674,38 @@ function houseCanopy(fn){
       items.push({ a: (t0 + t1)/2, b: (u0 + u1)/2, z: 0, solids: [solid(t0, t1, u0, u1, 36, 'table')], draw: () => {
         box(t0, t1, u0, u1, 30, 36, wood, woodD, woodD); for(const [ta, tb] of [[t0 + 4, u0 + 4], [t1 - 4, u1 - 4]]) tube(ta, tb, 0, ta, tb, 30, 1.2, dark);
         box(t0 + 8, t0 + 28, u0 + 10, u0 + 30, 36, 38, '#e9c46a', '#d8b45a', '#c8a44a'); }}); }
+
+    /* ---- THE LOBBY'S WINDOW DISPLAY (Sir, 2026-11-27: "we aren't really seeing the interior from the glass windows or doors"): the desk
+       and the couch stand too far back to show through a window that low, so the street saw bare terrazzo. Just inside its glass
+       (R.lobbyWin): the station's old console radio, the record of the week on an easel, the old ribbon mic on its stand, -- each its own small piece, back to front, only the faces the eye sees ---- */
+    { const LW = R.lobbyWin;
+      { const [a0, a1, b0, b1] = LW.radio;                                                    // the console radio
+        items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 92, 'radio')], draw: () => {
+          box(a0, a1, b0, b1, 0, 8, shade(woodD, 1.1), woodD, shade(woodD, 0.85));            // its plinth
+          box(a0 + 2, a1 - 2, b0 + 2, b1 - 2, 8, 92, shade(wood, 1.15), wood, woodD);         // the cabinet
+          F(a0 + 10, a1 - 10, 22, 62, '#c9a65a', null, 0, b1 - 1.7);                         // the speaker cloth
+          for(let a = a0 + 14; a < a1 - 12; a += 8) F(a, a + 2, 22, 62, woodD, null, 0, b1 - 1.5);   // its fretwork
+          F(a0 + 12, a1 - 12, 70, 84, '#e9dcb4', null, 0, b1 - 1.7);                         // the dial
+          F((a0 + a1)/2 - 1, (a0 + a1)/2 + 1, 71, 83, '#c8352e', null, 0, b1 - 1.5);         // its needle
+        }}); }
+      { const [a0, a1, b0, b1] = LW.easel, bm = (b0 + b1)/2;                                  // the record of the week, on an easel
+        items.push({ a: (a0 + a1)/2, b: bm, z: 0, solids: [solid(a0, a1, b0, b1, 100, 'easel')], draw: () => {
+          tube((a0 + a1)/2, b0, 0, (a0 + a1)/2, bm, 94, 1.1, woodD);                          // its back leg, behind the board
+          box(a0, a1, bm - 1, bm + 1, 36, 100, shade(navy, 1.2), navy, shade(navy, 0.8));      // the board
+          plateCircle((a0 + a1)/2, bm + 1.3, 70, 16, '#1a1a1e');                              // the record, face on
+          plateCircle((a0 + a1)/2, bm + 1.5, 70, 5, gold);
+          F(a0 + 6, a1 - 6, 44, 50, gold, null, 0, bm + 1.3);                                  // its title strip
+          box(a0, a1, bm + 1, bm + 5, 34, 37, shade(wood, 1.1), wood, woodD);                 // the ledge it stands on
+          for(const la of [a0 + 3, a1 - 3]) tube(la, b1, 0, la, bm + 2, 100, 1.1, wood);       // its front legs, at the board's two edges
+        }}); }
+      { const [ma, mb] = LW.mic;                                                              // the old ribbon mic on its stand
+        items.push({ a: ma, b: mb, z: 0, solids: [solid(ma - 8, ma + 8, mb - 8, mb + 8, 92, 'mic stand')], draw: () => {
+          box(ma - 8, ma + 8, mb - 8, mb + 8, 0, 3, '#3b4248', dark, darkS);                  // its base
+          tube(ma, mb, 3, ma, mb, 70, 1.2, '#9aa0a4');                                          // the pole
+          box(ma - 6, ma + 6, mb - 3, mb + 3, 70, 92, '#c9ced2', '#a9aeb2', '#959a9e');        // the mic
+          for(let z = 73; z < 90; z += 3) F(ma - 5, ma + 5, z, z + 1, '#7d8286', null, 0, mb + 3.3);   // its grille
+        }}); }
+    }
 
     /* ---- THE ON-AIR STUDIO ---- */
     shelf(R.studioShelf[0], R.studioShelf[1], R.studioShelf[2], R.studioShelf[3], 114, 3);                  // the week's records
