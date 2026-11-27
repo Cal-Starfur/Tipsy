@@ -51673,7 +51673,7 @@ function slideLeavesKit(L, a0, a1, z0, z1, trim, glass, t, pick, look){
 }
 /* an entry's sliding pair (its slideDoors), live: the kit's leaves on its plane d.b, the frame colour its trim */
 function slidePairDraw(d, u, frame, look){
-  slideLeavesKit((a0, a1, za, zb, fill, off) => F(a0, a1, za, zb, fill, null, 0, d.b + 0.4 + (off || 0)), d.a, d.a + d.w, d.z0, d.z1, frame, d.glass || 'rgba(150,190,206,.80)', u, null, look);
+  slideLeavesKit((a0, a1, za, zb, fill, off) => F(a0, a1, za, zb, fill, null, 0, d.b + 0.4 + (off || 0)), d.a, d.a + d.w, d.z0, d.z1, frame, d.glass || 'rgba(150,190,206,.38)', u, null, look);   // (.80 -> .38: the room seen through it, as a walk-in's pair -- Sir, 2026-11-27
 }
 function T(a0,a1,b0,b1,z,fill,stroke,lw){
   poly([P(a0,b0,z),P(a1,b0,z),P(a1,b1,z),P(a0,b1,z)], fill, stroke, lw);
@@ -53769,7 +53769,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   if(pair){
     const mA = (a0+a1)/2;
     for(const [la0, la1, ha] of [[a0+2, mA-0.5, mA-6], [mA+0.5, a1-2, mA+2]]){
-      F(la0, la1, z, z+dH-30, trim, null, 0, 0.6);                // a leaf
+      if(!panes) F(la0, la1, z, z+dH-30, trim, null, 0, 0.6);    // a leaf (a panelled one is laid round its lights by shopDoorPanes: the opening shows through them)
       if(glazed){                                                 // glass in the leaf, a push bar across it
         F(la0+5, la1-5, z+10, z+dH-38, SHOP_GLAZED, null, 0, 0.9);
         F(la0+10, la1-10, z+62, z+66, '#d8dde0', null, 0, 1.2);
@@ -53864,12 +53864,24 @@ function shopDoorStuds(rect, len, z0, z1, studs, trim, pullU){
 /* A PANELLED LEAF'S FACE (shopDoor opts.panes): its stiles and rails in the trim, a raised panel low down, a glazed light of small panes over it
    (glazing bars three by two), a brass knob near the meeting stile -- in the leaf's own (u along it from its hinge, z) */
 const SHOP_DOOR_LOOKS = { six: {}, panel: { top: true }, lite: { top: true }, french: {}, bank: { top: true } };
-function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU, look){
+/* (THE GLASS SEEN THROUGH -- Sir, 2026-11-27: "the door kits doors have glass that isnt see through": the leaf was laid whole, its edge and
+   its stiles and rails as two solid sheets, and its lights painted over them, so no glass ever showed what was behind. The leaf is laid now
+   round its lights (shopDoorRing: the sheet less the holes), read off a dry pass that keeps only what is drawn in the glass's colour) */
+function shopDoorRing(rect, u0, u1, z0, z1, holes, col, off){
+  const zs = [z0, z1]; for(const h of holes){ if(h[2] > z0 && h[2] < z1) zs.push(h[2]); if(h[3] > z0 && h[3] < z1) zs.push(h[3]); }
+  zs.sort((a, b) => a - b);
+  for(let i = 0; i + 1 < zs.length; i++){ const za = zs[i], zb = zs[i + 1]; if(zb - za < 1e-6) continue;
+    const cut = holes.filter(h => h[2] <= za + 1e-6 && h[3] >= zb - 1e-6).map(h => [Math.max(u0, h[0]), Math.min(u1, h[1])]).filter(c => c[1] > c[0]).sort((a, b) => a[0] - b[0]);
+    let u = u0; for(const [c0, c1] of cut){ if(c0 > u) rect(u, c0, za, zb, col, off); u = Math.max(u, c1); }
+    if(u1 > u) rect(u, u1, za, zb, col, off); }
+}
+function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU, look, dry){
+  if(!dry){ const holes = []; shopDoorPanes((u0, u1, za, zb, c) => { if(c === glass) holes.push([u0, u1, za, zb]); }, len, z0, z1, glass, trim, knobU, look, true);
+    shopDoorRing(rect, 0, len, z0, z1, holes, shade(trim, 0.7));                // its edge, the frame
+    shopDoorRing(rect, 3, len - 3, z0 + 3, z1 - 3, holes, trim, 0.1); }          // stiles and rails
   const dk = shade(trim, 0.62), lk = look || 'six';
   const panel = (u0, u1, za, zb) => { rect(u0, u1, za, zb, shade(trim, 1.14), 0.2); rect(u0 + 4, u1 - 4, za + 4, zb - 4, shade(trim, 0.92), 0.3); };
   const glint = (za, zb) => rect(10, len*0.45, zb - 5, zb - 2, 'rgba(255,255,255,.22)', 0.35);
-  rect(0, len, z0, z1, shade(trim, 0.7));                                     // its edge, the frame
-  rect(3, len - 3, z0 + 3, z1 - 3, trim, 0.1);                               // stiles and rails
   /* (a look with a top light -- 'panel', 'lite': three small panes across the leaf's head, IN the leaf, swinging with it: Sir, 2026-11-19, "i think
      the top window panes need to be part of the door". The rest of the leaf under it) */
   if(SHOP_DOOR_LOOKS[lk] && SHOP_DOOR_LOOKS[lk].top){
@@ -54275,7 +54287,7 @@ function turned(w, d, fn){
 /* A DEPOT'S MURAL (Sir, 2026-11-14: "a racing mural on the back of this specific Tipsey charging depot"): by the depot's block key --
    The Flats Charging 4, behind Brew & Bolt, over the kart track */
 const DEPOT_MURALS = { '1,4': 'racing' };
-const DEPOT_WIN = [112, 180];   // (the depot's four windows, foot and head: under its fascia, DEPOT_GEOM.H - 18)
+const DEPOT_WIN = [112, 180], DEPOT_SEE = { glass: 'rgba(122,160,180,.38)', dark: '#232830' };   // (DEPOT_SEE: the windows' glass, light enough to see the room through; the dark behind where no face of the room falls)   // (the depot's four windows, foot and head: under its fascia, DEPOT_GEOM.H - 18)
 const DEPOT_GEOM = (() => {
   /* (H 300 -> 216, DH 168 -> 120: as tall as Marina Optical beside it, 166 at sc 1.3 -- Sir, 2026-11-27: "shorten the tipsey garage to
      match the height of the eye glass store"; the door down with it so its roll-up housing and the TIPSEY board still sit under the
@@ -61866,17 +61878,15 @@ function houseCanopy(fn){
        garage is up): the street walls and roof are lifted off, so the
        room is seen whole rather than through the door opening */
     const CUT = !!state.cutaway;
-    if(PT('room')){
-    ctx.save();
-    if(!CUT){
-    poly([P3(o0,CBOT), P3(o1,CBOT), P3(o1,0), P3(o0,0)]);
-    ctx.clip();
-    }
-    { F(RA0, RA1, 0, DH, inner, null, 0, RB0);                  // back wall
-      S(RA0, RB0, RB1, 0, DH, shade(inner,1.22));               // left wall
+    /* THE ROOM, a piece of its own (roomBody(RH), RH its walls' height): seen through the door, clipped to it, its walls the door's
+       height; and through the windows (Sir, 2026-11-27: "why dont we get our window glass in this case to be see through"), clipped to
+       each, its walls up under the roof -- the windows are over the door's head */
+    const roomBody = (RH) => {
+      F(RA0, RA1, 0, RH, inner, null, 0, RB0);                  // back wall
+      S(RA0, RB0, RB1, 0, RH, shade(inner,1.22));               // left wall
       T(RA0, RA1, RB0, RB1, 0.6, floorC);                       // floor
       /* LIGHTING GOES ON A WALL, NOT IN THE AIR. These were four
-         horizontal plates at z = DH-4 -- ceiling strips for a room with
+         horizontal plates at z = RH-4 -- ceiling strips for a room with
          no ceiling, so they hung in the dark with nothing behind them,
          which is the pale bars Sir marked.
 
@@ -61886,12 +61896,12 @@ function houseCanopy(fn){
          camera can see into a room are the back wall and the left wall,
          so the light is a cove strip run along both of them, with a
          housing above it and a wash below. */
-      F(RA0+14, RA1-14, DH-22, DH-14, shade(steel,.8), null, 0, RB0+0.5);
-      F(RA0+14, RA1-14, DH-30, DH-22, '#f2e6c0', null, 0, RB0+1.0);
-      F(RA0+14, RA1-14, DH-58, DH-30, 'rgba(242,230,192,.10)', null, 0, RB0+1.4);
-      S(RA0+0.5, RB0+14, RB1-14, DH-22, DH-14, shade(steel,.72));
-      S(RA0+1.0, RB0+14, RB1-14, DH-30, DH-22, '#e8dcb8');
-      S(RA0+1.4, RB0+14, RB1-14, DH-58, DH-30, 'rgba(242,230,192,.08)');
+      F(RA0+14, RA1-14, RH-22, RH-14, shade(steel,.8), null, 0, RB0+0.5);
+      F(RA0+14, RA1-14, RH-30, RH-22, '#f2e6c0', null, 0, RB0+1.0);
+      F(RA0+14, RA1-14, RH-58, RH-30, 'rgba(242,230,192,.10)', null, 0, RB0+1.4);
+      S(RA0+0.5, RB0+14, RB1-14, RH-22, RH-14, shade(steel,.72));
+      S(RA0+1.0, RB0+14, RB1-14, RH-30, RH-22, '#e8dcb8');
+      S(RA0+1.4, RB0+14, RB1-14, RH-58, RH-30, 'rgba(242,230,192,.08)');
       /* bay markings, one per dock, running out from each wall */
       /* ...with the pad wherever it stands (Sir, 2026-10-10: "this part of the
          charger didnt move when it moved"): 38 behind its centre to 72 in front */
@@ -61960,8 +61970,14 @@ function houseCanopy(fn){
          when we are just launching") */
       depotStashShelf(state.trophies);
       charger(BACK[0], BACK[1], 0, -1);
-
+    };
+    if(PT('room')){
+    ctx.save();
+    if(!CUT){
+    poly([P3(o0,CBOT), P3(o1,CBOT), P3(o1,0), P3(o0,0)]);
+    ctx.clip();
     }
+    roomBody(DH);
     ctx.restore();
     }   // end room
 
@@ -62151,16 +62167,20 @@ function houseCanopy(fn){
        mullion, built on a = const. */
     const FW = (q0, q1, z0, z1) => {
       const DP = 10, A0 = WW, A1 = WW - DP;
+      /* (SEEN THROUGH: the room behind it, clipped to the opening -- a dark plate far back first, for where no face of it falls -- then the
+         reveal's returns over it, inside the same clip) */
+      ctx.save(); poly([P(A0,q0,z1), P(A0,q1,z1), P(A0,q1,z0), P(A0,q0,z0)]); ctx.clip();
+      S(A1 - 60, q1 - 60, q0 + 60, z0 - 60, z1 + 60, DEPOT_SEE.dark); roomBody(H - 20);
       poly([P(A0,q0,z1), P(A1,q0,z1), P(A1,q0,z0), P(A0,q0,z0)], shade(wall,.58));
       poly([P(A0,q1,z1), P(A1,q1,z1), P(A1,q1,z0), P(A0,q1,z0)], shade(wall,.46));
       poly([P(A0,q0,z1), P(A0,q1,z1), P(A1,q1,z1), P(A1,q0,z1)], shade(wall,.5));
       poly([P(A0,q0,z0), P(A0,q1,z0), P(A1,q1,z0), P(A1,q0,z0)], shade(wall,.74));
-      S(A1,        q1, q0, z0, z1, shade(wall,.5));
+      ctx.restore();
       /* (THE FRONT'S WINDOW, glaze()'s, turned onto the flank -- Sir, 2026-11-27: "why are they different on each side?": the flank's had its
          glass set back in the reveal with a mullion down it, the front's are one pane flush with the wall, its reflections, a frame proud of
          it. Now the same: the tint at the face, the two streaks and the bright head, the frame, the sill) */
       const w = q0 - q1, h = z1 - z0, L = (u0, u1, v0, v1, k, col) => poly([P(WW + k, q1 + u0*w, z1 - v0*h), P(WW + k, q1 + u1*w, z1 - v0*h), P(WW + k, q1 + u1*w + 0, z1 - v1*h), P(WW + k, q1 + u0*w, z1 - v1*h)], col);
-      S(WW - 0.4, q1, q0, z0, z1, glassT);
+      S(WW - 0.4, q1, q0, z0, z1, DEPOT_SEE.glass);
       poly([P(WW - 0.3, q1, z1), P(WW - 0.3, q1 + w*0.30, z1), P(WW - 0.3, q1 + w*0.06, z0), P(WW - 0.3, q1, z0)], 'rgba(240,250,254,.20)');
       poly([P(WW - 0.26, q1 + w*0.40, z1), P(WW - 0.26, q1 + w*0.52, z1), P(WW - 0.26, q1 + w*0.28, z0), P(WW - 0.26, q1 + w*0.16, z0)], 'rgba(240,250,254,.13)');
       L(0, 1, 0, 0.06, -0.22, 'rgba(255,255,255,.16)');
@@ -62174,8 +62194,12 @@ function houseCanopy(fn){
       if(!PT('front') || !hits(x0-5, x1+5)) continue;
       /* (z 112..180, was 190..258: down under the fascia, H-18, once the depot came down to Marina Optical's height -- Sir, 2026-11-27:
          "we crushed its windows lets move them down") */
-      reveal(x0, x1, DEPOT_WIN[0], DEPOT_WIN[1], 9, shade(wall,.6));
-      glaze(x0, x1, DEPOT_WIN[0], DEPOT_WIN[1], shade(wall,1.3), glassT);
+      { const z0 = DEPOT_WIN[0], z1 = DEPOT_WIN[1];   // (seen through, as the flank's: the room clipped to the opening, the reveal's two returns over it)
+        ctx.save(); poly([P(x0,0,z1),P(x1,0,z1),P(x1,0,z0),P(x0,0,z0)]); ctx.clip();
+        F(x0 - 60, x1 + 60, z0 - 60, z1 + 60, DEPOT_SEE.dark, null, 0, -60); roomBody(H - 20);
+        S(x0, 0, -9, z0, z1, shade(shade(wall,.6),.84)); T(x0, x1, 0, -9, z0, shade(shade(wall,.6),.72));
+        ctx.restore(); }
+      glaze(x0, x1, DEPOT_WIN[0], DEPOT_WIN[1], shade(wall,1.3), DEPOT_SEE.glass);
       slab(x0-5, x1+5, DEPOT_WIN[0] - 7, DEPOT_WIN[0], 4, -1, shade(wall,1.12));
     }
     if(PT('flank')) for(let i=0;i<2;i++){
@@ -73844,7 +73868,7 @@ function houseCanopy(fn){
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the lagoon teal, small panes over a raised panel, 100 across (a 125..225)
        -- as the street always saw it, one door (single); a walk-in's (see), its opening a hole onto the roastery, its leaf live, swinging in */
-    shopDoor(175, wall, trim, 'rgba(140,180,185,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,206,.72)', look: 'panel' });
+    shopDoor(175, wall, trim, 'rgba(140,180,185,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,206,.42)', look: 'panel' });
 
     /* ---- fascia ---- */
     slab(0, W, 136, 170, 4, 0, shade(wall,1.2), null, trim);
@@ -74071,7 +74095,7 @@ function houseCanopy(fn){
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the bakery's coral, 80 across (a 145..225), its face 'french' -- two tall lights
        over a low panel, the pastries seen through it (the roastery next door is 'panel'); a walk-in's (see), its opening a hole onto the
        bakery, its leaf live, swinging in */
-    shopDoor((dx0+dx1)/2, wall, trim, 'rgba(104,146,168,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,214,.72)', look: 'french' });
+    shopDoor((dx0+dx1)/2, wall, trim, 'rgba(104,146,168,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,214,.42)', look: 'french' });
     if(state.props) box(dx0-4, Math.min(W, dx1+4), 2, 20, 0, 9, '#c3c8be','#adb2a4','#999e91');
 
     /* ---------------- ROOF ----------------
@@ -74180,7 +74204,7 @@ function houseCanopy(fn){
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the shop's seafoam, 80 across (a 140..220), its face 'lite' -- one big light
        over a panel, the buckets seen through it (the bakery next door is 'french'); a walk-in's (see), its opening a hole onto the
        florist's, its leaf live, swinging in */
-    shopDoor(180, wall, trim, 'rgba(150,205,200,.5)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,208,.72)', look: 'lite' });
+    shopDoor(180, wall, trim, 'rgba(150,205,200,.5)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,208,.42)', look: 'lite' });
     slab(16,W-16, 108, 132, -1, -9, trim);
     /* the panel goes ON the band, not behind it: the band's front face
        is b -1 and its back is -9, and this sat at -9.5 */
@@ -74299,7 +74323,7 @@ function houseCanopy(fn){
     slab(12, 114, 88, 98, -1, -7, trim);
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the sky blue, 80 across (a 120..200), its face 'lite', one big light over a
        panel under the top light (its neighbour Palmline Bikes' is the street's own); a walk-in's (see), its opening a hole onto the room */
-    shopDoor(160, wall, trim, 'rgba(188,221,226,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(206,232,236,.72)', look: 'lite' });
+    shopDoor(160, wall, trim, 'rgba(188,221,226,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(206,232,236,.42)', look: 'lite' });
     /* extra hatch pane removed at Sir's direction -- it sat between the
        main window and the door with nothing to be. */
     /* ================= THE AWNING WAS A BACK FACE SHORT AND A BACK
@@ -75163,7 +75187,7 @@ function houseCanopy(fn){
        default to the kit's cool blue. */
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): a pair of panelled leaves, small panes over a raised panel, 100 across -- a walk-in's (see),
        its opening a hole onto the bookshop, its leaves live, swinging in */
-    shopDoor(172, wall, trim, 'rgba(127,147,160,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(150,176,186,.72)' });
+    shopDoor(172, wall, trim, 'rgba(127,147,160,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(150,176,186,.42)' });
     /* THE WINDOW HEAD DOES THE TYING, not a band. It comes down from
        132 to 120, which puts it within 5 of the door surround at 114.9
        -- close enough to read as one shopfront under one line, and it
@@ -75301,7 +75325,7 @@ function houseCanopy(fn){
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the marina blue, small panes over a raised panel, 100 across -- as
        the street always saw it, one door (single); a walk-in's (see), its opening a hole onto the optician's, its leaf live, swinging in */
-    shopDoor(172, wall, trim, 'rgba(146,178,196,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,200,214,.72)', look: 'lite' });
+    shopDoor(172, wall, trim, 'rgba(146,178,196,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,200,214,.42)', look: 'lite' });
 
     /* ---- fascia ----
        Was slab(0, W, 118, 126, -1, -7): a0 of 0 and a1 of W, so the
@@ -75449,7 +75473,7 @@ function houseCanopy(fn){
 
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the yellow trim, 80 across (a 144..224), its face 'panel', two raised panels
        under a top light (its neighbour Cove Creamery's is 'lite'); a walk-in's (see), its opening a hole onto the bike shop's room */
-    shopDoor(184, wall, trim, 'rgba(130,178,170,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,206,198,.72)', look: 'panel' });
+    shopDoor(184, wall, trim, 'rgba(130,178,170,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,206,198,.42)', look: 'panel' });
 
     /* ---- fascia ---- */
     slab(15, W-15, 110, 146, -1, -8, shade(wall,1.15), null, trim);
@@ -75960,7 +75984,7 @@ function houseCanopy(fn){
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the ocean blue, 80 across (a 162.4..242.4), in the middle of the entrance's
        surround -- its face 'six', six small lights over a panel (its neighbour Sandpiper Shoes' is 'french'); a walk-in's (see), its opening
        a hole onto the toy store's room, its leaf live, swinging in */
-    shopDoor(WW/2, wall, trim, 'rgba(150,180,205,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,222,.72)', look: 'six' });
+    shopDoor(WW/2, wall, trim, 'rgba(150,180,205,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,222,.42)', look: 'six' });
     slab(142, 262.8, 126, 140, -2, -9, BLU);                 // header over the entrance
 
     /* ---- bunting, because Sir asked for fun ----
@@ -76131,7 +76155,7 @@ function houseCanopy(fn){
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the terracotta, 80 across (a 140..220), clear of the window -- its face
        'panel', two raised panels under a top light (its neighbour Sandcastle Toys' is 'six'); a walk-in's (see), its opening a hole onto
        the pottery's room, its leaf live, swinging in */
-    shopDoor(180, wall, trim, 'rgba(150,138,120,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(196,186,170,.72)', look: 'panel' });
+    shopDoor(180, wall, trim, 'rgba(150,138,120,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(196,186,170,.42)', look: 'panel' });
 
     /* ---- fascia ---- */
     slab(0, W, 136, 164, 4, 0, shade(wall,1.14), null, trim);
@@ -76274,7 +76298,7 @@ function houseCanopy(fn){
        hiding behind it too. */
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the sea blue, 80 across (a 145..225), its face 'french', two tall lights over a
        low panel (its neighbour Cove Pottery's is 'panel'); a walk-in's (see), its opening a hole onto the pet shop's room, its leaf live */
-    shopDoor(185, wall, trim, 'rgba(143,184,160,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,200,.72)', look: 'french' });
+    shopDoor(185, wall, trim, 'rgba(143,184,160,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,200,.42)', look: 'french' });
     if(state.part === 'body') valance(4, VS, 0, 6, true, false);
     else valance(4, W-4, 0, 10, true, true);
     /* MARGIN 0 AGAINST A RECESS OF 8 -- this shop's fTodo. It landed
@@ -78356,7 +78380,7 @@ function houseCanopy(fn){
        doorway's full 240 high, set back on the portico's back wall (BOFF); a walk-in's (see), its opening a hole onto the hall, its leaves
        live, swinging in -- and from inside, the same leaves cut to the north wall's height. It was painted on the wall: nothing opened */
     { const b0 = BOFF; BOFF = b0 - (deep - 1);
-      try { shopDoor(WW/2, wall, '#6e5432', 'rgba(150,180,196,.55)', WW, 0, { w: 97, h: 240, pair: true, panes: 'rgba(160,190,204,.66)', look: 'bank' }); } finally { BOFF = b0; } }
+      try { shopDoor(WW/2, wall, '#6e5432', 'rgba(150,180,196,.55)', WW, 0, { w: 97, h: 240, pair: true, panes: 'rgba(160,190,204,.40)', look: 'bank' }); } finally { BOFF = b0; } }
     /* TWO WINDOWS, FLANKING. Four at a step of 106 put the middle pair
        on 140..196 and 246..302 against a doorway running 153.8..251 --
        both of them across the entrance -- and the fourth ran to 408
@@ -78753,7 +78777,7 @@ function houseCanopy(fn){
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the kiosk's orange, 80 across (a 92..172), its face 'six' -- six small lights over a
        panel (the florist round the corner is 'lite'); a walk-in's (see), its opening a hole onto the juice bar's room, its leaf live, swinging
        in. Its front faces west, away from the camera: the street never sees it, the room does (walkinAwayDoor) */
-    shopDoor(132, wall, trim, 'rgba(150,205,200,.5)', KW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,208,.72)', look: 'six' });
+    shopDoor(132, wall, trim, 'rgba(150,205,200,.5)', KW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,208,.42)', look: 'six' });
     S(KW, k.LB, 0, 0, H, shade(wall,.78));                       // the flank the patio looks at
     this.patioGround(k);
     depthSort(this.patioSets(k));
@@ -79815,7 +79839,7 @@ function houseCanopy(fn){
     /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the gym's coral, 80 across (a 162.4..242.4), its face 'french' -- two tall
        lights over a low panel (the juice bar next door is 'six'); a walk-in's (see), its opening a hole onto the gym's room, its leaf live,
        swinging in. Its front faces west, away from the camera: the street never sees it, the room does (walkinAwayDoor) */
-    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.72)', look: 'french' });
+    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.42)', look: 'french' });
     slab(150, 254.8, 118, 130, -2, -9, trim);                 // header over the entrance
 
     /* ---- the fascia ----
@@ -80647,7 +80671,7 @@ function houseCanopy(fn){
        bays), its face 'lite' -- one big light over a panel under the fanlight (its neighbour Sandpiper Shoes keeps the street's old door); a
        walk-in's (see), its opening a hole onto the showroom's room, its leaf live, swinging in. Its front faces north, away from the camera: the
        street never sees it, the room does (walkinAwayDoor) */
-    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.72)', look: 'lite' });
+    shopDoor(WW/2, wall, trim, 'rgba(143,180,196,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.42)', look: 'lite' });
     /* the upper floor's own window, over the door, where the panel that
        was painted across the doorway used to be */
     reveal(172, 232, 190, 268, 12, inner);
@@ -83540,7 +83564,7 @@ function houseCanopy(fn){
     F(266, 386, 0, 156, trim, null, 0, 0.2);
     for(const [g0, g1] of [[270, 280], [372, 382]]) F(g0, g1, 6, 112, 'rgba(150,168,180,.55)', null, 0, 0.3);
     F(270, 382, 120, 150, 'rgba(150,168,180,.55)', null, 0, 0.3);
-    shopDoor(326, wall, trim, 'rgba(150,168,180,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.72)', look: 'french' });
+    shopDoor(326, wall, trim, 'rgba(150,168,180,.55)', WW, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,206,216,.42)', look: 'french' });
     F(258, 394, 152, 168, shade(trim,1.3), null, 0, 4.6);              // the portal head
 
     /* ---- the fascia, and the winged shoe that is the sign ----
