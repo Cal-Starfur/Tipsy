@@ -34358,6 +34358,7 @@ const KTDE_IN = walkinDefine({ name: 'KTDE 98.1 The Tide Studios', from: KTDE.na
   street: { to: [0, 120], routes: [[[-500, 120], [-500, 1600]], [[1300, 120], [1300, 1600]]] },
   openings: [{ lab: [[560, -39.4], [650, -39.4]], z: [0, 100] }, { lab: [[900, -39.4], [1340, -39.4]], z: [16, 110], glass: true },
              { lab: [[244, -39.4], [476, -39.4]], z: [33, 97], glass: true },
+             { lab: [[742, -39.4], [778, -39.4]], z: [52, 76], glass: true },   // (the porthole, its round hole cut in the shell)
              ...KTDE.sideWin.map(([w0, w1]) => ({ lab: [[1617.4, w0 + 4], [1617.4, w1 - 4]], z: [33, 97], glass: true }))] });
 /* the room's plan, its own frame (a east, b south, 1516 x 1516; lab a = a + 70, lab b = b - 1586) */
 const KTDE_ROOM = { W: 1516, D: 1516, LH: 66,
@@ -84439,7 +84440,9 @@ function houseCanopy(fn){
       slab(K.onAir.a - 38, K.onAir.a + 38, K.onAir.z0 - 2, K.onAir.z1 + 2, B.b1 + 6, B.b1, '#2b2a30', '#1f1e23', '#3a3940');
       /* the porthole between the doors and the studio: a round window, Streamline's mark */
       { const pa = 760, pz = 64, pts = [], pin = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; pts.push(P(pa + Math.cos(q)*24, B.b1 + 0.5, pz + Math.sin(q)*24/ZSCALE)); pin.push(P(pa + Math.cos(q)*18, B.b1 + 0.7, pz + Math.sin(q)*18/ZSCALE)); }
-        poly(pts, teal); poly(pin, glass); }
+        /* (seen into, as the rest of the front's glass: a hole onto the room, its glass light -- Sir, 2026-11-27, "what about the little
+           circle window?" -- KTDE_IN's openings) */
+        poly(pts, teal); if(SEE) HOLE(pin); poly(pin, SEE ? glassSee : glass); }
       /* THE GLASS-BLOCK STAIR TOWER at the west end (an attachment: drawn with the building, one piece -- never keyed apart from
          its host). (The canopy over the lobby's doors is its own piece, below: it stands out over the live door) */
       { const S0 = K.stair, bf = B.b1 + S0.out, top = S0.top;
