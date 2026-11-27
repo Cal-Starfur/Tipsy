@@ -166263,9 +166263,11 @@ function tpRobotSvg(filter, size, skinId, pole){
     <rect x="30.8" y="26.5" width="3.8" height="15" rx="0.8" fill="${c("wheel")}"/>
     <line x1="13" y1="0.6" x2="13" y2="11" stroke="${pole || c("flagPole")}" stroke-width="1.3"/>
     <path d="M13.5 0.6L20.5 2.2L13.5 3.9Z" fill="${c("flag")}"/>
-    <path d="M10.5 26H29.5L31 27.5V39.5L29.5 41.5H10.5L9 39.5V27.5Z" fill="${c("bodyRight")}" stroke="${c("outline")}" stroke-width="1.1" stroke-linejoin="round"/>
-    <path d="M11.5 11H28.5L31 13.5V24.5L29.5 26H10.5L9 24.5V13.5Z" fill="${c("bodyTop")}" stroke="${c("outline")}" stroke-width="1.1" stroke-linejoin="round"/>
-    <path d="M9.6 22.4H30.4V24.3L29.3 25.4H10.7L9.6 24.3Z" fill="${c("bodyRight")}"/>
+    <path d="M10.5 25.6H29.5L31 27.1V39.5L29.5 41.5H10.5L9 39.5V27.1Z" fill="${c("bodyRight")}" stroke="${c("outline")}" stroke-width="0.9" stroke-linejoin="round"/>
+    <rect x="9.45" y="27.2" width="1.6" height="12.2" fill="${c("bodyLeft")}"/>
+    <rect x="28.95" y="27.2" width="1.6" height="12.2" fill="${c("bodyLeft")}"/>
+    <path d="M12.6 11H27.4L29.6 13.2V24.4L28.4 25.6H11.6L10.4 24.4V13.2Z" fill="${c("bodyTop")}" stroke="${c("outline")}" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M10.85 22.6H29.15V24.2L28.2 25.15H11.8L10.85 24.2Z" fill="${c("bodyRight")}"/>
     <rect x="12" y="28.4" width="16" height="4.8" rx="1.3" fill="${c("visor")}"/>
     <circle cx="15.8" cy="30.8" r="1.25" fill="${c("eye")}"/>
     <circle cx="24.2" cy="30.8" r="1.25" fill="${c("eye")}"/>
