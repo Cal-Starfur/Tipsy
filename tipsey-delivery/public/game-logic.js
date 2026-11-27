@@ -12950,7 +12950,9 @@ const XRAY = {
      at 17 apart, and every one of them must be covered, so a gap wide
      enough to see him through keeps the ghost off. */
   fan:   [0, -34, -17, 17, 34],
-  hits:  5,          // rays of the fan needed before he counts as hidden
+  hits:  5,          // rays of the fan needed before he counts as hidden (props' test; his own is xrayCoverCols now)
+  coverFan: [-42, -28, -14, 0, 14, 28, 42],   // his partial x-ray's rays, across him and his flag (xrayCoverCols)
+  coverMin: 8,       // a ray covering him less than this high (a kerb at his wheels) is not cover
   matHits: 3,        // ...while he stands on a delivery or pickup mat (see xrayCoverage)
   /* PROPS. A bin or a hydrant behind a frontage gets the same ghost.
      Two separate dials because a prop is not a robot: it is short, so
@@ -52889,7 +52891,7 @@ const TIDEWATER_MUSEUM = (() => {
   const vol = {
     /* the building is the mass; the forecourt, lawns and walk are open */
     foot: [[SA0,SB1],[SA1,SB1],[SA1,SB0],[SA0,SB0]],
-    h: H,
+    h: H + 16,   // to the top of its roof parapet (the shell's band H..H+16): at H the x-ray missed him behind the parapet (Sir, 2026-11-27)
     solids: [
       /* the portico's two wings -- podium, steps, cheek walls and the colonnade on them -- either side of the bay, which
          is open at grade from the gate's walk to the doors (Sir, 2026-10-30: the museum one goes into: MUS_IN) */
@@ -109554,6 +109556,14 @@ class WorldScene extends Phaser.Scene {
        slots between gFade and gGlowLo: add.graphics() appends, and the
        display list order is the whole point of these objects. */
     this.gXProp = this.add.graphics();
+    /* HIS GHOST, ONLY WHERE HE IS COVERED (Sir, 2026-11-27, Tipsey half behind the Maritime Museum's corner: "We want partial
+       coverage of tipsy to get xrayed like other things do"). His silhouette has its own layer, right over gFade (which keeps the
+       wall trace), cut by a mask to the part of the screen a building stands over him in (xrayCoverCols): a sliver of him behind
+       a corner ghosts that sliver, and what is in the open is never tinted. The mask is the whole screen while the x-ray is on
+       for another reason (the lift, the hospital, the mall's gallery). */
+    this.gBotX = this.add.graphics();
+    this.gBotXMask = this.make.graphics({ x: 0, y: 0, add: false });
+    this.gBotX.setMask(this.gBotXMask.createGeometryMask());
     /* the hidden kerb + curb ramps (XRAY.xR). Its own layer: they show
        whenever he is driving, not only while HE is hidden, so they
        cannot ride gFade's eased alpha. */
@@ -109629,7 +109639,7 @@ class WorldScene extends Phaser.Scene {
        frame that were fragmenting Phaser's batches. Applied to every
        Graphics this scene draws into, including the ones with their own
        alpha and blend mode, since the memo is per instance. */
-    [this.gSky, this.gWorld, this.gFade, this.gXProp, this.g, this.gGlowLo, this.gBotGlow, this.gFront,
+    [this.gSky, this.gWorld, this.gFade, this.gBotX, this.gXProp, this.g, this.gGlowLo, this.gBotGlow, this.gFront,
      this.gNight, this.gNightIn, this.gGlow, this.hud].forEach(memoGraphicsStyles);
     this.qtext = this.add.text(0, 0, "?!", { fontSize:"30px", fontStyle:"bold", color:"#ffb04d" })
       .setOrigin(0.5).setDepth(4).setVisible(false);
@@ -111697,7 +111707,7 @@ class WorldScene extends Phaser.Scene {
     XG.g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
   xrayGhost(){
-    if(this._xrayCap)   return this._xraySkip ? null : { g: this.gFade,  a: 1 };   // (skip: he is unseen -- see drawRobotOrSunk)
+    if(this._xrayCap)   return this._xraySkip ? null : { g: this.gBotX,  a: 1 };   // (skip: he is unseen -- see drawRobotOrSunk)
     if(this._xrayInProp) return { g: this.gXProp, a: XRAY.propMax };
     return null;
   }
@@ -111712,7 +111722,60 @@ class WorldScene extends Phaser.Scene {
     /* his head's height: from the deck while he is on the garage roof */
     const zh = XRAY.zhead + (this.ow && (this.ow.deck || (this._inside && this._inside.name === 'Brew & Bolt Roof')) ? owLiftZ(this.ow) : 0)   // (and on Brew & Bolt's roof: his head is up at the roof's height, not under it)
              + (this.ow && this.ow.fly && flyCtl() ? Math.max(0, (this.ow.z || 0) - 40) : 0);   // (a rotorcraft's: at its height)
-    return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
+    const cols = this.xrayCoverCols(this.botX, this.botY, zh - XRAY.zhead, blocks, lots);
+    this._xrayCols = cols;
+    return cols && cols.any ? 1 : 0;
+  }
+  /* HOW HIGH UP HIM EACH RAY OF THE FAN IS COVERED (partial x-ray, see gBotX): a mass of height h at forward s covers him up to
+     h - s (the identity above), so each ray keeps the best of that along its march; a ray counts when it covers him from his
+     feet to at least XRAY.coverMin. Kept for the 4-unit cell he is in (stood still, nothing is marched) */
+  xrayCoverCols(bx, by, zb, blocks, lots){
+    const key = Math.round(bx/4) + ',' + Math.round(by/4) + ',' + Math.round(zb) + ',' + (blocks ? blocks.length : 0);
+    if(this._xrayColsKey === key) return this._xrayColsVal;
+    const fan = XRAY.coverFan, c = new Array(fan.length);
+    let any = false;
+    /* the march's samples on an 8-unit grid, kept between frames (moving, he asks nearly the same cells again): cleared
+       when what builtHeightAt reads changes -- up a deck, in a room, the garage -- and every second anyway (a roof that
+       opens as he goes under it) */
+    const ctx = (this.ow && this.ow.deck ? this.ow.deck.name : '') + '|' + (this._inside ? this._inside.name : '') + '|' + (POCKET_VIEW ? POCKET_VIEW.pk : '') + '|' + (this._garage ? 1 : 0);
+    const now = this.time ? this.time.now : 0;
+    if(!this._xrayHC || this._xrayHCx !== ctx || now - this._xrayHCt > 1000 || this._xrayHC.size > 60000){ this._xrayHC = new Map(); this._xrayHCx = ctx; this._xrayHCt = now; }
+    const HC = this._xrayHC;
+    const hAt = (x, y) => { const qx = Math.round(x/8), qy = Math.round(y/8), k = (qx + 100000)*200000 + qy + 100000;
+      let v = HC.get(k); if(v === undefined){ v = this.builtHeightAt(qx*8, qy*8, blocks, lots); HC.set(k, v); } return v; };
+    for(let i = 0; i < fan.length; i++){
+      const u = fan[i];
+      let best = -1;
+      for(let s = XRAY.probe; s <= XRAY.reach; s += XRAY.step){
+        if(zb + Math.max(best, XRAY.coverMin) + s > XRAY.maxH) break;      // nothing further out can cover more
+        const hh = hAt(bx + s + u, by + s - u);
+        if(hh - zb - s > best){
+          /* the face is somewhere in the last step: found to a unit (the step alone undercounts the cover by up to 8) */
+          let lo = s - XRAY.step, hi = s;
+          if(lo >= XRAY.probe) while(hi - lo > 1){ const m = (lo + hi) >> 1; if(this.builtHeightAt(bx + m + u, by + m - u, blocks, lots) >= hh) hi = m; else lo = m; }
+          best = Math.max(hh - zb - s, hh - zb - hi);
+        }
+      }
+      c[i] = best >= XRAY.coverMin ? best : 0;
+      if(c[i] > 0) any = true;
+    }
+    const out = { bx, by, zb, c, any };
+    this._xrayColsKey = key; this._xrayColsVal = out;
+    return out;
+  }
+  /* the mask on his ghost layer: each ray's strip of the screen, from its cover line down (null: the whole screen) */
+  botXrayMask(cols){
+    const m = this.gBotXMask;
+    if(!m) return;
+    m.clear(); m.fillStyle(0xffffff, 1);
+    if(!cols){ m.fillRect(-1e5, -1e5, 2e5, 2e5); return; }
+    const fan = XRAY.coverFan, K = this.K, p0 = this.W(cols.bx, cols.by, cols.zb);
+    for(let i = 0; i < fan.length; i++){
+      if(!(cols.c[i] > 0)) continue;
+      const xl = i === 0 ? -1e5 : p0.x + (fan[i - 1] + fan[i])*K, xr = i === fan.length - 1 ? 1e5 : p0.x + (fan[i] + fan[i + 1])*K;
+      const y = this.W(cols.bx, cols.by, cols.zb + cols.c[i]).y;
+      m.fillRect(xl, y, xr - xl, 1e5);
+    }
   }
   /* Draw fn() and mirror everything it puts down through quadOn into the
      prop ghost layer -- drawProp's own wrapper, for things that are not
@@ -121749,6 +121812,7 @@ class WorldScene extends Phaser.Scene {
 
        This is also what gFade was declared for and never used to do. */
     this.gFade.clear();
+    if(this.gBotX) this.gBotX.clear();
     this.gXProp.clear();
     /* stashed for drawProp, which is called from a dozen queue sites
        and has no way to be handed these */
@@ -121786,10 +121850,13 @@ class WorldScene extends Phaser.Scene {
     const xrayWant = this._garage || hospInGlass(_ow) ? 0 : (_inHosp || _inLift || mallUnderSlab(this) || mallBehindEsc(this) || MALL_SEC) ? 0.85
                    : POCKET_VIEW ? 0                      // in the mall (or a shop on the street's lines): the building round him is the room, cut away
                    : (_ow && _ow.carryZ !== undefined) ? 0 : XRAY.max * this.xrayCoverage(visBlocks, visLots);
+    /* street x-ray: his ghost cut to where he is covered; anything else: whole */
+    this.botXrayMask(xrayWant > 0 && this._xrayCols ? this._xrayCols : null);
     this.xrayA += (xrayWant - this.xrayA) *
                   (xrayWant > this.xrayA ? (_inLift ? Math.max(XRAY.rise, 0.3) : XRAY.rise) : XRAY.fall);   // no hesitating into the lift
     if(this.xrayA < 0.004 || this._garage) this.xrayA = 0;
     this.gFade.setAlpha(this.xrayA);
+    if(this.gBotX) this.gBotX.setAlpha(this.xrayA);
     if(this.xrayA > 0) this.inRoomCoords(() => this.xrayWall());    // the wall he is against, under his own ghost (the lift car's, the roof's, or the street's)
     /* the hidden way up, whenever he is out driving -- not just while he
        is ghosted (Sir, on-device: "its not showing up" -- he was in the
@@ -121818,7 +121885,7 @@ class WorldScene extends Phaser.Scene {
            than reassigned so the class method is the one that survives */
         this.quadOn = (gg, pts, col, a) => {
           qp.call(this, gg, pts, col, a);
-          if(!this._xraySkip) qp.call(this, this.gFade, pts, XRAY.col, 1);
+          if(!this._xraySkip) qp.call(this, this.gBotX, pts, XRAY.col, 1);
         };
         this._xrayCap = true;   // read by drawFlag, which bypasses quadOn
         this._occSkip = true;
