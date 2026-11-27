@@ -76530,7 +76530,10 @@ function houseCanopy(fn){
   }
 },
 {
-  name:'Palmline Savings', xh: 460, base:'Bank', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: PS_WW, dd: PS_DD,
+  name:'Palmline Savings', xh: 460, base:'Bank', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: PS_WW,
+  /* (ITS REAR WING GONE, Sir 2026-11-27: "get rid of the physical build on the back of the bank, since our walk-ins are expanded interiors
+     but not exteriors" -- the vault and the waiting room are the room's (PS_IN, W31: bigger inside than out), not a wing on the block;
+     the hall's tall block, D deep, as it stood) */
   see: true,   // (a walk-in: its doorway shows the hall, PS_IN -- W11)
   /* (BIGGER, Sir 2026-11-17: "the building isn't big enough to be what it needs to be ... we see a vault door but there is no room for a
      vault": across the alley to the garage, PS_WW, and back into the block, PS_DD -- the hall's tall block as it was, 276 deep, and a lower
@@ -76596,7 +76599,6 @@ function houseCanopy(fn){
        Landing goes 66 -> 92 measured from the column's front face to
        the door wall, which is the room to breathe. */
     const colB = 8, deep = 66, COLS = [28, 73, WW - 73, WW - 28];
-    box(0, WW, -PS_DD, -D, 0, PS_WH, '#b9bcb6', shade(wall, .9), shade(wall, .8));   // the rear wing, behind the hall
     body(wall, trim, H, WW);
     roofDeck(0, WW, -D, 0, H+0.4, null, null, '#b9bcb6');   // Flats roof, over body's trim-coloured plate
 
@@ -76690,22 +76692,18 @@ function houseCanopy(fn){
   back(p){
     /* REAR ELEVATION (2026-09-17): what the camera sees when this shop
        stands on an away edge. See THE REAR KIT in shopfront-kit.js. */
-    const WW = PS_WW, wall = '#f0ece2', trim = '#6f8f96', H = 460, DW = PS_DD, HW = PS_WH;
-    /* the hall's tall block, its back over the wing's roof; then the wing in front of it (PS_DD deep, PS_WH high) */
+    const WW = PS_WW, wall = '#f0ece2', trim = '#6f8f96', H = 460, HW = PS_WH;
+    /* the hall's tall block, its back full height (its rear wing gone -- the vault and waiting room are the room's, PS_IN: W31) */
     rearBody(wall, trim, H, WW, D, '#b9bcb6');
     rearParapet(0, WW, H, 16, 14, shade(wall,.9));
     slab(0, WW, H-28, H-20, -D-8, -D, shade(wall,.84));        // a plain string course, no order
     for(const [z0,z1] of [[HW + 40, HW + 104],[HW + 130, HW + 194]])
       for(let am = 64; am < WW - 40; am += 94) rearWindow(am-24, am+24, z0, z1, wall);
-    box(0, WW, -DW, -D, 0, HW, '#b9bcb6', shade(wall,.93), shade(wall,.75));
-    slab(0, WW, HW, HW + 10, -DW - 4, -DW + 10, shade(wall,.88));   // its coping
-    F(0, WW, 0, 14, shade(wall,.62), null, 0, -DW - 0.5);
-    for(const am of [70, 170, WW - 170, WW - 70]) rearWindow(am-24, am+24, 110, 170, wall, DW);
-    downpipe(8, HW, '#8a9296'); downpipe(WW-8, HW, '#8a9296');
-    rearDoor(WW/2, wall, '#6d747c', DW, 156);                  // the staff door, steel
-    F(WW/2 - 32, WW/2 + 32, 176, 184, shade(wall,.7), null,0,-DW-0.8);
-    box(WW*0.2, WW*0.32, -DW + 40, -DW + 90, HW, HW + 30, '#9aa0a6','#7d838a','#6a7076');   // plant on the wing's roof
-    box(WW*0.7, WW*0.8, -DW + 40, -DW + 80, HW, HW + 24, '#9aa0a6','#7d838a','#6a7076');
+    F(0, WW, 0, 14, shade(wall,.62), null, 0, -D - 0.5);
+    for(const am of [70, 170, WW - 170, WW - 70]) rearWindow(am-24, am+24, 110, 170, wall);
+    downpipe(8, H - 20, '#8a9296'); downpipe(WW-8, H - 20, '#8a9296');
+    rearDoor(WW/2, wall, '#6d747c', D, 156);                   // the staff door, steel
+    F(WW/2 - 32, WW/2 + 32, 176, 184, shade(wall,.7), null,0,-D-0.8);
     if(state.roof) box(WW*0.66, WW*0.86, -210, -170, H, H+22, '#9aa0a6','#7d838a','#6a7076');
   }
 },
