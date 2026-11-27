@@ -15992,6 +15992,20 @@ function householdOf(d){
   _households.set(d.key, H);
   return H;
 }
+/* A RESIDENT'S NAME (Sir, 2026-11-27: "the keys owner for the name? that needs to be changed ... any other return missions"):
+   the house's family name (from its door's key) and the person's own first name (from their seed), kept as the look is.
+   First names that suit any look (the roll's builds, hair and dresses are not tied to them) */
+const RES_FIRST = ["Alex", "Sam", "Jordan", "Casey", "Riley", "Morgan", "Jamie", "Taylor", "Robin", "Quinn", "Avery", "Charlie",
+  "Frankie", "Drew", "Dana", "Rowan", "Sage", "Reese", "Jesse", "Kai", "Remy", "Lou", "Parker", "Emery", "Blair", "Shay", "Toni", "Ari"];
+const RES_LAST = ["Alvarez", "Okafor", "Nguyen", "Marsh", "Delgado", "Brennan", "Kowalski", "Reyes", "Haddad", "Lindqvist", "Moreau",
+  "Castillo", "Tanaka", "Abbott", "Fischer", "Osei", "Romero", "Whitlock", "Park", "Sullivan", "Varga", "Mendes", "Cho", "Quinlan"];
+function residentName(d, who){
+  if(who && who.nm) return who.nm;
+  let v = 0x5a17; for(const ch of (d && d.key) || "") v = Math.imul(v ^ ch.charCodeAt(0), 0x85ebca6b) >>> 0;
+  const nm = RES_FIRST[(((who && who.seed) || v) >>> 5) % RES_FIRST.length] + " " + RES_LAST[(v >>> 7) % RES_LAST.length];
+  if(who) who.nm = nm;
+  return nm;
+}
 /* a household member's look, kept (the same person whichever way they go) */
 function folkLook(who){ return who.L || (who.L = streetLook(who.seed, HOME_FOLK.look)); }
 /* the look of one of the shoppers' or seekers' list: a resident's own, else from the entry's seed */
@@ -22151,7 +22165,7 @@ function lostDogTick(scene, ow){
       const step = D.shelter ? shelterW(SHELTER.door[0], SHELTER.stepB) : edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
       R.owner = { ...cakeMeet(ow, step, now, scene), card: false, seed: (D.seed ^ 0x0d06) >>> 0, step };
       if(D.shelter) R.owner.look = streetLook(R.owner.seed, { type: 'scrubs' });   // (a shelter worker, in scrubs)
-      else if(D.home && D.home.key){ const H = householdOf(D.home), who = H.people.find(q => q.home) || H.people[0]; if(who) R.owner.look = folkLook(who); }   // (one of the house's own: R11)
+      else if(D.home && D.home.key){ const H = householdOf(D.home), who = H.people.find(q => q.home) || H.people[0]; if(who) R.owner.look = folkLook(who); R.owner.name = residentName(D.home, who); }   // (one of the house's own: R11)
       ow.vel = 0;
       lostDogNavClear(scene);
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -22178,7 +22192,7 @@ function lostDogTick(scene, ow){
       if(!M.card && now - M.t0 > M.walkMs){
         M.card = true;
         hospSayCard(D.shelter ? { who: SHELTER.name, btn: "Take good care of " + (D.he ? "him" : "her") + "!", ok: lostDogDone, at: lostOwnerAt, say: shelterSays(D) }
-                              : { who: D.name + "'s owner", btn: "Happy to help!", ok: lostDogDone, at: lostOwnerAt, say: lostDogSays(D) });
+                              : { who: M.name || (D.name + "'s owner"), btn: "Happy to help!", ok: lostDogDone, at: lostOwnerAt, say: lostDogSays(D) });
       }
     } else {
       /* going back in, the dog on its lead a step behind them; in through the door first */
@@ -38736,7 +38750,7 @@ function lostItemTick(scene, ow){
     meetTick(scene, ow, R.M);
     if(!R.M.card && now - R.M.t0 > R.M.walkMs){
       R.M.card = true;
-      hospSayCard({ who: "The " + R.it.name + "'s owner", btn: "Happy to help!", ok: lostItemDone, at: lostItemOwnerAt, say: lostItemSays(R.it, R.dog) });
+      hospSayCard({ who: R.name, btn: "Happy to help!", ok: lostItemDone, at: lostItemOwnerAt, say: lostItemSays(R.it, R.dog) });
     }
     return;
   }
@@ -38767,7 +38781,7 @@ function lostItemTick(scene, ow){
     const M = meetWalk(ow, step, now, side, scene);
     M.look = folkLook(who); M.step = step;
     const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
-    LOSTIT.meet = { id: it.id, kind: it.kind, it, M, dog: dogName, door: d, done: false };
+    LOSTIT.meet = { id: it.id, kind: it.kind, it, M, dog: dogName, door: d, done: false, name: residentName(d, who) };
     ow.vel = 0;
     /* ARRIVED: whatever the GPS was guiding to (with two in the bag it can be the other owner's door, next door -- "100 ft"
        while the owner stood talking to him), it stops here; lostItemDone routes on to the other one after */
