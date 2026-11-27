@@ -86,6 +86,11 @@
   an awning, a sign, a transom piece -- must sort AFTER the door, or the leaves paint over it: key that piece at its nearest corner
   (the largest a + b it covers) and mark it `overDoors` (the rim queue puts the leaves just under it, even when lmDepth moves it round
   Tipsey), or queue it just after the door as the garage lift's canopy does. Check it with the doors open and Tipsey beside them.
+- Glass is see-through (Sir, 2026-11-27: "update the rules so that we dont have to prompt for clear windows in the door kit"; doors
+  kit D17): a door leaf or window with glass is a frame round its lights, never a solid piece with the glass painted over it
+  (`shopDoorRing` lays a leaf round its holes); the glass is a light tint (about .45 alpha at most); behind it is what is really
+  there -- the room (a walk-in's hole, or the building's own room clipped to the window, as the Charge depot's `roomBody`), or the
+  opening's dark. Screenshot a new door or window shut, from the street, showing the room through it.
 - A pair of door leaves (sliding, lift, glass) is never one item keyed at the doorway's middle: queue each leaf at its own side of the
   doorway, or the far leaf flips over Tipsey as he crosses (doors kit D12).
 - Inside one drawn piece nothing is depth-sorted: paint back to front and only faces the eye sees (tops, south, east -- never a west
