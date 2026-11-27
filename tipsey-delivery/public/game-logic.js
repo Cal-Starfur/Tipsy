@@ -48635,6 +48635,7 @@ const SKIN = {
   lidInner:0xb2b7bf, cavityWall:0x9ba1a9, cavityFloor:0x7b818a,
   belly:0x494e58, flagPole:0x2e3138, flag:0xff5722, shadow:0x000000
 };
+const SKIN_CLASSIC = Object.assign({}, SKIN);   // the hull's own colours, kept: SKIN is borrowed and restored while skins draw (tpRobotSvg)
 
 const BODY = { hx:26, hy:20, z0:14, z1:54, ch:5, bev:3, bevIn:2.5 };   // ch: the plan's corner chamfer; bev / bevIn: the top edge's bevel, that high and that far in (THE POLISHED HULL: drawHullPrism)
 const CAVITY_DEPTH = 18;   // how far down his cargo hollow goes below the top of his body (the body is 40 tall)
@@ -166243,27 +166244,36 @@ function showFail(pool){
    Daredevil) the swatch is painted from it, so the Chief actually looks
    RED. The old path only ever applied a CSS filter, and hue-rotating a
    near-white robot barely moves it — which is why it never matched the
-   skin you get in game. Skins without a palette keep the filter. */
-function tpRobotSvg(filter, size, skinId){
+   skin you get in game. Skins without a palette keep the filter.
+   THE LOADER'S TIPSEY, FLAT (Sir, 2026-11-27: the loader now turns the game's own Tipsey, so the flat icon follows it): him from the
+   front as the loader's first frame shows him -- the flag on its pole, the chamfered lid over the body, the visor and its two eyes, the
+   red band with its lamp strip under it, the belly, his wheels either side. Colours are the hull's (SKIN), a skin's palette laid over
+   them. `pole` overrides the flag pole's colour (the dark-glass buttons). The static copies in the HTML (#avatarIcon, #globalAvatar,
+   #failAvatarBtn, and the Devvit splash's chip) are this function's output, pasted, so they paint before any script runs. */
+function tpRobotSvg(filter, size, skinId, pole){
   size = size || 34;
   const pal = (typeof SKIN_PALETTES !== "undefined") ? SKIN_PALETTES[skinId] : null;
+  const K = Object.assign({}, SKIN_CLASSIC, pal || {});
   const hex = v => "#" + v.toString(16).padStart(6,"0");
-  const body   = pal ? hex(pal.bodyTop)   : "#f7f8fa";
-  const bodyDk = pal ? hex(pal.bodyRight) : "#f7f8fa";
-  const stripe = pal ? hex(pal.stripe)    : "#c2452e";
-  const trim   = pal && pal.stripe2 ? hex(pal.stripe2) : "#ffcc33";
-  const style  = pal ? "" : `filter:${filter}`;
-  return `<svg viewBox="0 0 40 46" width="${size}" height="${size*46/40}" style="${style}">
-    <line x1="13" y1="5" x2="13" y2="11" stroke="#2e3138" stroke-width="1.5"/>
-    <circle cx="13" cy="5" r="2" fill="#ff5722"/>
-    <rect x="9" y="11" width="22" height="7" fill="${bodyDk}" stroke="#30343d" stroke-width="1.2"/>
-    <rect x="5" y="18" width="30" height="21" fill="${body}" stroke="#30343d" stroke-width="1.2"/>
-    <rect x="9" y="22" width="22" height="8" fill="#22242b"/>
-    <circle cx="16" cy="26" r="1.9" fill="#7fe3ff"/>
-    <circle cx="24" cy="26" r="1.9" fill="#7fe3ff"/>
-    <rect x="5" y="32" width="30" height="4" fill="${stripe}"/>
-    <rect x="5" y="34" width="30" height="3" fill="${trim}" stroke="#c9a020" stroke-width="0.5"/>
-    <rect x="5" y="36" width="30" height="3" fill="#494e58"/>
+  const c = k => hex(K[k]);
+  const style  = pal ? "" : ` style="filter:${filter}"`;
+  const low = pal && pal.stripe2 != null ? c("stripe2") : "#fdfcca";
+  return `<svg viewBox="0 0 40 46" width="${size}" height="${size*46/40}"${style}>
+    <rect x="5.4" y="26.5" width="3.8" height="15" rx="0.8" fill="${c("wheel")}"/>
+    <rect x="30.8" y="26.5" width="3.8" height="15" rx="0.8" fill="${c("wheel")}"/>
+    <line x1="13" y1="0.6" x2="13" y2="11" stroke="${pole || c("flagPole")}" stroke-width="1.3"/>
+    <path d="M13.5 0.6L20.5 2.2L13.5 3.9Z" fill="${c("flag")}"/>
+    <path d="M10.5 26H29.5L31 27.5V39.5L29.5 41.5H10.5L9 39.5V27.5Z" fill="${c("bodyRight")}" stroke="${c("outline")}" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M11.5 11H28.5L31 13.5V24.5L29.5 26H10.5L9 24.5V13.5Z" fill="${c("bodyTop")}" stroke="${c("outline")}" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M9.6 22.4H30.4V24.3L29.3 25.4H10.7L9.6 24.3Z" fill="${c("bodyRight")}"/>
+    <rect x="12" y="28.4" width="16" height="4.8" rx="1.3" fill="${c("visor")}"/>
+    <circle cx="15.8" cy="30.8" r="1.25" fill="${c("eye")}"/>
+    <circle cx="24.2" cy="30.8" r="1.25" fill="${c("eye")}"/>
+    <rect x="8.4" y="34.8" width="23.2" height="2.8" fill="${c("stripe")}"/>
+    <rect x="8.4" y="34.8" width="1.8" height="2.8" fill="${c("stripeDk")}"/>
+    <rect x="29.8" y="34.8" width="1.8" height="2.8" fill="${c("stripeDk")}"/>
+    <rect x="9.8" y="37.6" width="20.4" height="1.5" fill="${low}"/>
+    <path d="M11 41.5H29V42.6Q29 43.6 28 43.6H12Q11 43.6 11 42.6Z" fill="${c("belly")}"/>
   </svg>`;
 }
 const TP_TIER_COLOR = { bronze:"#b8733a", silver:"#9a9aa6", gold:"#d9a72c" };
