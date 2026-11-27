@@ -62140,8 +62140,17 @@ function houseCanopy(fn){
       poly([P(A0,q0,z1), P(A0,q1,z1), P(A1,q1,z1), P(A1,q0,z1)], shade(wall,.5));
       poly([P(A0,q0,z0), P(A0,q1,z0), P(A1,q1,z0), P(A1,q0,z0)], shade(wall,.74));
       S(A1,        q1, q0, z0, z1, shade(wall,.5));
-      S(A1+2.5,    q1, q0, z0+2, z1-2, glassT);
-      S(A1+3,      (q0+q1)/2-2, (q0+q1)/2+2, z0, z1, shade(wall,1.22));
+      /* (THE FRONT'S WINDOW, glaze()'s, turned onto the flank -- Sir, 2026-11-27: "why are they different on each side?": the flank's had its
+         glass set back in the reveal with a mullion down it, the front's are one pane flush with the wall, its reflections, a frame proud of
+         it. Now the same: the tint at the face, the two streaks and the bright head, the frame, the sill) */
+      const w = q0 - q1, h = z1 - z0, L = (u0, u1, v0, v1, k, col) => poly([P(WW + k, q1 + u0*w, z1 - v0*h), P(WW + k, q1 + u1*w, z1 - v0*h), P(WW + k, q1 + u1*w + 0, z1 - v1*h), P(WW + k, q1 + u0*w, z1 - v1*h)], col);
+      S(WW - 0.4, q1, q0, z0, z1, glassT);
+      poly([P(WW - 0.3, q1, z1), P(WW - 0.3, q1 + w*0.30, z1), P(WW - 0.3, q1 + w*0.06, z0), P(WW - 0.3, q1, z0)], 'rgba(240,250,254,.20)');
+      poly([P(WW - 0.26, q1 + w*0.40, z1), P(WW - 0.26, q1 + w*0.52, z1), P(WW - 0.26, q1 + w*0.28, z0), P(WW - 0.26, q1 + w*0.16, z0)], 'rgba(240,250,254,.13)');
+      L(0, 1, 0, 0.06, -0.22, 'rgba(255,255,255,.16)');
+      const fr = shade(wall,1.3);
+      S(WW + 0.5, q1 - 3, q1, z0 - 3, z1 + 3, fr); S(WW + 0.5, q0, q0 + 3, z0 - 3, z1 + 3, fr);
+      S(WW + 0.5, q1 - 3, q0 + 3, z1, z1 + 3, fr); S(WW + 0.5, q1 - 3, q0 + 3, z0 - 3, z0, fr);
       S(A0-0.4,    q1-5, q0+5, z0-7, z0, shade(wall,1.12));      // sill
     };
     for(let i=0;i<2;i++){
@@ -62154,7 +62163,7 @@ function houseCanopy(fn){
       slab(x0-5, x1+5, DEPOT_WIN[0] - 7, DEPOT_WIN[0], 4, -1, shade(wall,1.12));
     }
     if(PT('flank')) for(let i=0;i<2;i++){
-      const q0 = -158 - i*66, q1 = -202 - i*66;
+      const q0 = -156 - i*64, q1 = q0 - 50;   // (as wide as the front's, 50, 14 apart: the flank's 126 of wall)
       if(hits(q1-5, q0+5)) FW(q0, q1, DEPOT_WIN[0], DEPOT_WIN[1]);
     }
     /* ---- THE FASCIA TURNS BOTH CORNERS ----
