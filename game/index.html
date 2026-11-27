@@ -160066,7 +160066,7 @@ function _bootLoaderDismiss(){
      budgets raised while nobody is watching, and leaves then (or at maxMs, whatever is left). */
   blWarmThen(_bootLoaderFade);
 }
-const BL_WARM = { maxMs: 6000, quiet: 3, gcMs: 60, bcMs: 60 };
+const BL_WARM = { maxMs: 8000, quiet: 3, gcMs: 10, bcMs: 10 };   // (10 ms a cache a frame, not 60: the loader turns between frames, and 120 ms frames turned it in jerks -- Sir, 2026-11-27)
 function blWarmThen(done){
   const s = (typeof scn === "function") ? scn() : null;
   if(!s || ATTRACT_BARE){ done(); return; }
