@@ -120745,7 +120745,11 @@ class WorldScene extends Phaser.Scene {
       hazVQ.push({ depth: sx+sy, fn:(gg,tt)=>{
         /* (the head FIRST now, the post and its arm after: the head hangs UNDER the arm on its bracket, so the arm, above it, is the
            nearer of the two wherever they meet on screen -- at every heading. The pole stands 120 off, clear of it) */
-        this.drawProp(gg, "signalhead", hx, hy, tt, hf,    0, null, null, sg);
+        /* (the head an image too, one a light -- red, amber, green: the light lit is all that changes it (signalAxisState); ~900 commands
+           a head, a few on screen, drew live every frame. The post's image is laid after it, so the arm still goes over the housing) */
+        if(this.xrayPropCut("signalhead", hx, hy) > 0 || !sg || sg.node === undefined) this.drawProp(gg, "signalhead", hx, hy, tt, hf,    0, null, null, sg);
+        else { const st = signalAxisState(sg.node, tt, sg.axis);
+          this.bcDraw(gg, "sighead|" + Math.round(hx) + "," + Math.round(hy) + "|" + hf + "|" + st, hx, hy, g2 => this.drawProp(g2, "signalhead", hx, hy, tt, hf, 0, null, null, sg)); }
         if(this.xrayPropCut("signalpost", sx, sy) > 0) this.drawProp(this.g, "signalpost", sx, sy, tt, sPost, 0, null, null, sg);
         else this.bcDraw(this.g, "sigpost|" + Math.round(sx) + "," + Math.round(sy) + "|" + sPost, sx, sy, g2 => this.drawProp(g2, "signalpost", sx, sy, 0, sPost, 0, null, null, sg));
       }});
