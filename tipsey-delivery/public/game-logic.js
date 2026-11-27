@@ -5211,8 +5211,12 @@ const FURNISH_GAP     = 0.34;
 /* S 1024, not 512: the pass's culling is coarse, so a 512 tile cost 90% of a
    whole-screen pass (4.2 ms vs 4.6, headless) for a fifth of its area --
    the bigger tile is nearly free per pixel. 16 of them is 64 MB of GPU. */
+/* (S 512 now, max 64 -- the same ground kept (Sir, 2026-11-27, 43-49 fps on his iPhone at view 3, the spikes world ~40 ms: a 1024 tile
+   painted whole in one frame, 44 ms there each, its ground grown with the heaved slabs, cracks, potholes and bike lanes). Measured headless
+   at view 3: a 1024 tile 50 ms, a 512 tile 23 ms, the view's whole ground 317 vs 274 ms -- the pass culls finer now, and a spike is what
+   the frame rate feels, not the total) */
 /* pad: the hidden border each tile is painted with (see PADDED, SHOWN CROPPED) */
-const GROUND_CACHE = { on: true, S: 1024, pad: 2, max: 16, budgetMs: 8, prefetch: true };
+const GROUND_CACHE = { on: true, S: 512, pad: 2, max: 64, budgetMs: 8, prefetch: true };
 /* the building cache's dials (see BUILDING CACHE in WorldScene): pixels kept
    (20 M, 80 MB of GPU), the biggest single image one building may take (a
    bigger one is kept in tile x tile pieces, only the ones on screen -- at
@@ -114438,7 +114442,7 @@ class WorldScene extends Phaser.Scene {
     }
     if(gc.chunks.size > GC.max){
       const old = [...gc.chunks.entries()].filter(([, c]) => c.used !== gc.frame).sort((p, q) => p[1].used - q[1].used);
-      for(const [k, c] of old.slice(0, gc.chunks.size - GC.max)){ c.rt.destroy(); gc.chunks.delete(k); }
+      for(const [k, c] of old.slice(0, gc.chunks.size - GC.max)){ c.rt.setVisible(false); (gc.pool || (gc.pool = [])).push(c.rt); gc.chunks.delete(k); }   // (kept for the next tile: a new render texture each was ~11% of a paint)
     }
     return true;
   }
@@ -114453,10 +114457,11 @@ class WorldScene extends Phaser.Scene {
          row read halfway into the OPPOSITE edge. The image is painted GP
          wider all round (an odd size, so CLAMP) and cropped to the S x S
          middle: an edge sample that strays lands on real ground. */
-      const rt = this.make.renderTexture({ x: 0, y: 0, width: S + 2*GP, height: S + 2*GP }, false);
-      rt.setOrigin(0, 0);
-      rt.setCrop(GP, GP, S, S);
-      this.groundLayer.add(rt);
+      let rt = gc.pool && gc.pool.pop();                                                 // (an evicted tile's texture, reused: same size)
+      if(!rt){ rt = this.make.renderTexture({ x: 0, y: 0, width: S + 2*GP, height: S + 2*GP }, false);
+        rt.setOrigin(0, 0);
+        rt.setCrop(GP, GP, S, S);
+        this.groundLayer.add(rt); }
       c = { rt, i, j, ok: false, used: gc.frame };
       gc.chunks.set(k, c);
     }
@@ -114477,6 +114482,7 @@ class WorldScene extends Phaser.Scene {
     if(!gc) return;
     for(const c of gc.chunks.values()) c.rt.destroy();
     gc.chunks.clear();
+    if(gc.pool){ for(const rt of gc.pool) rt.destroy(); gc.pool = null; }
   }
 
   /* ==================== BUILDING CACHE (Sir, 2026-09-30) ====================
@@ -117958,7 +117964,7 @@ class WorldScene extends Phaser.Scene {
 
   drawGroundPass(g){
     const d = this.d, r = this.route;
-        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000 + (BEND.on ? BEND.amp*BLOCK*1.5 : 0);
+        const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + (this._gcSlack != null ? this._gcSlack : 4000) + (BEND.on ? BEND.amp*BLOCK*1.5 : 0);
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
     /* flat ground only -- see FLAT_CULL_PAD above */
     const flatSpan = flatSpanOf(this.cx, this.cy, this.vpW(),
