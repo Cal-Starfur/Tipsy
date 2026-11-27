@@ -1,6 +1,6 @@
 /* TIPSEY LETTERING (2026-11-27): the game's own letters for its name, in place of the stock display font the app icons used.
-   Heavy italic stems; the lid's chamfer cut from each letter's top-left and bottom-right; each letter tipped a little off true.
-   word(text, x, y, scale, gap, fill, shadow) gives an SVG group (centred on x, cap top at y, cap height 10*scale). Letters so far:
+   Heavy stems; the lid's chamfer cut from each letter's top-left and bottom-right.
+   word(text, x, y, scale, gap, {fill, line, lineW, dropY}) gives an SVG group (centred on x, cap top at y, cap height 10*scale). Letters so far:
    T I P S E Y D L V R. Used for game/icon-180.png, tipsey-delivery/assets/icon.png, tools/consistency-pass-icon.png. */
 const G = {
   I:{w:2.5,p:[[[1.2,0],[2.5,0],[2.5,8.8],[1.3,10],[0,10],[0,1.2]]]},
@@ -14,18 +14,19 @@ const G = {
   R:{w:6.6,p:[[[1.2,0],[5,0],[6.4,1.4],[6.4,4.6],[5.4,5.6],[6.6,8.8],[6.6,10],[4.0,10],[3.0,6.2],[2.5,6.2],[2.5,8.8],[1.3,10],[0,10],[0,1.2]],[[2.5,2.2],[3.9,2.2],[3.9,4.0],[2.5,4.0]]]},
   S:{w:6.2,p:[[[1.2,0],[6.2,0],[6.2,2.3],[2.5,2.3],[2.5,3.85],[5,3.85],[6.2,5.05],[6.2,8.8],[5,10],[0,10],[0,7.7],[3.7,7.7],[3.7,6.15],[1.2,6.15],[0,4.95],[0,1.2]]]},
 };
-const TILT = [-3, 2.5, -1.5, 3, -2.5, 1.5, -3, 2];      // each letter a little off true: tipsy
-const BOB  = [0, -0.35, 0.2, -0.25, 0.3, -0.2, 0.25, -0.3];
-function word(txt, x0, y0, sc, gap, fill, shadow){
+/* THE ICON'S STYLE (Sir, 2026-11-27, option B "world outline"): upright and evenly spaced, outlined in the world's line colour
+   (#30343d, the hull's outline) with a solid drop of it under each letter, the game's orange (#ff7a1a) inside */
+const STYLE = { fill: '#ff7a1a', line: '#30343d', lineW: 0.35, dropY: 0.7 };
+function word(txt, x0, y0, sc, gap, o){
+  o = Object.assign({}, STYLE, o || {});
   let x = 0, out = '';
   const total = [...txt].reduce((s,c)=>s+G[c].w,0) + gap*(txt.length-1);
-  [...txt].forEach((c,i)=>{
-    const g = G[c], d = g.p.map(poly=>'M'+poly.map(q=>q[0].toFixed(2)+' '+q[1].toFixed(2)).join('L')+'Z').join('');
-    const cx = x + g.w/2;
-    const tr = `translate(${x} ${BOB[i%8]}) rotate(${TILT[i%8]} ${g.w/2} 5)`;
-    out += `<g transform="${tr}"><path d="${d}" fill="${shadow}" fill-rule="evenodd" transform="translate(0.55 0.45)"/><path d="${d}" fill="${fill}" fill-rule="evenodd"/></g>`;
+  const st = `stroke="${o.line}" stroke-width="${o.lineW}" stroke-linejoin="round" paint-order="stroke"`;
+  [...txt].forEach(c=>{
+    const g = G[c], d = g.p.map(poly=>'M'+poly.map(q=>q[0]+' '+q[1]).join('L')+'Z').join('');
+    out += `<g transform="translate(${x} 0)"><path d="${d}" fill="${o.line}" fill-rule="evenodd" transform="translate(0 ${o.dropY})" ${st}/><path d="${d}" fill="${o.fill}" fill-rule="evenodd" ${st}/></g>`;
     x += g.w + gap;
   });
-  return { svg: `<g transform="translate(${x0} ${y0}) scale(${sc}) skewX(-12) translate(${-total/2} 0)">${out}</g>`, total };
+  return { svg: `<g transform="translate(${x0} ${y0}) scale(${sc}) translate(${-total/2} 0)">${out}</g>`, total };
 }
-module.exports = { G, word };
+module.exports = { G, word, STYLE };
