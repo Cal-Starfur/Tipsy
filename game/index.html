@@ -5288,6 +5288,14 @@ const RIG_PAINT = {
    whose draw moves on its own: a light bar flashes off the clock. A food
    truck's hatch (VEND_TRUCK) comes as the vehicle's data, so those stay
    live anyway. */
+/* a food truck's data at rest -- its hatch shut (0) or open (1), no door open, nothing else on it: a sprite key for that still state
+   (its hatch, whether someone is at the wheel), else null (the hatch moving, or anything more: live) */
+function trafficVendRest(d, colorSeed){
+  if(!d || d.vend == null || (d.vend !== 0 && d.vend !== 1) || d.doorOpen || d.steer) return null;
+  for(const k in d) if(k !== 'vend' && k !== 'cabin') return null;
+  const r = d.cabin && d.cabin.rider;
+  return "v" + d.vend + (r ? "d" + driverVariant(colorSeed) : "");
+}
 function trafficSpriteKind(k){
   if(k === "car" || k === "truck" || k === "van" || k === "tipseyvan" || k === "ambulance") return true;
   const c = (typeof CAR_KINDS !== "undefined" && CAR_KINDS[k]) || (typeof VAN_KINDS !== "undefined" && VAN_KINDS[k]);
@@ -121576,15 +121584,19 @@ class WorldScene extends Phaser.Scene {
       /* ITS FRONT WHEELS INTO A TURN (Sir, 2026-11-27: "does the front wheels rotate in the direction of the turn"): mid-corner (its
          heading off a quarter turn -- on a straight it is a sprite, wheels ahead), the steer its turning asks: the heading's change over
          the ground covered a moment on, atan(wheelbase x that), as the fleet's own steer (data.steer, FLEET_STEER) */
-      if(Math.abs(fc - Math.round(fc)) > 1e-3){
+      /* (an errand's car is read off its own state -- its speed, at.v -- never a moment ahead: trafficWorldAt on an errand past its end
+         finishes it, errandFinish) */
+      let still = !!tr.errand && at.v === 0;
+      if(!tr.errand && Math.abs(fc - Math.round(fc)) > 1e-3){
         const a2 = trafficWorldAt(tr, t + TRAFFIC_STEER.dt), ds = a2.trS - trS;
+        still = !a2.hidden && Math.abs(ds) < 1e-6 && Math.abs(a2.fc - fc) < 1e-6;   // (stood at an angle -- a food truck at its pitch: a sprite does, below)
         if(!a2.hidden && ds > 0.5){
           let df = a2.fc - fc; df -= 4*Math.round(df/4);
           const st = Math.max(-TRAFFIC_STEER.max, Math.min(TRAFFIC_STEER.max, Math.atan(TRAFFIC_STEER.base*df*(Math.PI/2)/ds)*TRAFFIC_STEER.gain*TRAFFIC_STEER.sign));
           if(Math.abs(st) > 0.01) data = Object.assign(data || Object.assign({}, trafficDriverData(tr.kind, tr.colorSeed) || {}), { steer: st });
         }
       }
-      trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false, data, doorAt });
+      trafficPts.push({ kind: tr.kind, wp, f: fc, wheelPhase: trS*0.28, colorSeed: tr.colorSeed, parked: false, data, doorAt, still });
     }
     /* the Tipsy Crew's van (see RESCUE_VAN): moving, so live, and only
        while it is out */
@@ -121675,13 +121687,17 @@ class WorldScene extends Phaser.Scene {
          heading is a whole quarter turn, exactly a sprite; through an arc
          it draws live at its true heading, as every other kind always does.
          Only the few cars mid-corner pay for it. */
-      const straight = Math.abs(pf - Math.round(pf)) < 1e-3;
+      const straight = Math.abs(pf - Math.round(pf)) < 1e-3 || !!p.still;   // (standing still at an angle: its sprite's 7.5-degree step never shows -- it only ticked through a turn)
       /* in a garage (an errand): its ground floor's order */
       const gdep = p.parked ? null : groundGarageDepth(pwx, pwy), pdep = gdep !== null ? gdep : pwx + pwy;
-      if(!p.parked && straight && trafficSpriteKind(pk) && !p.data){
+      /* (a food truck at its pitch with its hatch at rest, shut or open, is as still as any: a sprite too, the hatch and who is at the
+         wheel in its key -- it drew live all day, ~4,300 commands, Sir's iPhone 2026-11-27. Only the hatch moving is live) */
+      const vr = p.data && !p.doorAt ? trafficVendRest(p.data, pcs) : null;
+      if(!p.parked && straight && trafficSpriteKind(pk) && (!p.data || vr)){
+        const sd = vr ? p.data : undefined, sk = vr ? vr : null;
         blockVQ.push({ depth: pdep, fn:(g,t)=>{
-          if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs, pwp2)) return;
-          this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs, trafficDriverData(pk, pcs)); } });
+          if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs, pwp2, sd, sk)) return;
+          this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs, sd || trafficDriverData(pk, pcs)); } });
         continue;
       }
       const pdat = p.data || (p.parked ? null : trafficDriverData(pk, pcs));   // (at the wheel: WHO DRIVES)
@@ -139734,7 +139750,7 @@ class WorldScene extends Phaser.Scene {
      spent, or the paint came back empty. The wheels' turning bar is not
      drawn on a sprite (a still image); the hubs are. */
   /* (and see trafficSpriteKind: which kinds may be a sprite) */
-  trafficSprite(kind, x, y, z, fdir, colorSeed, wheelPhase){
+  trafficSprite(kind, x, y, z, fdir, colorSeed, wheelPhase, data, dkey){   // (data, dkey: a still state of its own baked in -- a food truck's hatch at rest, VEND_TRUCK)
     const bc = this._bc, TS = TRAFFIC_SPRITE;
     if(!this._bcActive || !bc) return false;
     const ts = this._tsp || (this._tsp = { map: new Map(), pool: [], used: 0, frame: -1, n: 0 });
@@ -139743,8 +139759,8 @@ class WorldScene extends Phaser.Scene {
     const PAL = carPalette(kind), ci = PAL ? Math.floor(mulberry32(((colorSeed || 0) ^ 0x9c31) >>> 0)()*PAL.length) : 0;
     /* the wheels turn: the spokes repeat every fifth of a turn, so a few phases of it are baked into the sprite (a still car, 0) */
     const NP = TS.spin, pi = (wheelPhase === null || wheelPhase === undefined) ? 0 : Math.floor((((wheelPhase % (Math.PI*2/5)) + Math.PI*2/5) % (Math.PI*2/5))/(Math.PI*2/5)*NP) % NP;
-    const drv = trafficDriverData(kind, colorSeed);   // (its driver, one of VEH_DRIVER.variants: WHO DRIVES)
-    const key = kind + "|" + ci + "|" + bi + "|" + pi + "|" + this.K + "|" + (isNightNow() ? 1 : 0) + (drv ? "|d" + driverVariant(colorSeed) : "");
+    const drv = data !== undefined ? data : trafficDriverData(kind, colorSeed);   // (its driver, one of VEH_DRIVER.variants: WHO DRIVES)
+    const key = kind + "|" + ci + "|" + bi + "|" + pi + "|" + this.K + "|" + (isNightNow() ? 1 : 0) + (dkey ? "|" + dkey : drv ? "|d" + driverVariant(colorSeed) : "");
     let e = ts.map.get(key);
     if(!e){
       if(bc.budget <= 0) return false;
