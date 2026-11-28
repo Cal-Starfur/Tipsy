@@ -5342,7 +5342,7 @@ const VEHICLES = [
   { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"], ["Gideon", "humanoid"]] },
   { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"], ["Robotaxi (autonomous)", "robotaxi"]] },
   { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Semi with flatbed trailer", "semiflat"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"], ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"]] },
-  { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"], ["Delivery pod (autonomous)", "avpod"], ["Autonomous shuttle", "avshuttle"]] },
+  { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"], ["Tweakers' van", "tweakervan"], ["Delivery pod (autonomous)", "avpod"], ["Autonomous shuttle", "avshuttle"]] },
   { group: "Industrial", items: [["Cement mixer", "mixertruck"], ["Dump truck", "dumptruck"], ["Excavator", "excavator"], ["Bulldozer", "bulldozer"], ["Front loader", "frontloader"], ["Backhoe", "backhoe"], ["Crane truck", "cranetruck"], ["Forklift", "forklift"], ["Road roller", "roadroller"], ["Street sweeper", "sweeper"], ["Bucket truck", "buckettruck"], ["Baggage tug and carts", "bagtug"], ["Autonomous dump truck", "avdump"], ["Robo street sweeper", "avsweeper"], ["Driverless forklift", "avforklift"]] },
   { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", "pipercub"], ["Biplane crop duster", "cropduster"], ["Floatplane", "floatplane"], ["Turboprop cargo plane", "cargoprop"], ["Aerobatic stunt plane", "stuntplane"], ["Glider", "glider"], ["Delivery drone plane (autonomous)", "uavplane"], ["Long-range cargo drone", "uavcargo"]] },
   { group: "Helicopters", items: [["Medevac helicopter", "medevac"], ["Police helicopter", "policeheli"], ["News helicopter", "newsheli"], ["Tour helicopter", "tourheli"], ["Two-seat trainer", "trainerheli"], ["Coast guard helicopter", "cgheli"], ["Delivery drone (autonomous)", "dronequad"], ["Heavy-lift drone", "dronelift"], ["Air taxi (autonomous)", "airtaxi"]] },
@@ -6730,7 +6730,8 @@ const VAN_PAINT = {
   armour:  [{ body: 0x5d6b52, band: 0xd8b04a }, { body: 0x3e4650, band: 0xd8b04a }, { body: 0x2e3a56, band: 0xd8b04a },
             { body: 0x9aa1a6, band: 0x2e3a56 }],
   police:  [{ body: 0xeceef2, bodyDk: 0xc8ccd2, roof: 0xdfe2e7, band: 0x2f3e66, nose: 0x23262e }],
-  av:      [{ body: 0xf2f3f1, bodyDk: 0xc9cdd2, roof: 0xe4e7ea, band: 0xff7a1a }]
+  av:      [{ body: 0xf2f3f1, bodyDk: 0xc9cdd2, roof: 0xe4e7ea, band: 0xff7a1a }],
+  tweaker: [{ body: 0xcfc8b4 }, { body: 0x8f948a }, { body: 0xb8ad94 }]   // (THE TWEAKERS' van: faded white, primer grey, nicotine beige)
 };
 const VAN_KINDS = {
   hiroofvan:     { len: 250, v: { roofH: 156, winH: 126, hoodLen: 50, hoodH: 72, hoodF: 62, wheelA: [-0.62, 0.66] }, pal: "fleet", add: ["band"] },
@@ -6749,6 +6750,8 @@ const VAN_KINDS = {
                    cabWin: [14, 30], band: [62, 66], add: ["band", "armour", "pushbar", "roofHatch"] },
   policewagon:   { len: 256, v: { roofH: 152, winH: 128, hoodLen: 46 }, pal: "police", slide: false, rear: "bars",
                    word: "POLICE", add: ["policeBand", "star", "barWindows", "pushbar", "lightbar"] },
+  /* THE TWEAKERS' van: the plain panel van, faded, rusting at the arches and sills (add 'rust'), its slide door the one they pile out of (data.slideOpen) */
+  tweakervan:    { pal: "tweaker", add: ["rust"] },
   /* the autonomous line (see CAR_KINDS' robotaxi): a driverless delivery pod -- a short blunt nose, a tall box, no one at the wheel */
 };
 /* the block letters the vans are lettered in: TIPSEY_GLYPHS' set and
@@ -8113,6 +8116,8 @@ function owBuildWorld(route){
     { const sk = skSolidAt(x, y, R); if(sk) return sk; }
     /* VISTA RIDGE SECURITY POST: the post, its mast, the dock's posts, the beds, the robots and the story's people */
     { const sp = spSolidAt(x, y, R); if(sp) return sp; }
+    /* THE TWEAKERS' VAN while it stands (twkSolidAt) */
+    { const tw = typeof twkSolidAt === "function" ? twkSolidAt(x, y, R) : null; if(tw) return tw; }
     /* THE LETTERS' PARK: the ranger's kiosk, the trees' trunks, the lamps */
     { const cp = cplSolidAt(x, y, R); if(cp) return cp; }
     /* THE STREET UP TO SIERRA VISTA: its lamp posts and palm trunks (hillRoadSolidAt) */
@@ -9410,6 +9415,7 @@ const SHOP_ICONS = {
   record:   { col: 0x4a3a6a, s: [["c",0x18181c,0,0,11],["c",0x2c2c33,0,0,8],["c",0xff7a1a,0,0,4],["c","W",0,0,1.2]] },
   envelope: { col: 0xc0392b, s: [["r","W",-11,-7,22,15],["p","D",[-11,-7,11,-7,0,2]],["p","W",[-9,-7,9,-7,0,0]]] },
   apple:    { col: 0x4f9a3c, s: [["c",0xe2483d,-3,2,7],["c",0xe2483d,3,2,7],["r",0x6b3d22,-1,-9,2,5],["p",0x7fd36a,[1,-7,8,-10,6,-4]]] },
+  sos:       { col: 0xd8302a, s: [["r","W",-11,-6,6,2],["r","W",-11,-6,2,6],["r","W",-11,-1,6,2],["r","W",-7,-1,2,7],["r","W",-11,4,6,2],["c","W",0,0,6],["c",0xd8302a,0,0,3.6],["r","W",5,-6,6,2],["r","W",5,-6,2,6],["r","W",5,-1,6,2],["r","W",9,-1,2,7],["r","W",5,4,6,2]] },   // (THE TWEAKERS: Tipsey's SOS)
   wrench:    { col: 0x5a6a7a, s: [["p",0xaab2bc,[-9,11,-11,9,3,-5,6,-2]],["c",0xaab2bc,6,-6,6],["p",0x5a6a7a,[4,-12,12,-4,9,-2,2,-9]]] },
   cross:     { col: 0x2e9d6a, s: [["r",0x2e9d6a,-3.5,-10,7,20],["r",0x2e9d6a,-10,-3.5,20,7]] },
   bowl:     { col: 0xc9452e, s: [["p","W",[-11,0,11,0,8,7,3,10,-3,10,-8,7]],["r",0xf2d27a,-8,-3,16,3],["p","D",[2,-12,4,-12,-1,0,-3,0]],["p","D",[7,-12,9,-12,3,0,1,0]]] },
@@ -11431,6 +11437,8 @@ function owStep(scene, dt){
 
   /* ON THE ROOF LADDER (MINDING THE SHOP, msLadTick): the stick climbs him, nothing else moves him */
   if(typeof msLadTick === "function" && msLadTick(scene, ow, sx, sy, mag, dt)) return;
+  /* THE TWEAKERS have him (twkHoldTick): carried, aboard their van, shut in at the hideout */
+  if(typeof twkHoldTick === "function" && twkHoldTick(scene, ow, dt)) return;
   /* the geofence's autopilot, when it has the stick (owGeofenceTick) */
   derbyTick(scene, ow);                                                     // TIDEWATER GREEN: the soapbox race starts when he comes in (DERBY_RACE)
   const _gf = owGeofenceTick(scene, ow, D, dt) || gothAutoTick(scene, ow, dt);   // (and Luna's mission's autopilot: GOTH)
@@ -41293,7 +41301,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch', 'request', 'openhouse', 'letters']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'adoption', 'salute', 'nightwatch', 'request', 'openhouse', 'letters', 'twk']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -106135,6 +106143,477 @@ MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew 
   item: () => MS.carry === 'parts' ? { id: 'parts', name: 'mast bracket and coax connector', tip: 'crewReturns' } : null,
   next: () => ({ ask: 'Hear Gideon out', shift: MS.carry ? 'The ladder in the back room: the parts to the mast' : 'The ladder in the back room, up to the roof', roof: 'The antenna mast', roofAsk: 'The antenna mast', parts: 'Breakwater Hardware: the parts (hop on a scooter)', partsGive: 'The clerk has the parts', 'return': 'Back to Brew & Bolt with the parts', roofFix: 'The antenna mast', fin: 'Gideon', finCard: 'Gideon', out: 'Out to Tipsey, at his bay' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
   start: () => { const sc = scn(), B = sc && msBay(sc); return B ? { x: B.x, y: B.y, name: 'Brew & Bolt' } : null; } };
+/* ==================== THE TWEAKERS (Sir, 2026-11-28: "a next level William ... a group of Tweekers. They kidnap tipsy in their van
+   and bring him somewhere ... Gideon has to come and save him ... a Gideon mission that is automatically fired by the kidnapping of the
+   player"; the rules: "this can only happen if the player has unlocked Gideon and if it happens it then sends the player to their garage";
+   "there must be a cut scene after the player selects play: there is a mission trigger in the back room ... an SOS beacon that tipsy is
+   sending") ====================
+   Once Gideon is his (Minding the Shop), Tipsey idling on a pavement in free roam can draw a beat-up panel van (VAN_KINDS 'tweakervan',
+   rescueVanPlan's kerb slot by him, rescueVanOnStreet's drive in): its slide door opens and three Tweakers (streetLook 'tweaker') pile out
+   and run at him -- William's hunt with a van behind it. He can outrun them (at full speed he is faster: TWK.runV); past TWK.lose from the
+   van, or after chaseMs, they give up, pile back in and drive off. Caught, two of them take him either side, lift him, carry him to the door
+   and in; the door slides shut and the van drives him across town (rescueRoute) to the hideout, a kerb slot about TWK.hideD from Brew &
+   Bolt -- the camera riding along with him aboard. There the garage opens on Gideon's pad (fleetGarageCut's own room): Tipsey's card is
+   taken, only Gideon can go. Play: in the back room the SOS mat flashes (its beacon 'sos'); on it, the cut scene -- Tipsey's SOS pinging
+   off Gideon's receiver -- and the GPS to the van, its SOS beacon over it. At the van the Tweakers turn on him; on the mat by the van the
+   lead one walks up (meetWalk), a word, and they scatter along the street; the door slides open and Tipsey rolls out to Gideon (meetWalk),
+   his thanks (missionComplete 'tweaker-snatch'), and the player is Tipsey again there and then. Gideon walks off home past the view's edge.
+   Nothing of a run is kept over a reload but the pick: the player's own vehicle is put back (TWK_PREV_KEY). Console: twkSummon() */
+const TWK = { stage: 'idle', next: 0, stillT: 0, plan: null, hide: null, gang: [], t0: 0, slide: 0, slideTo: 0, route: null, tip: null, gid: null,
+              lead: null, bayArmed: false, prev: '', said: 0, booted: false };
+const TWK_CFG = { firstMs: 120000, againMs: 420000, giveUpAgainMs: 150000, stillMs: 3500, stillV: 0.03,
+                  runV: 0.17, jogV: 0.13, carryV: 0.1, lose: 1800, chaseMs: 26000, grabR: 52, flank: 44, liftZ: 26,
+                  driveSpeed: 1300, driveMinMs: 3000, driveMaxMs: 10000, hideD: 6500, count: 3, slideMs: 420 };
+const TWK_PREV_KEY = 'tipsy.twkPrev';
+const TWK_SEEDS = [0x7e3e1, 0x7e3e2, 0x7e3e5];
+const TWK_SAY = {
+  spot:  ["Ooh, shiny!", "That's like a thousand bucks of copper!", "Grab the robot!", "Get it, get it!"],
+  chase: ["Come here, toaster!", "He's fast, man!", "Don't let it roll off!", "I just wanna look at it!"],
+  grab:  ["Got it! Got it!", "Into the van!", "Easy, easy, it's heavy!"],
+  lost:  ["Aw, man...", "Forget it. Too fast.", "Next time, tin can."],
+  gideon: ["Uh oh. Robot cop.", "Who's the big one?", "Is that another one?"]
+};
+function twkLook(i){ const L = streetLook(TWK_SEEDS[i % TWK_SEEDS.length], { adult: true, aid: 'none', type: 'tweaker', sex: i === 1 ? 'f' : 'm' }); return L; }
+function twkGideonOn(){ return typeof msDone === "function" && msDone(); }
+/* the run under way (the mission's busy): from the grab to Tipsey free */
+function twkTaken(){ return ['grab', 'load', 'away', 'held', 'garage', 'sos', 'sosCut', 'rescue', 'face', 'out', 'thanks'].includes(TWK.stage); }
+function twkHeld(){ return ['grab', 'load', 'away', 'held'].includes(TWK.stage); }
+/* the van's slide-door side, its seen flank (the one drawVan opens: nearB), and the door's foot on the ground */
+function twkDoorOf(P, fd){
+  const th = fd*Math.PI/2, T = { x: Math.cos(th), y: Math.sin(th) };
+  let n = { x: -T.y, y: T.x }; if(n.x + n.y < 0) n = { x: -n.x, y: -n.y };
+  const V = Object.assign({}, VANC, (VAN_KINDS.tweakervan && VAN_KINDS.tweakervan.v) || {}), hl = CARC.len/2, hw = CARC.wid/2;
+  const aD = hl - V.hoodLen - V.rake - V.pillar - 35;
+  return { T, n, x: P.x + T.x*aD + n.x*(hw + 34), y: P.y + T.y*aD + n.y*(hw + 34), ix: P.x + T.x*aD, iy: P.y + T.y*aD };
+}
+/* THE KERB NEAREST THE EYE (its kerb's normal toward +x +y): the van's slide door is its seen flank (drawVan's nearB), so it parks with
+   that flank to the pavement -- across the street from him, if that is the far kerb; they run over to him */
+function twkKerbSide(e){ const rv = DIRV[(e.f + 1) % 4]; return rv.x + rv.y > 0 ? 1 : -1; }
+function twkPlanAt(scene, x, y){
+  const grid = scene.route && scene.route.grid; if(!grid || !grid.edges) return null;
+  let best = null;
+  for(const e of grid.edges){
+    const dv = DIRV[e.f], rv = DIRV[(e.f + 1) % 4], len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);
+    const s0 = (x - e.a.x)*dv.x + (y - e.a.y)*dv.y, l = (x - e.a.x)*rv.x + (y - e.a.y)*rv.y, sc = Math.max(0, Math.min(len, s0)), d = Math.hypot(s0 - sc, l);
+    if(!best || d < best.d) best = { e, s: sc, d };
+  }
+  if(!best || best.d - ROAD_HALF > 700) return null;
+  return rescueSlot(scene, best.e, best.s, twkKerbSide(best.e), x, y, { x, y });
+}
+/* THE HIDEOUT: the kerb slot whose street's middle is nearest TWK_CFG.hideD from Brew & Bolt's bay (once a grid) */
+function twkHideout(scene){
+  const grid = scene.route && scene.route.grid; if(!grid || !grid.edges) return null;
+  if(TWK.hide && TWK.hide.grid === grid) return TWK.hide;
+  const B = msBay(scene); if(!B) return null;
+  let best = null, bs = Infinity;
+  for(const e of grid.edges){
+    const len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y); if(len < 900) continue;
+    const mx = (e.a.x + e.b.x)/2, my = (e.a.y + e.b.y)/2, d = Math.hypot(mx - B.x, my - B.y), s = Math.abs(d - TWK_CFG.hideD);
+    if(s < bs){ bs = s; best = e; }
+  }
+  if(!best) return null;
+  const len = Math.hypot(best.b.x - best.a.x, best.b.y - best.a.y), mx = (best.a.x + best.b.x)/2, my = (best.a.y + best.b.y)/2;
+  const plan = rescueSlot(scene, best, len/2, twkKerbSide(best), mx, my, null);
+  return (TWK.hide = { grid, plan });
+}
+/* where the van is now, and which way: { x, y, fdir, wheel, parked } or null (gone) */
+function twkVanAt(now){
+  const R = TWK, p = R.plan; if(!p) return null;
+  const u = now - R.t0;
+  if(R.stage === 'arrive'){ const D = rescueVanDrive(p.reach, true); return rescueVanOnStreet(p, -p.reach + D.at(u), u >= D.ms); }
+  if(R.stage === 'leave'){ return rescueVanLeaving(p, u); }
+  if(R.stage === 'away' && R.route){
+    const k = Math.min(1, u/R.route.ms), e = k*k*(3 - 2*k), a = polyAt(R.route.pts, e);
+    return { x: a.x, y: a.y, fdir: a.ang/(Math.PI/2), wheel: e*R.route.len*0.28, parked: false };
+  }
+  return { x: p.P.x, y: p.P.y, fdir: p.fd, wheel: 0, parked: true };
+}
+/* the door's slide toward slideTo, at slideMs a full travel */
+function twkSlideTick(dt){ const R = TWK, s = dt/TWK_CFG.slideMs; R.slide = R.slideTo > R.slide ? Math.min(R.slideTo, R.slide + s) : Math.max(R.slideTo, R.slide - s); }
+/* a step of one of them toward (tx, ty) at v: straight, else turned aside a little either way (William's step) */
+function twkStep(scene, m, tx, ty, v, dt){
+  const W = scene.ow && scene.ow.world, ex = tx - m.x, ey = ty - m.y, L = Math.hypot(ex, ey);
+  if(L < 0.5){ m.mv = false; return true; }
+  const s = Math.min(L, v*dt), ux = ex/L, uy = ey/L;
+  for(const r of [0, 0.5, -0.5, 1.1, -1.1]){ const c = Math.cos(r), sn = Math.sin(r), nx = m.x + (ux*c - uy*sn)*s, ny = m.y + (ux*sn + uy*c)*s;
+    if(!W || !W.solidAt || !W.solidAt(nx, ny, 14)){ m.x = nx; m.y = ny; m.th = Math.atan2(uy*c + ux*sn, ux*c - uy*sn); m.mv = true; return L <= s + 0.5; } }
+  m.mv = false; return false;
+}
+/* ROUND THE VAN, NOT THROUGH IT: from q toward (tx, ty), with the van between, the way on is first round its nearer end (a step off its corner) */
+function twkAround(q, tx, ty){
+  const R = TWK, D = R.door; if(!R.plan || !D) return { x: tx, y: ty };
+  const P = R.plan.P, T = D.T, n = D.n, hl = CARC.len/2, hw = CARC.wid/2;
+  const rel = (x, y) => ({ a: (x - P.x)*T.x + (y - P.y)*T.y, b: (x - P.x)*n.x + (y - P.y)*n.y });
+  const rq = rel(q.x, q.y), rt = rel(tx, ty);
+  if(Math.sign(rq.b) === Math.sign(rt.b) || Math.abs(rq.a) > hl + 40) return { x: tx, y: ty };
+  const e = Math.abs(rt.a) > hl ? Math.sign(rt.a) : (Math.sign(rq.a) || 1), sb = Math.sign(rq.b) || 1;
+  return { x: P.x + T.x*e*(hl + 70) + n.x*sb*(hw + 30), y: P.y + T.y*e*(hl + 70) + n.y*sb*(hw + 30) };
+}
+function twkSay(scene, m, list, ms){ if(scene.npcSay) scene.npcSay(m, () => ({ x: m.x, y: m.y, z: 0, h: 175 }), sayPick(list), ms || 2000, "mad"); }
+function twkNav(scene){ const D = TWK.door; if(D && typeof gpsNavTo === "function" && gpsNavTo(scene, "twk", "Tipsey's SOS", D.x, D.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function twkNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "twk"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* the bays the story shows (R7): the SOS mat in Gideon's back room, then the mat by the van */
+function twkSosBay(){ return TWK._sb || (TWK._sb = msPocketBay(BB_IN.name, 296, 250)); }
+function twkVanBay(){ const D = TWK.door; if(!D) return null; return TWK._vb || (TWK._vb = hospBay(D.x + D.n.x*150, D.y + D.n.y*150)); }
+function twkBayNow(scene){
+  const ow = scene.ow; if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  if(TWK.stage === 'sos') return Object.assign({}, twkSosBay(), { icon: 'sos' });
+  if(TWK.stage === 'rescue') return Object.assign({}, twkVanBay(), { icon: 'sos' });
+  return null;
+}
+/* THEY COME (twkTick's idle, or twkSummon): the van's slot by him, in along the street */
+function twkStart(scene){
+  const ow = scene.ow; if(!ow) return false;
+  const p = twkPlanAt(scene, ow.px, ow.py); if(!p) return false;
+  const D = twkDoorOf(p.P, p.fd);
+  if(Math.hypot(D.x - ow.px, D.y - ow.py) > 1300) return false;
+  TWK.plan = p; TWK.door = D; TWK._vb = null; TWK.t0 = scene.time.now; TWK.stage = 'arrive'; TWK.slide = 0; TWK.slideTo = 0; TWK.gang = []; TWK.lead = null;
+  return true;
+}
+function twkSummon(){ const s = scn(); if(!s || !s.ow) return false; TWK.next = 0; TWK.stage = 'idle'; return twkStart(s); }
+/* OWSTEP'S HOLD (owStep, after the ladder's): while they have him nothing else moves him -- carried, aboard, or shut in at the hideout */
+function twkHoldTick(scene, ow, dt){
+  if(!twkHeld() || !TWK.hold) return false;
+  const H = TWK.hold;
+  ow.vel = 0; scene.speed = 0; scene.throttle = 0;
+  ow.px = H.x; ow.py = H.y; if(H.yaw != null) ow.yaw = H.yaw;
+  ow.carryZ = H.z > 0.01 ? H.z : undefined;
+  scene._botAboard = !!H.aboard;
+  scene.botX = ow.px; scene.botY = ow.py;
+  return true;
+}
+/* the gang out of the door, round the door's foot */
+function twkGangOut(now){
+  const D = TWK.door; TWK.gang = [];
+  for(let i = 0; i < TWK_CFG.count; i++){ const L = twkLook(i), o = (i - 1)*34;
+    TWK.gang.push({ i, L, x: D.x + D.T.x*o, y: D.y + D.T.y*o, th: Math.atan2(D.n.y, D.n.x), mv: false, out: now + 180*i, on: false, reach: null, z: 0 }); }
+}
+/* back in: each to the door and in */
+function twkGangIn(scene, dt){
+  const D = TWK.door; let all = true;
+  if(scene.time.now - TWK.t0 > 7000){ for(const m of TWK.gang) m.on = false; return true; }   // (never left standing: in they go)
+  for(const m of TWK.gang){ if(!m.on) continue;
+    const w = twkAround(m, D.x, D.y), via = w.x !== D.x || w.y !== D.y;
+    let at = twkStep(scene, m, w.x, w.y, TWK_CFG.jogV, dt);
+    if(!at && !m.mv){ /* (blocked on the way -- a post, a bin: straight on, as a person steps round what is in the way) */
+      const ex = w.x - m.x, ey = w.y - m.y, L = Math.hypot(ex, ey), st = Math.min(L, TWK_CFG.jogV*dt);
+      if(L > 1){ m.x += ex/L*st; m.y += ey/L*st; m.th = Math.atan2(ey, ex); m.mv = true; } at = L <= st + 0.5; }
+    if(via || !at){ all = false; continue; }
+    m.on = false; }
+  return all;
+}
+function twkTick(scene, ow){
+  const now = scene.time.now, R = TWK, C = TWK_CFG, dt = Math.min(60, Math.max(0, now - (R.lt || now))); R.lt = now;
+  /* a reload mid-run: his own vehicle back (the garage's pick was Gideon's for the run only) */
+  if(!R.booted){ R.booted = true; R.next = now + C.firstMs;
+    try { const pv = localStorage.getItem(TWK_PREV_KEY); if(pv !== null){ localStorage.removeItem(TWK_PREV_KEY); if(tpProfile){ tpProfile.fleetKind = pv; tpSaveProfile(); } } } catch(e){} }
+  twkSlideTick(dt);
+  if(R.gid){ const p = walkPathAt(R.gid, now); if(!p || (p.there && !scene.visWorldPt(p.x, p.y, 120, 260))) R.gid = null; }
+  for(const m of R.gang) if(m.run){ const p = walkPathAt(m.run, now); if(p){ m.x = p.x; m.y = p.y; m.th = p.th; m.mv = !p.there; if(p.there && !scene.visWorldPt(p.x, p.y, 120, 260)) m.gone = true; } }
+  R.gang = R.gang.filter(m => !m.gone);
+  if(!ow || !scene.route) return;
+  const st = R.stage;
+  if(st === 'idle' || st === 'arrive' || st === 'chase' || st === 'leave' || st === 'done'){
+    /* the van left at the hideout (or the street) once he is free: held till out of sight (R13) */
+    if(st === 'done'){ const v = twkVanAt(now); if(!R.gang.length && !R.tip && !R.gid && (!v || !scene.visWorldPt(v.x, v.y, 200, 300))){ R.stage = 'idle'; R.plan = null; R.door = null; R.slide = R.slideTo = 0; } else return; }
+  }
+  switch(R.stage){
+    case 'idle': {
+      if(!twkGideonOn() || scene.state !== "play" || scene.mode !== "freeroam" || fleetCur() || FLEET_LOAN || !ow.on || ow.lift || ow.deck || scene._inside || pocketAt(ow.px, ow.py)
+         || scene._rescueVan || scene._police || missionBusy() || orderAboard(scene) || now < R.next || scene._garage){ R.stillT = 0; return; }
+      const W = ow.world, sf = W && W.surfaceAt ? W.surfaceAt(ow.px, ow.py) : null;
+      if(Math.abs(ow.vel) > C.stillV || sf !== 'sidewalk'){ R.stillT = 0; return; }
+      if(!R.stillT){ R.stillT = now; return; }
+      if(now - R.stillT < C.stillMs) return;
+      R.stillT = 0;
+      if(!twkStart(scene)) R.next = now + 20000;
+      return; }
+    case 'arrive': {
+      const p = R.plan, D = rescueVanDrive(p.reach, true);
+      if(now - R.t0 < D.ms) return;
+      if(R.slideTo === 0){ R.slideTo = 1; if(typeof sfxThump === "function") sfxThump(0.25); }
+      if(R.slide < 1) return;
+      twkGangOut(now); R.stage = 'chase'; R.t0 = now; R.said = now + 300;
+      return; }
+    case 'chase': {
+      scene._huntedT = now;                                                          // (running for it: WILLIAM_HUNT.boost)
+      const bx = ow.px, by = ow.py, D = R.door;
+      const far = Math.hypot(bx - D.x, by - D.y) > C.lose, gone = !ow.on || scene._inside || pocketAt(bx, by) || ow.lift || ow.deck || scene.state !== "play";
+      if(far || gone || now - R.t0 > C.chaseMs){
+        R.stage = 'giveup'; R.t0 = now; if(R.gang[0]) twkSay(scene, R.gang[0], TWK_SAY.lost, 1800); return; }
+      let grab = null;
+      R.gang.forEach((m, i) => {
+        if(now < m.out) return; m.on = true;
+        const a = Math.atan2(m.y - by, m.x - bx), tx = bx + Math.cos(a)*30, ty = by + Math.sin(a)*30, d = Math.hypot(bx - m.x, by - m.y);
+        const w = twkAround(m, tx, ty);
+        twkStep(scene, m, w.x, w.y, d > 220 ? C.runV : C.jogV, dt);
+        if(d < C.grabR && !grab) grab = m;
+      });
+      if(now > R.said){ const m = R.gang[Math.floor(Math.random()*R.gang.length)]; if(m && m.on) twkSay(scene, m, now - R.t0 < 1500 ? TWK_SAY.spot : TWK_SAY.chase, 1800); R.said = now + 3200 + Math.random()*2000; }
+      if(grab) twkGrab(scene, ow, grab);
+      return; }
+    case 'giveup': {
+      if(twkGangIn(scene, dt)){ R.slideTo = 0; if(R.slide <= 0){ R.stage = 'leave'; R.t0 = now; R.gang = []; R.next = now + C.giveUpAgainMs; } }
+      return; }
+    case 'leave': {
+      if(!twkVanAt(now)){ R.stage = 'idle'; R.plan = null; R.door = null; }
+      return; }
+    case 'grab': twkCarryTick(scene, ow, now, dt); return;
+    case 'load': {
+      const H = R.hold, D = R.door, k = Math.min(1, (now - R.t0)/600);
+      H.x = D.x + (D.ix - D.x)*k; H.y = D.y + (D.iy - D.y)*k; H.z = C.liftZ*(1 - k) + 8*k; H.aboard = k >= 1;
+      for(const m of R.gang) if(m.carry){ m.x = H.x + m.carry.x; m.y = H.y + m.carry.y; }
+      if(k < 1) return;
+      for(const m of R.gang) m.carry = null;
+      if(twkGangIn(scene, dt)){ R.slideTo = 0; if(R.slide <= 0) twkDriveOff(scene, now); }
+      return; }
+    case 'away': {
+      const v = twkVanAt(now), H = R.hold;
+      if(v){ H.x = v.x; H.y = v.y; }
+      if(now - R.t0 >= R.route.ms){ R.plan = R.hide.plan; R.door = twkDoorOf(R.plan.P, R.plan.fd); R._vb = null; R.stage = 'held'; R.t0 = now; R.gang = [];
+        const P = R.plan.P; H.x = P.x; H.y = P.y; }
+      return; }
+    case 'held': {
+      /* at the hideout: the gang out to their posts by the door, and the garage opens on Gideon's pad */
+      if(!R.gang.length){ R.slideTo = 1; if(R.slide >= 1){ twkGangOut(now); twkPosts(now); R.slideTo = 0; } return; }
+      for(const m of R.gang) twkPostTick(scene, m, now, dt);
+      if(now - R.t0 > 2600) twkToGarage(scene);
+      return; }
+    case 'garage': {
+      for(const m of R.gang) twkPostTick(scene, m, now, dt);
+      if(scene._garage) return;
+      if(fleetCur() !== 'humanoid'){ tpProfile.fleetKind = 'humanoid'; if(window.tpLookForCurrent) window.tpLookForCurrent(); }
+      if(scene._inside && scene._inside.name === BB_IN.name){ R.stage = 'sos'; R.snooze = null; }
+      return; }
+    case 'sos': {
+      for(const m of R.gang) twkPostTick(scene, m, now, dt);
+      const B = twkSosBay(); if(!B || !scene._inside || scene._inside.name !== BB_IN.name) return;
+      if(matHighlightState(scene, B.mat, scene.mode) !== "armed") return;
+      R.stage = 'sosCut'; R.t0 = now; ow.vel = 0; cineBars(true);
+      if(typeof sfxBeep === "function") sfxBeep();
+      return; }
+    case 'sosCut': {
+      for(const m of R.gang) twkPostTick(scene, m, now, dt);
+      ow.vel = 0;
+      const k = Math.floor((now - R.t0)/700);
+      if(k > (R.ping || 0) && k <= 3){ R.ping = k; if(typeof sfxBeep === "function") sfxBeep(); }
+      if(now - R.t0 > 2300 && !R.cutCard){ R.cutCard = true;
+        hospSayCard({ who: "Tipsey's SOS", say: "Beep-beep-beep. Beep. Beep. Beep. Beep-beep-beep.", btn: "Hang on, Tipsey. I'm coming.", ok: twkSosGo,
+          at: () => ({ x: scene.botX, y: scene.botY, h: 150 }) }); }
+      return; }
+    case 'rescue': {
+      for(const m of R.gang) twkPostTick(scene, m, now, dt);
+      if(fleetCur() !== 'humanoid'){ twkAbort(scene); return; }
+      const D = R.door, d = Math.hypot(ow.px - D.x, ow.py - D.y);
+      if(d < 700 && !R.seenG){ R.seenG = true; if(R.gang[0]) twkSay(scene, R.gang[0], TWK_SAY.gideon, 2000); }
+      const B = twkVanBay();
+      if(B && matHighlightState(scene, B.mat, scene.mode) === "armed" && !scene._inside){ twkFace(scene, ow, now); }
+      return; }
+    case 'face': {
+      for(const m of R.gang) if(m !== R.lead) twkPostTick(scene, m, now, dt);
+      const M = R.leadM; if(!M) return;
+      meetTick(scene, ow, M);
+      const p = hospWalkAt(M, now); if(p && R.lead){ R.lead.x = p.x; R.lead.y = p.y; R.lead.th = p.th; R.lead.mv = p.moving; }
+      if(!M.card && now - M.t0 > M.walkMs){ M.card = true;
+        hospSayCard({ who: "Tweaker", say: "Finders keepers, tin man!", btn: "Let him go. Now.", ok: twkScatter, at: () => R.lead ? { x: R.lead.x, y: R.lead.y, z: 0, h: 175 } : null }); }
+      return; }
+    case 'out': {
+      const M = R.tip; if(!M) return;
+      if(now >= M.t0) meetTick(scene, ow, M);
+      if(now >= M.t0 + M.walkMs && !M.card){ M.card = true; R.slideTo = 0; R.stage = 'thanks';
+        hospSayCard({ who: "Gideon", say: "Got you, buddy. Let's get you out of here.", btn: "Beep boop! Thanks, Gideon.", ok: twkFinish,
+          at: () => ({ x: scene.botX, y: scene.botY, h: 150 }), replyAt: () => { const T = twkTipAt(scene.time.now); return T ? { x: T.x, y: T.y, h: 90 } : null; } }); }
+      return; }
+    case 'thanks': if(R.tip) meetTick(scene, ow, R.tip); return;
+  }
+}
+/* two of them take him either side, across the way to the door; the third runs on to the door and in */
+function twkGrab(scene, ow, first){
+  const R = TWK, C = TWK_CFG, D = R.door, now = scene.time.now;
+  R.stage = 'grab'; R.t0 = now;
+  const to = { x: D.x, y: D.y }, ang = Math.atan2(to.y - ow.py, to.x - ow.px), px = -Math.sin(ang), py = Math.cos(ang);
+  const sorted = R.gang.filter(m => m.on).sort((a, b) => Math.hypot(a.x - ow.px, a.y - ow.py) - Math.hypot(b.x - ow.px, b.y - ow.py));
+  const two = [sorted[0] || first, sorted[1]].filter(Boolean);
+  two.forEach((m, j) => { const sd = j === 0 ? 1 : -1; m.carry = { x: px*C.flank*sd, y: py*C.flank*sd }; m.grabFrom = { x: m.x, y: m.y }; });
+  const w = twkAround({ x: ow.px, y: ow.py }, to.x, to.y), pts = [{ x: ow.px, y: ow.py }].concat(w.x !== to.x || w.y !== to.y ? [w] : [], [to]);
+  R.hold = { x: ow.px, y: ow.py, yaw: ow.yaw, z: 0, aboard: false, pts, len: Math.max(1, polyLen(pts)) };
+  twkSay(scene, two[0], TWK_SAY.grab, 1800);
+  if(typeof sfxThump === "function") sfxThump(0.45);
+  scene._huntedT = undefined;
+}
+/* the grab: a step in either side (0.4 s), up off the ground (0.45 s), the carry to the door at carryV */
+function twkCarryTick(scene, ow, now, dt){
+  const R = TWK, C = TWK_CFG, H = R.hold, u = now - R.t0, inMs = 400, upMs = 450;
+  const carriers = R.gang.filter(m => m.carry);
+  if(u < inMs){ const k = u/inMs, e = k*k*(3 - 2*k);
+    for(const m of carriers){ const tx = H.x + m.carry.x, ty = H.y + m.carry.y; m.x = m.grabFrom.x + (tx - m.grabFrom.x)*e; m.y = m.grabFrom.y + (ty - m.grabFrom.y)*e; m.mv = true; m.th = Math.atan2(H.y - m.y, H.x - m.x); m.reach = [30, 40 + 30*e]; } }
+  else if(u < inMs + upMs){ const k = (u - inMs)/upMs; H.z = C.liftZ*k*k*(3 - 2*k);
+    for(const m of carriers){ m.x = H.x + m.carry.x; m.y = H.y + m.carry.y; m.mv = false; m.th = Math.atan2(H.y - m.y, H.x - m.x); m.reach = [30, 70 + H.z]; } }
+  else {
+    const w = u - inMs - upMs, k = Math.min(1, w*C.carryV/H.len);
+    const q = polyAt(H.pts, k); H.x = q.x; H.y = q.y; H.z = C.liftZ + Math.sin(w/140)*2;
+    for(const m of carriers){ m.x = H.x + m.carry.x; m.y = H.y + m.carry.y; m.mv = k < 1; m.th = Math.atan2(H.y - m.y, H.x - m.x); m.reach = [30, 70 + H.z]; }
+    if(k >= 1){ R.stage = 'load'; R.t0 = now; for(const m of carriers) m.reach = null; }
+  }
+  /* the one not carrying: to the door ahead of them, holding it */
+  for(const m of R.gang) if(!m.carry && m.on){ const D = R.door, hx = D.x + D.T.x*70, hy = D.y + D.T.y*70, w = twkAround(m, hx, hy); twkStep(scene, m, w.x, w.y, C.jogV, dt); if(!m.mv) m.th = Math.atan2(H.y - m.y, H.x - m.x); }
+}
+/* the door shut: across town to the hideout, the camera riding with him (he is aboard) */
+function twkDriveOff(scene, now){
+  const R = TWK, C = TWK_CFG, Hd = twkHideout(scene), grid = scene.route.grid;
+  R.gang = [];
+  if(!Hd){ twkRelease(scene); return; }
+  R.hide = Hd;
+  let pts = rescueRoute(grid, R.plan, Hd.plan);
+  if(!pts) pts = [{ x: R.plan.P.x, y: R.plan.P.y }, { x: Hd.plan.P.x, y: Hd.plan.P.y }];
+  const len = polyLen(pts);
+  R.route = { pts, len, ms: Math.max(C.driveMinMs, Math.min(C.driveMaxMs, len/C.driveSpeed*1000)) };
+  R.stage = 'away'; R.t0 = now;
+  if(typeof sfxCarHorn === "function") sfxCarHorn();
+  if(typeof tpToast === "function") tpToast("The Tweakers have taken Tipsey!");
+}
+/* their posts at the hideout: either side of the door and one out by the kerb, fidgeting */
+function twkPosts(now){
+  const D = TWK.door, P = [[-90, 30], [80, 26], [0, 110]];
+  TWK.gang.forEach((m, i) => { const q = P[i % P.length]; m.post = { x: D.x + D.T.x*q[0] + D.n.x*q[1], y: D.y + D.T.y*q[0] + D.n.y*q[1] }; m.on = true; });
+}
+function twkPostTick(scene, m, now, dt){
+  if(m.run || !m.post) return;
+  const at = twkStep(scene, m, m.post.x, m.post.y, PEOPLE_WALK_V, dt);
+  if(at || !m.mv){ m.mv = false; const ow = scene.ow, look = TWK.stage === 'rescue' && TWK.seenG && ow ? Math.atan2(ow.py - m.y, ow.px - m.x) : Math.atan2(TWK.door.n.y, TWK.door.n.x);
+    m.th = look + Math.sin(now/260 + m.i*2.1)*0.35; }   // (twitchy: never quite still)
+}
+/* the garage on Gideon's pad: Tipsey's card is taken (renderFleet), only Gideon can go */
+function twkToGarage(scene){
+  const R = TWK;
+  R.stage = 'garage';
+  R.prev = (tpProfile && tpProfile.fleetKind) || '';
+  try { localStorage.setItem(TWK_PREV_KEY, R.prev); } catch(e){}
+  R.hold = null; scene._botAboard = false; if(scene.ow){ scene.ow.carryZ = undefined; scene.ow.carryHide = false; }
+  tpProfile.fleetKind = 'humanoid'; if(window.tpLookForCurrent) window.tpLookForCurrent();
+  const pk = POCKETS.find(q => q.name === BB_IN.name);
+  if(pk){ const items = scene.items; owStandUpAt(scene, pk.x0 + BB_IN.PAD.a, pk.y0 + BB_IN.PAD.b, Math.PI/2); scene.items = items || [];
+    scene._doorShutFrom = 0; scene._doorShutT0 = performance.now(); scene._doorShut = 'gideon-pad'; }
+  if(typeof window.garageOpen === "function") window.garageOpen();
+  if(scene._garage) scene._garage.key = 'gideon-pad';
+  if(typeof tpToast === "function") tpToast("Tipsey's been taken! Only Gideon can go after him.");
+}
+/* the SOS heard: the GPS to the van */
+function twkSosGo(){
+  const scene = scn(); if(TWK.stage !== 'sosCut' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  TWK.stage = 'rescue'; TWK.seenG = false; TWK.cutCard = false; TWK.ping = 0;
+  twkNav(scene);
+}
+/* on the mat by the van: the lead one walks up to him, face to face */
+function twkFace(scene, ow, now){
+  const R = TWK, lead = R.gang.slice().sort((a, b) => Math.hypot(a.x - ow.px, a.y - ow.py) - Math.hypot(b.x - ow.px, b.y - ow.py))[0];
+  R.stage = 'face'; ow.vel = 0; cineBars(true); twkNavClear(scene);
+  if(!lead){ twkScatter(); return; }
+  R.lead = lead; lead.post = null;
+  const from = { x: lead.x, y: lead.y }, pref = (from.x - ow.px) - (from.y - ow.py) >= 0 ? 1 : -1;
+  R.leadM = meetWalk(ow, from, now, pref, scene);
+}
+/* "Let him go": they scatter along the street, the door slides open, Tipsey rolls out to Gideon */
+function twkScatter(){
+  const scene = scn(), R = TWK; if(R.stage !== 'face' || !scene) return;
+  hospSayCard(null);
+  const now = scene.time.now, ow = scene.ow, D = R.door;
+  R.gang.forEach((m, i) => { const dir = i % 2 ? -1 : 1, end = { x: m.x + D.T.x*dir*2800 + D.n.x*(20 + 30*i), y: m.y + D.T.y*dir*2800 + D.n.y*(20 + 30*i) };
+    m.post = null; m.run = { pts: [{ x: m.x, y: m.y }, end], t0: now + 150*i, v: 0.2, th0: m.th }; });
+  if(R.lead) twkSay(scene, R.lead, ["Robot cop! Scatter!", "Run, run, run!", "Keep the toaster!"], 1800);
+  R.lead = null; R.leadM = null;
+  R.slideTo = 1;
+  const side = (D.x - ow.px) - (D.y - ow.py) >= 0 ? 1 : -1;
+  R.tip = Object.assign(meetWalk(ow, { x: D.x, y: D.y }, now + 900, side, scene), { th0: Math.atan2(D.n.y, D.n.x) });
+  R.stage = 'out';
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+/* Tipsey, out of the van to Gideon: where he is (null while still inside) */
+function twkTipAt(now){
+  const M = TWK.tip; if(!M || now < M.t0) return null;
+  const p = hospWalkAt(M, now); if(!p) return null;
+  const hop = Math.max(0, 1 - (now - M.t0)/350);
+  return { x: p.x, y: p.y, th: p.th, moving: p.moving, z: 14*hop*hop };
+}
+/* the thanks: the record, the card, and Tipsey the player again where he stands; Gideon walks home */
+function twkFinish(){
+  const scene = scn(), R = TWK; if(R.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, ow = scene.ow, T = twkTipAt(now) || { x: ow.px + 80, y: ow.py, th: 0 };
+  missionComplete('tweaker-snatch');
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard([], "Tweaker Trouble: Tipsey's free! Gideon found him by his SOS.");
+  const G = { x: ow.px, y: ow.py, th: ow.yaw }, D = R.door;
+  twkRelease(scene, T);
+  /* Gideon home along the street, past the view's edge */
+  const dir = (G.x - D.x)*D.T.x + (G.y - D.y)*D.T.y >= 0 ? 1 : -1;
+  R.gid = { pts: [{ x: G.x, y: G.y }, { x: G.x + D.T.x*dir*2600, y: G.y + D.T.y*dir*2600 }], t0: now + 500, v: 0.11, th0: G.th };
+}
+/* the player Tipsey again (at T, or by the door) and the run over */
+function twkRelease(scene, T){
+  const R = TWK, ow = scene.ow, D = R.door;
+  twkNavClear(scene); cineBars(false);
+  R.hold = null; scene._botAboard = false;
+  if(tpProfile){ tpProfile.fleetKind = R.prev || ''; tpSaveProfile(); }
+  try { localStorage.removeItem(TWK_PREV_KEY); } catch(e){}
+  scene._tpPark = null;
+  if(window.tpLookForCurrent) window.tpLookForCurrent();
+  const at = T || (D ? { x: D.x + D.n.x*60, y: D.y + D.n.y*60, th: Math.atan2(D.n.y, D.n.x) } : { x: ow.px, y: ow.py, th: ow.yaw });
+  const items = scene.items, cx = scene.camX, cy = scene.camY;
+  owStandUpAt(scene, at.x, at.y, at.th);
+  scene.items = items || []; scene.camX = cx; scene.camY = cy;
+  R.tip = null; R.stage = 'done'; R.slideTo = 0; R.next = scene.time.now + TWK_CFG.againMs;
+}
+/* lost another way (another vehicle picked, Gideon gone): Tipsey back by the van, nothing kept */
+function twkAbort(scene){ TWK.gang.forEach(m => { m.post = null; }); twkRelease(scene, null); }
+/* DRAWN: the van (moving: live; parked with its door shut: cached), the gang, Tipsey out of the van, Gideon walking home; the SOS pings */
+function twkQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const R = TWK, now = scene.time.now;
+  if(R.stage === 'idle' && !R.gid) return;
+  const v = R.plan ? twkVanAt(now) : null;
+  if(v && scene.visProp("tipseyvan", v.x, v.y, 0)){
+    const x = v.x, y = v.y, fd = v.fdir, sl = R.slide;
+    if(v.parked && sl <= 0.001) queuePerson(x, y, g => scene.bcDraw(g, "twkvan|" + Math.round(x) + "," + Math.round(y) + "|" + fd, x, y, gg => scene.drawProp(gg, "tweakervan", x, y, 0, fd, 0, 0, 0x7e3e)));
+    else queuePerson(x, y, (g, tt) => scene.drawProp(layerFor(x, y), "tweakervan", x, y, tt || now, fd, 0, v.wheel || 0, 0x7e3e, { slideOpen: sl }));
+  }
+  for(const m of R.gang){
+    if(!m.on && !m.run) continue;
+    if(!scene.visProp("people", m.x, m.y)) continue;
+    const L = m.L, x = m.x, y = m.y, th = m.th, mv = !!m.mv, rc = m.reach;
+    queuePerson(x, y, () => scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      mv ? walkAt(x, y, m.run ? 1.6 : 1.3) : 0, mv, 0, rc ? 0.9 : 0, null, L.uniform, !!rc, rc ? { reach: rc } : null));
+  }
+  { const T = twkTipAt(now);
+    if(T && scene.visProp("chargestation", T.x, T.y)) queuePerson(T.x, T.y, (g, tt) => scene.drawTipseyParked(layerFor(T.x, T.y), T.x, T.y, T.th, T.z, T.moving ? { t: tt || now } : null)); }
+  if(R.gid){ const h = walkPathAt(R.gid, now);
+    if(h && scene.visProp("people", h.x, h.y)){ const x = h.x, y = h.y, H = R.gid;
+      H.gd = (H.gd || 0) + Math.hypot(x - (H.lx == null ? x : H.lx), y - (H.ly == null ? y : H.ly)); H.lx = x; H.ly = y;
+      const gait = H.gd*Math.PI*2/84;
+      keyQueue(x, y, (g, tt) => scene.drawProp(layerFor(x, y), "humanoid", x, y, tt || now, h.th/(Math.PI/2), 0, 0, 7, { walk: h.moving ? 1 : 0, gait, roll: 0, reach: 0, look: gideonParts() })); } }
+  /* THE SOS: red rings off Gideon's receiver in the cut scene, and off the van while he looks for it */
+  const ring = (cx, cy, z, ph) => queuePerson(cx, cy + 1, (g, tt) => { const lg = layerFor(cx, cy), u = (((tt || now) - ph) % 1400)/1400;
+    for(const k of [0, 0.5]){ const w = (u + k) % 1, r = 30 + 170*w, pts = [];
+      for(let i = 0; i < 28; i++){ const a = i/28*Math.PI*2; pts.push(scene.W(cx + Math.cos(a)*r, cy + Math.sin(a)*r, z)); }
+      scene.edgeOn(lg, pts, 0xff3b30, (3.2 - 2.2*w)*scene.K); } });
+  if(R.stage === 'sosCut' && scene.ow){ ring(scene.botX, scene.botY, 4, R.t0); }   // (botX: already in the room's view, drawWorld's shift)
+  if((R.stage === 'rescue' || R.stage === 'sos' || R.stage === 'sosCut' || R.stage === 'garage') && v) ring(v.x, v.y, 150, 0);
+}
+/* the van's body is solid while it stands (Gideon walks round it, not through it) */
+function twkSolidAt(x, y, r){
+  const R = TWK; if(!R.plan || R.stage === 'idle' || R.stage === 'arrive' || R.stage === 'leave' || R.stage === 'away') return null;
+  const P = R.plan.P, ap = carAxisPoint(P, R.plan.fd, x, y);
+  return Math.hypot(x - ap.x, y - ap.y) < CARC.wid/2 + r ? { x0: P.x - 150, x1: P.x + 150, y0: P.y - 150, y1: P.y + 150, cx: P.x, cy: P.y, type: 'commercial', twkVan: true } : null;
+}
+MISSIONS['tweaker-snatch'] = { name: 'Tweaker Trouble', giver: "Tipsey's SOS", window: 'any', needs: 'minding-the-shop', places: ['Brew & Bolt'],
+  steps: ["The Tweakers grab Tipsey off the street", "The garage: Gideon goes", "The SOS in Brew & Bolt's back room", "Gideon finds the van", "Tipsey free"],
+  reward: {},
+  busy: () => twkTaken(),
+  item: () => null,
+  next: () => ({ grab: 'The Tweakers have Tipsey', load: 'The Tweakers have Tipsey', away: 'The Tweakers have Tipsey', held: 'The Tweakers have Tipsey',
+                 garage: 'The garage: only Gideon can go', sos: "The SOS on Gideon's receiver, in the back room", sosCut: "Tipsey's SOS", rescue: "The Tweakers' van",
+                 face: "The Tweakers' van", out: 'Tipsey', thanks: 'Tipsey' })[TWK.stage] || 'Comes to Tipsey: watch out for a beat-up van',
+  start: () => null };
 /* ==================== VISTA RIDGE SECURITY POST (area 11, "Sierra Vista bench": the approved Flats build order) ====================
    The bare foothill bench east of Sierra Vista's east wall, over Maritime Mall's back (the wedge WG_HILLS leaves where the
    Sierra Vista notch, SV_X, eases back over SV_EASE): until now foothill ground nobody could drive onto (owNorthEdgeBlocks).
@@ -110363,6 +110842,14 @@ function streetLook(seed, opts){
                          L.shoe = sk(PEOPLE_SHOE[1], her ? 'flat' : 'sneaker'); L.uniform = { aid: { kind: 'mobility', frame: pick([_pcol(0xb8322a), _pcol(0x2f5fa8), _pcol(0x6a2a3a), _pcol(0xb9bcc4)]) } }; break; }
     case 'prosthetic': { L.shirt = pr() < 0.5 ? { c: pick(BRIGHT).c, dk: pick(BRIGHT).dk, tank: true } : pick(BRIGHT); L.pants = Object.assign({}, pick([_pcol(0x1a1a1e), _pcol(0x2b2d33), _pcol(0x3a4658)]), { shorts: true });
                          L.shoe = sk(shoe, 'sneaker'); L.uniform = { aid: { kind: 'prosthetic', side: pr() < 0.5 ? 1 : -1 } }; break; }                                                  // (shorts: the leg shows)
+    /* THE TWEAKERS (twkLook; never rolled on the street -- asked for by type only, so no look already in the game changes): gaunt in a
+       grubby hoodie, the hood down, sweatpants, worn trainers, sallow; a beanie on half of them */
+    case 'tweaker':  { const grub = pick([_pcol(0x6e6a5e), _pcol(0x5a5f4a), _pcol(0x7a6a58), _pcol(0x4a4e58)]), B0 = PEOPLE_BUILD[her ? 1 : 0];
+                       L.build = Object.assign({}, B0, { torsoW: B0.torsoW - 5, hipW: B0.hipW - 2, armW: 6, legW: 9 });
+                       L.shirt = grub; L.uniform = { hood: { c: grub.c, dk: grub.dk } };
+                       if(pr() < 0.5) L.uniform.beanie = pick([_pcol(0x2a2a2e), _pcol(0x5a3a2a), _pcol(0x3a4a3a)]);
+                       L.pants = pick([_pcol(0x5a5e66), _pcol(0x3a3f2e), _pcol(0x6b5a44)]); L.shoe = sk(_pcol(0xb8b4a8), 'sneaker');
+                       L.hair = hp(pick([0x3a2e24, 0x6a5a3a, 0x2a2420]), her ? 'long' : pick(['crop', 'buzz', 'long'])); L.skin = pick([PEOPLE_SKIN[1], PEOPLE_SKIN[0]]); break; }
     default: break;    // man, teen: street clothes as rolled
   }
   return L;
@@ -121997,6 +122484,7 @@ class WorldScene extends Phaser.Scene {
     semiQueue(this, t, queuePerson);                     // TRAILERS the semi has dropped
     amrLoadQueue(this, t, queuePerson);                  // LOADS the warehouse robot has set down
     riverQueue(this, queuePerson);                       // THE PALMA RIVER's bridges' parapets (THE CHANNEL AND ITS BRIDGES)
+    twkQueue(this, t, queuePerson, keyQueue, layerFor);  // THE TWEAKERS: their van, the gang, Tipsey out of it, Gideon walking home, the SOS
     msQueue(this, t, queuePerson, keyQueue, layerFor);   // MINDING THE SHOP: Gideon on the street, Tipsey parked while the humanoid has his shop
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     cwDogQueue(this, t, queuePerson);                    // KICKSTAND SCOOTER CO.' security dog round the hall's south and east walls
@@ -122891,6 +123379,15 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 5000 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
       }
       if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon, bz ? { s: 1, a: 1, dz: bz, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: bz } : undefined);
+    }
+    /* THE TWEAKERS' bays (twkBayNow): the SOS mat in Gideon's back room, the mat by their van -- MINDING THE SHOP's way, a room's bay on the street's lines */
+    { const B0 = twkBayNow(this), pv = B0 && B0.pocket && POCKET_VIEW && POCKET_VIEW.pk === B0.pocket ? POCKET_VIEW : null;
+      const B = B0 && B0.pocket ? (pv ? Object.assign({}, B0, { x: B0.x + pv.dx, y: B0.y + pv.dy, ax: B0.ax + pv.dx, ay: B0.ay + pv.dy, mat: owMatFrame(B0.ax + pv.dx, B0.ay + pv.dy, B0.dv, B0.rv) }) : null) : B0;
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
     }
     /* GIDEON'S PAD, charging (gd3): its amber ring breathes on Tipsey's own pulse while he stands on it and the battery fills; the pad itself is
        the room's still art (BB_IN.PAD) */
@@ -135796,6 +136293,18 @@ class WorldScene extends Phaser.Scene {
       }
       for(const [ah, hh] of (slide ? [[aC - 18, hH + 2], [aS0 - 12, 82]] : [[aC - 18, hH + 2]]))
         Q([P(ah, fb*1.003, hh), P(ah - 9, fb*1.003, hh), P(ah - 9, fb*1.003, hh + 3), P(ah, fb*1.003, hh + 3)], liv ? 0x8d959c : 0xc9ced3);
+      /* RUST (add 'rust': the Tweakers' van): at the arches' feet, along the sill, a scab on the panel */
+      if(has("rust")) for(const [ra, rh, rw, rhh] of [[V.wheelA[0]*hl - 26, cz + 2, 18, 9], [V.wheelA[0]*hl + 16, cz + 4, 12, 6], [V.wheelA[1]*hl + 18, cz + 2, 14, 8], [-hl*0.25, cz + V.sill - 2, 30, 5], [-hl*0.55, hR - 40, 12, 8]])
+        Q([P(ra, fb*1.002, rh), P(ra + rw, fb*1.002, rh), P(ra + rw, fb*1.002, rh + rhh), P(ra, fb*1.002, rh + rhh)], 0x8a5a36);
+      /* THE SLIDE DOOR OPEN (data.slideOpen 0..1): the door runs back along its rail, out from the panel, and the dark of the inside shows where it was */
+      if(slide && data && data.slideOpen > 0.001){
+        const k = Math.min(1, data.slideOpen), d = (aS0 - aS1 - 4)*k, s0 = cz + V.sill, s1 = hR - 8, fo = fb*1.05;
+        Q([P(aS0 - d, fb*1.001, s0), P(aS0, fb*1.001, s0), P(aS0, fb*1.001, s1), P(aS0 - d, fb*1.001, s1)], 0x17181b);
+        Q([P(aS0 - d, fb*1.001, s0), P(aS0, fb*1.001, s0), P(aS0, fb*1.001, s0 + 5), P(aS0 - d, fb*1.001, s0 + 5)], 0x34363a);   // (the floor's lip)
+        const door = [P(aS1 - d, fo, s0), P(aS0 - d, fo, s0), P(aS0 - d, fo, s1), P(aS1 - d, fo, s1)];
+        Q(door, L.body); E(door, trim);
+        Q([P(aS0 - d - 12, fo*1.003, 82), P(aS0 - d - 21, fo*1.003, 82), P(aS0 - d - 21, fo*1.003, 85), P(aS0 - d - 12, fo*1.003, 85)], 0xc9ced3);
+      }
       /* a glint in the cab window */
       if(!cab) Q([P(aB + 5, fb*1.002, h0 + 6), P(aB + 10, fb*1.002, h0 + 6), P(aB + 18, fb*1.002, h1 - 4), P(aB + 13, fb*1.002, h1 - 4)], 0x5c6874);
       /* the side marker lamps, amber at the nose and red at the tail */
@@ -153824,7 +154333,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       liftBanksStep(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); gdwTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST){ fmTick(this, this.ow); btTick(this); } ppTick(this, this.ow); msTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); gdwTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST){ fmTick(this, this.ow); btTick(this); } ppTick(this, this.ow); msTick(this, this.ow); twkTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -172704,6 +173213,9 @@ requestTpProfile();
     P.className = 'grList';
     const cur = fleetCur();
     const tip = `<button class="grSkin${cur === '' ? ' sel' : ''}" data-fleet="">${tpRobotSvg((tpSkinById(tpProfile.equipped) || {}).filter, 34, tpProfile.equipped)}<span>Tipsey</span><i class="own">${cur === '' ? 'Driving' : 'Unlocked'}</i></button>`;
+    /* THE TWEAKERS HAVE HIM (twkTaken): his card taken, and only Gideon can go */
+    const taken = typeof twkTaken === 'function' && twkTaken();
+    const tipT = taken ? `<button class="grSkin grFleet lock" disabled>${tpRobotSvg((tpSkinById(tpProfile.equipped) || {}).filter, 34, tpProfile.equipped)}<span>Tipsey</span><i class="lock">Taken by the Tweakers</i><b>Gideon can get him back</b></button>` : tip;
     const card = k => {
       const F = FLEET[k], M = F.unlock ? FLEET_MISSIONS[F.unlock] : null, B = fleetBaseOf(k), bay = BAY_KITS[F.bay];
       const when = M && M.when ? (M.when === 'night' ? ' \u00b7 after dark' : ' \u00b7 at dusk') : '';
@@ -172722,11 +173234,12 @@ requestTpProfile();
     const fm = flyMode(), fbtn = (m, t) => `<button data-fly="${m}" style="flex:1;height:40px;border-radius:12px;border:1px solid ${fm === m ? '#ff7a1a' : '#3a3f4a'};background:${fm === m ? '#ff7a1a' : 'rgba(255,255,255,.06)'};color:#fff;font:700 14px/1 system-ui,-apple-system,sans-serif">${t}</button>`;
     const fly = `<div class="grSec">FLYING HEIGHT</div><div class="grRow" style="gap:8px">${fbtn('auto', 'Auto')}${fbtn('manual', 'Manual')}</div>`
       + `<div style="color:#9aa0ab;font:500 12px/1.35 system-ui,-apple-system,sans-serif;padding:4px 2px 8px">${fm === 'auto' ? 'It climbs over shops and houses by itself and comes back down to its cruise. UP and DOWN on the right raise or lower its cruise; push into a taller building and it hops over, if it can.' : 'UP and DOWN on the right set its height; let go and it holds it. Push into a building it can clear and it hops over.'}</div>`;
-    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tip}</div>${groups}${fly}
+    P.innerHTML = `<div class="grSec">YOU</div><div class="grRow">${tipT}</div>${groups}${fly}
       <div class="grSec">DRIVING RECORD</div>${tkRows()}`;
     for (const b of P.querySelectorAll('[data-fly]')) b.onclick = () => { flyModeSet(b.dataset.fly); renderTab(); };
     /* the pick cuts the room to its bay (fleetGarageCut): a new frame, snapped, not eased */
     for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => {
+      if (taken && b.dataset.fleet !== 'humanoid') { if (typeof tpToast === 'function') tpToast("The Tweakers have Tipsey. Only Gideon can go after him."); return; }
       tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); if (window.tpLookForCurrent) window.tpLookForCurrent();
       const s = scn();
       if (fleetGarageCut(s)) { fr.init = false; vel = 0; }

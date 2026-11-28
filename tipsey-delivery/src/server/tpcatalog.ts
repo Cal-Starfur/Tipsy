@@ -207,6 +207,8 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'open-house': {bestMax: 1, completeAt: 1},
   'letters-on-hill': {bestMax: 1, completeAt: 1},
   'minding-the-shop': {bestMax: 1, completeAt: 1},
+  /* tweaker-snatch: Tweaker Trouble -- the Tweakers take Tipsey off the street in their van; Gideon follows his SOS and gets him back (after minding-the-shop). No reward of its own */
+  'tweaker-snatch': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */

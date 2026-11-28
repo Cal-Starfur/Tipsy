@@ -53,7 +53,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 
 | Thing | Drawer | Looks / kinds | Notes |
 |---|---|---|---|
-| People (everyone) | `drawPersonHull` (`drawPersonHullBody` sat/posed), `drawWalkinPerson` in rooms | `streetLook(seed, opts)`, `rosterBody`, the `*Look` functions (`staffLook`, `custLook`, `crowdLook`, `folkLook`, ...) | `docs/kits/people.md` (P19 model off these, P20 vary by the roll, P21/P22 draw order and fit: `tools/review/people_hull.js`). Seated in a vehicle: `vehRider` / `vehRiderLook`. Holding things: `pose.hold`. |
+| People (everyone) | `drawPersonHull` (`drawPersonHullBody` sat/posed), `drawWalkinPerson` in rooms | `streetLook(seed, opts)`, `rosterBody`, the `*Look` functions (`staffLook`, `custLook`, `crowdLook`, `folkLook`, ...) | `docs/kits/people.md` (P19 model off these, P20 vary by the roll, P21/P22 draw order and fit: `tools/review/people_hull.js`). Seated in a vehicle: `vehRider` / `vehRiderLook`. Holding things: `pose.hold`. The Tweakers: `streetLook(seed, { type: 'tweaker' })` (gaunt, grubby hoodie, sweatpants; never rolled on the street). |
 | Dogs | `drawDogHull` (pairs with an owner: `drawDogPair`, `drawProp('dog')`) | `DOG_BREEDS` (9), `dogLookOf(seed, breed)` | labs/dog-lab.html, dog-gallery.html |
 | Cats | `drawDogHull` with a cat look | `CAT_BREEDS` (cat, kitten), `catLookOf(seed, kitten)` | tail `'cat'`, `eyeC`, no collar |
 | Horses | `drawHorseHull` | | |
@@ -66,7 +66,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 |---|---|---|---|
 | Cars | `drawCar(g, kind, x, y, z, t, fdir, wheelPhase, seed, data)` | `CAR_KINDS`, `CAR_BODIES` | `data.doorOpen`, `data.wheelOff`, `data.cabin { rider }` (see-through glass), `data.doorOut`. In a room: `fx.car`, `fx.svc`. |
 | Seated people in a shop's cached image | `gamePerson(a, b, z, face, { sit, look, pose })` in the kit (the scene's person drawer, `LIB.setPersonArt`, as `gameCar` is the car) | Low Tide Juice Bar's patio customers (`ltPatioSitters`) |
-| Vans and trucks | `drawVan`, `drawWorkTruck`, `drawProp('firetruck' / 'flatbed' / 'beertruck' / ...)` | `VAN_KINDS` | |
+| Vans and trucks | `drawVan`, `drawWorkTruck`, `drawProp('firetruck' / 'flatbed' / 'beertruck' / ...)` | `VAN_KINDS` | The Tweakers' van (`tweakervan`): a plain panel van, faded, `add: ['rust']`; any van's slide door opens with `data.slideOpen` (0..1: the door back along its rail, the dark inside where it was) |
 | Tipsey and other delivery robots | `drawRobot`, `drawBot`, `drawRoomBot` (rooms: `fx.pod`), `drawNpcRobotBody` | `drawProp('robot' / 'courierbot' / 'cargobot' / 'patrolbot' / 'amr')` | |
 | AV fleet | `drawAvPod`, `drawProp('avpod' / 'avshuttle' / 'avsweeper' / ...)` | | |
 | Aircraft, boats, drones | `drawAircraft`, `drawPlane`, `drawJet`, `drawHeli`, `drawAutoBoat`, `drawDrone` | | |
