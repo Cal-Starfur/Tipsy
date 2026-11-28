@@ -18100,6 +18100,9 @@ function houseEdgeUnits(grid, blk, ei){
          stands on its corner with its garage just off its flank */
       let cur = list.length === 1 ? 0 : (len - run) / 2;
       for(const u of row){ u.start = cur; cur += u.w + (list.length === 1 && u.house ? 4 : 0); }
+      /* THE TWEAKERS' HOUSE (962 Marina Way, the Flats' south-east corner: twkHideout) wears its run-down livery -- Butterfly Modern's
+         fourth, which no other house is dealt (pal() is %3) */
+      if(key === '7,7/2' && row[0] && row[0].shop.lib === 'Butterfly Modern') row[0].pal = 3;
       _mtEdges.set(key, row);
     }
   }
@@ -97094,7 +97097,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   door:[150, -130],
   liv:[ { wall:'#efece4', roof:'#e8e4da', stone:'#a89a86', leaf:'#e0b43a', edge:'#2f8f8a' },
         { wall:'#e6ece8', roof:'#e2e6e2', stone:'#9a948a', leaf:'#d9573c', edge:'#d9a23a' },
-        { wall:'#f2e8dc', roof:'#ece2d6', stone:'#b09a80', leaf:'#2f5a7a', edge:'#c9622a' } ],
+        { wall:'#f2e8dc', roof:'#ece2d6', stone:'#b09a80', leaf:'#2f5a7a', edge:'#c9622a' },
+        /* RUN DOWN (the Tweakers' house, 962 Marina Way: never dealt by a lot's own roll): walls gone grey, the roof stained, the door
+           a peeling brown, the glass wall boarded with plywood, the palm dying, the sculpture gone (rundown) */
+        { wall:'#cbc3ad', roof:'#aaa396', stone:'#8a8274', leaf:'#7a4a2c', edge:'#6a6458', rundown:true } ],
   vol:{
     foot:[[50,-130],[410,-130],[410,-480],[50,-480]], h:230,
     solids:[ { name:'chimney', poly:[[56,-140],[104,-140],[104,-120],[56,-120]], h:230 },
@@ -97117,8 +97123,16 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       houseDoorway(150, -130, CITY_HOUSE_SC, shade(c.wall,.86), c.leaf, 1);
       if(HOUSE_REC) HOUSE_REC.push({ kind:'win', a0:246, a1:404, z0:4, z1:142, b:-130 });
       F(250, 400, 6, 140, '#2c3a42', '#1f262b', 1.4, -129.6);
+      if(c.rundown){   // (boarded: plywood sheets over the glass wall, a little proud of it, their seams and nail lines, a sprayed X on one)
+        for(const [a0, a1, z0, z1, col] of [[252, 326, 6, 72, '#b8935c'], [326, 398, 8, 76, '#c29f68'], [252, 326, 72, 138, '#ae8a55'], [326, 398, 76, 138, '#b8935c']])
+          F(a0, a1, z0, z1, col, '#8e6c3e', 1.2, -129.3);
+        for(const a of [258, 320, 332, 392]) F(a - 0.6, a + 0.6, 10, 134, '#8e6c3e', null, 0, -129.1);
+        poly([P(264, -129, 20), P(270, -129, 20), P(316, -129, 62), P(310, -129, 62)], '#2f6fd8', null);
+        poly([P(310, -129, 20), P(316, -129, 20), P(270, -129, 62), P(264, -129, 62)], '#2f6fd8', null);
+      } else {
       F(252, 398, 90, 138, 'rgba(170,205,220,.26)', null, 0, -129.4);
       for(let a = 300; a < 400; a += 50) F(a-1, a+1, 6, 140, '#1f262b', null, 0, -129.2);
+      }
     } else {
       F(100, 360, 6, 140, '#2c3a42', '#1f262b', 1.4, -480.4);
       for(let a = 165; a < 360; a += 65) F(a-1, a+1, 6, 140, '#1f262b', null, 0, -480.8);
@@ -97128,8 +97142,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(let z = 10; z < 230; z += 14) for(let a = 58 + (z % 28 ? 0 : 10); a < 102; a += 20) F(a, a+16, z, z+10, shade(c.stone, .9 + ((a+z) % 3)*0.05), null, 0, -119.6); },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
-    houseProp('palm', () => housePalm(400, -40, 180, '#5f8f4f'));
-    houseProp('sculpture', () => { for(let k = 0; k < 10; k++){ const t = Math.PI*k/10, t2 = Math.PI*(k+1)/10; poly([P(300 + 26*Math.cos(t), -50, 30*Math.sin(t)*2), P(300 + 26*Math.cos(t2), -50, 30*Math.sin(t2)*2)], null, c.edge, 4); } });
+    houseProp('palm', () => housePalm(400, -40, 180, c.rundown ? '#8f8448' : '#5f8f4f'));   // (run down: its fronds yellowed, dying)
+    if(!c.rundown) houseProp('sculpture', () => { for(let k = 0; k < 10; k++){ const t = Math.PI*k/10, t2 = Math.PI*(k+1)/10; poly([P(300 + 26*Math.cos(t), -50, 30*Math.sin(t)*2), P(300 + 26*Math.cos(t2), -50, 30*Math.sin(t2)*2)], null, c.edge, 4); } });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -104520,6 +104534,12 @@ function twkLurks(scene){
       .sort((a, b) => a.j - b.j || a.i - b.i);
     const rng = mulberry32(((d*2654435761) ^ 0x7e3e7) >>> 0);
     for(let k = pool.length - 1; k > 0; k--){ const r = Math.floor(rng()*(k + 1)), t = pool[k]; pool[k] = pool[r]; pool[r] = t; }
+    /* THE FLATS' VAN WHERE HE GOES MOST (Sir, 2026-11-28: "put the flats van in a high traffic area where tipsey is more likely to
+       encounter it more often"): the Flats' shops are where his orders start, so its van parks by the middle of them -- the blocks
+       nearest the shop doors' centre first */
+    if(d === 0){ const sd = shopDoorsOf(grid).filter(q => { const h = hoodAtWorld(q.x, q.y); return h && HOODS.indexOf(h) === 0; });
+      if(sd.length){ const cx = sd.reduce((a, q) => a + q.x, 0)/sd.length, cy = sd.reduce((a, q) => a + q.y, 0)/sd.length;
+        pool.sort((a, b) => Math.hypot(a.cx - cx, a.cy - cy) - Math.hypot(b.cx - cx, b.cy - cy)); } }
     for(const b of pool.slice(0, 20)){
       const plan = twkPlanAt(scene, b.cx, b.y0 - 60, false);   // (its north street: the kerb nearest the eye is the block's own, the door to its pavement)
       if(!plan || list.some(L => Math.hypot(L.plan.P.x - plan.P.x, L.plan.P.y - plan.P.y) < 3000)) continue;
@@ -104935,6 +104955,7 @@ function twkAbort(scene){ TWK.gang.forEach(m => { m.post = null; }); twkRelease(
    Gideon walking home; the SOS rings */
 function twkQueue(scene, t, queuePerson, keyQueue, layerFor){
   const R = TWK, now = scene.time.now;
+  twkJunkQueue(scene, queuePerson);                                             // (their yard: THE TWEAKERS' YARD)
   const parked = (x, y, fd) => queuePerson(x, y, g => scene.bcDraw(g, "twkvan|" + Math.round(x) + "," + Math.round(y) + "|" + fd, x, y, gg => scene.drawProp(gg, "tweakervan", x, y, 0, fd, 0, 0, 0x7e3e)));
   for(const L of twkLurks(scene)){
     if(L === R.lurk) continue;
@@ -104968,12 +104989,102 @@ function twkQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(R.stage === 'sosCut' && scene.ow) ring(scene.botX, scene.botY, 4, R.t0);   // (botX: already in the room's view, drawWorld's shift)
   if((R.stage === 'rescue' || R.stage === 'sos' || R.stage === 'sosCut' || R.stage === 'garage') && R.house) ring(R.house.step.x, R.house.step.y, 4, 0);
 }
+/* THE TWEAKERS' YARD (Sir, 2026-11-28: "the house looks to nice because its not run down at all and there isnt trash and rubish in the
+   yard ect. lets update the build to reflect its current occpants"): 962 Marina Way's front yard as they keep it -- the lawn worn to dirt
+   and dead grass in patches (twkFillGround: the ground pass, flat), and on it an old sofa facing the street, a stack of bald tyres, a
+   shopping cart, a stained mattress, a heap of trash bags by the overflowing bins, cans and paper about. Each piece its own, still, through
+   the building cache at its own place (twkJunkQueue), built in the vehicle kit's solids (faces the eye sees, lit as the props are) -- the
+   sofa off the room kit's sofa (base, back on its far side, arms, cushions), the bins and litter the street's own (drawProp 'bin', 'trash',
+   'paper', 'can'). Placed in the yard's own frame (twkYardAt: along the house's edge, lat out from its building line), clear of its path
+   (along 380..430) and the gang's posts. Solid where it stands (twkJunkSolid). */
+const TWK_JUNK = [
+  { k: 'sofa', al: 200, lat: -110 }, { k: 'tyres', al: 80, lat: -70 }, { k: 'cart', al: 275, lat: -32 }, { k: 'mattress', al: 555, lat: -118 },
+  { k: 'bags', al: 505, lat: -34 }, { k: 'bin', al: 548, lat: -12 }, { k: 'bin', al: 580, lat: -14 },
+  { k: 'trash', al: 120, lat: -22 }, { k: 'can', al: 330, lat: -128 }, { k: 'paper', al: 455, lat: -64 }, { k: 'can', al: 40, lat: -140 }, { k: 'trash', al: 340, lat: -70 }
+];
+const TWK_JUNK_R = { sofa: 52, tyres: 20, cart: 28, bags: 32, bin: 15 };
+function twkYardAt(al, lat){ const Hd = TWK.hide, e = Hd && Hd.house.e; return e ? edgePt(e, al, lat) : null; }
+function twkYardReady(scene){ return !!(scene.route && scene.route.grid && twkHideout(scene)); }
+/* the worn lawn: dirt and dead grass in patches, seeded off the house (the ground pass, cached) */
+function twkFillGround(scene, g){
+  if(!twkYardReady(scene)) return;
+  const Hs = TWK.hide.house, c = Hs.gate;
+  if(Math.abs(scene.camX - c.x) + Math.abs(scene.camY - c.y) > (scene.vpW() + scene.vpH())/scene.K + 1500) return;
+  const rnd = mulberry32(0x7e3e9), blob = (al, lat, ra, rl, col) => {
+    const pts = []; for(let i = 0; i < 11; i++){ const t = i/11*Math.PI*2, k = 0.72 + 0.5*rnd(), q = edgePt(Hs.e, al + Math.cos(t)*ra*k, lat + Math.sin(t)*rl*k); pts.push(scene.W(q.x, q.y, 0.35)); }
+    if(scene.ptsOnScreen(pts)){ g.fillStyle(col, 1); g.fillPoints(pts, true); } };
+  for(const [al, lat, ra, rl, col] of [[170, -120, 110, 40, 0x8b7b55], [300, -60, 70, 34, 0xa89a5a], [520, -100, 80, 46, 0x8b7b55], [90, -60, 60, 40, 0xa89a5a],
+                                       [470, -40, 50, 24, 0x97875f], [240, -150, 60, 16, 0xa89a5a], [560, -40, 40, 26, 0xa89a5a], [30, -130, 30, 28, 0x8b7b55]]) blob(al, lat, ra, rl, col);
+}
+/* one piece, drawn in the yard's frame (u east along the street, v toward it: the kit's a, b), at its own place */
+function twkJunkDraw(scene, g, J, x, y){
+  if(J.k === 'bin' || J.k === 'trash' || J.k === 'can' || J.k === 'paper'){ scene.drawProp(g, J.k, x, y, 0, 0, 0, 0, (J.al*31 + J.lat*7) >>> 0); return; }
+  const Hs = TWK.hide.house, f = Math.atan2(-Hs.e.dv.y, -Hs.e.dv.x)/(Math.PI/2), K = scene.vehKit(g, x, y, 0, f), { solid, prismH, line, Q, P } = K;
+  const box = (u0, u1, v0, v1, z0, z1, col) => solid(prismH([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], z0, z1), col);
+  const octP = (r, cu = 0, cv = 0) => { const o = []; for(let i = 0; i < 8; i++){ const t = (i + 0.5)/8*Math.PI*2; o.push([cu + Math.cos(t)*r, cv + Math.sin(t)*r]); } return o; };
+  if(J.k === 'sofa'){   // (the room kit's sofa: base, back on its far side, the far arm, the cushions, the near arm -- faded, stained, a cushion gone)
+    const C = 0x8a6a3a, C2 = 0x9c7c48;
+    box(-46, 46, -19, 19, 0, 30, C);
+    box(-46, 46, -19, -8, 30, 62, C);
+    box(-46, -37, -8, 19, 30, 46, C);
+    box(-37, -1, -8, 19, 30, 37, C2);
+    Q([P(-30, 0, 37.1), P(-14, -2, 37.1), P(-10, 9, 37.1), P(-26, 12, 37.1)], 0x6a5030);   // (a stain)
+    box(37, 46, -8, 19, 30, 46, C);
+    line([2, 14, 31], [34, 14, 31], 0x5a4424, 1.6);   // (where the second cushion was: the bare deck)
+    return; }
+  if(J.k === 'tyres'){   // (three bald tyres, stacked: each a ring, its hole dark on top)
+    for(let i = 0; i < 3; i++) solid(prismH(octP(16, i*1.5, -i), i*8, i*8 + 8), 0x26272a);
+    const top = octP(7, 3, -2).map(([u, v]) => P(u, v, 24.1)); Q(top, 0x0e0f11);
+    return; }
+  if(J.k === 'mattress'){   // (lying on the dirt, stained)
+    box(-30, 30, -48, 48, 0, 9, 0xd6cdb8);
+    Q([P(-18, -20, 9.1), P(4, -26, 9.1), P(10, -6, 9.1), P(-12, 0, 9.1)], 0xb3a173);
+    Q([P(6, 18, 9.1), P(20, 14, 9.1), P(22, 30, 9.1), P(8, 34, 9.1)], 0x9a8a5e);
+    for(const v of [-24, 0, 24]) line([-28, v, 9.2], [28, v, 9.2], 0xc2b89e, 1);   // (its quilting)
+    return; }
+  if(J.k === 'bags'){   // (black bags heaped by the bins, far ones first: each a lumpy body and its tied neck, a yellow tie)
+    for(const [u, v, r, h] of [[-14, -10, 13, 20], [12, -12, 12, 18], [-2, 6, 14, 22], [20, 8, 11, 16]]){
+      solid(prismH(octP(r, u, v), 0, h), 0x1d1f23);
+      solid(prismH(octP(4, u, v), h, h + 5), 0x2a2d33);
+      line([u - 4, v, h + 2], [u + 4, v, h + 2], 0xe8c33a, 1.4); }
+    return; }
+  if(J.k === 'cart'){   // (a shopping cart: its wheels, the legs, the wire basket's far edges then its near ones, the red handle)
+    const S = 0x9aa1a8, Sd = 0x6c7278, B = (u, v, z) => [u, v, z];
+    for(const [u, v] of [[-14, -10], [14, -10], [-14, 10], [14, 10]]) solid(prismH(octP(3, u, v), 0, 5), 0x1c1d20);
+    for(const [u, v] of [[-14, -10], [14, -10], [-14, 10], [14, 10]]) line(B(u, v, 5), B(u*1.1, v*1.05, 24), Sd, 1.6);
+    const bot = [[-16, -11], [18, -11], [18, 11], [-16, 11]], tp = [[-22, -14], [22, -14], [22, 14], [-22, 14]];
+    for(let i = 0; i < 4; i++){ const j = (i + 1) % 4; line([...bot[i], 24], [...bot[j], 24], Sd, 1.3); }
+    for(let i = 0; i < 4; i++) line([...bot[i], 24], [...tp[i], 50], S, 1.3);
+    for(const k of [0.33, 0.66]) for(const [i, j] of [[0, 1], [1, 2], [2, 3], [3, 0]]){ const a = [bot[i][0] + (tp[i][0] - bot[i][0])*k, bot[i][1] + (tp[i][1] - bot[i][1])*k], c = [bot[j][0] + (tp[j][0] - bot[j][0])*k, bot[j][1] + (tp[j][1] - bot[j][1])*k];
+      line([...a, 24 + 26*k], [...c, 24 + 26*k], S, 0.9); }
+    for(let i = 0; i < 4; i++){ const j = (i + 1) % 4; line([...tp[i], 50], [...tp[j], 50], S, 1.5); }
+    line([-26, -15, 54], [-26, 15, 54], 0xc8352e, 3);   // (the handle)
+    line([-22, -14, 50], [-26, -15, 54], S, 1.3); line([-22, 14, 50], [-26, 15, 54], S, 1.3);
+    return; }
+}
+function twkJunkQueue(scene, queuePerson){
+  if(!twkYardReady(scene)) return;
+  const Hs = TWK.hide.house;
+  if(Math.abs(scene.camX - Hs.gate.x) + Math.abs(scene.camY - Hs.gate.y) > (scene.vpW() + scene.vpH())/scene.K + 1500) return;
+  for(const J of TWK_JUNK){
+    const q = twkYardAt(J.al, J.lat); if(!q || !scene.visProp("people", q.x, q.y)) continue;
+    const x = q.x, y = q.y;
+    queuePerson(x, y, g => scene.bcDraw(g, "twkjunk|" + J.k + "|" + Math.round(x) + "," + Math.round(y), x, y, gg => twkJunkDraw(scene, gg, J, x, y)));
+  }
+}
+function twkJunkSolid(x, y, r){
+  const Hd = TWK.hide; if(!Hd) return false;
+  if(Math.abs(x - Hd.house.gate.x) + Math.abs(y - Hd.house.gate.y) > 1200) return false;
+  for(const J of TWK_JUNK){ const R = TWK_JUNK_R[J.k]; if(!R) continue; const q = twkYardAt(J.al, J.lat); if(q && Math.hypot(x - q.x, y - q.y) < R + r) return true; }
+  return false;
+}
 /* the vans' bodies are solid while they stand (he goes round them, not through them) */
 function twkSolidAt(x, y, r){
   const R = TWK, Lr = TWK._lurks, hit = (P, fd) => { if(Math.abs(x - P.x) + Math.abs(y - P.y) > CARC.len + r + 40) return false; const ap = carAxisPoint(P, fd, x, y); return Math.hypot(x - ap.x, y - ap.y) < CARC.wid/2 + r; };
   const blk = P => ({ x0: P.x - 150, x1: P.x + 150, y0: P.y - 150, y1: P.y + 150, cx: P.x, cy: P.y, type: 'commercial', twkVan: true });
   if(R.plan && R.stage !== 'away' && hit(R.plan.P, R.plan.fd)) return blk(R.plan.P);
   if(Lr) for(const L of Lr.list) if(L !== R.lurk && hit(L.plan.P, L.plan.fd)) return blk(L.plan.P);
+  if(twkJunkSolid(x, y, r)) return blk({ x, y });                                // (the junk in their yard)
   return null;
 }
 MISSIONS['tweaker-snatch'] = { name: 'Tweaker Trouble', giver: "Tipsey's SOS", window: 'any', needs: 'minding-the-shop', places: ['Brew & Bolt'],
@@ -119946,6 +120057,7 @@ class WorldScene extends Phaser.Scene {
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     cplFillGround(this, g);                 // THE COSTA PALMA LETTERS' gravel: the walk to the stair, the shelf path
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
+    twkFillGround(this, g);                 // THE TWEAKERS' YARD: its lawn worn to dirt and dead grass in patches
     for(const lot of visLots) this.fillExteriorLot(g, lot);
     this.beachVergeGround(g);               // THE BEACHFRONT VERGE: the dune, the promenade and the cross walks (beachVergeGround)
     eastGroundLate(this, g, onScreen);      // THE EAST EDGE's trailhead: its walk in over the rim's lawn, its pad (eastGroundLate)
