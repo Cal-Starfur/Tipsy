@@ -30933,51 +30933,39 @@ function ctgGatehouseDepth(){
      b 150..190    an old sofa facing the door's wall, the crate table in front of it with what they left on it, a TV on a crate facing them
      a 8..50       the west strip: a heap of clothes, trash bags by the near wall
    (the walls grey and stained, tagged; the floor's carpet worn through and burnt) */
-/* BIGGER INSIDE THAN OUT (Sir, 2026-11-28: "we need to expand it like we do our shops"): W31 -- the room runs back from the house's front through
-   its back yard, 486 x 700 (x 23705..24191, y 23389..24089: from the side passage by the garage to the house's east wall, the house's front back
-   700), in the house's lab (twLab: its lot mirrored along the street, x1.3). THE GARAGE IS ITS OWN ROOM, attached ("it should be a separate but
-   attached piece": TWG_IN, through its own big door on the street side); a shut door on this room's west wall is the way through to it. Room frame:
-     b 6..44         the back wall: the old fridge (a 10..42), the bench of stolen goods (a 50..126), the kitchen run (a 232..412)
-     b 150..320      the back: a crate table and chairs, a heap of stolen bikes, a second mattress, a cart of junk, clothes
-     b 360..700      the front room: the sofa, the crate table, the TV on its crate, clothes, trash bags
-   the door's lane (a 131..223) clear from the door to the back wall */
+/* BIGGER INSIDE THAN OUT, ITS GARAGE ITS BAY (Sir, 2026-11-28: "we need to expand it like we do our shops and it should have a door way into the
+   garage too"; "it should be a separate but attached piece"; "look at the way the garage is oriented ... the door is in the front and its longer
+   then it is wide"): W31 -- one room, 688 x 700 (x 23503..24191, y 23389..24089): the house's front room and its back run back through the yard,
+   and on its west the garage, AS IT STANDS: its own walled bay, narrow and long (a 0..155, b 250..700), its big door at the front (rolled up on
+   its tracks), the van nose in; a doorway in its east wall to the hall between it and the house. In the house's lab (twLab: its lot mirrored
+   along the street, x1.3). Room frame:
+     a 0..155, b 250..700   THE GARAGE BAY: the van, a workbench under a pegboard on the west wall, bikes, gas cans, tyres
+     a 185..280            the hall, garage to house (the side passage)
+     b 6..44               the back wall: a washing machine, the old fridge, the bench of stolen goods (a 252..328), the kitchen run (a 434..614)
+     b 100..320            the back: a crate table and chairs, a heap of stolen bikes, a second mattress, a cart of junk, clothes
+     a 280..688, b 360..700  the front room: the sofa, the crate table, the TV on its crate, clothes, trash bags
+   the door's lane (a 333..425) clear from the door to the back wall. (The garage's front stands 78 further out than the house's; the room's front
+   is the house's own line -- W31: a room never runs toward the street -- so the bay's door is on the room's front wall) */
 const twLab = (x, y) => [460 - (24285.5 - x)/1.3, (y - 24288)/1.3];
-const TW_IN = { name: 'Tweakers House Interior', x0: 1040000, y0: 400000, WALL: 30/1.3, H: 280, LH: 66, X: [23705, 24191], Y: [23389, 24089] };
+const TW_IN = { name: 'Tweakers House Interior', x0: 1040000, y0: 400000, WALL: 30/1.3, H: 280, LH: 66, X: [23503, 24191], Y: [23389, 24089] };
 const TW_PLAN = walkinDefine({ name: TW_IN.name, from: 'Tweakers House', x0: TW_IN.x0, y0: TW_IN.y0,
   lab: [twLab(TW_IN.X[0], 0)[0], twLab(TW_IN.X[1], 0)[0], twLab(0, TW_IN.Y[0])[1], twLab(0, TW_IN.Y[1])[1]],
-  body: [[50, 410, -480, -130]],
+  body: [[50, 410, -480, -130], [-165, -9.6, -300, -70]],                     // (the house, and its garage)
   door: { a: 150, b: -130, half: 46 }, H: TW_IN.H, LH: TW_IN.LH, out: 60, glass: -14, late: () => true,   // (glass < 0: in the doorway first, W32; late: a home, never shut)
   openings: [{ lab: [[150 - 35.4, -130], [150 + 35.4, -130]], z: [0, 94] }] });
-/* (it hides the house; the buildings behind it ghost; it displaces what it covers, W31) */
-Object.assign(POCKETS[POCKETS.length - 1], { displace: true, ghosts: ['Tweakers Garage', 'Solstice Eco House', 'Starlite Googie', 'Street Garage'] });
+/* (it hides the house and its garage; the buildings behind and beside it ghost; it displaces what it covers, W31) */
+Object.assign(POCKETS[POCKETS.length - 1], { hides: ['Tweakers House', 'Tweakers Garage'], displace: true,
+  ghosts: ['Solstice Eco House', 'Starlite Googie', 'Glass Pavilion', 'Street Garage'] });
 /* (ONE KNOCK-DOWN AND HE IS OUT, W34: the resident sees him to the door and will not have him back) */
 Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['tweaker'], banSay: { who: 'Tweaker', say: "Whoa, whoa! Get out of my house, toaster." } });
 /* ITS PEOPLE: one of the Tweakers at home -- a gang member's look (streetLook 'tweaker', a seed of his own), at the bench picking at the copper, and
    now and then at the kitchen run. One person, no visitors */
 walkinStaff(TW_IN.name, [
   { id: 'tweaker', role: 'resident (a Tweaker)', seed: 0x7e3ed, keys: true, lookFn: () => streetLook(0x7e3ed, { adult: true, aid: 'none', type: 'tweaker', sex: 'm' }),
-    posts: [[88, 72, -Math.PI/2, 9000, true], [320, 72, -Math.PI/2, 6000, true]] },
+    posts: [[290, 72, -Math.PI/2, 9000, true], [520, 72, -Math.PI/2, 6000, true]] },
 ]);
-walkinLife(TW_IN.name, { keep: [[131, 223, 0, 700]], looks: [] });
-/* ==================== THE TWEAKERS' GARAGE, WALK-IN (Sir, 2026-11-28: "it should be a separate but attached piece ... the door is facing the wrong
-   direction": its big door on its street side, as the garage's own; the room: the LIB entry 'Tweakers Garage Interior') ====================
-   The house's garage (its own entry 'Tweakers Garage', its door rolled up, a hole onto this room), its frame the garage's lot (twgLab: mirrored along
-   the street, x1.3). Bigger inside than out (W31): back from its front through the garden behind, and west over the next garage (displaced), 345 x
-   567 (x 23300..23645, y 23600..24167). Its way in: the big door, on its south wall where the garage's is (a ~274, 155 across), driven or walked
-   into. Room frame:
-     the van        nose in, under the door, a 228..318, b 220..445 (the game's own: fx.car with prop)
-     b 6..44        the back wall: a workbench of tools (a 20..200) under a pegboard, a shelf of cans
-     a 10..60       the west side: bikes stood against the wall, the gas cans, the tyres
-     the east wall  its people-door to the house, shut */
-const twgLab = (x, y) => [175 - (23687.5 - x)/1.3, (y - 24288)/1.3];
-const TWG_IN = { name: 'Tweakers Garage Interior', x0: 1060000, y0: 400000, H: 240, LH: 66, X: [23300, 23645], Y: [23600, 24167] };
-const TWG_PLAN = walkinDefine({ name: TWG_IN.name, from: 'Tweakers Garage', x0: TWG_IN.x0, y0: TWG_IN.y0,
-  lab: [twgLab(TWG_IN.X[0], 0)[0], twgLab(TWG_IN.X[1], 0)[0], twgLab(0, TWG_IN.Y[0])[1], twgLab(0, TWG_IN.Y[1])[1]],
-  body: [[10, 165, -300, -70]],
-  door: { a: 87.5, b: -70, half: 77 }, H: TWG_IN.H, LH: TWG_IN.LH, out: 60, glass: -14, late: () => true,
-  openings: [{ lab: [[28, -70], [147, -70]], z: [0, 84] }] });
-Object.assign(POCKETS[POCKETS.length - 1], { displace: true, ghosts: ['Tweakers House', 'Street Garage', 'Glass Pavilion', 'Solstice Eco House'] });   // (the house beside it over its east side: ghosted, W26)
-walkinLife(TWG_IN.name, { keep: [], looks: [] });
+walkinLife(TW_IN.name, { keep: [[333, 425, 0, 700]], looks: [] });
+
 /* ==================== COVE GROVE, SEAGLASS COFFEE, WALK-IN (wk9; the room: the LIB entry 'Seaglass Coffee Interior') ====================
    The west tower's south-west shop on the street's lines (walkinDefine, an hl landmark, the cell 'Cove Grove West Tower': its draw frame is the cell's
    north-west, lab a = x, b = 25024 - y, so the room's south is lab b going DOWN). The shop is its span 954..1564 on the tower's south face (y 27238),
@@ -61969,81 +61957,92 @@ function houseCanopy(fn){
 },
 {
   /* ==================== INSIDE THE TWEAKERS' HOUSE (TW_IN, TW_PLAN: the walk-in kit; Sir, 2026-11-28) ====================
-     The den behind 962 Marina Way's open door, bigger inside than out (W31): 486 x 700, the house's front room and its back run back through the yard.
-     The garage is its own room (TWG_IN), through a shut door in this room's west wall. Everything as they keep it: the carpet worn through and burnt,
-     the walls grey, stained and tagged, a kitchen run of dirty pans, an old fridge, a bench of stolen copper, a heap of stolen bikes, two bare
+     The den behind 962 Marina Way's open door, bigger inside than out (W31): 688 x 700, the house's front room and its back run back through the yard,
+     and on its west THE GARAGE, as it stands outside: its own walled bay, narrow and long (a 0..155, b 250..700), its big door at the front rolled
+     up on its tracks, the Tweakers' van nose in, a doorway in its east wall to the hall. Everything as they keep it: the carpet worn through and
+     burnt, the walls grey, stained and tagged, a kitchen run of dirty pans, an old fridge, a bench of stolen copper, a heap of stolen bikes, two bare
      mattresses, an old sofa at a crate table facing a TV on a crate, clothes and trash bags. W37 in every piece: back to front, only the faces the
      eye sees (box() does it). */
   name:'Tweakers House Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 486, dd: 700,
-  head:'Inside the Tweakers\' house: two bare mattresses, an old sofa and a TV on a crate, stolen copper and bikes, trash everywhere',
-  tags:['interior','pocket','house','tweakers','squat'],
-  desc:'The Tweakers\' den: a carpet worn through and burnt, grey stained walls sprayed with tags, a kitchen run of dirty pans, a bench heaped with stripped copper wire and a car stereo, a heap of stolen bikes, two bare mattresses, an old sofa at a crate table of cans and pizza boxes, a TV on a milk crate, clothes and trash bags, and a shut door through to the garage.',
+  ww: 688, dd: 700,
+  head:'Inside the Tweakers\' house: two bare mattresses, an old sofa and a TV on a crate, stolen copper and bikes, their van in the garage',
+  tags:['interior','pocket','house','tweakers','squat','garage'],
+  desc:'The Tweakers\' den: a carpet worn through and burnt, grey stained walls sprayed with tags, a kitchen run of dirty pans, a bench heaped with stripped copper wire and a car stereo, a heap of stolen bikes, two bare mattresses, an old sofa at a crate table of cans and pizza boxes, a TV on a milk crate, clothes and trash bags -- and through a doorway the garage, long and narrow, their van nose in under its rolled-up door, a workbench of tools, bikes, gas cans and tyres.',
   draw(p){
     const pl = (typeof TW_PLAN !== 'undefined' && TW_PLAN) || null;
     if(pl) pl.view();
-    const W = pl && pl.W > 1 ? pl.W : 486, D = pl && pl.D > 1 ? pl.D : 700, H = pl ? pl.H : 280, AP = pl ? pl.apron : 60, LH = 66;
-    const door = (pl && pl.door) || { side: 's', at: 177, half: 46 };
+    const W = pl && pl.W > 1 ? pl.W : 688, D = pl && pl.D > 1 ? pl.D : 700, H = pl ? pl.H : 280, AP = pl ? pl.apron : 60, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 379, half: 46 };
     const DA0 = door.at - door.half, DA1 = door.at + door.half;
     const wall = '#cbc3ad', wallD = '#b5ac96', grime = 'rgba(92,82,60,.3)';
     const wood = '#8a6a42', woodL = '#a6845a', woodD = '#6a5032', crate = '#2f5f8f', crateD = '#244a70';
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const GA1 = 155, GB0 = 250, GW = 30, GDR = [300, 400];                                // (the bay: a 0..155, b 250..700, its walls 30; its doorway to the hall in its east wall)
     const bikeFlat = (a, b, z, col) => { for(const da of [-20, 20]){ plateCircle(a + da, b, z + 1, 14, null, '#2a2b2e', 2.2); plateCircle(a + da, b, z + 1.2, 2, '#9aa0a6', null, 0); }
       tube(a - 20, b, z + 2, a, b - 14, z + 2, 1.6, col); tube(a, b - 14, z + 2, a + 20, b, z + 2, 1.6, col); tube(a - 20, b, z + 2, a + 2, b, z + 2, 1.6, col); tube(a + 2, b, z + 2, a, b - 14, z + 2, 1.6, col); };
+    const wheelB = (a, b, z, r) => { for(let i = 0; i < 14; i++){ const t = i/14*Math.PI*2, t2 = (i + 1)/14*Math.PI*2; tube(a, b + r*Math.cos(t), z + r*Math.sin(t), a, b + r*Math.cos(t2), z + r*Math.sin(t2), 1.4, '#2a2b2e'); } };
+    const bikeW = (a, b, col) => { wheelB(a, b - 20, 15, 14); tube(a, b - 20, 15, a, b, 34, 1.4, col); tube(a, b, 34, a, b + 20, 15, 1.4, col); tube(a, b - 20, 15, a, b + 2, 15, 1.4, col);
+      tube(a, b + 2, 15, a, b, 34, 1.4, col); tube(a, b + 20, 15, a, b + 18, 40, 1.4, col); tube(a, b + 13, 41, a, b + 23, 41, 1.6, '#2a2b2e'); wheelB(a, b + 20, 15, 14); };
 
-    /* ---- THE FLOOR: the carpet, worn through to the boards in patches, burnt, stained; a threshold at the door ---- */
+    /* ---- THE FLOOR: the carpet, worn through to the boards in patches, burnt, stained; the garage bay's concrete, its oil stain and tyre marks; a
+       threshold at the door ---- */
     T(0, W, 0, D, 0, '#7f786a');
-    for(const [a0, a1, b0, b1] of [[240, 320, 400, 440], [360, 420, 540, 600], [40, 120, 240, 300], [300, 380, 330, 350]]){ T(a0, a1, b0, b1, 0.2, '#9a7c56');
+    for(const [a0, a1, b0, b1] of [[442, 522, 400, 440], [562, 622, 540, 600], [242, 322, 240, 300], [502, 582, 330, 350]]){ T(a0, a1, b0, b1, 0.2, '#9a7c56');
       for(let b = b0 + 6; b < b1; b += 12) T(a0, a1, b, b + 0.8, 0.3, '#7a5e3e'); }
-    for(const [a, b, r, col] of [[330, 565, 22, '#5e574a'], [200, 605, 14, '#4f4a40'], [410, 485, 10, '#3a352e'], [280, 635, 18, '#6a6152'], [150, 395, 12, '#5e574a'], [60, 110, 16, '#5e574a'], [210, 200, 12, '#4f4a40']])
+    for(const [a, b, r, col] of [[532, 565, 22, '#5e574a'], [402, 605, 14, '#4f4a40'], [612, 485, 10, '#3a352e'], [482, 635, 18, '#6a6152'], [352, 395, 12, '#5e574a'], [262, 110, 16, '#5e574a'], [412, 200, 12, '#4f4a40'], [100, 120, 14, '#5e574a']])
       plateCircle(a, b, 0.4, r, col, null, 0);
+    T(0, GA1, GB0, D, 0.5, '#9a968c'); for(const b of [400, 550]) T(0, GA1, b, b + 0.8, 0.7, '#7e7a70'); plateCircle(78, 470, 0.8, 30, '#5f5c57', null, 0);
+    for(const a of [46, 110]) T(a - 6, a + 6, 560, D, 0.9, 'rgba(40,38,34,.25)');
     T(DA0, DA1, D, D + AP, 0.3, '#9a9282'); T(DA0, DA1, D - 3, D + 3, 0.7, '#6f6a5e');
 
-    /* ---- THE BACK WALL: the old fridge (a 10..42), the bench of stolen goods (a 50..126, b 6..44, its top at 72: runs; all its legs, then the
-       top), the kitchen run (a 232..412, its top at 72: runs; on it, each its own piece: the sink of pans, the stove and a pot, takeaway, bottles) ---- */
-    items.push({ a: 26, b: 22, z: 0, solids: [solid(10, 42, 6, 38, 110, 'fridge')], draw: () => {
-      box(10, 42, 6, 38, 0, 110, '#ddd6bf', '#d2cbb2', '#bdb59c'); F(12, 40, 66, 66.8, '#9a9480', null, 0, 38.2); F(36, 38, 76, 96, '#8a8a8a', null, 0, 38.4); F(36, 38, 30, 52, '#8a8a8a', null, 0, 38.4); } });
-    const BA0 = 50, BA1 = 126, BB0 = 6, BB1 = 44, BZ = 72;
+    /* ---- THE BACK WALL: a washing machine (a 20..60), the old fridge (a 212..244), the bench of stolen goods (a 252..328, its top at 72: runs; all its
+       legs, then the top), the kitchen run (a 434..614, its top at 72: runs; on it, each its own piece: the sink of pans, the stove and a pot,
+       takeaway, bottles) ---- */
+    items.push({ a: 40, b: 26, z: 0, solids: [solid(20, 60, 6, 44, 80, 'washer')], draw: () => { box(20, 60, 6, 44, 0, 80, '#e0dccd', '#d0ccbc', '#b8b4a4'); plateCircle(40, 25, 80.2, 9, '#4a4e54', '#8a8e94', 1.4);
+      F(24, 56, 66, 76, '#a8a498', null, 0, 44.2); F(26, 34, 70, 72, '#3a8a5a', null, 0, 44.4); } });
+    items.push({ a: 228, b: 22, z: 0, solids: [solid(212, 244, 6, 38, 110, 'fridge')], draw: () => {
+      box(212, 244, 6, 38, 0, 110, '#ddd6bf', '#d2cbb2', '#bdb59c'); F(214, 242, 66, 66.8, '#9a9480', null, 0, 38.2); F(238, 240, 76, 96, '#8a8a8a', null, 0, 38.4); F(238, 240, 30, 52, '#8a8a8a', null, 0, 38.4); } });
+    const BA0 = 252, BA1 = 328, BB0 = 6, BB1 = 44, BZ = 72;
     runPiece(items, BA0, BA1, BB0, BB1, BZ, (s0, s1) => [solid(s0, s1, BB0, BB1, BZ, 'bench')], () => {
       for(const a of [BA0 + 4, BA1 - 4]) box(a - 2.5, a + 2.5, BB0 + 2, BB0 + 7, 0, BZ - 4, woodD, woodD, shade(woodD, .8));
       for(const a of [BA0 + 4, BA1 - 4]) box(a - 2.5, a + 2.5, BB1 - 7, BB1 - 2, 0, BZ - 4, wood, woodD, shade(woodD, .8));
       box(BA0, BA1, BB0, BB1, BZ - 4, BZ, woodL, wood, woodD);
     }, { keyStart: true, pad: 3 });
-    items.push({ a: 66, b: 26, z: BZ, draw: () => { for(const [a, b] of [[64, 18], [80, 30]]){ cyl(a, b, BZ, BZ + 14, 9, '#8a5a2a'); plateCircle(a, b, BZ + 14, 9, '#c87a3a', '#8a4a1a', 1); plateCircle(a, b, BZ + 14.1, 3, '#3a2a1a', null, 0); } } });
-    items.push({ a: 104, b: 26, z: BZ, draw: () => { box(94, 116, 18, 34, BZ, BZ + 9, '#3a3d44', '#2a2d33', '#1f2126'); F(96, 114, BZ + 2, BZ + 7, '#4fd0e0', null, 0, 34.2); for(let k = 0; k < 4; k++) tube(94 - k*2, 22 + k*3, BZ + 4, 86 - k*3, 22 + k*4, BZ + 1, 0.7, ['#d04030', '#e0c030', '#3060d0', '#f0f0f0'][k]); } });
-    const KA0 = 232, KA1 = 412, KB0 = 6, KB1 = 44, KZ = 72;
+    items.push({ a: 268, b: 26, z: BZ, draw: () => { for(const [a, b] of [[266, 18], [282, 30]]){ cyl(a, b, BZ, BZ + 14, 9, '#8a5a2a'); plateCircle(a, b, BZ + 14, 9, '#c87a3a', '#8a4a1a', 1); plateCircle(a, b, BZ + 14.1, 3, '#3a2a1a', null, 0); } } });
+    items.push({ a: 306, b: 26, z: BZ, draw: () => { box(296, 318, 18, 34, BZ, BZ + 9, '#3a3d44', '#2a2d33', '#1f2126'); F(298, 316, BZ + 2, BZ + 7, '#4fd0e0', null, 0, 34.2); for(let k = 0; k < 4; k++) tube(296 - k*2, 22 + k*3, BZ + 4, 288 - k*3, 22 + k*4, BZ + 1, 0.7, ['#d04030', '#e0c030', '#3060d0', '#f0f0f0'][k]); } });
+    const KA0 = 434, KA1 = 614, KB0 = 6, KB1 = 44, KZ = 72;
     runPiece(items, KA0, KA1, KB0, KB1, KZ, (s0, s1) => [solid(s0, s1, KB0, KB1, KZ, 'kitchen')], () => {
       box(KA0, KA1, KB0, KB1 - 3, 0, KZ - 4, '#9a9180', '#b5ac96', '#8f8676');
       for(let a = KA0 + 4; a < KA1 - 20; a += 44) F(a, a + 38, 8, KZ - 12, '#a39a86', '#7a7262', 1, KB1 - 2.8);
       box(KA0 - 2, KA1 + 2, KB0, KB1, KZ - 4, KZ, '#c8c0aa', '#b0a890', '#988f7a');
     }, { keyStart: true, pad: 3 });
-    items.push({ a: 262, b: 25, z: KZ, draw: () => { T(244, 284, 14, 38, KZ + 0.2, '#5a5850'); for(const [a, b, r] of [[256, 22, 8], [272, 30, 9]]){ cyl(a, b, KZ, KZ + 10, r, '#6a6e74'); plateCircle(a, b, KZ + 10, r, '#3a3c40', '#4a4e54', 1); } } });
-    items.push({ a: 340, b: 25, z: KZ, draw: () => { for(const [a, b] of [[326, 18], [354, 18], [326, 34], [354, 34]]) plateCircle(a, b, KZ + 0.4, 7, '#1d1f23', '#3a3c40', 1);
-      cyl(354, 34, KZ, KZ + 12, 8, '#8a8e94'); plateCircle(354, 34, KZ + 12, 8, '#4a3a2a', '#6a6e74', 1); } });
-    items.push({ a: 392, b: 25, z: KZ, draw: () => { box(376, 404, 12, 36, KZ, KZ + 3, '#d9b77a', '#c8a464', '#b0904e'); for(const [a, b, col] of [[407, 18, '#2f6f3a'], [409, 32, '#6a4a2a']]){ cyl(a, b, KZ, KZ + 16, 3, col); cyl(a, b, KZ + 16, KZ + 22, 1.2, col); } } });
-    /* ---- THE BACK: a crate table and chairs (a 30..90, b 160..200), a heap of stolen bikes (a 244..336, b 150..220), a cart of junk (a 380..420,
-       b 110..140), the second mattress (a 300..426, b 230..318) and its clothes (a 250..290, b 252..282) ---- */
-    items.push({ a: 60, b: 180, z: 0, solids: [solid(28, 92, 158, 202, 40, 'table')], draw: () => {
-      box(32, 56, 162, 198, 0, 30, crateD, crate, shade(crate, .8)); box(64, 88, 162, 198, 0, 30, crateD, crate, shade(crate, .8));
-      box(28, 92, 158, 202, 30, 34, woodL, wood, woodD); cyl(50, 172, 34, 40, 3, '#c0c4c8'); box(60, 80, 178, 194, 34, 36, '#d9b77a', '#c8a464', '#b0904e'); } });
-    for(const [a, b] of [[60, 140], [104, 180]]) items.push({ a, b, z: 0, solids: [solid(a - 9, a + 9, b - 9, b + 9, 26, 'chair')], draw: () => { box(a - 9, a + 9, b - 9, b + 9, 0, 26, '#5a6a7a', '#4a5a6a', '#3a4a5a'); } });
-    items.push({ a: 290, b: 186, z: 0, solids: [solid(244, 336, 152, 222, 18, 'bikes')], draw: () => { bikeFlat(272, 176, 0, '#c83a2a'); bikeFlat(302, 200, 5, '#2a6ad0'); bikeFlat(286, 190, 10, '#e0c030'); } });
-    items.push({ a: 400, b: 125, z: 0, solids: [solid(378, 422, 108, 142, 56, 'cart')], draw: () => {
-      for(const [a, b] of [[384, 114], [416, 114], [384, 136], [416, 136]]) cyl(a, b, 0, 5, 3, '#1c1d20');
-      box(380, 420, 110, 140, 24, 48, '#5a5e64', '#6c7278', '#4a4e54');
-      for(const [a, b, r, col] of [[390, 120, 8, '#2f5f8f'], [406, 126, 9, '#c83a2a'], [396, 134, 7, '#e0c030'], [412, 118, 6, '#8a8e94']]) ball(a, b, 48 + r*0.6, r, col);
-      tube(378, 108, 52, 378, 142, 52, 2, '#c8352e'); } });
-    runPiece(items, 300, 426, 230, 318, 21, (s0, s1) => [solid(s0, s1, 230, 318, 10, 'mattress')], () => {
-      box(300, 426, 230, 318, 0, 10, '#cfc6ae', '#bdb39a', '#a39a82');
-      for(const [a0, a1, b0, b1, col] of [[328, 368, 258, 288, '#b3a173'], [378, 410, 284, 310, '#9a8a5e']]) T(a0, a1, b0, b1, 10.2, col);
-      box(306, 338, 238, 264, 10, 16, '#e4ddc8', '#d0c8b0', '#b8b098');
-      box(358, 414, 268, 310, 10, 17, '#5a6a4a', '#4a5a3c', '#3c4a30'); box(368, 398, 276, 302, 17, 21, '#667a54', '#56683f', '#46553a');
+    items.push({ a: 464, b: 25, z: KZ, draw: () => { T(446, 486, 14, 38, KZ + 0.2, '#5a5850'); for(const [a, b, r] of [[458, 22, 8], [474, 30, 9]]){ cyl(a, b, KZ, KZ + 10, r, '#6a6e74'); plateCircle(a, b, KZ + 10, r, '#3a3c40', '#4a4e54', 1); } } });
+    items.push({ a: 542, b: 25, z: KZ, draw: () => { for(const [a, b] of [[528, 18], [556, 18], [528, 34], [556, 34]]) plateCircle(a, b, KZ + 0.4, 7, '#1d1f23', '#3a3c40', 1);
+      cyl(556, 34, KZ, KZ + 12, 8, '#8a8e94'); plateCircle(556, 34, KZ + 12, 8, '#4a3a2a', '#6a6e74', 1); } });
+    items.push({ a: 594, b: 25, z: KZ, draw: () => { box(578, 606, 12, 36, KZ, KZ + 3, '#d9b77a', '#c8a464', '#b0904e'); for(const [a, b, col] of [[609, 18, '#2f6f3a'], [611, 32, '#6a4a2a']]){ cyl(a, b, KZ, KZ + 16, 3, col); cyl(a, b, KZ + 16, KZ + 22, 1.2, col); } } });
+    /* ---- THE BACK: a crate table and chairs (a 70..134, b 120..164), a heap of stolen bikes (a 446..538, b 150..220), a cart of junk (a 580..624,
+       b 108..142), the second mattress (a 502..628, b 230..318) and its clothes (a 452..492, b 252..282) ---- */
+    items.push({ a: 102, b: 142, z: 0, solids: [solid(70, 134, 120, 164, 40, 'table')], draw: () => {
+      box(74, 98, 124, 160, 0, 30, crateD, crate, shade(crate, .8)); box(106, 130, 124, 160, 0, 30, crateD, crate, shade(crate, .8));
+      box(70, 134, 120, 164, 30, 34, woodL, wood, woodD); cyl(92, 134, 34, 40, 3, '#c0c4c8'); box(102, 122, 140, 156, 34, 36, '#d9b77a', '#c8a464', '#b0904e'); } });
+    for(const [a, b] of [[102, 102], [146, 142]]) items.push({ a, b, z: 0, solids: [solid(a - 9, a + 9, b - 9, b + 9, 26, 'chair')], draw: () => { box(a - 9, a + 9, b - 9, b + 9, 0, 26, '#5a6a7a', '#4a5a6a', '#3a4a5a'); } });
+    items.push({ a: 492, b: 186, z: 0, solids: [solid(446, 538, 152, 222, 18, 'bikes')], draw: () => { bikeFlat(474, 176, 0, '#c83a2a'); bikeFlat(504, 200, 5, '#2a6ad0'); bikeFlat(488, 190, 10, '#e0c030'); } });
+    items.push({ a: 602, b: 125, z: 0, solids: [solid(580, 624, 108, 142, 56, 'cart')], draw: () => {
+      for(const [a, b] of [[586, 114], [618, 114], [586, 136], [618, 136]]) cyl(a, b, 0, 5, 3, '#1c1d20');
+      box(582, 622, 110, 140, 24, 48, '#5a5e64', '#6c7278', '#4a4e54');
+      for(const [a, b, r, col] of [[592, 120, 8, '#2f5f8f'], [608, 126, 9, '#c83a2a'], [598, 134, 7, '#e0c030'], [614, 118, 6, '#8a8e94']]) ball(a, b, 48 + r*0.6, r, col);
+      tube(580, 108, 52, 580, 142, 52, 2, '#c8352e'); } });
+    runPiece(items, 502, 628, 230, 318, 21, (s0, s1) => [solid(s0, s1, 230, 318, 10, 'mattress')], () => {
+      box(502, 628, 230, 318, 0, 10, '#cfc6ae', '#bdb39a', '#a39a82');
+      for(const [a0, a1, b0, b1, col] of [[530, 570, 258, 288, '#b3a173'], [580, 612, 284, 310, '#9a8a5e']]) T(a0, a1, b0, b1, 10.2, col);
+      box(508, 540, 238, 264, 10, 16, '#e4ddc8', '#d0c8b0', '#b8b098');
+      box(560, 616, 268, 310, 10, 17, '#5a6a4a', '#4a5a3c', '#3c4a30'); box(570, 600, 276, 302, 17, 21, '#667a54', '#56683f', '#46553a');
     }, { pad: 3 });
-    items.push({ a: 270, b: 267, z: 0, solids: [solid(250, 290, 252, 282, 16, 'clothes')], draw: () => { for(const [a, b, r, col] of [[258, 260, 9, '#3a4a6a'], [276, 264, 8, '#8a3a3a'], [262, 276, 9, '#5a5a5a'], [280, 276, 7, '#c8b070']]) ball(a, b, 6, r, col); } });
-    /* ---- THE FRONT ROOM: the sofa (a 267..367, b 455..495) its back to the north, facing the TV: runs; the base, the back, the far arm, the
+    items.push({ a: 472, b: 267, z: 0, solids: [solid(452, 492, 252, 282, 16, 'clothes')], draw: () => { for(const [a, b, r, col] of [[460, 260, 9, '#3a4a6a'], [478, 264, 8, '#8a3a3a'], [464, 276, 9, '#5a5a5a'], [482, 276, 7, '#c8b070']]) ball(a, b, 6, r, col); } });
+    /* ---- THE FRONT ROOM: the sofa (a 469..569, b 455..495) its back to the north, facing the TV: runs; the base, the back, the far arm, the
        cushions (one gone), the near arm. The crate table, what is on it, the TV on its crate, pizza boxes, cans, clothes, trash bags ---- */
-    const SA0 = 267, SA1 = 367, SB0 = 455, SB1 = 495, sof = '#7a5a3a', sofL = '#8c6a44', sofD = '#5e4428';
+    const SA0 = 469, SA1 = 569, SB0 = 455, SB1 = 495, sof = '#7a5a3a', sofL = '#8c6a44', sofD = '#5e4428';
     runPiece(items, SA0, SA1, SB0, SB1, 60, (s0, s1) => [solid(s0, s1, SB0, SB1, 40, 'sofa')], () => {
       box(SA0, SA1, SB0, SB1, 4, 26, sofL, sof, sofD);
       box(SA0, SA1, SB0, SB0 + 12, 26, 58, sofL, sof, sofD);
@@ -62052,107 +62051,65 @@ function houseCanopy(fn){
       T(SA0 + 52, SA1 - 12, SB0 + 12, SB1, 26.2, '#4a3a28'); T(SA0 + 64, SA0 + 74, SB0 + 18, SB1 - 6, 26.4, '#c8b890');
       box(SA1 - 10, SA1, SB0 + 12, SB1, 26, 40, sofL, sof, sofD);
     }, { pad: 3 });
-    items.push({ a: 317, b: 535, z: 0, solids: [solid(289, 345, 518, 552, 34, 'table')], draw: () => {
-      for(const a0 of [292, 320]){ box(a0, a0 + 22, 521, 549, 0, 28, crateD, crate, shade(crate, .8)); T(a0 + 3, a0 + 19, 524, 546, 28.1, '#16283c'); }
-      box(289, 345, 518, 552, 28, 32, woodL, wood, woodD); } });
-    items.push({ a: 317, b: 535, z: 32, draw: () => {
-      box(299, 325, 523, 543, 32, 34, '#d9b77a', '#c8a464', '#b0904e'); T(302, 322, 526, 540, 34.2, '#b8935c');
-      for(const [a, b, col] of [[331, 527, '#2f6f3a'], [335, 543, '#6a4a2a']]){ cyl(a, b, 32, 48, 3, col); cyl(a, b, 48, 54, 1.2, col); }
-      for(const [a, b] of [[307, 547], [339, 535]]){ cyl(a, b, 32, 39, 2.2, '#c0c4c8'); plateCircle(a, b, 39, 2.2, '#9aa0a6', null, 0); }
-      cyl(321, 531, 34, 40, 2, '#e0c030'); } });
-    items.push({ a: 317, b: 618, z: 0, solids: [solid(297, 337, 607, 629, 56, 'tv')], draw: () => {
-      box(299, 335, 607, 629, 0, 24, crateD, crate, shade(crate, .8)); box(297, 337, 609, 627, 24, 56, '#5a5c60', '#46484c', '#3a3c40');
-      tube(313, 618, 56, 303, 615, 76, 0.8, '#b8bcc2'); tube(321, 618, 56, 331, 621, 76, 0.8, '#b8bcc2'); } });
-    items.push({ a: 393, b: 519, z: 0, draw: () => { for(let k = 0; k < 3; k++) box(377 + k*2, 409 + k*2, 505 - k, 535 - k, k*4, k*4 + 4, '#d9b77a', '#c8a464', '#b0904e'); } });
-    for(const [a, b] of [[247, 567], [375, 567], [237, 455], [420, 640], [100, 330], [420, 300]]) items.push({ a, b, z: 0, draw: () => { cyl(a, b, 0, 4, 2.2, '#c0c4c8'); } });
-    items.push({ a: 105, b: 365, z: 0, solids: [solid(87, 123, 345, 385, 16, 'clothes')], draw: () => { for(const [a, b, r, col] of [[97, 355, 9, '#3a4a6a'], [113, 359, 8, '#8a3a3a'], [101, 373, 9, '#5a5a5a'], [115, 375, 7, '#c8b070']]) ball(a, b, 6, r, col); } });
-    items.push({ a: 402, b: 612, z: 0, solids: [solid(380, 424, 589, 635, 22, 'trash')], draw: () => {
-      for(const [a, b, r] of [[390, 597, 12], [410, 601, 11], [398, 621, 13], [416, 623, 10]]){ ball(a, b, r*0.9, r, '#1d1f23'); ball(a, b, r*1.9, 3, '#2a2d33'); } } });
-    /* ---- THE WALLS (the kit's): north and west full height, grey and stained, tagged, the plaster holed, a window boarded; on the west wall the
-       shut door through to the garage (TWG_IN); the south and east cut low in the exterior's own grey ---- */
+    items.push({ a: 519, b: 535, z: 0, solids: [solid(491, 547, 518, 552, 34, 'table')], draw: () => {
+      for(const a0 of [494, 522]){ box(a0, a0 + 22, 521, 549, 0, 28, crateD, crate, shade(crate, .8)); T(a0 + 3, a0 + 19, 524, 546, 28.1, '#16283c'); }
+      box(491, 547, 518, 552, 28, 32, woodL, wood, woodD); } });
+    items.push({ a: 519, b: 535, z: 32, draw: () => {
+      box(501, 527, 523, 543, 32, 34, '#d9b77a', '#c8a464', '#b0904e'); T(504, 524, 526, 540, 34.2, '#b8935c');
+      for(const [a, b, col] of [[533, 527, '#2f6f3a'], [537, 543, '#6a4a2a']]){ cyl(a, b, 32, 48, 3, col); cyl(a, b, 48, 54, 1.2, col); }
+      for(const [a, b] of [[509, 547], [541, 535]]){ cyl(a, b, 32, 39, 2.2, '#c0c4c8'); plateCircle(a, b, 39, 2.2, '#9aa0a6', null, 0); }
+      cyl(523, 531, 34, 40, 2, '#e0c030'); } });
+    items.push({ a: 519, b: 618, z: 0, solids: [solid(499, 539, 607, 629, 56, 'tv')], draw: () => {
+      box(501, 537, 607, 629, 0, 24, crateD, crate, shade(crate, .8)); box(499, 539, 609, 627, 24, 56, '#5a5c60', '#46484c', '#3a3c40');
+      tube(515, 618, 56, 505, 615, 76, 0.8, '#b8bcc2'); tube(523, 618, 56, 533, 621, 76, 0.8, '#b8bcc2'); } });
+    items.push({ a: 595, b: 519, z: 0, draw: () => { for(let k = 0; k < 3; k++) box(579 + k*2, 611 + k*2, 505 - k, 535 - k, k*4, k*4 + 4, '#d9b77a', '#c8a464', '#b0904e'); } });
+    for(const [a, b] of [[449, 567], [577, 567], [439, 455], [622, 640], [302, 330], [622, 300]]) items.push({ a, b, z: 0, draw: () => { cyl(a, b, 0, 4, 2.2, '#c0c4c8'); } });
+    items.push({ a: 307, b: 365, z: 0, solids: [solid(289, 325, 345, 385, 16, 'clothes')], draw: () => { for(const [a, b, r, col] of [[299, 355, 9, '#3a4a6a'], [315, 359, 8, '#8a3a3a'], [303, 373, 9, '#5a5a5a'], [317, 375, 7, '#c8b070']]) ball(a, b, 6, r, col); } });
+    items.push({ a: 604, b: 612, z: 0, solids: [solid(582, 626, 589, 635, 22, 'trash')], draw: () => {
+      for(const [a, b, r] of [[592, 597, 12], [612, 601, 11], [600, 621, 13], [618, 623, 10]]){ ball(a, b, r*0.9, r, '#1d1f23'); ball(a, b, r*1.9, 3, '#2a2d33'); } } });
+    /* ---- THE GARAGE BAY: its walls (low, cut to the dado as near walls are: its back, b 220..250 over a 0..185 -- runs -- and its east side, a
+       155..185, either side of its doorway b 300..400 -- runs); its big door at the front, rolled up on its tracks; the van nose in; along the west
+       wall a workbench under a pegboard, a bike; gas cans and tyres either side of the van ---- */
+    const low = (a0, a1, b0, b1) => { box(a0, a1, b0, b1, 0, LH - 8, '#d3cbb6', wall, wallD); box(a0, a1, b0, b1, LH - 8, LH, '#c2b9a3', '#b0a790', '#9a9180'); };
+    runPiece(items, 0, GA1 + GW, GB0 - GW, GB0, LH, (s0, s1) => [solid(s0, s1, GB0 - GW, GB0, LH, 'wall')], () => low(0, GA1 + GW, GB0 - GW, GB0), { pad: 2 });
+    items.push({ a: GA1 + GW, b: GDR[0], z: 0, solids: [solid(GA1, GA1 + GW, GB0, GDR[0], LH, 'wall')], draw: () => low(GA1, GA1 + GW, GB0, GDR[0]) });
+    runPiece(items, GA1, GA1 + GW, GDR[1], D, LH, (s0, s1) => [solid(GA1, GA1 + GW, s0, s1, LH, 'wall')], () => low(GA1, GA1 + GW, GDR[1], D), { alongB: true, pad: 2 });
+    /* (the big door, rolled up: its two tracks up the front corners, the drum of the rolled door across over the opening) */
+    items.push({ a: 4, b: D - 4, z: 0, draw: () => { box(0, 6, D - 10, D - 4, 0, 168, '#6a6e74', '#5a5e64', '#4a4e54'); } });
+    items.push({ a: GA1 - 2, b: D - 4, z: 0, draw: () => { box(GA1 - 6, GA1, D - 10, D - 4, 0, 168, '#6a6e74', '#5a5e64', '#4a4e54');
+      box(0, GA1, D - 24, D - 4, 160, 176, '#b0a790', '#9a9180', '#857d6c'); for(let a = 6; a < GA1; a += 12) F(a, a + 1, 162, 174, '#857d6c', null, 0, D - 3.8); } });
+    items.push({ a: 78, b: 470, z: 0, solids: [solid(33, 123, 357, 583, 140, 'van')], draw: () => {}, fx: { car: { kind: 'tweakervan', prop: true, a: 78, b: 470, fdir: -1, seed: 0x7e3e } } });
+    runPiece(items, 6, 30, 262, 352, 76, (s0, s1) => [solid(6, 30, s0, s1, 76, 'workbench')], () => {
+      for(const b of [266, 348]) box(8, 12, b - 2, b + 2, 0, 71, '#4a4e54', '#3a3e44', '#2e3236');
+      for(const b of [266, 348]) box(24, 28, b - 2, b + 2, 0, 71, '#4a4e54', '#3a3e44', '#2e3236');
+      box(6, 30, 262, 352, 71, 76, '#a6845a', '#8a6a42', '#6a5032');
+    }, { alongB: true, keyStart: true, pad: 3 });
+    items.push({ a: 20, b: 306, z: 76, draw: () => { box(10, 24, 276, 296, 76, 90, '#c8352e', '#a82a24', '#8a221d'); box(12, 22, 310, 324, 76, 86, '#3a5a8a', '#2f4a72', '#243a5a'); cyl(18, 340, 76, 86, 4, '#d9c08a'); } });
+    items.push({ a: 12, b: 610, z: 0, solids: [solid(4, 22, 584, 636, 44, 'bike')], draw: () => { bikeW(12, 610, '#2a8a5a'); } });
+    items.push({ a: 140, b: 610, z: 0, solids: [solid(126, 152, 598, 622, 30, 'cans')], draw: () => { for(const b of [600, 612]) { box(128, 150, b, b + 10, 0, 26, '#d0402f', '#b8352a', '#9a2c22'); } box(132, 136, 604, 608, 26, 30, '#2a2b2e', '#2a2b2e', '#1f2024'); } });
+    items.push({ a: 138, b: 290, z: 0, solids: [solid(124, 152, 276, 304, 24, 'tyres')], draw: () => { for(let k = 0; k < 3; k++) cyl(138, 290, k*8, k*8 + 8, 13, '#26272a'); plateCircle(138, 290, 24.1, 6, '#0e0f11', null, 0); } });
+    /* ---- THE WALLS (the kit's): north and west full height, grey and stained, tagged, the plaster holed, a window boarded; the bay's stretch of the
+       west wall block, a pegboard of tools over the bench; the south and east cut low in the exterior's own grey ---- */
     const WR = { W, D, H, LH, door, low: ['#d3cbb6', wall, wallD], cap: ['#c2b9a3', '#b0a790', '#9a9180'], ftop: '#bdb4a0', frame: '#6a6458' };
     const tag = (pts, col, w) => poly(pts, null, col, w);
     WR.paintN = () => {
       F(-30, W + 30, 0, H, wall, null, 0, 0); F(-30, W + 30, 0, 10, '#9a9180', null, 0, 0.3);
-      for(const [a, w] of [[140, 8], [200, 5], [430, 7]]) F(a, a + w, 80, H - 10, grime, null, 0, 0.4);
-      F(150, 200, 120, 170, '#a39a86', null, 0, 0.5); F(160, 188, 130, 160, '#5a5246', null, 0, 0.6);                    // (a hole kicked in the plaster)
-      tag([P(300, 0.8, 120), P(316, 0.8, 150), P(328, 0.8, 118), P(342, 0.8, 152), P(356, 0.8, 120)], '#2f6fd8', 3);
-      tag([P(60, 0.8, 140), P(70, 0.8, 170), P(86, 0.8, 140), P(96, 0.8, 172)], '#d83a2f', 3);
-      tag([P(400, 0.8, 110), P(430, 0.8, 128), P(418, 0.8, 104), P(446, 0.8, 120)], '#1d1f23', 2.2);
+      for(const [a, w] of [[140, 8], [350, 5], [640, 7]]) F(a, a + w, 80, H - 10, grime, null, 0, 0.4);
+      F(352, 402, 120, 170, '#a39a86', null, 0, 0.5); F(362, 390, 130, 160, '#5a5246', null, 0, 0.6);                    // (a hole kicked in the plaster)
+      tag([P(502, 0.8, 120), P(518, 0.8, 150), P(530, 0.8, 118), P(544, 0.8, 152), P(558, 0.8, 120)], '#2f6fd8', 3);
+      tag([P(262, 0.8, 140), P(272, 0.8, 170), P(288, 0.8, 140), P(298, 0.8, 172)], '#d83a2f', 3);
+      tag([P(100, 0.8, 110), P(130, 0.8, 128), P(118, 0.8, 104), P(146, 0.8, 120)], '#1d1f23', 2.2);
     };
     WR.paintW = () => {
       S(0, -30, D + 30, 0, H, shade(wall, .92)); S(0.3, -30, D + 30, 0, 10, '#8f8676');
-      for(const [b, w] of [[60, 6], [180, 8], [360, 5]]) S(0.4, b, b + w, 70, H - 10, grime);
-      tag([P(0.8, 300, 130), P(0.8, 314, 160), P(0.8, 328, 128), P(0.8, 342, 162)], '#2f6fd8', 3);
-      S(0.6, 410, 480, 90, 170, '#7a6448'); S(0.7, 416, 474, 96, 164, '#2a2620'); for(const z of [110, 140]) S(0.8, 410, 480, z, z + 8, '#a6845a');   // (a window boarded from inside)
-      /* (the door through to the garage, shut: its frame, the leaf, panels, a knob -- the house's own door, a peeling brown) */
-      S(0.6, 548, 644, 0, 156, '#a39a86'); S(0.7, 554, 638, 0, 150, '#7a4a2c'); for(const [z0, z1] of [[16, 66], [82, 140]]) S(0.8, 562, 630, z0, z1, '#6a3e24', '#5a3420', 1);
-      S(0.9, 558, 566, 74, 80, '#c9a24a');
+      for(const [b, w] of [[60, 6], [180, 8]]) S(0.4, b, b + w, 70, H - 10, grime);
+      S(0.6, 100, 180, 90, 170, '#7a6448'); S(0.7, 106, 174, 96, 164, '#2a2620'); for(const z of [110, 140]) S(0.8, 100, 180, z, z + 8, '#a6845a');   // (a window boarded from inside)
+      S(0.5, GB0 - GW, D, 0, H, '#c4bfb2'); for(let z = 18; z < H; z += 18) S(0.55, GB0 - GW, D, z, z + 0.8, '#a8a398');                 // (the bay's block wall)
+      S(0.6, 262, 352, 92, 160, '#b8935c', '#8e6c3e', 1); for(let b = 270; b < 348; b += 10) for(let z = 100; z < 156; z += 10) S(0.7, b, b + 1.2, z, z + 1.2, '#6a5032');   // (the pegboard)
+      for(const [b, z, w, h, col] of [[272, 120, 6, 30, '#5a5e64'], [288, 112, 18, 6, '#c8352e'], [316, 118, 4, 34, '#8a8e94'], [330, 126, 16, 4, '#3a3e44']]) S(0.8, b, b + w, z, z + h, col);
     };
     walkinRoom(items, WR);
     walkinStaffSolids(items, 'Tweakers House Interior');
-    depthSort(items);
-  }
-},
-{
-  /* ==================== INSIDE THE TWEAKERS' GARAGE (TWG_IN, TWG_PLAN: the walk-in kit; Sir, 2026-11-28: "a separate but attached piece") ====================
-     The house's garage, its own room behind its own big door (rolled up, on the south wall where the garage's is), bigger inside than out (W31):
-     345 x 567. Concrete, oil-stained; the Tweakers' van nose in under the door; a workbench of tools under a pegboard on the back wall, a shelf of
-     cans; bikes against the west wall, gas cans, tyres; the door through to the house shut in the east wall. */
-  name:'Tweakers Garage Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 345, dd: 567,
-  head:'Inside the Tweakers\' garage: their van nose in, a workbench of tools, bikes, gas cans and tyres',
-  tags:['interior','pocket','garage','tweakers'],
-  desc:'The Tweakers\' garage: an oil-stained concrete floor, their beat-up van nose in under the big door, a workbench of tools under a pegboard, a shelf of paint cans, stolen bikes stood against the wall, red gas cans, a stack of tyres, and the door through to the house.',
-  draw(p){
-    const pl = (typeof TWG_PLAN !== 'undefined' && TWG_PLAN) || null;
-    if(pl) pl.view();
-    const W = pl && pl.W > 1 ? pl.W : 345, D = pl && pl.D > 1 ? pl.D : 567, H = pl ? pl.H : 240, AP = pl ? pl.apron : 60, LH = 66;
-    const door = (pl && pl.door) || { side: 's', at: 273, half: 77 };
-    const DA0 = door.at - door.half, DA1 = door.at + door.half;
-    const block = '#c4bfb2', blockD = '#a8a398', items = [];
-    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
-    const wheel = (a, b, z, r) => { for(let i = 0; i < 14; i++){ const t = i/14*Math.PI*2, t2 = (i + 1)/14*Math.PI*2; tube(a, b + r*Math.cos(t), z + r*Math.sin(t), a, b + r*Math.cos(t2), z + r*Math.sin(t2), 1.4, '#2a2b2e'); } };
-    const bikeW = (a, b, col) => { wheel(a, b - 20, 15, 14); tube(a, b - 20, 15, a, b, 34, 1.4, col); tube(a, b, 34, a, b + 20, 15, 1.4, col); tube(a, b - 20, 15, a, b + 2, 15, 1.4, col);
-      tube(a, b + 2, 15, a, b, 34, 1.4, col); tube(a, b + 20, 15, a, b + 18, 40, 1.4, col); tube(a, b + 13, 41, a, b + 23, 41, 1.6, '#2a2b2e'); wheel(a, b + 20, 15, 14); };
-    /* ---- THE FLOOR: concrete in slabs, oil stains, the van's tyre marks in from the door ---- */
-    T(0, W, 0, D, 0, '#9a968c');
-    for(let b = 100; b < D; b += 120) T(0, W, b, b + 0.8, 0.3, '#7e7a70');
-    for(let a = 115; a < W; a += 115) T(a, a + 0.8, 0, D, 0.3, '#7e7a70');
-    for(const [a, b, r] of [[273, 300, 34], [120, 420, 18], [60, 120, 14], [300, 500, 12]]) plateCircle(a, b, 0.5, r, '#5f5c57', null, 0);
-    for(const a of [240, 306]) T(a - 6, a + 6, 200, D, 0.4, 'rgba(40,38,34,.25)');
-    T(DA0, DA1, D, D + AP, 0.3, '#a29e94');
-    /* ---- THE WORKBENCH on the back wall (a 20..200, b 6..44, its top at 76): runs; its legs, the top; on it, its own piece: a vice, a toolbox, tins ---- */
-    const BA0 = 20, BA1 = 200, BB0 = 6, BB1 = 44, BZ = 76;
-    runPiece(items, BA0, BA1, BB0, BB1, BZ, (s0, s1) => [solid(s0, s1, BB0, BB1, BZ, 'workbench')], () => {
-      for(const a of [BA0 + 4, BA1 - 4]) for(const b of [BB0 + 4, BB1 - 4]) box(a - 2.5, a + 2.5, b - 2.5, b + 2.5, 0, BZ - 5, '#4a4e54', '#3a3e44', '#2e3236');
-      box(BA0, BA1, BB0, BB1, 18, 21, '#6a6e74', '#5a5e64', '#4a4e54');
-      box(BA0, BA1, BB0, BB1, BZ - 5, BZ, '#a6845a', '#8a6a42', '#6a5032');
-    }, { keyStart: true, pad: 3 });
-    items.push({ a: 110, b: 26, z: BZ, draw: () => {
-      box(36, 52, 16, 30, BZ, BZ + 12, '#3a5a8a', '#2f4a72', '#243a5a'); box(40, 48, 12, 34, BZ + 12, BZ + 16, '#3a5a8a', '#2f4a72', '#243a5a');   // (a vice)
-      box(110, 160, 14, 36, BZ, BZ + 18, '#c8352e', '#a82a24', '#8a221d'); box(116, 154, 20, 30, BZ + 18, BZ + 21, '#2a2b2e', '#2a2b2e', '#1f2024');   // (a toolbox)
-      for(const [a, b, col] of [[176, 20, '#d9c08a'], [186, 30, '#8fa6b8']]) cyl(a, b, BZ, BZ + 12, 5, col); } });
-    /* ---- THE VAN, nose in under the door (the game's own: VAN_KINDS 'tweakervan', fx.car with prop) ---- */
-    items.push({ a: 273, b: 332, z: 0, solids: [solid(228, 318, 220, 445, 140, 'van')], draw: () => {}, fx: { car: { kind: 'tweakervan', prop: true, a: 273, b: 332, fdir: 3, seed: 0x7e3e } } });
-    /* ---- THE WEST SIDE: bikes stood against the wall (a 10..30), gas cans, a stack of tyres ---- */
-    items.push({ a: 12, b: 200, z: 0, solids: [solid(4, 22, 170, 290, 44, 'bikes')], draw: () => { bikeW(10, 196, '#2a8a5a'); bikeW(16, 262, '#c83a2a'); } });
-    items.push({ a: 30, b: 380, z: 0, solids: [solid(14, 46, 368, 392, 30, 'cans')], draw: () => { for(const a of [16, 32]){ box(a, a + 14, 370, 390, 0, 26, '#d0402f', '#b8352a', '#9a2c22'); box(a + 4, a + 8, 376, 382, 26, 30, '#2a2b2e', '#2a2b2e', '#1f2024'); } } });
-    items.push({ a: 40, b: 470, z: 0, solids: [solid(24, 56, 454, 486, 24, 'tyres')], draw: () => { for(let k = 0; k < 3; k++) cyl(40, 470, k*8, k*8 + 8, 15, '#26272a'); plateCircle(40, 470, 24.1, 7, '#0e0f11', null, 0); } });
-    items.push({ a: 120, b: 300, z: 0, solids: [solid(98, 142, 280, 320, 34, 'engine')], draw: () => {
-      box(100, 140, 282, 318, 0, 26, '#5a5e64', '#4a4e54', '#3a3e44'); box(106, 134, 288, 312, 26, 34, '#6a6e74', '#5a5e64', '#4a4e54');
-      for(const a of [110, 120, 130]) cyl(a, 300, 34, 38, 3, '#3a3e44'); } });
-    /* ---- THE WALLS (the kit's): north and west full height, block, a pegboard of tools, a shelf of cans over the bench; south and east low ---- */
-    const WR = { W, D, H, LH, door, low: ['#d3cbb6', '#cbc3ad', '#b5ac96'], cap: ['#c2b9a3', '#b0a790', '#9a9180'], ftop: '#bdb4a0', frame: '#6a6458' };
-    WR.paintN = () => {
-      F(-30, W + 30, 0, H, block, null, 0, 0); for(let z = 18; z < H; z += 18) F(-30, W + 30, z, z + 0.8, blockD, null, 0, 0.2);
-      F(24, 196, 92, 160, '#b8935c', '#8e6c3e', 1, 0.5);                                                                // (the pegboard)
-      for(let a = 34; a < 190; a += 10) for(let z = 100; z < 156; z += 10) F(a, a + 1.2, z, z + 1.2, '#6a5032', null, 0, 0.6);
-      for(const [a, z, w, h, col] of [[44, 120, 6, 30, '#5a5e64'], [64, 112, 18, 6, '#c8352e'], [94, 118, 4, 34, '#8a8e94'], [120, 126, 24, 4, '#3a3e44'], [160, 114, 10, 26, '#e0c030']]) F(a, a + w, z, z + h, col, null, 0, 0.7);
-      F(230, 330, 120, 124, '#6a5032', null, 0, 0.6); for(let k = 0; k < 6; k++) F(236 + k*15, 246 + k*15, 124, 140, ['#c8352e', '#3a5a8a', '#e0c030', '#3a8a5a', '#d9d2c0', '#8a3a3a'][k], null, 0, 0.7);   // (a shelf of paint cans)
-    };
-    WR.paintW = () => { S(0, -30, D + 30, 0, H, shade(block, .92)); for(let z = 18; z < H; z += 18) S(0.2, -30, D + 30, z, z + 0.8, blockD); };
-    walkinRoom(items, WR);
     depthSort(items);
   }
 },
@@ -98169,11 +98126,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       vol:Object.assign({}, bm.vol, { solids: bm.vol.solids.filter(q => q.name !== 'sculpture'),
         opens:[{ name:'doorway', poly: volRect(150 - 36, 150 + 36, -220, -126), walk: true }] }) })); }
   /* ...AND ITS GARAGE, its own entry so the room (which takes the garage in: TW_IN) fades this one garage and no other */
-  { const g0 = SHOPS.find(s => s.name === 'Street Garage');
-    /* (a walk-in of its own -- Sir, 2026-11-28: "it should be a separate but attached piece", its big door on the street side: its door rolled up,
-       the opening a hole onto its room, TWG_IN; vol.opens the doorway, walked and driven into) */
-    if(g0) SHOPS.push(Object.assign({}, g0, { name:'Tweakers Garage', see: true,
-      vol: Object.assign({}, g0.vol, { opens: [{ name: 'doorway', poly: volRect(28, 147, -160, -66), walk: true }] }) })); }
+  /* ...AND ITS GARAGE, its own entry so the house's room (which takes the garage in, as its bay: TW_IN) hides this one garage and no other */
+  { const g0 = SHOPS.find(s => s.name === 'Street Garage'); if(g0) SHOPS.push(Object.assign({}, g0, { name:'Tweakers Garage' })); }
   /* ================= THE INFILL SHOPS (Sir, 2026-10-03) =================
      "these two look sparse" -- blocks 2,8 and 7,5 of The Flats had edges
      with nothing on them, and every shop in the library was already
