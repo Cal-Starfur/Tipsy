@@ -936,6 +936,14 @@
   .tpTrDesc{font-size:11px;color:#8f8571;margin-top:2px;line-height:1.35;}
   .tpTrProgWrap{margin-top:6px;height:5px;border-radius:3px;background:#ece6d4;overflow:hidden;}
   .tpTrProgFill{height:100%;background:#ff7a1a;border-radius:3px;}
+  /* the goodwill meter (GOODWILL), at the head of the Trophy Case */
+  .tpGdw{background:#fff5f8;border:1px solid #f1c6d6;border-radius:14px;padding:12px;margin-bottom:12px;}
+  .tpGdwTop{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#2e3138;}
+  .tpGdwHeart{color:#e0485a;font-size:17px;line-height:1;}
+  .tpGdwLv{font-weight:800;color:#c2185b;}
+  .tpGdwN{margin-left:auto;font-size:11.5px;font-weight:700;color:#8f8571;}
+  .tpGdw .tpTrProgFill{background:#e0485a;}
+  .tpGdwSub{font-size:11px;color:#8f8571;margin-top:6px;line-height:1.35;}
   .tpTrReward{margin-top:5px;font-size:10.5px;font-weight:700;color:#b5540e;display:flex;align-items:center;gap:4px;}
   .tpCheckBadge{width:26px;height:26px;border-radius:50%;background:#e7f4e9;color:#2f8f4e;flex:none;
     display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;}
@@ -17680,7 +17688,7 @@ function householdOf(d){
   if(H) return H;
   let v = 0x40e5; for(const ch of d.key) v = Math.imul(v ^ ch.charCodeAt(0), 0x9e3779b1) >>> 0;
   const F = HOME_FOLK, rr = mulberry32(v), n = F.n[0] + Math.floor(rr()*(F.n[1] - F.n[0] + 1)), people = [];
-  for(let k = 0; k < n; k++) people.push({ seed: (rr()*4294967296) >>> 0, home: rr() < F.homeP, t: -1e9, L: null });
+  for(let k = 0; k < n; k++) people.push({ seed: (rr()*4294967296) >>> 0, home: rr() < F.homeP, t: -1e9, L: null, hk: d.key, hi: k });   // (hk, hi: whose they are -- GOODWILL's friends)
   H = { people, dog: rr() < F.dogP ? { seed: (rr()*4294967296) >>> 0, with: null } : null, restT: 0 };
   _households.set(d.key, H);
   return H;
@@ -23649,6 +23657,7 @@ function lostDogDone(){
   if(typeof tpProfile !== "undefined" && tpProfile){
     if(D.lostKey){ const hm = tpProfile.dogsHomed || (tpProfile.dogsHomed = []); if(!hm.includes(D.lostKey)) hm.push(D.lostKey); }   // (home for good)
     n = tpProfile.dogsRescued = (tpProfile.dogsRescued || 0) + 1;
+    if(D.home && M.who) gdwBefriend(D.home, M.who, 'dog:' + D.name);   // (the owner: his friend now -- GOODWILL)
     tpProfile.walletCents = (tpProfile.walletCents || 0) + P.tipCents;
     if(typeof tpSaveProfile === "function") tpSaveProfile();
     if(typeof tpRender === "function") tpRender();
@@ -23858,7 +23867,7 @@ function lostDogTick(scene, ow){
       const step = D.shelter ? shelterW(SHELTER.door[0], SHELTER.stepB) : edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
       R.owner = { ...cakeMeet(ow, step, now, scene), card: false, seed: (D.seed ^ 0x0d06) >>> 0, step };
       if(D.shelter) R.owner.look = streetLook(R.owner.seed, { type: 'scrubs' });   // (a shelter worker, in scrubs)
-      else if(D.home && D.home.key){ const H = householdOf(D.home), who = H.people.find(q => q.home) || H.people[0]; if(who) R.owner.look = folkLook(who); R.owner.name = residentName(D.home, who); }   // (one of the house's own: R11)
+      else if(D.home && D.home.key){ const H = householdOf(D.home), who = H.people.find(q => q.home) || H.people[0]; if(who) R.owner.look = folkLook(who); R.owner.name = residentName(D.home, who); R.owner.who = who; }   // (one of the house's own: R11)
       ow.vel = 0;
       lostDogNavClear(scene);
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -39943,6 +39952,7 @@ function collectPick(c){
     if(typeof sfxThump === "function") sfxThump(0.25);
     collectItemsFresh = true;   // the ITEMS button glows till he opens the bag
     const nOf = cap ? " (" + giftHeld(c.kind) + " of " + cap + ")" : "";
+    if(c.porch){ collectCard([c.id], "A thank-you from " + c.porch + ": " + c.name.replace(/^./, ch => ch.toUpperCase()) + nOf + "!"); return; }
     collectCard([c.id], c.gift && c.kind === 'crew' ? "Found a crew pass" + nOf + "! While you carry it, your next tip-over is on the crew: you keep everything."
                       : c.gift ? "Found a " + c.name + nOf + " (" + GIFT_KINDS[c.kind].does + ")! Tap STASH, top left, to use it."
                                : c.errand ? "Found a " + c.name + "! " + HOSP_ERRANDS[c.id].label + " Choose it in your bag to deliver it."
@@ -40205,6 +40215,7 @@ function giftWorldStep(scene){
 function giftWorldLive(){
   const out = [];
   for(const [hi, st] of GW.sets) if(HOOD_LOCK.owned.has(hi)) for(const c of st.list) if(collectFree(c)) out.push(c);
+  for(const c of gdwPorchGifts()) if(collectFree(c)) out.push(c);   // (a friend's thank-you at their gate: GOODWILL)
   return out;
 }
 /* is he out in the world, where they lie? */
@@ -40257,7 +40268,8 @@ const LOST_ITEMS = {
   glintMs: 2600, glintOn: 300,   // the glint: a flash this long, every this often
   homeR: 240,         // stopped this close to the owner's path, the owner comes out
   liftT: 0.55,        // the owner's hand with it, going back in
-  trophyAt: 10        // Good Samaritan: this many returned (tpCollect.returned)
+  trophyAt: 10,       // Good Samaritan: this many returned (tpCollect.returned)
+  tiers: [5, 10, 25]  // ...its bronze, silver and gold (GOODWILL)
 };
 /* what they are, what each pays (db.ts LOST_RETURN_CENTS: keep in step), and the owner's thanks */
 const LOST_ITEM_KINDS = {
@@ -40364,8 +40376,8 @@ function lostWorldLive(){
 /* driven over: into the bag, its owner and address with it */
 function lostItemPick(scene, c){
   const LI = LOST_ITEMS, K = LOST_ITEM_KINDS[c.kind];
-  if(lostItemsCarried().length >= LI.hold){
-    if(LOSTIT.full !== c.id){ LOSTIT.full = c.id; collectCard([c.id], "Someone's " + K.name + ". Your bag has room for " + LI.hold + " lost things at a time: return one first."); }
+  if(lostItemsCarried().length >= lostHold()){
+    if(LOSTIT.full !== c.id){ LOSTIT.full = c.id; collectCard([c.id], "Someone's " + K.name + ". Your bag has room for " + lostHold() + " lost things at a time: return one first."); }
     return;
   }
   if(LOSTIT.full === c.id) LOSTIT.full = null;
@@ -40410,12 +40422,13 @@ function lostItemDone(){
   tpCollect.carried = tpCollect.carried.filter(x => x !== id);
   if(!tpCollect.used.includes(id)) tpCollect.used.push(id);
   const cents = it.cents || 0;
+  { const d = R.door, H = d && householdOf(d), who = H && (H.people[it.who % H.people.length] || H.people[0]); if(who) gdwBefriend(d, who, it.name); }   // (the owner: his friend now -- GOODWILL)
   const n = tpCollect.returned = (tpCollect.returned || 0) + 1;              // (the count: the collect save's, for the trophy)
   tpProfile.walletCents = (tpProfile.walletCents || 0) + cents;
   tpSaveProfile(); if(typeof tpRender === "function") tpRender();
   if(typeof sfxThump === "function") sfxThump(0.3);
   collectCard([id], "Returned the " + it.name + ": a $" + (cents/100).toFixed(2) + " tip."
-    + (n === LOST_ITEMS.trophyAt ? " Trophy: Good Samaritan!" : ""));
+    + (LOST_ITEMS.tiers.includes(n) ? " Trophy: Good Samaritan (" + ["bronze", "silver", "gold"][LOST_ITEMS.tiers.indexOf(n)] + ")!" : ""));
   if(tpCollect.lostMeta) delete tpCollect.lostMeta[id];
   collectSave();
   lostItemNavClear(scene, id);
@@ -40500,6 +40513,160 @@ function lostItemQueue(scene, t, queuePerson, layerFor){
     scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
       op.moving ? walkAt(op.x, op.y) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
   });
+}
+/* ==================== GOODWILL (Sir, 2026-11-27: "once we do a return i think these people become tipseys friends and
+   that generates good will towards robots so then less people in the game will be mad about robots being around ... i like
+   all of these ideas we need to get them incorporated") ====================
+   FRIENDS  each owner he takes something home to -- a lost thing (lostItemDone) or a lost dog (lostDogDone) -- is his
+            friend from then on: one of that house's own people (householdOf: the door's key and their place in it, so the
+            same person whenever they are out), by name (residentName). Kept in the collect save (tpCollect.friends).
+   GREET    a friend out on the street near him (the houses' people: shoppers, seekers, the strand's residents) calls out
+            to him once in a while, a heart in a pink bubble (npcSay tone 'friend'); a friend he bumps or knocks down
+            laughs it off.
+   MOOD     the town's goodwill k (0..kMax, as his friends add up to kFull) moves how everyone else takes him: a bump
+            (PED_MOOD) is more often polite and less often a kick, fewer grumble stepping round him (BOT_PASS), the knocked
+            down are kinder (knockDown: gdwKnockMood). William is William.
+   CHATTER  in a hood where he has friends, now and then someone passing says a good word about him (their friend's name).
+   PORCH    a friend now and then leaves a thank-you at their gate the next day: one of the world gifts (a charge pack,
+            extra time or a crew pass -- never an envelope: those are the server's slots), picked up as any gift is.
+   LEVELS   GOODWILL.lv by friends: Friendly (the bag holds three lost things), Neighbourly (the Good Neighbour trophy:
+            the Neighbourly skin), Well liked (thank-yous twice as often), Town favourite. A delivery to a street where
+            friends live tips more (gdwStreetPct, on the receipt). The meter heads the Trophy Case (gdwCardHtml).
+   SERVER   (Devvit) the lost returns are counted there (dbClaimLostReturn: lostReturned) beside dogsRescued, and the Good
+            Neighbour claim reads the two (TS_GOODWILL_TROPHIES). */
+const GOODWILL = {
+  lv: [{ at: 0, n: 'Stranger' }, { at: 3, n: 'Friendly' }, { at: 6, n: 'Neighbourly' }, { at: 10, n: 'Well liked' }, { at: 20, n: 'Town favourite' }],
+  kMax: 0.8, kFull: 20,           // the town's mood: k = kMax x friends/kFull, at most kMax
+  greetR: 560, greetMs: 75000,    // a friend this close calls out, once in this long each
+  scanMs: 450,                    // how often the street is looked over
+  chatMs: [24000, 45000], chatR: 900,
+  porchP: 0.35, porchP2: 0.7,     // a friend's thank-you at the gate, a day (Well liked: porchP2)
+  porchKinds: ['charge', 'time', 'crew'],
+  bagAt: 1, bagHold: 3,           // Friendly (lv 1): three lost things in the bag
+  skinAt: 6,                      // the Good Neighbour trophy (the Neighbourly skin)
+  porch2At: 3,                    // Well liked (lv 3): thank-yous twice as often
+  streetPct: 2, streetMax: 2      // tip: this many points a friend on the delivery's street, up to this many friends
+};
+const GDW_GROUPS = new Set(['shoppers', 'seekers', 'strand residents']);
+const GDW_SAY = {
+  greet: ["Hi Tipsey!", "Hey, it's Tipsey!", "There's my favourite robot!", "Thanks again, Tipsey!", "Look who it is!", "Hello, little buddy!", "Tipsey! Good to see you."],
+  down:  ["Ha! Hello to you too, Tipsey!", "Whoa! Easy, buddy!", "Oops! No harm done, friend."],
+  bump:  ["Ha! Easy there, Tipsey!", "Oh, it's you! No harm done.", "Careful, buddy!"],
+  item:  n => ["That's the robot who found " + n + "'s things!", n + " says that robot's a good one.", "That's " + n + "'s robot friend!"],
+  dog:   (n, dg) => ["That's the robot who brought " + dg + " home!", n + " won't stop talking about that robot.", "Robots aren't so bad, are they?"]
+};
+const GDW = { set: null, scanT: 0, chatT: 0, porch: null };
+function gdwFriends(){ return tpCollect.friends || (tpCollect.friends = []); }
+function gdwCount(){ return gdwFriends().length; }
+function gdwK(){ return GOODWILL.kMax*Math.min(1, gdwCount()/GOODWILL.kFull); }
+function gdwLevel(n){ n = n == null ? gdwCount() : n; let i = 0; GOODWILL.lv.forEach((L, k) => { if(n >= L.at) i = k; }); return i; }
+function gdwKeySet(){ if(!GDW.set){ GDW.set = new Set(); for(const f of gdwFriends()) GDW.set.add(f.k + '#' + f.i); } return GDW.set; }
+/* is this one of the houses' people his friend? (householdOf tags each: hk, hi) */
+function gdwIsFriend(who){ return !!(who && who.hk != null && gdwKeySet().has(who.hk + '#' + who.hi)); }
+/* a friend made: the owner of the house at door d (who: their record), via what he brought home */
+function gdwBefriend(d, who, via){
+  if(!d || !d.key || !who) return;
+  const H = householdOf(d), i = Math.max(0, H.people.indexOf(who));
+  if(gdwKeySet().has(d.key + '#' + i)) return;
+  const n0 = gdwCount(), hz = hoodAtWorld(d.x, d.y);
+  gdwFriends().push({ k: d.key, i, n: residentName(d, who), a: lostDogAddress(d), h: hz ? HOODS.indexOf(hz) : -1, day: giftWorldDayKey(), via: via || '' });
+  GDW.set = null; GDW.porch = null;
+  collectSave();
+  const n = gdwCount(), L0 = gdwLevel(n0), L1 = gdwLevel(n);
+  setTimeout(() => {
+    if(L1 > L0){
+      const L = GOODWILL.lv[L1];
+      const perk = L1 === GOODWILL.bagAt ? " Your bag now holds " + GOODWILL.bagHold + " lost things."
+                 : n >= GOODWILL.skinAt && n0 < GOODWILL.skinAt ? " Trophy: Good Neighbour! Claim the Neighbourly skin."
+                 : L1 === GOODWILL.porch2At ? " Your friends leave thank-yous twice as often." : "";
+      if(typeof tpToast === "function") tpToast("Goodwill: " + L.n + "! " + n + " friends in town." + perk);
+    } else if(typeof tpToast === "function") tpToast(residentName(d, who) + " is your friend now. Friends in town: " + n + ".");
+  }, 3200);
+  try { console.info("[goodwill] friend " + residentName(d, who) + " (" + n + "). To seed: tpCollect.friends = []; collectSave()"); } catch(e){}
+}
+/* how a person he knocks down takes it: a friend kindly, anyone else more kindly the more goodwill he has */
+function gdwKnockMood(o){
+  const who = o.ref && (o.ref.who || (o.ref.ref && o.ref.ref.who));
+  if(gdwIsFriend(who)){ o.friend = true; return 'polite'; }
+  if(o.mood === 'young' || o.chair) return o.mood;
+  return o.mood !== 'polite' && Math.random() < gdwK() ? 'polite' : o.mood;
+}
+/* the houses' people out near him, from the populations that carry who they are */
+function gdwNear(scene, t, R, fn){
+  const bx = scene.botX, by = scene.botY;
+  for(const g of CITY_PEOPLE.groups){
+    if(!GDW_GROUPS.has(g.name) || !g.each) continue;
+    try { g.each(scene, t, e => { if(!e.hidden && Math.abs(e.x - bx) + Math.abs(e.y - by) <= R) fn(e, e.who || (e.ref && e.ref.who)); }); } catch(err){}
+  }
+}
+/* every frame (a look round every scanMs): friends call out; now and then a passer-by says a good word */
+function gdwTick(scene, ow){
+  if(!ow || !ow.on || scene.state !== "play" || scene._inside || ow.deck || !owTripMode(scene.mode) || !gdwCount()) return;
+  const t = scene.time.now, G = GOODWILL;
+  if(t - GDW.scanT < G.scanMs) return;
+  GDW.scanT = t;
+  let others = null;
+  gdwNear(scene, t, G.chatR, (e, who) => {
+    if(gdwIsFriend(who)){
+      if(Math.abs(e.x - scene.botX) + Math.abs(e.y - scene.botY) > G.greetR || t - (who._gdwT || -1e9) < G.greetMs) return;
+      if(!scene.visProp("people", e.x, e.y)) return;
+      who._gdwT = t;
+      scene.npcSay(e.ref, null, "♥ " + sayPick(GDW_SAY.greet), 2600, "friend");
+    } else if(e.ref && !e.ride && e.kind !== 'rider') (others || (others = [])).push(e);
+  });
+  if(!GDW.chatT) GDW.chatT = t + G.chatMs[0];
+  if(t < GDW.chatT || !others) return;
+  const hz = hoodAtWorld(scene.botX, scene.botY), hi = hz ? HOODS.indexOf(hz) : -1;
+  const here = gdwFriends().filter(f => f.h === hi);
+  if(!here.length) return;
+  const e = others[Math.floor(Math.random()*others.length)];
+  if(!scene.visProp("people", e.x, e.y)) return;
+  GDW.chatT = t + G.chatMs[0] + Math.random()*(G.chatMs[1] - G.chatMs[0]);
+  const f = here[Math.floor(Math.random()*here.length)], first = f.n.split(' ')[0];
+  const lines = /^dog:/.test(f.via) ? GDW_SAY.dog(first, f.via.slice(4)) : GDW_SAY.item(first);
+  scene.npcSay(e.ref, null, sayPick(lines), 3000, "say");
+}
+/* how many lost things the bag holds (Friendly: more) */
+function lostHold(){ return gdwLevel() >= GOODWILL.bagAt ? GOODWILL.bagHold : LOST_ITEMS.hold; }
+/* THE THANK-YOUS AT THE GATE: today's, from friends made before today, in hoods he owns (giftWorldLive lists them) */
+function gdwPorchGifts(){
+  const scene = (typeof scn === "function") ? scn() : null, grid = scene && scene.route && scene.route.grid;
+  if(!grid || !gdwCount()) return [];
+  const day = GW.day || giftWorldDayKey();
+  if(GDW.porch && GDW.porch.day === day && GDW.porch.grid === grid) return GDW.porch.list;
+  const G = GOODWILL, p = gdwLevel() >= G.porch2At ? G.porchP2 : G.porchP, list = [];
+  gdwFriends().forEach((f, idx) => {
+    if(!(f.day < day) || !HOOD_LOCK.owned.has(f.h)) return;
+    const h = hashStr(day + '|' + f.k + '|' + f.i + '|porch');
+    if(((h >>> 0) % 1000)/1000 >= p) return;
+    const d = lostItemDoor(scene, { door: f.k });
+    if(!d) return;
+    const kind = G.porchKinds[((h >>> 0) >>> 10) % G.porchKinds.length], gt = lostItemSpot(d).gate;
+    const it = giftWorldItem('w' + day + '.' + f.h + '.' + kind + (40 + idx % 60));
+    if(!it) return;
+    list.push(Object.assign(it, { x: gt.x, y: gt.y, z: sierraZ(gt.x, gt.y) + (typeof derbyZ === "function" ? derbyZ(gt.x, gt.y) || 0 : 0),
+      porch: f.n, where: 'Left at the gate by ' + f.n }));
+  });
+  GDW.porch = { day, grid, list };
+  return list;
+}
+/* a delivery to a street where friends live: extra tip points (showWin) */
+function gdwStreetPct(addr){
+  const st = s => String(s || '').replace(/,.*$/, '').replace(/^\s*\d+\s+/, '').trim().toLowerCase();
+  const S = st(addr);
+  if(!S) return 0;
+  const n = gdwFriends().filter(f => st(f.a) === S).length;
+  return Math.min(GOODWILL.streetMax, n)*GOODWILL.streetPct;
+}
+/* the meter at the head of the Trophy Case */
+function gdwCardHtml(){
+  const n = gdwCount(), li = gdwLevel(n), L = GOODWILL.lv[li], nx = GOODWILL.lv[li + 1];
+  const pct = nx ? Math.round((n - L.at)/(nx.at - L.at)*100) : 100;
+  const names = gdwFriends().slice(-4).reverse().map(f => f.n).join(', ');
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  return `<div class="tpGdw"><div class="tpGdwTop"><span class="tpGdwHeart">♥</span><b>Goodwill</b><span class="tpGdwLv">${L.n}</span><span class="tpGdwN">${n} friend${n === 1 ? '' : 's'}</span></div>`
+    + `<div class="tpTrProgWrap"><div class="tpTrProgFill" style="width:${pct}%"></div></div>`
+    + `<div class="tpGdwSub">${nx ? (nx.at - n) + ' more to ' + nx.n + '. ' : ''}${n ? 'Friends: ' + esc(names) + (n > 4 ? ' and ' + (n - 4) + ' more' : '') : 'Return lost things and dogs to their owners to make friends in town.'}</div></div>`;
 }
 /* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
    use button"). They are the story's things -- "they can be used later in
@@ -110808,7 +110975,7 @@ CITY_PEOPLE.add({ name: 'strand residents', where: 'North Sunset Shore', solid: 
       if(d.knock) continue;                                                        // (down: the knocked-down group has them)
       if(opts && opts.knock && (Math.abs(d.x - scene.botX) > 8000 || Math.abs(d.y - scene.botY) > 8000)) continue;   // (too far to have run into)
       const q = nssResAt(d, t, scene.botX, scene.botY);
-      if(q) fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: 'resident', ref: d, lookFn: () => q.who ? folkLook(q.who) : streetLook(d.seed, { adult: true }),
+      if(q) fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: 'resident', ref: d, who: q.who, lookFn: () => q.who ? folkLook(q.who) : streetLook(d.seed, { adult: true }),
                                hold: dt => { d.dly = (d.dly || 0) + dt; } }));
     }
   } });
@@ -112437,6 +112604,15 @@ class WorldScene extends Phaser.Scene {
         if(!fc.side) continue;
         for(let c = -sp + 5; c <= sp - 3; c += 5.5)
           Q([[c - 1.6, z1 - 0.8], [c + 0.4, zc], [c - 1.6, z0 + 0.8], [c - 0.2, z0 + 0.8], [c + 1.8, zc], [c - 0.2, z1 - 0.8]]);
+      } else if(kind === "hearts"){
+        /* (the Neighbourly skin: GOODWILL) a row of little hearts, each two lobes over a point */
+        const n = Math.floor((2*sp - 4) / 7.5), s0 = -(n - 1)*7.5/2, r = Math.min(1.15, H*0.2);
+        for(let i = 0; i < n; i++){
+          const c = s0 + i*7.5, zt = zc + r*0.55;
+          Q(Array.from({length:10}, (_, k) => [c - r*0.95 + Math.cos(k/10*Math.PI*2)*r, zt + Math.sin(k/10*Math.PI*2)*r]));
+          Q(Array.from({length:10}, (_, k) => [c + r*0.95 + Math.cos(k/10*Math.PI*2)*r, zt + Math.sin(k/10*Math.PI*2)*r]));
+          Q([[c - r*1.95, zt - r*0.15], [c + r*1.95, zt - r*0.15], [c, zt - r*2.6]]);
+        }
       } else if(kind === "pinstripe"){
         Q([[-sp, z0 + 0.8], [sp, z0 + 0.8], [sp, z0 + 1.6], [-sp, z0 + 1.6]]);
         Q([[-sp, z1 - 1.6], [sp, z1 - 1.6], [sp, z1 - 0.8], [-sp, z1 - 0.8]]);
@@ -145065,7 +145241,8 @@ class WorldScene extends Phaser.Scene {
           if(hz.type === "people"){
             /* HOW THEY TAKE IT (PED_MOOD): polite or cross, and off they go
                -- the dog's flee -- or (a kicker) they turn on him first */
-            const r = Math.random(), mood = r < PED_MOOD.polite ? "polite" : r < PED_MOOD.polite + PED_MOOD.kick && !hz.ride ? "kick" : "irate";
+            const r = Math.random(), gk = gdwK(), pPol = PED_MOOD.polite + (1 - PED_MOOD.polite - PED_MOOD.kick)*gk, pKick = PED_MOOD.kick*(1 - gk);   // (goodwill: kinder -- GOODWILL)
+            const mood = r < pPol ? "polite" : r < pPol + pKick && !hz.ride ? "kick" : "irate";
             const w0 = hazWorldAt(t, hz);
             /* KNOCKED DOWN, as a rider is (knockDown), if he came in at any speed -- anyone, with a mobility aid or not (Sir, 2026-10-25: "I want all people to have collision equally") */
             const A = hz._at && t - hz._at.t < 400 ? hz._at : null;
@@ -150992,6 +151169,7 @@ class WorldScene extends Phaser.Scene {
     const t = this.time.now, SR = STREET_RIDER, list = this._knocks || (this._knocks = []);
     if(o.uni === undefined && o.look && o.look.uni !== undefined){ o.uni = o.look.uni; o.dress = o.look.dress; }   // (the street's roster: a look carries its dress)
     if(o.ref.knock || list.some(K => K.ref === o.ref)) return null;
+    o.mood = gdwKnockMood(o);                                                    // (a friend, and goodwill: kinder -- GOODWILL)
     const bx = this.botX - o.x, by = this.botY - o.y, h = o.thW + Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
     const K = Object.assign({ t0: t, lastT: t, imp: { x: -bx, y: -by }, side: (bx*-hy + by*hx) > 0 ? -1 : 1,
       conf: null, confDone: false, seed: (Math.random()*1e9) >>> 0 }, o);
@@ -151017,7 +151195,7 @@ class WorldScene extends Phaser.Scene {
     if(KNOCK_CHAIR[ak] && !K.z && K.kind !== "mall" && K.kind !== "staff" && K.kind !== "cast" && rescueSendForAid(this, K)){ K.van = this._rescueVan; K.wait = true; }
     const md = o.mood;
     if(o.chair) this.npcSay(K, null, sayPick(md === 'polite' ? SAY.chairBumpKind : SAY.chairBumpMad), 2200, md === 'polite' ? undefined : "mad", 160);
-    else this.npcSay(K, null, sayPick(o.scoot ? (K.brand && K.brand.bike ? SAY.riderDownBike : SAY.riderDown) : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad", 110);
+    else this.npcSay(K, null, sayPick(o.friend ? GDW_SAY.down : o.scoot ? (K.brand && K.brand.bike ? SAY.riderDownBike : SAY.riderDown) : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad", 110);
     if(o.chair && typeof sfxThump === "function") sfxThump(0.25);               // (a fall's thump comes as they land: updateKnocks)
     /* the bump he feels, as a rider's */
     if(!o.noBump){                                     // (a route walker's bump is the hazard pass's own)
@@ -151585,7 +151763,8 @@ class WorldScene extends Phaser.Scene {
     who._passT = t;
     if(o._passMood === undefined){
       const r = o.seed !== undefined ? mulberry32((o.seed ^ 0x9a55) >>> 0)() : Math.random();
-      o._passMood = r < B.rudeP ? "rude" : r < B.rudeP + B.politeP ? "polite" : "";
+      const rude = B.rudeP*(1 - gdwK());   // (goodwill: fewer grumble, the rest excuse themselves -- GOODWILL)
+      o._passMood = r < rude ? "rude" : r < B.rudeP + B.politeP ? "polite" : "";
     }
     if(!o._passMood || this.state !== "play" || !this.visProp("people", w.x, w.y)) return;
     const at = () => { const q = w.pos(this.time.now); return q && !q.hidden && !o.knock ? { x: q.x, y: q.y, z: 0, h: 160 } : null; };
@@ -152563,13 +152742,13 @@ class WorldScene extends Phaser.Scene {
       st.textContent = ".npcSay{position:fixed;transform:translate(-50%,-100%);background:#fff;color:#22252b;font:700 14px/1.15 system-ui,-apple-system,sans-serif;"
         + "padding:5px 9px;border-radius:11px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.28);pointer-events:none;}"
         + ".npcSay::after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:inherit;}"
-        + ".npcSay.say{border-top-color:#fff;}.npcSay.mad{color:#b3261e;border-top-color:#fff;}.npcSay.horn{background:#ffe08a;border-top-color:#ffe08a;}";
+        + ".npcSay.say{border-top-color:#fff;}.npcSay.mad{color:#b3261e;border-top-color:#fff;}.npcSay.horn{background:#ffe08a;border-top-color:#ffe08a;}.npcSay.friend{color:#c2185b;border-top-color:#fff;}";
       document.head.appendChild(st);
     }
     let e = this._says.get(key);
     if(!e){ const el = document.createElement("div"); layer.appendChild(el); e = { el }; this._says.set(key, e); }
     const t = this.time.now;
-    e.el.className = "npcSay " + (tone === "mad" ? "mad" : tone === "horn" ? "horn" : "say");
+    e.el.className = "npcSay " + (tone === "mad" ? "mad" : tone === "horn" ? "horn" : tone === "friend" ? "friend" : "say");
     e.el.textContent = text;
     /* no pos: the speaker is a person in the registry (CITY_PEOPLE), and the bubble follows their entry; h: how high, else off their build */
     e.pos = pos || null; e.ref = pos ? null : key0; e.h = h; e.t0 = t; e.until = t + (ms || 2400);
@@ -153645,7 +153824,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       liftBanksStep(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST){ fmTick(this, this.ow); btTick(this); } ppTick(this, this.ow); msTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); gdwTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST){ fmTick(this, this.ow); btTick(this); } ppTick(this, this.ow); msTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -155030,6 +155209,17 @@ const SK_PAWPRINT = {
   print:'paws'
 };
 
+/* NEIGHBOURLY (GOODWILL: the Good Neighbour trophy) -- porch-light cream over a friendly blue band, hearts on it, a heart on each flank */
+const SK_NEIGHBOURLY = {
+  bodyTop:0xf7f0df, bodyRight:0xece2cb, bodyLeft:0xd8ccb0, outline:0x2f4a6a,
+  stripe:0x4a86c8, stripeDk:0x386aa2,
+  lidInner:0xf7f0df, belly:0x2f4a6a,
+  wheelHubFace:0x4a86c8, wheelHub:0xf7f0df,
+  eye:0x9fe8ff, eyeAlert:0xff6a5a,
+  flag:0xe0485a, flagPole:0xc9d0d3,
+  emblem:"heart", emblemColor:0xe0485a, band:"hearts"
+};
+
 /* RACING STRIPE -- NUMBER 4 BUILDS A WINNER's (the Kart Works' thanks, 2026-11-01): number 4's racing red, the club's
    white stripe nose to tail over the lid and down his back, a white roundel with a 4 on each flank, a chequered pennant
    (print 'kartstripe') */
@@ -155638,6 +155828,7 @@ const SKIN_PALETTES = {
   "goth":           SK_GOTH,
   "fishmonger":     SK_FISHMONGER,
   "pawprint":       SK_PAWPRINT,
+  "neighbourly":    SK_NEIGHBOURLY,
   "just-married":   SK_JUST_MARRIED,
   "racing-stripe":  SK_RACING_STRIPE,
   "board-shorts":   SK_BOARDSHORTS,
@@ -168084,6 +168275,8 @@ const TP_SKINS = [
     filter:"none", desc:"Ambulance white with a red cross. Marina General trusts him with its medical deliveries now." },
   { skinId:"fishmonger",     displayName:"Fishmonger",     unlockType:"achievement",  trophyId:"catch-of-the-day",
     filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
+  { skinId:"neighbourly",    displayName:"Neighbourly",    unlockType:"achievement",  trophyId:"good-neighbour",
+    filter:"none", desc:"Porch-light cream and a friendly blue with hearts on the band, for making six friends in town." },
   { skinId:"pawprint",       displayName:"Paw Print",      unlockType:"achievement",  trophyId:"adoption-day",
     filter:"none", desc:"Shelter teal and a trail of paw prints, for walking Biscuit home to her family on adoption day." },
   { skinId:"costa-palma",    displayName:"Costa Palma",    unlockType:"achievement",  trophyId:"letters-on-hill",
@@ -168190,8 +168383,15 @@ const TP_TROPHIES = [
   { id:"adoption-day", name:"Adoption Day", desc:"Get Paw Point ready for adoption day and walk shy Biscuit to her new family.", tier:"silver", reward:"pawprint",
     progress:(h,t,missions)=>({current: (missions && missions.has("adoption-day")) ? 1 : 0, target:1}) },
   /* LOST ITEMS: the wallets, phones and keys taken home to their owners (tpCollect.returned, the collect save's count) */
-  { id:"good-samaritan", name:"Good Samaritan", desc:"Return ten lost things to their owners.", tier:"silver", reward:null,
-    progress:()=>({current: Math.min(LOST_ITEMS.trophyAt, tpCollect.returned || 0), target:LOST_ITEMS.trophyAt}) },
+  /* ...in three tiers (GOODWILL): bronze at 5, silver at 10, gold at 25; the bar runs to the next */
+  { id:"good-samaritan", name:"Good Samaritan",
+    get desc(){ const n = tpCollect.returned || 0, T = LOST_ITEMS.tiers, nx = T.find(x => x > n), tn = ["bronze", "silver", "gold"];
+      return "Return lost things to their owners: " + T[0] + " for bronze, " + T[1] + " silver, " + T[2] + " gold." + (n >= T[0] ? " " + n + " returned" + (nx ? ", " + nx + " for " + tn[T.indexOf(nx)] + "." : ".") : ""); },
+    get tier(){ const n = tpCollect.returned || 0, T = LOST_ITEMS.tiers; return n >= T[2] ? "gold" : n >= T[1] ? "silver" : "bronze"; }, reward:null,
+    progress:()=>({current: Math.min(LOST_ITEMS.tiers[0], tpCollect.returned || 0), target: LOST_ITEMS.tiers[0]}) },
+  /* GOODWILL: friends made by taking things and dogs home (tpCollect.friends); the Neighbourly skin */
+  { id:"good-neighbour", name:"Good Neighbour", desc:"Make six friends in town by bringing home what they lost.", tier:"silver", reward:"neighbourly",
+    progress:()=>({current: Math.min(GOODWILL.skinAt, gdwCount()), target:GOODWILL.skinAt}) },
   { id:"highroller", name:"High Roller", desc:"Earn $500 in lifetime tips.", tier:"gold", reward:"gold-rush",
     progress:(h,total)=>({current:Math.min(total,500), target:500, isMoney:true}) },
   /* ONE trophy for the Hydrant Challenge, at the full ten jumps. It was
@@ -168829,7 +169029,7 @@ function tpRender(){
 
 function tpRenderTrophies(){
   const list = document.getElementById("tpTrList");
-  list.innerHTML = "";
+  list.innerHTML = typeof gdwCardHtml === "function" ? gdwCardHtml() : "";   // (the goodwill meter: GOODWILL)
   TP_TROPHIES.forEach(tr=>{
     const p = tr.progress(tpProfile.history, tpProfile.allTimeTotal, tpProfile.missionsCompleted);
     const unlocked = p.current >= p.target;
@@ -169965,12 +170165,15 @@ function showWin(s, opts){
   if(s.damage === 0) pct += 1;
   if(s.runT < s.route.parMs * 0.8) pct += 1;
   pct = Math.max(0, Math.min(22, pct));
+  const friendPct = pct > 0 ? gdwStreetPct(s.route.address) : 0;   // (friends on this street: more -- GOODWILL)
+  pct += friendPct;
   const payout = Math.round(order.value * pct) / 100;
   const pctShow = Math.round(pct);
   const cuts = [];
   if(dmgPen  >= 0.5) cuts.push(`dmg −${Math.round(dmgPen)}%`);
   if(latePen >= 0.5) cuts.push(`late −${Math.round(latePen)}%`);
   if(walkPen >= 0.5) cuts.push(`walk −${Math.round(walkPen)}%`);
+  if(friendPct) cuts.push(`friends +${friendPct}%`);
   /* daily best — tip dollars ranked, time the tiebreak. Shared across
      everyone on the subreddit when running in the Devvit webview
      (tipsyBridge.active — see the bridge shim near the top of the

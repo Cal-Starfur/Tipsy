@@ -3,6 +3,7 @@ import type {DailyBest, LeaderboardEntry, TpProfileRsp} from '../shared/api.ts'
 import {
   TS_ARCADE,
   TS_CLAIMABLE_TROPHIES,
+  TS_GOODWILL_TROPHIES,
   TS_MISSIONS,
   TS_HOODS,
   TS_SKINS,
@@ -672,6 +673,8 @@ export async function dbClaimLostReturn(
 ): Promise<{credited: number; walletCents: number}> {
   const credited = await lostReturnClaim(username, id, today)
   const key = tpProfileKey(username)
+  /* the count of them (GOODWILL: a friend each), beside dogsRescued */
+  if (credited > 0) await redis.hIncrBy(key, 'lostReturned', 1)
   const walletCents =
     credited > 0
       ? await redis.hIncrBy(key, 'walletCents', credited)
@@ -889,6 +892,24 @@ export async function dbClaimTrophyReward(
 ): Promise<
   {ok: true; profile: TpProfileRsp; skinId: string} | {ok: false; error: string}
 > {
+  const good = TS_GOODWILL_TROPHIES[trophyId]
+  if (good) {
+    const key = tpProfileKey(username)
+    const [lr, dr] = await Promise.all([
+      redis.hGet(key, 'lostReturned'),
+      redis.hGet(key, 'dogsRescued'),
+    ])
+    const n =
+      (Number.parseInt(lr ?? '0', 10) || 0) +
+      (Number.parseInt(dr ?? '0', 10) || 0)
+    if (n < good.need) return {ok: false, error: `${trophyId} not yet earned`}
+    await redis.hSet(tpOwnedKey(username), {[good.rewardSkinId]: '1'})
+    return {
+      ok: true,
+      profile: await dbGetTpProfile(username),
+      skinId: good.rewardSkinId,
+    }
+  }
   const trophy = TS_CLAIMABLE_TROPHIES[trophyId]
   if (!trophy)
     return {ok: false, error: `${trophyId} is not server-claimable yet`}

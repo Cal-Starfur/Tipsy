@@ -40,6 +40,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   fishmonger: {priceCents: 0, unlockType: 'achievement'},
   /* Adoption Day's reward (the Adoption Day trophy, 'adoption-day') */
   pawprint: {priceCents: 0, unlockType: 'achievement'},
+  /* Goodwill's reward (the Good Neighbour trophy, 'good-neighbour': TS_GOODWILL_TROPHIES) */
+  neighbourly: {priceCents: 0, unlockType: 'achievement'},
   /* The Getaway's reward (the Wheels Up trophy, 'wheels-up') */
   'just-married': {priceCents: 0, unlockType: 'achievement'},
   /* Number 4 Builds a Winner's reward (the Pit Crew trophy, 'pit-crew') */
@@ -338,6 +340,20 @@ export const TS_CLAIMABLE_TROPHIES: Record<
     rewardSkinId: 'security',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'night-watch'),
   },
+}
+
+/** GOODWILL (game/index.html GOODWILL): trophies earned by the owners
+ *  he has taken things home to -- the lost things the server paid
+ *  (profile 'lostReturned', counted by dbClaimLostReturn) and the dogs it
+ *  paid ('dogsRescued'). Each return makes one friend in the game, so
+ *  the two together are at least the friends it shows. Claimed through
+ *  the same endpoint as TS_CLAIMABLE_TROPHIES (dbClaimTrophyReward).
+ *  Keep need in step with GOODWILL.skinAt. */
+export const TS_GOODWILL_TROPHIES: Record<
+  string,
+  {rewardSkinId: string; need: number}
+> = {
+  'good-neighbour': {rewardSkinId: 'neighbourly', need: 6},
 }
 
 /** HIGH TIDE'S GAME CARD (game/index.html TIX): the credits Marisol puts on

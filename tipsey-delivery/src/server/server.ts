@@ -606,6 +606,7 @@ const SKIN_LABELS: {[skinId: string]: string} = {
   'cone-dodger': 'Cone Dodger',
   'porch-pirate': 'Porch Pirate',
   medic: 'Medic',
+  neighbourly: 'Neighbourly',
 }
 
 /** What the player actually DID to earn each trophy, in words. Keyed by
@@ -626,6 +627,7 @@ const MISSION_LABELS: {[missionId: string]: string} = {
 const TROPHY_FEAT: {[trophyId: string]: string} = {
   streak5: 'five days delivered in a row',
   highroller: '$500 banked all-time',
+  'good-neighbour': 'six friends made in town',
 }
 
 function skinLabel(skinId: string): string {
