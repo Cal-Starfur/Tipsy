@@ -40521,7 +40521,7 @@ function lostItemQueue(scene, t, queuePerson, layerFor){
             friend from then on: one of that house's own people (householdOf: the door's key and their place in it, so the
             same person whenever they are out), by name (residentName). Kept in the collect save (tpCollect.friends).
    GREET    a friend out on the street near him (the houses' people: shoppers, seekers, the strand's residents) calls out
-            to him once in a while, a heart in a pink bubble (npcSay tone 'friend'); a friend he bumps or knocks down
+            to him once in a while (a plain bubble, as anyone's: Sir, 2026-11-28 -- no heart, no pink); a friend he bumps or knocks down
             laughs it off.
    MOOD     the town's goodwill k (0..kMax, as his friends add up to kFull) moves how everyone else takes him: a bump
             (PED_MOOD) is more often polite and less often a kick, fewer grumble stepping round him (BOT_PASS), the knocked
@@ -40611,7 +40611,7 @@ function gdwTick(scene, ow){
       if(Math.abs(e.x - scene.botX) + Math.abs(e.y - scene.botY) > G.greetR || t - (who._gdwT || -1e9) < G.greetMs) return;
       if(!scene.visProp("people", e.x, e.y)) return;
       who._gdwT = t;
-      scene.npcSay(e.ref, null, "♥ " + sayPick(GDW_SAY.greet), 2600, "friend");
+      scene.npcSay(e.ref, null, sayPick(GDW_SAY.greet), 2600, "say");
     } else if(e.ref && !e.ride && e.kind !== 'rider') (others || (others = [])).push(e);
   });
   if(!GDW.chatT) GDW.chatT = t + G.chatMs[0];
@@ -152742,13 +152742,13 @@ class WorldScene extends Phaser.Scene {
       st.textContent = ".npcSay{position:fixed;transform:translate(-50%,-100%);background:#fff;color:#22252b;font:700 14px/1.15 system-ui,-apple-system,sans-serif;"
         + "padding:5px 9px;border-radius:11px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.28);pointer-events:none;}"
         + ".npcSay::after{content:'';position:absolute;left:50%;bottom:-6px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:inherit;}"
-        + ".npcSay.say{border-top-color:#fff;}.npcSay.mad{color:#b3261e;border-top-color:#fff;}.npcSay.horn{background:#ffe08a;border-top-color:#ffe08a;}.npcSay.friend{color:#c2185b;border-top-color:#fff;}";
+        + ".npcSay.say{border-top-color:#fff;}.npcSay.mad{color:#b3261e;border-top-color:#fff;}.npcSay.horn{background:#ffe08a;border-top-color:#ffe08a;}";
       document.head.appendChild(st);
     }
     let e = this._says.get(key);
     if(!e){ const el = document.createElement("div"); layer.appendChild(el); e = { el }; this._says.set(key, e); }
     const t = this.time.now;
-    e.el.className = "npcSay " + (tone === "mad" ? "mad" : tone === "horn" ? "horn" : tone === "friend" ? "friend" : "say");
+    e.el.className = "npcSay " + (tone === "mad" ? "mad" : tone === "horn" ? "horn" : "say");
     e.el.textContent = text;
     /* no pos: the speaker is a person in the registry (CITY_PEOPLE), and the bubble follows their entry; h: how high, else off their build */
     e.pos = pos || null; e.ref = pos ? null : key0; e.h = h; e.t0 = t; e.until = t + (ms || 2400);
