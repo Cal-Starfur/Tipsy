@@ -139866,7 +139866,7 @@ class WorldScene extends Phaser.Scene {
         }
         /* THE OPENING UNDER THE LID (Sir, 2026-11-28: "this top dark green strip should be black its supposed to be the opening"):
            shut, the gap between the barrel's top and the lid's lip is the slot you drop into -- a dark ring, the arc the eye sees */
-        if(HB === H && phi < BIN_HIT.phiBal) this.arcStrip(g, binP, binN, H - 4*bs, binR(H - 4*bs) + 0.3, H, binR(H) + 0.3, 0, B.liner);
+        if(HB === H && phi < BIN_HIT.phiBal) this.arcStrip(g, binP, binN, H - 4*bs, binR(H - 4*bs) + 0.3, H, binR(H) + 0.3, 0, 0x101113);   // (black, Sir 2026-11-28)
         /* liner lip: camera-facing test, same pattern used everywhere
            else in this projection (rotated local normal dotted with
            the view direction) */
