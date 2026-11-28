@@ -58,7 +58,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | Cats | `drawDogHull` with a cat look | `CAT_BREEDS` (cat, kitten), `catLookOf(seed, kitten)` | tail `'cat'`, `eyeC`, no collar |
 | Horses | `drawHorseHull` | | |
 | Humanoid robots | `drawHumanoid`, `drawProp('humanoid')` | | Kickstand's line |
-| Pigeons | `drawProp('pigeons')` | | |
+| Pigeons | `drawProp('pigeons')` | | Roof pigeons (`ROOF_PIGEONS`): one bird given whole as `data.roofBird` ({ th, size, pal, ... ; `fly: { dz, th }` on the wing}), drawProp's `z` the roof; flocks on the hood shops' front roof edges (`roofPigeonPerches`, `roofPigeonFlocks`), hopping roof to roof (`roofPigeonLeg`, `roofPigeonBirds`), queued by `queueRoofPigeons` |
 
 ## Vehicles and robots
 

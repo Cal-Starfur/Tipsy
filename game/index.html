@@ -14284,6 +14284,84 @@ function birdWanderAt(b, t){
   return { x, y, th: Math.atan2(vy, vx) };
 }
 
+/* ROOF PIGEONS (Sir, 2026-11-28: "i want to start seeing some pigeons placed on roof tops too to add to the feel of the aging we did to
+   them lets only do them on shops and allow them to move from one to the other by flighting"). The game's own pigeons (drawProp
+   'pigeons', the flock's bird drawn whole: data.roofBird) along the front edge of the hood shops' roofs -- the Flats' shops, the
+   street-facing fronts the eye sees (shopDoorsOf) -- shuffling, turning and pecking there; now and then the flock takes off together and
+   flies to another shop's roof near by, up and over in an arc, each bird a beat after the one before, and lands along its edge.
+     perches   one a shop: its roof's front edge (lat back from the glass line), its middle stretch, its height there (hoodShopHeightAt)
+     flocks    on about one shop in `every`; each hops among the perches within R of the one it started on
+     its day   stay a while (stay), fly (dist/v plus lift), stay at the next ... all off the scene's clock, the hops worked forward as
+               the clock passes them (no state but where each flock is up to), the next roof picked off the flock and the hop's number
+   Drawn live (they move), only where on screen, each bird at its own point in the world's order */
+const ROOF_PIGEONS = { lat: -18, span: [0.18, 0.82], every: 3, R: 1500, stay: [16000, 42000], v: 0.32, lift: 700, arc: 140, beat: 140, minH: 120 };
+function roofPigeonPerches(scene, grid){
+  if(grid._roofPerches) return grid._roofPerches;
+  const RP = ROOF_PIGEONS, out = [];
+  if(typeof shopDoorsOf !== 'function' || !grid.blockByIJ) return out;
+  for(const d of shopDoorsOf(grid)){
+    const blk = grid.blockByIJ.get(d.blockKey); if(!blk) continue;
+    const u = (hoodShopEdgeUnits(grid, blk, d.edge) || []).find(v => v.shop && v.shop.lib === d.lib); if(!u) continue;
+    const e = d.e, a0 = u.start + u.w*RP.span[0], a1 = u.start + u.w*RP.span[1];
+    const pt = al => ({ x: e.ox + e.dv.x*al + e.rv.x*RP.lat, y: e.oy + e.dv.y*al + e.rv.y*RP.lat });
+    const m = pt((a0 + a1)/2), h = scene.hoodShopHeightAt(grid, blk, m.x, m.y);
+    if(!(h > RP.minH)) continue;
+    out.push({ i: out.length, key: d.key, e, a0, a1, z: h, x: m.x, y: m.y, pt, th: Math.atan2(e.rv.y, e.rv.x) });
+  }
+  return (grid._roofPerches = out);
+}
+function roofPigeonFlocks(scene, grid){
+  if(grid._roofFlocks) return grid._roofFlocks;
+  const RP = ROOF_PIGEONS, P = roofPigeonPerches(scene, grid), out = [];
+  for(const p of P){
+    const r = mulberry32((Math.imul(p.i + 1, 0x9e3779b1) ^ 0x51ce0a) >>> 0);
+    if(r() * RP.every >= 1) continue;
+    const near = P.filter(q => Math.hypot(q.x - p.x, q.y - p.y) < RP.R);
+    if(near.length < 2) continue;
+    const birds = [], n = 3 + Math.floor(r()*4);
+    for(let k = 0; k < n; k++) birds.push({ ox: 0, oy: 0, pal: PIG_VARIANTS[Math.floor(r()*3)], size: 0.85 + r()*0.3, flapPh: r()*Math.PI*2,
+      peckPh: r()*Math.PI*2, peckRate: 0.0016 + r()*0.0009, s: (k + 0.5)/n + (r() - 0.5)*0.12, w: 0.0003 + r()*0.0004, wp: r()*Math.PI*2, turn: r()*Math.PI*2, lat: (r() - 0.5)*8 });
+    out.push({ seed: (Math.imul(p.i + 7, 0x85ebca6b) >>> 0), home: p, near, birds, at: p, n: 0, t0: 0, leg: null });
+  }
+  return (grid._roofFlocks = out);
+}
+/* the flock's leg at t: { from, to, t0 (on the roof from), fly0 (takes off), t1 (landed) }, worked forward from where it was */
+function roofPigeonLeg(f, t){
+  const RP = ROOF_PIGEONS;
+  for(let guard = 0; guard < 64; guard++){
+    if(!f.leg){
+      const r = mulberry32((f.seed ^ Math.imul(f.n + 1, 0x27d4eb2d)) >>> 0), stay = RP.stay[0] + r()*(RP.stay[1] - RP.stay[0]);
+      const opts = f.near.filter(q => q !== f.at), to = opts[Math.floor(r()*opts.length)] || f.at;
+      const fly = Math.hypot(to.x - f.at.x, to.y - f.at.y)/RP.v + RP.lift;
+      f.leg = { from: f.at, to, t0: f.t0, fly0: f.t0 + stay, t1: f.t0 + stay + fly + RP.beat*f.birds.length };
+    }
+    if(t < f.leg.t1) return f.leg;
+    f.at = f.leg.to; f.t0 = f.leg.t1; f.n++; f.leg = null;
+  }
+  return f.leg;
+}
+/* each bird at t: { x, y, z, bird } -- on its roof (shuffling, turned now and then, pecking) or between two (flying) */
+function roofPigeonBirds(f, t){
+  const RP = ROOF_PIGEONS, L = roofPigeonLeg(f, t), out = [];
+  const onRoof = (p, b) => {
+    const s = Math.max(0, Math.min(1, b.s + Math.sin(t*b.w + b.wp)*0.05)), al = p.a0 + (p.a1 - p.a0)*s, q = p.pt(al);
+    const lat = b.lat - 4;
+    /* mostly facing the street, now and then turned along the ledge (a slow swing, never a spin) */
+    const th = p.th + Math.sin(t*0.00023 + b.turn)*1.3;
+    return { x: q.x + p.e.rv.x*lat, y: q.y + p.e.rv.y*lat, z: p.z, bird: Object.assign({}, b, { th }) };
+  };
+  f.birds.forEach((b, k) => {
+    const go = L.fly0 + k*RP.beat, land = L.t1 - (f.birds.length - 1 - k)*RP.beat;
+    if(t < go) out.push(onRoof(L.from, b));
+    else if(t >= land) out.push(onRoof(L.to, b));
+    else {
+      const A = onRoof(L.from, b), B = onRoof(L.to, b), u = (t - go)/(land - go), e = u*u*(3 - 2*u);
+      const x = A.x + (B.x - A.x)*e, y = A.y + (B.y - A.y)*e, z = A.z + (B.z - A.z)*e, dz = RP.arc*Math.sin(Math.PI*u) + 6;
+      out.push({ x, y, z, bird: Object.assign({}, b, { th: Math.atan2(B.y - A.y, B.x - A.x), fly: { dz, th: Math.atan2(B.y - A.y, B.x - A.x) } }) });
+    }
+  });
+  return out;
+}
 /* ---------- outside-turn crossing ground (pure, WORLD-space) ----------
    Turn crossings can't use route-s geometry: the ramps sit at the true
    curb lines and the robot's arc crosses them DIAGONALLY, so the ground
@@ -122869,6 +122947,7 @@ class WorldScene extends Phaser.Scene {
         blockVQ.push({ depth: md, fn: (g, tt) => this.drawCrew(layerFor(m.x, m.y), m, tt, bot) });
       });
     }
+    this.queueRoofPigeons(blockVQ, layerFor, t);   // (the shops' roof pigeons: ROOF_PIGEONS)
     /* THE POLICE at a crash (POLICE_CALL): the cruiser, and its officer while out of it */
     if(this._police && this._police.route === r){
       const P = this._police, v = rescueVanAt(P, this.time.now);
@@ -130302,6 +130381,20 @@ class WorldScene extends Phaser.Scene {
 
   /* the block's kerb-parked cars (see KERB_PARK). Still, so cached, keyed
      by their slot. */
+  /* THE ROOF PIGEONS (ROOF_PIGEONS): each flock's birds where they are at t, live, the ones on screen, each at its own point in the
+     world's order -- on a roof, just out from the front edge they stand on, so the shop's cached image is under them */
+  queueRoofPigeons(vq, layerFor, t){
+    const grid = this.route && this.route.grid;
+    if(!grid || grid.classic || !this.ow || !this.ow.on) return;
+    for(const f of roofPigeonFlocks(this, grid)){
+      if(Math.abs(f.home.x - this.ow.px) + Math.abs(f.home.y - this.ow.py) > 6000) continue;
+      for(const q of roofPigeonBirds(f, t)){
+        if(!this.visProp("pigeons", q.x, q.y, q.z)) continue;
+        const dep = q.x + q.y + 40, dat = { roofBird: q.bird };
+        vq.push({ depth: dep, fn: (g, tt) => this.drawProp(layerFor(q.x, q.y), "pigeons", q.x, q.y, tt || t, 0, q.z, null, null, dat) });
+      }
+    }
+  }
   queueKerbCars(vq, blk){
     const g0 = this.route && this.route.grid;
     if(!g0 || blk.i === undefined) return;
@@ -143132,8 +143225,12 @@ class WorldScene extends Phaser.Scene {
         const drawPigeon = (bx, by, b) => {
             const s = b.size;
             let px = bx + b.ox, py = by + b.oy, wing = 0, thB = b.th;
-            let z = fled === null ? Math.abs(Math.sin(t*0.012 + b.flapPh))*0.6 : 0;   // waddle bob
-            if(fled !== null){
+            /* b.fly { dz, th }: a ROOF PIGEON on the wing between two shops' roofs (ROOF_PIGEONS) -- dz its height over the line it
+               flies along (drawProp's z), th its heading; flying as a fled bird does, its wings at full beat */
+            const fly = b.fly || null, flying = fled !== null || !!fly;
+            let z = !flying ? Math.abs(Math.sin(t*0.012 + b.flapPh))*0.6 : 0;   // waddle bob
+            if(fly){ z = fly.dz; wing = Math.sin(t*PIG.flapRate + b.flapPh); thB = fly.th; }
+            else if(fled !== null){
               const ft = (t - fled)/1000;
               px += Math.cos(b.scatterA) * b.scatterV * 1000 * ft;
               py += Math.sin(b.scatterA) * b.scatterV * 1000 * ft;
@@ -143143,17 +143240,17 @@ class WorldScene extends Phaser.Scene {
             }
             const c = Math.cos(thB), sn = Math.sin(thB);
             const L = (fx, fy, fz) => W(px + fx*c - fy*sn, py + fx*sn + fy*c, z + fz);
-            const peck = fled === null ? Math.pow(Math.max(0, Math.sin(t*b.peckRate + b.peckPh)), 6) : 0;
+            const peck = !flying ? Math.pow(Math.max(0, Math.sin(t*b.peckRate + b.peckPh)), 6) : 0;
         
             /* shadow — shrinks and fades as the bird climbs */
-            const shA = Math.max(0, 0.16 - z*0.0016);
+            const shA = fly ? 0 : Math.max(0, 0.16 - z*0.0016);   // (none in the air between the roofs: the ground is far below)
             if(shA > 0.01){
               const sh = []; for(let i=0;i<8;i++){ const a=(i/8)*Math.PI*2;
                 sh.push(W(px + Math.cos(a)*7*s, py + Math.sin(a)*5*s, 0.4)); }
               this.quadOn(g, sh, PIG.shadow, shA);
             }
             /* legs (grounded only) */
-            if(fled === null){
+            if(!flying){
               g.lineStyle(1.6, PIG.leg, 1);
               for(const ly of [-2.2, 2.2]){
                 const a1 = L(-1, ly, 2.4), a2 = L(-1, ly, 0);
@@ -143183,7 +143280,7 @@ class WorldScene extends Phaser.Scene {
               /* folded WING: a raised panel lying on the flank — pushed outboard
                  and inset from the body outline, so it reads as a wing resting
                  on the body instead of a painted seam */
-              if(fled === null)
+              if(!flying)
                 this.quadOn(g, [L(FT*0.7, side*(yFT+0.9), zT - H*0.15),
                            L(FT*0.2, side*(yFB+0.9), zB + H*0.45),
                            L(RB*0.92, side*(yRB+0.7), zBr + H*0.25),
@@ -143195,14 +143292,14 @@ class WorldScene extends Phaser.Scene {
             if(vis(1, 0))
               this.quadOn(g, [L(FB,-yFB,zB), L(FB,yFB,zB), L(FT,yFT,zT), L(FT,-yFT,zT)], b.pal.breast);
             /* tail: dark fan off the tail-end top edge, twitches at rest */
-            const tw = fled === null ? Math.sin(t*0.004 + b.peckPh)*0.6 : 0;
+            const tw = !flying ? Math.sin(t*0.004 + b.peckPh)*0.6 : 0;
             this.quadOn(g, [L(RT,-1.8*s,zTr), L(-B*1.05, (-1.2+tw)*s, zTr + 0.8),
                        L(-B*1.05, (1.2+tw)*s, zTr + 0.8), L(RT,1.8*s,zTr)], b.pal.wing);
             /* flight wings: two segments each with a dihedral BEND — inner panel
                rises to a mid joint, outer panel continues to the tip at extra
                lift, both riding the flap, so the beat reads as a folding 3D
                wing instead of a flapping triangle */
-            if(fled !== null){
+            if(flying){
               const spread = 10*s + wing*7*s, lift = 3 + Math.abs(wing)*5;
               for(const side of [-1, 1]){
                 const shF = L(FT*0.7, side*yFT, zT - 0.5), shR = L(RT*0.8, side*yRT, zTr - 0.5);
@@ -143237,7 +143334,9 @@ class WorldScene extends Phaser.Scene {
             const eye = L(hx + hs*0.35, -hs*0.75, hz + hs*0.35);
             g.fillStyle(PIG.eye, 1); g.fillCircle(eye.x, eye.y, 1.3*s*this.K*0.8);   // K is scene state in-game (lab had it module-level)
         };
-        const birds = flockBirds(x, y);
+        /* a roof pigeon (ROOF_PIGEONS): one bird, given whole by the caller -- where it stands on the roof is drawProp's (x, y, z) */
+        const birds = data && data.roofBird ? [] : flockBirds(x, y);
+        if(data && data.roofBird) drawPigeon(0, 0, data.roofBird);
         const placedB = birds.map(b => {
           const wo = birdWanderAt(b, t);
           return { b: { ...b, ox: b.ox + wo.x, oy: b.oy + wo.y, th: wo.th },
