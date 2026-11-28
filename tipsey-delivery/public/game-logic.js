@@ -165672,7 +165672,7 @@ function tpPlaceRender(pl){
     + '<div class="tpPlSec" id="tpPlOverview">'
     + '<div class="tpPlRow"><i>\u{1F4CD}</i><div>' + tpPlaceEsc(tpPlaceAddress(pl)) + '</div></div>'
     + '<div class="tpPlRow"><i>\u{1F552}</i><div><span class="' + (hrs.open ? "tpPlOpenTxt" : "tpPlShut") + '">' + (hrs.open ? "Open" : "Closed") + '</span> · ' + hrs.text + '</div></div>'
-    + (drv ? '<div class="tpPlRow"><i>\u{1F916}</i><div>' + drv.dist + ' from Tipsey · about ' + drv.min + ' min by robot</div></div>' : "")
+    + (drv ? '<div class="tpPlRow"><i>' + tpRobotSvg(((typeof tpSkinById === 'function' && tpSkinById(tpProfile.equipped)) || {}).filter || 'none', 17, tpProfile.equipped) + '</i><div>' + drv.dist + ' from Tipsey · about ' + drv.min + ' min by robot</div></div>' : "")
     + (offer ? '<div class="tpPlRow"><i>\u{1F6CD}</i><div><b>An order is waiting here.</b> Pick it up to start a delivery.</div></div>' : "")
     + '</div>'
     + '<div class="tpPlSec" id="tpPlAbout"><h3>About</h3><div class="tpPlBlurb">' + tpPlaceEsc(c.blurb) + '</div>'
