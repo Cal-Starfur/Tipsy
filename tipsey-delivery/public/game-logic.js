@@ -18102,7 +18102,7 @@ function houseEdgeUnits(grid, blk, ei){
       for(const u of row){ u.start = cur; cur += u.w + (list.length === 1 && u.house ? 4 : 0); }
       /* THE TWEAKERS' HOUSE (962 Marina Way, the Flats' south-east corner: twkHideout) wears its run-down livery -- Butterfly Modern's
          fourth, which no other house is dealt (pal() is %3) */
-      if(key === '7,7/2' && row[0] && row[0].shop.lib === 'Butterfly Modern') row[0].pal = 3;
+      if(key === '7,7/2' && row[0] && row[0].shop.lib === 'Butterfly Modern'){ row[0].pal = 3; if(row[1] && row[1].host === 'Butterfly Modern') row[1].pal = 3; }   // (and its garage, in the same: Street Garage's style reads its host's livery)
       _mtEdges.set(key, row);
     }
   }
@@ -97100,7 +97100,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         { wall:'#f2e8dc', roof:'#ece2d6', stone:'#b09a80', leaf:'#2f5a7a', edge:'#c9622a' },
         /* RUN DOWN (the Tweakers' house, 962 Marina Way: never dealt by a lot's own roll): walls gone grey, the roof stained, the door
            a peeling brown, the glass wall boarded with plywood, the palm dying, the sculpture gone (rundown) */
-        { wall:'#cbc3ad', roof:'#aaa396', stone:'#8a8274', leaf:'#7a4a2c', edge:'#6a6458', rundown:true } ],
+        { wall:'#cbc3ad', roof:'#aaa396', stone:'#8a8274', leaf:'#7a4a2c', edge:'#6a6458', trim:'#a39a86', rundown:true } ],
   vol:{
     foot:[[50,-130],[410,-130],[410,-480],[50,-480]], h:230,
     solids:[ { name:'chimney', poly:[[56,-140],[104,-140],[104,-120],[56,-120]], h:230 },
@@ -97639,7 +97639,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     return { wall: L.wall || L.brick || L.stucco || MARITIME_PAL.sailcloth, plain: !L.wall,
              roof: L.roof || MARITIME_PAL.slate, trim,
              door: modern ? (L.accent || L.band || L.clad || L.leaf) : trim,
-             modern };
+             modern, rundown: !!L.rundown };   // (the Tweakers' garage: its host's run-down livery -- aged in draw and door)
   },
   frame(){ return { A0: 10, A1: this.ww - 10, BF: -70, BB: -300, H: 96 }; },
   door(a0, a1, c, BF){
@@ -97658,9 +97658,16 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         F(x0, x1, z0 + (z1 - z0)*0.5, z1, 'rgba(170,205,220,.38)', null, 0, BF + 0.8);
       } else F(x0, x1, z0, z1, shade(c.door,1.04), shade(c.door,.72), 0.8, BF + 0.7);
     }
+    if(c.rundown){   // (aged: the lites smashed in, grime up from the foot, a dent, a sprayed tag)
+      for(let k = 0; k < cols; k += 2){ const x0 = a0 + k*cw + 4, x1 = a0 + (k + 1)*cw - 4; F(x0, x1, H0 - rh + 4, H0 - 4, '#14181b', null, 0, BF + 0.9); }
+      F(a0, a1, 0, 22, 'rgba(92,82,60,.3)', null, 0, BF + 0.95);
+      F(a0 + (a1 - a0)*0.55, a0 + (a1 - a0)*0.7, 24, 40, shade(c.door,.82), null, 0, BF + 0.95);
+      poly([P(a0 + 12, BF + 1, 30), P(a0 + 26, BF + 1, 46), P(a0 + 36, BF + 1, 32), P(a0 + 48, BF + 1, 48), P(a0 + 58, BF + 1, 34)], null, '#2f6fd8', 2.4);
+    }
   },
   lantern(a, c, BF){
-    box(a - 5, a + 5, BF + 1, BF + 11, 62, 78, '#f0d48a', '#e2c070', '#b89850');
+    if(c && c.rundown) box(a - 5, a + 5, BF + 1, BF + 11, 62, 78, '#5a5448', '#4a463c', '#3a362e');   // (its glass broken, dark)
+    else box(a - 5, a + 5, BF + 1, BF + 11, 62, 78, '#f0d48a', '#e2c070', '#b89850');
     box(a - 6, a + 6, BF, BF + 12, 78, 81, MARITIME_PAL.charcoal, MARITIME_PAL.charcoal, shade(MARITIME_PAL.charcoal,.7));
   },
   walls(c, dir){
@@ -97682,6 +97689,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       box(am - 13, am + 13, bm - 13, bm + 13, H + 44, H + 78, c.trim, c.wall, shade(c.wall,.8));
       houseHip(am - 13, am + 13, bm + 13, bm - 13, H + 78, H + 96, 4, c.roof);
     } else houseFrontGable(A0, A1, BF, BB, H, H + (A1 - A0)*0.34, 8, c.roof, c.wall, dir, { shingle: true });
+    if(c.rundown && this.bays === 1 && dir > 0){   // (aged, as its house: moss and water stains down both slopes, a few shingles gone)
+      const am = (A0 + A1)/2, hw = (A1 - A0)/2, zr = a => H + (A1 - A0)*0.34*(1 - Math.abs(a - am)/hw) + 0.8;
+      for(const [a0, a1, b0, b1, col] of [[A0 + 10, A0 + 40, BF - 30, BF - 90, 'rgba(84,96,58,.4)'], [am + 14, am + 44, BF - 110, BF - 170, 'rgba(84,96,58,.4)'],
+                                          [am + 6, am + 22, BF - 40, BF - 70, '#7c776c'], [A0 + 22, A0 + 46, BF - 150, BF - 200, 'rgba(70,74,60,.35)']])
+        poly([P(a0, b0, zr(a0)), P(a1, b0, zr(a1)), P(a1, b1, zr(a1)), P(a0, b1, zr(a0))], col, null);
+    }
   },
   draw(p){
     const c = this.style(), { A0, A1, BF } = this.frame();
@@ -97689,6 +97702,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     this.walls(c, 1);
     const n = this.bays, gap = 16, dw = (A1 - A0 - 36 - gap*(n - 1)) / n;
     for(let k = 0; k < n; k++){ const a0 = A0 + 18 + k*(dw + gap); this.door(a0, a0 + dw, c, BF); }
+    if(c.rundown){   // (aged: rain streaks down its front, an oil stain on the drive)
+      for(const [a, z0] of [[A0 + 6, 40], [A0 + 14, 60], [A1 - 14, 50], [A1 - 8, 30]]) F(a, a + 4, z0, 94, 'rgba(92,82,60,.28)', null, 0, BF + 0.4);
+      poly([P(A0 + 50, BF + 20, 0.5), P(A0 + 86, BF + 16, 0.5), P(A0 + 96, BF + 40, 0.5), P(A0 + 70, BF + 52, 0.5), P(A0 + 46, BF + 40, 0.5)], 'rgba(30,28,26,.45)', null);
+    }
     this.roof(c, 1);
     this.lantern(A0 + 10, c, BF);
   },
