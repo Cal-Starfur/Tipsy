@@ -30951,14 +30951,14 @@ function ctgGatehouseDepth(){
    the door's lane (a 333..425) clear from the door to the back wall. (The garage's front stands 78 further out than the house's; the room's front
    is the house's own line -- W31: a room never runs toward the street -- so the bay's door is on the room's front wall) */
 const twLab = (x, y) => [460 - (24285.5 - x)/1.3, (y - 24288)/1.3];
-const TW_IN = { name: 'Tweakers House Interior', x0: 1040000, y0: 400000, WALL: 30/1.3, H: 280, LH: 66, X: [23503, 24191], Y: [23389, 24089] };
+const TW_IN = { name: 'Tweakers House Interior', x0: 1040000, y0: 400000, WALL: 30/1.3, H: 280, LH: 66, X: [23331, 24191], Y: [23389, 24089] };
 const TW_PLAN = walkinDefine({ name: TW_IN.name, from: 'Tweakers House', x0: TW_IN.x0, y0: TW_IN.y0,
   lab: [twLab(TW_IN.X[0], 0)[0], twLab(TW_IN.X[1], 0)[0], twLab(0, TW_IN.Y[0])[1], twLab(0, TW_IN.Y[1])[1]],
   body: [[50, 410, -480, -130], [-165, -9.6, -300, -70]],                     // (the house, and its garage)
   door: { a: 150, b: -130, half: 46 }, H: TW_IN.H, LH: TW_IN.LH, out: 60, glass: -14, late: () => true,   // (glass < 0: in the doorway first, W32; late: a home, never shut)
   openings: [{ lab: [[150 - 35.4, -130], [150 + 35.4, -130]], z: [0, 94] }] });
 /* (it hides the house and its garage; the buildings behind and beside it ghost; it displaces what it covers, W31) */
-Object.assign(POCKETS[POCKETS.length - 1], { hides: ['Tweakers House', 'Tweakers Garage'], displace: true, n0: 250, w0: 220, tall: [[0, 185, 220, 250]],
+Object.assign(POCKETS[POCKETS.length - 1], { hides: ['Tweakers House', 'Tweakers Garage'], displace: true, n0: 340, w0: 140, tall: [[-30, 260, 140, 170]],
   ghosts: ['Solstice Eco House', 'Starlite Googie', 'Glass Pavilion', 'Street Garage'] });
 /* (ONE KNOCK-DOWN AND HE IS OUT, W34: the resident sees him to the door and will not have him back) */
 Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['tweaker'], banSay: { who: 'Tweaker', say: "Whoa, whoa! Get out of my house, toaster." } });
@@ -30966,9 +30966,9 @@ Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['tweaker'], banS
    now and then at the kitchen run. One person, no visitors */
 walkinStaff(TW_IN.name, [
   { id: 'tweaker', role: 'resident (a Tweaker)', seed: 0x7e3ed, keys: true, lookFn: () => streetLook(0x7e3ed, { adult: true, aid: 'none', type: 'tweaker', sex: 'm' }),
-    posts: [[332, 115, Math.PI, 9000, true], [520, 72, -Math.PI/2, 6000, true]] },
+    posts: [[422, 115, Math.PI, 9000, true], [692, 72, -Math.PI/2, 6000, true]] },
 ]);
-walkinLife(TW_IN.name, { keep: [[333, 425, 0, 700]], looks: [] });
+walkinLife(TW_IN.name, { keep: [[505, 597, 0, 700]], looks: [] });
 
 /* ==================== COVE GROVE, SEAGLASS COFFEE, WALK-IN (wk9; the room: the LIB entry 'Seaglass Coffee Interior') ====================
    The west tower's south-west shop on the street's lines (walkinDefine, an hl landmark, the cell 'Cove Grove West Tower': its draw frame is the cell's
@@ -51569,7 +51569,9 @@ function walkinRoom(items, R){
          breaking the frame") */
       for(const [p0, , top] of cut) if(p0 >= s0 && p0 < s1) S(p0, -30, 0, 0, top, fside);
       if(s1 > f0){
-        if(!cut.length) clipped([P(f0, 0, -2), P(e1, 0, -2), P(e1, 0, H + 0.5), P(f0, 0, H + 0.5)], () => paint(f0, s1));
+        /* (and a hair back into the one before: a seam between two cached pieces' antialiased edges let the world show through where a room
+           stands over the street -- displaced, the Tweakers' house -- as a thin bright line up the wall) */
+        if(!cut.length){ const c0 = k ? f0 - 0.6 : f0; clipped([P(c0, 0, -2), P(e1, 0, -2), P(e1, 0, H + 0.5), P(c0, 0, H + 0.5)], () => paint(f0, s1)); }
         /* (each piece of wall round a door its own clip: the canvas port clips to ONE shape, so a path of several rects kept only the first --
            the wall beside a north door went unpainted and the pavement showed through it, Palmline Savings 2026-11-19: "i can see the sidewalk on
            both sides of the door") */
@@ -51610,7 +51612,7 @@ function walkinRoom(items, R){
       /* (its north jamb's face, seen in the gap: before the wall's inner face, which stands in front of it -- after it, the jamb's far top
          stood up over the wall above the door) */
       for(const [p0, , top] of cut) if(p0 >= s0 && p0 < s1) F(-30, 0, 0, top, fside, null, 0, p0);
-      if(!cut.length) clipped([P(0, f0, -2), P(0, e1, -2), P(0, e1, H + 0.5), P(0, f0, H + 0.5)], () => R.paintW(f0, s1));
+      if(!cut.length){ const c0 = k ? f0 - 0.6 : f0; clipped([P(0, c0, -2), P(0, e1, -2), P(0, e1, H + 0.5), P(0, c0, H + 0.5)], () => R.paintW(f0, s1)); }   // (a hair back into the one before, as the north wall's)
       else {   // (each piece of wall round the door its own clip, as the north wall's: the canvas port clips to one shape)
         const rect = (y0, y1, z0, z1) => { if(y1 > y0 + 0.01) clipped([P(0, y0, z0), P(0, y1, z0), P(0, y1, z1), P(0, y0, z1)], () => R.paintW(f0, s1)); };
         let y = f0; for(const [p0, p1, top] of cut.slice().sort((m, q) => m[0] - q[0])){ if(p0 > y) rect(y, p0, -2, H + 0.5); rect(Math.max(y, p0), Math.min(e1, p1), top, H + 0.5); y = Math.max(y, p1); }
@@ -61972,21 +61974,21 @@ function houseCanopy(fn){
      mattresses, an old sofa at a crate table facing a TV on a crate, clothes and trash bags. W37 in every piece: back to front, only the faces the
      eye sees (box() does it). */
   name:'Tweakers House Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 688, dd: 700,
+  ww: 860, dd: 700,
   head:'Inside the Tweakers\' house: two bare mattresses, an old sofa and a TV on a crate, stolen copper and bikes, their van in the garage',
   tags:['interior','pocket','house','tweakers','squat','garage'],
   desc:'The Tweakers\' den: a carpet worn through and burnt, grey stained walls sprayed with tags, a kitchen run of dirty pans, a bench heaped with stripped copper wire and a car stereo, a heap of stolen bikes, two bare mattresses, an old sofa at a crate table of cans and pizza boxes, a TV on a milk crate, clothes and trash bags -- and through a doorway the garage, long and narrow, their van nose in under its rolled-up door, a workbench of tools, bikes, gas cans and tyres.',
   draw(p){
     const pl = (typeof TW_PLAN !== 'undefined' && TW_PLAN) || null;
     if(pl) pl.view();
-    const W = pl && pl.W > 1 ? pl.W : 688, D = pl && pl.D > 1 ? pl.D : 700, H = pl ? pl.H : 280, AP = pl ? pl.apron : 60, LH = 66;
-    const door = (pl && pl.door) || { side: 's', at: 379, half: 46 };
+    const W = pl && pl.W > 1 ? pl.W : 860, D = pl && pl.D > 1 ? pl.D : 700, H = pl ? pl.H : 280, AP = pl ? pl.apron : 60, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 551, half: 46 };
     const DA0 = door.at - door.half, DA1 = door.at + door.half;
     const wall = '#cbc3ad', wallD = '#b5ac96', grime = 'rgba(92,82,60,.3)';
     const wood = '#8a6a42', woodL = '#a6845a', woodD = '#6a5032', crate = '#2f5f8f', crateD = '#244a70';
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
-    const GA1 = 155, GB0 = 250, GW = 30, GDR = [330, 390], HA0 = 250;                     // (the garage: a 0..155, b 250..700, its walls 30, its side door b 330..390; the house's west wall at a 250..280 -- the yard and the breezeway between)
+    const GA1 = 230, GB0 = 170, GW = 30, GDR = [330, 390], HA0 = 340;                     // (the garage: a 0..230, b 170..700, its walls 30, its side door b 330..390; the house's west wall at a 340..370 -- the yard and the breezeway between)
     const bikeFlat = (a, b, z, col) => { for(const da of [-20, 20]){ plateCircle(a + da, b, z + 1, 14, null, '#2a2b2e', 2.2); plateCircle(a + da, b, z + 1.2, 2, '#9aa0a6', null, 0); }
       tube(a - 20, b, z + 2, a, b - 14, z + 2, 1.6, col); tube(a, b - 14, z + 2, a + 20, b, z + 2, 1.6, col); tube(a - 20, b, z + 2, a + 2, b, z + 2, 1.6, col); tube(a + 2, b, z + 2, a, b - 14, z + 2, 1.6, col); };
     const wheelB = (a, b, z, r) => { for(let i = 0; i < 14; i++){ const t = i/14*Math.PI*2, t2 = (i + 1)/14*Math.PI*2; tube(a, b + r*Math.cos(t), z + r*Math.sin(t), a, b + r*Math.cos(t2), z + r*Math.sin(t2), 1.4, '#2a2b2e'); } };
@@ -61996,18 +61998,19 @@ function houseCanopy(fn){
     /* ---- THE FLOOR: the carpet, worn through to the boards in patches, burnt, stained; the garage bay's concrete, its oil stain and tyre marks; a
        threshold at the door ---- */
     T(0, W, 0, D, 0, '#7f786a');
-    for(const [a0, a1, b0, b1] of [[442, 522, 400, 440], [562, 622, 540, 600], [242, 322, 240, 300], [502, 582, 330, 350]]){ T(a0, a1, b0, b1, 0.2, '#9a7c56');
+    for(const [a0, a1, b0, b1] of [[614, 694, 400, 440], [734, 794, 540, 600], [392, 452, 240, 300], [674, 754, 330, 350]]){ T(a0, a1, b0, b1, 0.2, '#9a7c56');
       for(let b = b0 + 6; b < b1; b += 12) T(a0, a1, b, b + 0.8, 0.3, '#7a5e3e'); }
-    for(const [a, b, r, col] of [[532, 565, 22, '#5e574a'], [402, 605, 14, '#4f4a40'], [612, 485, 10, '#3a352e'], [482, 635, 18, '#6a6152'], [352, 395, 12, '#5e574a'], [302, 110, 16, '#5e574a'], [412, 200, 12, '#4f4a40']])
+    for(const [a, b, r, col] of [[704, 565, 22, '#5e574a'], [574, 605, 14, '#4f4a40'], [784, 485, 10, '#3a352e'], [654, 635, 18, '#6a6152'], [442, 395, 12, '#5e574a'], [392, 110, 16, '#5e574a'], [584, 200, 12, '#4f4a40']])
       plateCircle(a, b, 0.4, r, col, null, 0);
-    T(0, GA1, GB0, D, 0.5, '#9a968c'); for(const b of [400, 550]) T(0, GA1, b, b + 0.8, 0.7, '#7e7a70'); plateCircle(78, 470, 0.8, 30, '#5f5c57', null, 0);
-    for(const a of [46, 110]) T(a - 6, a + 6, 560, D, 0.9, 'rgba(40,38,34,.25)');
+    T(0, GA1, GB0, D, 0.5, '#9a968c'); for(const b of [330, 480, 600]) T(0, GA1, b, b + 0.8, 0.7, '#7e7a70'); plateCircle(GA1/2, 480, 0.8, 34, '#5f5c57', null, 0);
+    for(const a of [GA1/2 - 32, GA1/2 + 32]) T(a - 6, a + 6, 560, D, 0.9, 'rgba(40,38,34,.25)');
     /* (between the garage and the house, outside: the side yard's dirt and dead grass, the breezeway's path across it) */
     T(0, HA0, 0, GB0 - GW, 0.5, '#8b7b55'); T(GA1 + GW, HA0, GB0 - GW, D, 0.5, '#8b7b55');
-    for(const [a0, a1, b0, b1] of [[GA1 + GW + 6, HA0 - 6, 440, 520], [GA1 + GW + 6, HA0 - 6, 600, 660], [20, 120, 40, 110], [150, 230, 140, 200]]) T(a0, a1, b0, b1, 0.6, '#7d8a52');
+    for(const [a0, a1, b0, b1] of [[GA1 + GW + 6, HA0 - 6, 440, 520], [GA1 + GW + 6, HA0 - 6, 600, 660], [20, 120, 30, 100], [170, 300, 60, 110]]) T(a0, a1, b0, b1, 0.6, '#7d8a52');
     T(GA1 + GW, HA0, GDR[0] - 4, GDR[1] + 4, 0.7, '#a8a398'); T(GA1 + GW, HA0, GDR[0] - 4, GDR[0] - 3, 0.8, '#7e7a70');
     T(DA0, DA1, D, D + AP, 0.3, '#9a9282'); T(DA0, DA1, D - 3, D + 3, 0.7, '#6f6a5e');
 
+    const fixStart = items.length;                                                        // (the house's fixtures, drawn at their old places: moved below)
     /* ---- THE BACK WALL: a washing machine (a 20..60), the old fridge (a 212..244), the bench of stolen goods (a 252..328, its top at 72: runs; all its
        legs, then the top), the kitchen run (a 434..614, its top at 72: runs; on it, each its own piece: the sink of pans, the stove and a pot,
        takeaway, bottles) ---- */
@@ -62075,6 +62078,14 @@ function houseCanopy(fn){
     items.push({ a: 307, b: 365, z: 0, solids: [solid(289, 325, 345, 385, 16, 'clothes')], draw: () => { for(const [a, b, r, col] of [[299, 355, 9, '#3a4a6a'], [315, 359, 8, '#8a3a3a'], [303, 373, 9, '#5a5a5a'], [317, 375, 7, '#c8b070']]) ball(a, b, 6, r, col); } });
     items.push({ a: 604, b: 612, z: 0, solids: [solid(582, 626, 589, 635, 22, 'trash')], draw: () => {
       for(const [a, b, r] of [[592, 597, 12], [612, 601, 11], [600, 621, 13], [618, 623, 10]]){ ball(a, b, r*0.9, r, '#1d1f23'); ball(a, b, r*1.9, 3, '#2a2d33'); } } });
+    /* THE HOUSE'S FIXTURES MOVED WITH IT (Sir, 2026-11-28: "can we make both of them bigger with out haveing the house wrapp behind the garage?"): the
+       room 172 wider to the west, the house 490 across (a 370..860), the door's lane now a 505..597; what stood west of the old lane (a < 333) goes
+       +90, to the house's west wall, the rest +172 -- the shift is the frame's (AOFF), so their numbers stay as drawn, as the cottage's are */
+    for(let i = fixStart; i < items.length; i++){ const it = items[i], oa = it.a < 333 ? 90 : 172;
+      items[i] = Object.assign({}, it, { a: it.a + oa, z: it.z || 0,
+        fpLab: it.fpLab && Object.assign({}, it.fpLab, { a0: it.fpLab.a0 + oa, a1: it.fpLab.a1 + oa }),   // (a run's own stretch, moved with it)
+        solids: it.solids && it.solids.map(q => Object.assign({}, q, { poly: q.poly.map(([a, b]) => [a + oa, b]) })),
+        draw: () => { const a0 = AOFF; AOFF = a0 + oa; try { it.draw(); } finally { AOFF = a0; } } }); }
     /* ---- THE GARAGE BAY: its walls (low, cut to the dado as near walls are: its back, b 220..250 over a 0..185 -- runs -- and its east side, a
        155..185, either side of its doorway b 300..400 -- runs); its big door at the front, rolled up on its tracks; the van nose in; along the west
        wall a workbench under a pegboard, a bike; gas cans and tyres either side of the van ---- */
@@ -62102,7 +62113,7 @@ function houseCanopy(fn){
     items.push({ a: 4, b: D - 4, z: 0, draw: () => { box(0, 6, D - 10, D - 4, 0, 168, '#6a6e74', '#5a5e64', '#4a4e54'); } });
     items.push({ a: GA1 - 2, b: D - 4, z: 0, draw: () => { box(GA1 - 6, GA1, D - 10, D - 4, 0, 168, '#6a6e74', '#5a5e64', '#4a4e54');
       box(0, GA1, D - 24, D - 4, 160, 176, '#b0a790', '#9a9180', '#857d6c'); for(let a = 6; a < GA1; a += 12) F(a, a + 1, 162, 174, '#857d6c', null, 0, D - 3.8); } });
-    items.push({ a: 78, b: 470, z: 0, solids: [solid(33, 123, 357, 583, 140, 'van')], draw: () => {}, fx: { car: { kind: 'tweakervan', prop: true, a: 78, b: 470, fdir: -1, seed: 0x7e3e } } });
+    items.push({ a: GA1/2, b: 480, z: 0, solids: [solid(GA1/2 - 45, GA1/2 + 45, 367, 593, 140, 'van')], draw: () => {}, fx: { car: { kind: 'tweakervan', prop: true, a: GA1/2, b: 480, fdir: -1, seed: 0x7e3e } } });
     runPiece(items, 6, 30, 262, 352, 76, (s0, s1) => [solid(6, 30, s0, s1, 76, 'workbench')], () => {
       for(const b of [266, 348]) box(8, 12, b - 2, b + 2, 0, 71, '#4a4e54', '#3a3e44', '#2e3236');
       for(const b of [266, 348]) box(24, 28, b - 2, b + 2, 0, 71, '#4a4e54', '#3a3e44', '#2e3236');
@@ -62110,8 +62121,8 @@ function houseCanopy(fn){
     }, { alongB: true, keyStart: true, pad: 3 });
     items.push({ a: 20, b: 306, z: 76, draw: () => { box(10, 24, 276, 296, 76, 90, '#c8352e', '#a82a24', '#8a221d'); box(12, 22, 310, 324, 76, 86, '#3a5a8a', '#2f4a72', '#243a5a'); cyl(18, 340, 76, 86, 4, '#d9c08a'); } });
     items.push({ a: 12, b: 610, z: 0, solids: [solid(4, 22, 584, 636, 44, 'bike')], draw: () => { bikeW(12, 610, '#2a8a5a'); } });
-    items.push({ a: 140, b: 610, z: 0, solids: [solid(126, 152, 598, 622, 30, 'cans')], draw: () => { for(const b of [600, 612]) { box(128, 150, b, b + 10, 0, 26, '#d0402f', '#b8352a', '#9a2c22'); } box(132, 136, 604, 608, 26, 30, '#2a2b2e', '#2a2b2e', '#1f2024'); } });
-    items.push({ a: 138, b: 290, z: 0, solids: [solid(124, 152, 276, 304, 24, 'tyres')], draw: () => { for(let k = 0; k < 3; k++) cyl(138, 290, k*8, k*8 + 8, 13, '#26272a'); plateCircle(138, 290, 24.1, 6, '#0e0f11', null, 0); } });
+    items.push({ a: 215, b: 610, z: 0, solids: [solid(201, 227, 598, 622, 30, 'cans')], draw: () => { for(const b of [600, 612]) { box(203, 225, b, b + 10, 0, 26, '#d0402f', '#b8352a', '#9a2c22'); } box(207, 211, 604, 608, 26, 30, '#2a2b2e', '#2a2b2e', '#1f2024'); } });
+    items.push({ a: 210, b: 250, z: 0, solids: [solid(196, 224, 236, 264, 24, 'tyres')], draw: () => { for(let k = 0; k < 3; k++) cyl(210, 250, k*8, k*8 + 8, 13, '#26272a'); plateCircle(210, 250, 24.1, 6, '#0e0f11', null, 0); } });
     /* ---- THE WALLS (the kit's): north and west full height, grey and stained, tagged, the plaster holed, a window boarded; the bay's stretch of the
        west wall block, a pegboard of tools over the bench; the south and east cut low in the exterior's own grey ---- */
     const WR = { W, D, H, LH, door, low: ['#d3cbb6', wall, wallD], cap: ['#c2b9a3', '#b0a790', '#9a9180'], ftop: '#bdb4a0', frame: '#6a6458',
@@ -62119,12 +62130,14 @@ function houseCanopy(fn){
     const tag = (pts, col, w) => poly(pts, null, col, w);
     WR.paintN = () => {
       F(-30, W + 30, 0, H, wall, null, 0, 0); F(-30, W + 30, 0, 10, '#9a9180', null, 0, 0.3);
-      for(const [a, w] of [[140, 8], [350, 5], [640, 7]]) F(a, a + w, 80, H - 10, grime, null, 0, 0.4);
+      const a00 = AOFF; AOFF = a00 + 172; try {                                                                   // (its marks moved with the house's fixtures)
+      for(const [a, w] of [[240, 8], [350, 5], [640, 7]]) F(a, a + w, 80, H - 10, grime, null, 0, 0.4);
       F(352, 402, 120, 170, '#a39a86', null, 0, 0.5); F(362, 390, 130, 160, '#5a5246', null, 0, 0.6);                    // (a hole kicked in the plaster)
       tag([P(502, 0.8, 120), P(518, 0.8, 150), P(530, 0.8, 118), P(544, 0.8, 152), P(558, 0.8, 120)], '#2f6fd8', 3);
       tag([P(262, 0.8, 140), P(272, 0.8, 170), P(288, 0.8, 140), P(298, 0.8, 172)], '#d83a2f', 3);
       tag([P(600, 0.8, 110), P(630, 0.8, 128), P(618, 0.8, 104), P(646, 0.8, 120)], '#1d1f23', 2.2);
       F(414, 488, 90, 170, '#7a6448', null, 0, 0.6); F(420, 482, 96, 164, '#2a2620', null, 0, 0.7); for(const z of [110, 140]) F(414, 488, z, z + 8, '#a6845a', null, 0, 0.8);   // (a window boarded from inside)
+      } finally { AOFF = a00; }
     };
     WR.paintW = () => {
       S(0, -30, D + 30, 0, H, shade(wall, .92)); S(0.3, -30, D + 30, 0, 10, '#8f8676');
