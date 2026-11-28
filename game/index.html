@@ -98817,10 +98817,13 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   walls(c, d){
     houseMass(50, 410, -130, -480, 150, c.wall, d);
     houseSideWins(50, 410, -130, -480, [[20,120]], '#2a2a2e', { plain:true, w:60, pitch:100 });
-    const clere = b => () => { for(const [x0, x1, zt0, zt1] of [[54,226,186,152],[234,406,152,186]]){
-      poly([P(x0, b, 152), P(x1, b, 152), P(x1, b, zt1 - 3), P(x0, b, zt0 - 3)], '#34424b', null); } };
-    houseProfileRoofB(-130, -480, [[50,190],[230,150]], 20, c.roof, c.wall, { ext1:false, onFront: clere(-129.6), onBack: clere(-480.4), barge:c.edge });
-    houseProfileRoofB(-130, -480, [[230,150],[410,190]], 20, c.roof, c.wall, { ext0:false, onFront: clere(-129.6), onBack: clere(-480.4), barge:c.edge });
+    /* (each wing its own clerestory: both drawn by each wing's call, the second wing's laid the first wing's glass over the first wing's
+       roof overhang, drawn just before it -- Sir, 2026-11-28, "the front of the house is drawing on the roof here") */
+    const clere = (b, w) => () => { for(const [x0, x1, zt0, zt1] of [[[54,226,186,152],[234,406,152,186]][w]]){
+      poly([P(x0, b, 152), P(x1, b, 152), P(x1, b, zt1 - 3), P(x0, b, zt0 - 3)], '#34424b', null);
+      if(c.rundown && w === 0 && b > -300) poly([P(96, b + 0.3, 154), P(142, b + 0.3, 154), P(126, b + 0.3, 172), P(110, b + 0.3, 160)], '#141a1e', null); } };   // (run down: a pane smashed in, under its own wing's roof)
+    houseProfileRoofB(-130, -480, [[50,190],[230,150]], 20, c.roof, c.wall, { ext1:false, onFront: clere(-129.6, 0), onBack: clere(-480.4, 0), barge:c.edge });
+    houseProfileRoofB(-130, -480, [[230,150],[410,190]], 20, c.roof, c.wall, { ext0:false, onFront: clere(-129.6, 1), onBack: clere(-480.4, 1), barge:c.edge });
     if(c.rundown){   // (the roof aged: dark water stains and moss down its slopes into the valley, a patch of sheets gone)
       const rz = a => a <= 230 ? 190 - (a - 50)*40/180 : 150 + (a - 230)*40/180, rp = (a0, a1, b0, b1, col) => poly([P(a0, b0, rz(a0) + 0.6), P(a1, b0, rz(a1) + 0.6), P(a1, b1, rz(a1) + 0.6), P(a0, b1, rz(a0) + 0.6)], col, null);
       for(const [a0, a1, b0, b1, col] of [[200, 228, -160, -440, 'rgba(70,74,60,.35)'], [232, 262, -170, -430, 'rgba(70,74,60,.35)'], [90, 140, -200, -260, 'rgba(84,96,58,.4)'],
@@ -98840,7 +98843,6 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         for(const [a, z0, w] of [[62, 70, 5], [112, 92, 7], [196, 60, 6], [232, 100, 4], [404, 70, 5]]) F(a, a + w, z0, 150, 'rgba(92,82,60,.28)', null, 0, -129.5);
         for(const [a0, a1, z0, z1] of [[70, 118, 30, 62], [200, 236, 100, 128]]){ F(a0, a1, z0, z1, '#b7ab90', null, 0, -129.45); F(a0 + 6, a1 - 8, z0 + 5, z1 - 6, '#a39a86', null, 0, -129.4); }
         poly([P(188, -129.4, 0), P(194, -129.4, 22), P(190, -129.4, 40), P(198, -129.4, 64)], null, '#6a6252', 1.2);
-        poly([P(96, -129.3, 154), P(142, -129.3, 154), P(126, -129.3, 172), P(110, -129.3, 160)], '#141a1e', null);
         { const aE = FLANK_RIGHT ? 410 : 50, sg = FLANK_RIGHT ? 1 : -1;
           for(const [b, z0] of [[-170, 80], [-240, 60], [-330, 96], [-420, 70]]) S(aE + 0.9*sg, b - 3, b + 3, z0, 186, 'rgba(92,82,60,.28)');
           S(aE + 0.95*sg, -300, -250, 24, 58, '#b7ab90'); S(aE + 1*sg, -294, -258, 30, 52, '#a39a86'); }
