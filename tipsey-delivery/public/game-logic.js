@@ -158877,8 +158877,8 @@ function tpMiniDraw(scene){
       const p = T({ x: gpsNav.tx, y: gpsNav.ty });
       if(p.x >= -2 && p.x <= W + 2 && p.y >= -2 && p.y <= H + 2){
         ctx.fillStyle = "#ff7a1a";                                   // (smaller, Sir 2026-11-28: it outweighed him)
-        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 0.75; ctx.stroke();
       }
     }
   }
