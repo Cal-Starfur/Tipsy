@@ -139874,8 +139874,10 @@ class WorldScene extends Phaser.Scene {
       const lidOpen = phi >= BIN_HIT.phiBal;
       const blid = () => {
         if(!lidOpen){
+          /* THE OPENING (Sir, 2026-11-28: "this top dark green strip should be black its supposed to be the opening"): the ring round
+             the domed lid is the slot you drop into, dark as the liner, not the lid's own green */
           const rim = place(H, B.lidR, 14);
-          this.quadOn(g, rim, B.lidDk);
+          this.quadOn(g, rim, B.liner);
           const dome = [];
           for(let i=0; i<12; i++){
             const psi = (i/12)*Math.PI*2, r2 = B.lidR*0.82;
