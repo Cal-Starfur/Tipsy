@@ -30940,8 +30940,11 @@ function ctgGatehouseDepth(){
    its tracks), the van nose in; a side door in its east wall, a breezeway across the yard to the house's. In the house's lab (twLab: its lot mirrored
    along the street, x1.3). Room frame:
      a 0..155, b 250..700   THE GARAGE BAY: the van, a workbench under a pegboard on the west wall, bikes, gas cans, tyres
-     a 185..250            outside between them: the side yard, a covered breezeway across it from the garage's side door to the house's
+     a 185..250            outside between them: the side yard, an open breezeway frame across it from the garage's side door to the house's
                            ("the garage should be separate with a breeze way connecting them"); the house's own west wall at a 250..280
+     a 0..250, b 0..220    outdoors too: the yard behind the garage. The room's tall far walls stand only over each building ("you still have the
+                           garage nested in the layout of the house"): the north wall from a 250 (n0), the west from b 220 (w0); the garage its own
+                           back wall
      b 6..44               the back wall: a washing machine, the old fridge, the bench of stolen goods (a 252..328), the kitchen run (a 434..614)
      b 100..320            the back: a crate table and chairs, a heap of stolen bikes, a second mattress, a cart of junk, clothes
      a 280..688, b 360..700  the front room: the sofa, the crate table, the TV on its crate, clothes, trash bags
@@ -30955,7 +30958,7 @@ const TW_PLAN = walkinDefine({ name: TW_IN.name, from: 'Tweakers House', x0: TW_
   door: { a: 150, b: -130, half: 46 }, H: TW_IN.H, LH: TW_IN.LH, out: 60, glass: -14, late: () => true,   // (glass < 0: in the doorway first, W32; late: a home, never shut)
   openings: [{ lab: [[150 - 35.4, -130], [150 + 35.4, -130]], z: [0, 94] }] });
 /* (it hides the house and its garage; the buildings behind and beside it ghost; it displaces what it covers, W31) */
-Object.assign(POCKETS[POCKETS.length - 1], { hides: ['Tweakers House', 'Tweakers Garage'], displace: true,
+Object.assign(POCKETS[POCKETS.length - 1], { hides: ['Tweakers House', 'Tweakers Garage'], displace: true, n0: 250, w0: 220, tall: [[0, 185, 220, 250]],
   ghosts: ['Solstice Eco House', 'Starlite Googie', 'Glass Pavilion', 'Street Garage'] });
 /* (ONE KNOCK-DOWN AND HE IS OUT, W34: the resident sees him to the door and will not have him back) */
 Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['tweaker'], banSay: { who: 'Tweaker', say: "Whoa, whoa! Get out of my house, toaster." } });
@@ -30963,7 +30966,7 @@ Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['tweaker'], banS
    now and then at the kitchen run. One person, no visitors */
 walkinStaff(TW_IN.name, [
   { id: 'tweaker', role: 'resident (a Tweaker)', seed: 0x7e3ed, keys: true, lookFn: () => streetLook(0x7e3ed, { adult: true, aid: 'none', type: 'tweaker', sex: 'm' }),
-    posts: [[290, 72, -Math.PI/2, 9000, true], [520, 72, -Math.PI/2, 6000, true]] },
+    posts: [[332, 115, Math.PI, 9000, true], [520, 72, -Math.PI/2, 6000, true]] },
 ]);
 walkinLife(TW_IN.name, { keep: [[333, 425, 0, 700]], looks: [] });
 
@@ -51588,13 +51591,17 @@ function walkinRoom(items, R){
       T(W - 0.5, W + 30, -30, 0, LH, ctop); F(W, W + 30, LH - 8, LH, cfront, null, 0, 0); S(W + 30, -30, 0, LH - 8, LH, cside);
       S(W, -30, 0, LH, H, fside);   // (the tall wall's end, over the corner)
     }});
-  } else farN(-30, NE, 0, R.paintN, true);
+  } else farN(R.n0 != null ? R.n0 : -30, NE, 0, R.paintN, true);
 
+  /* (R.n0 / R.w0: WHERE THE FAR WALLS START, a room whose north-west is not under its roof -- the north wall from a n0 (its corner block over a
+     near wall there), the west from b w0; what lies short of them is outdoors (the Tweakers' house: the garage a building of its own, the yard
+     round it open) */
+  const W0 = R.w0 != null ? R.w0 : -30;
   /* (A DOOR IN THE WEST WALL, d.side 'w' -- or R.gapsW [[p0, p1, top]]: as the north wall's, the wall either side full height and over its
      head only, no solid in it; its north jamb's face seen in the gap. Low Tide Juice Bar, its front on the block's west edge) */
   const gW = R.gapsW || (d.side === 'w' ? [[d.at - d.half, d.at + d.half, R.doorTop || H*0.7]] : []);
-  for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
-    const s0 = -30 + (D + 30)*k/n, s1 = -30 + (D + 30)*(k + 1)/n, f0 = Math.max(0, s0);
+  for(let k = 0, n = Math.ceil((D - W0)/150); k < n; k++){
+    const s0 = W0 + (D - W0)*k/n, s1 = W0 + (D - W0)*(k + 1)/n, f0 = Math.max(W0 === -30 ? 0 : W0, s0);
     const cut = gW.filter(([p0, p1]) => p1 > s0 && p0 < s1), sol = [];
     { let x = s0; for(const [p0, p1] of cut.slice().sort((m, q) => m[0] - q[0])){ if(p0 > x) sol.push(wallSolid(-30, 0, x, p0, H)); x = Math.max(x, p1); }
       if(x < s1) sol.push(wallSolid(-30, 0, x, s1, H)); }
@@ -61991,30 +61998,31 @@ function houseCanopy(fn){
     T(0, W, 0, D, 0, '#7f786a');
     for(const [a0, a1, b0, b1] of [[442, 522, 400, 440], [562, 622, 540, 600], [242, 322, 240, 300], [502, 582, 330, 350]]){ T(a0, a1, b0, b1, 0.2, '#9a7c56');
       for(let b = b0 + 6; b < b1; b += 12) T(a0, a1, b, b + 0.8, 0.3, '#7a5e3e'); }
-    for(const [a, b, r, col] of [[532, 565, 22, '#5e574a'], [402, 605, 14, '#4f4a40'], [612, 485, 10, '#3a352e'], [482, 635, 18, '#6a6152'], [352, 395, 12, '#5e574a'], [262, 110, 16, '#5e574a'], [412, 200, 12, '#4f4a40'], [100, 120, 14, '#5e574a']])
+    for(const [a, b, r, col] of [[532, 565, 22, '#5e574a'], [402, 605, 14, '#4f4a40'], [612, 485, 10, '#3a352e'], [482, 635, 18, '#6a6152'], [352, 395, 12, '#5e574a'], [302, 110, 16, '#5e574a'], [412, 200, 12, '#4f4a40']])
       plateCircle(a, b, 0.4, r, col, null, 0);
     T(0, GA1, GB0, D, 0.5, '#9a968c'); for(const b of [400, 550]) T(0, GA1, b, b + 0.8, 0.7, '#7e7a70'); plateCircle(78, 470, 0.8, 30, '#5f5c57', null, 0);
     for(const a of [46, 110]) T(a - 6, a + 6, 560, D, 0.9, 'rgba(40,38,34,.25)');
     /* (between the garage and the house, outside: the side yard's dirt and dead grass, the breezeway's path across it) */
-    T(GA1 + GW, HA0, GB0, D, 0.5, '#8b7b55'); for(const [b0, b1] of [[440, 520], [600, 660]]) T(GA1 + GW + 6, HA0 - 6, b0, b1, 0.6, '#7d8a52');
+    T(0, HA0, 0, GB0 - GW, 0.5, '#8b7b55'); T(GA1 + GW, HA0, GB0 - GW, D, 0.5, '#8b7b55');
+    for(const [a0, a1, b0, b1] of [[GA1 + GW + 6, HA0 - 6, 440, 520], [GA1 + GW + 6, HA0 - 6, 600, 660], [20, 120, 40, 110], [150, 230, 140, 200]]) T(a0, a1, b0, b1, 0.6, '#7d8a52');
     T(GA1 + GW, HA0, GDR[0] - 4, GDR[1] + 4, 0.7, '#a8a398'); T(GA1 + GW, HA0, GDR[0] - 4, GDR[0] - 3, 0.8, '#7e7a70');
     T(DA0, DA1, D, D + AP, 0.3, '#9a9282'); T(DA0, DA1, D - 3, D + 3, 0.7, '#6f6a5e');
 
     /* ---- THE BACK WALL: a washing machine (a 20..60), the old fridge (a 212..244), the bench of stolen goods (a 252..328, its top at 72: runs; all its
        legs, then the top), the kitchen run (a 434..614, its top at 72: runs; on it, each its own piece: the sink of pans, the stove and a pot,
        takeaway, bottles) ---- */
-    items.push({ a: 40, b: 26, z: 0, solids: [solid(20, 60, 6, 44, 80, 'washer')], draw: () => { box(20, 60, 6, 44, 0, 80, '#e0dccd', '#d0ccbc', '#b8b4a4'); plateCircle(40, 25, 80.2, 9, '#4a4e54', '#8a8e94', 1.4);
-      F(24, 56, 66, 76, '#a8a498', null, 0, 44.2); F(26, 34, 70, 72, '#3a8a5a', null, 0, 44.4); } });
-    items.push({ a: 228, b: 22, z: 0, solids: [solid(212, 244, 6, 38, 110, 'fridge')], draw: () => {
-      box(212, 244, 6, 38, 0, 110, '#ddd6bf', '#d2cbb2', '#bdb59c'); F(214, 242, 66, 66.8, '#9a9480', null, 0, 38.2); F(238, 240, 76, 96, '#8a8a8a', null, 0, 38.4); F(238, 240, 30, 52, '#8a8a8a', null, 0, 38.4); } });
-    const BA0 = 252, BA1 = 328, BB0 = 6, BB1 = 44, BZ = 72;
-    runPiece(items, BA0, BA1, BB0, BB1, BZ, (s0, s1) => [solid(s0, s1, BB0, BB1, BZ, 'bench')], () => {
-      for(const a of [BA0 + 4, BA1 - 4]) box(a - 2.5, a + 2.5, BB0 + 2, BB0 + 7, 0, BZ - 4, woodD, woodD, shade(woodD, .8));
-      for(const a of [BA0 + 4, BA1 - 4]) box(a - 2.5, a + 2.5, BB1 - 7, BB1 - 2, 0, BZ - 4, wood, woodD, shade(woodD, .8));
+    items.push({ a: 644, b: 26, z: 0, solids: [solid(624, 664, 6, 44, 80, 'washer')], draw: () => { box(624, 664, 6, 44, 0, 80, '#e0dccd', '#d0ccbc', '#b8b4a4'); plateCircle(644, 25, 80.2, 9, '#4a4e54', '#8a8e94', 1.4);
+      F(628, 660, 66, 76, '#a8a498', null, 0, 44.2); F(630, 638, 70, 72, '#3a8a5a', null, 0, 44.4); } });
+    items.push({ a: 302, b: 22, z: 0, solids: [solid(286, 318, 6, 38, 110, 'fridge')], draw: () => {
+      box(286, 318, 6, 38, 0, 110, '#ddd6bf', '#d2cbb2', '#bdb59c'); F(288, 316, 66, 66.8, '#9a9480', null, 0, 38.2); F(312, 314, 76, 96, '#8a8a8a', null, 0, 38.4); F(312, 314, 30, 52, '#8a8a8a', null, 0, 38.4); } });
+    const BA0 = 282, BA1 = 318, BB0 = 70, BB1 = 160, BZ = 72;                              // (the bench of stolen goods, along the house's west wall)
+    runPiece(items, BA0, BA1, BB0, BB1, BZ, (s0, s1) => [solid(BA0, BA1, s0, s1, BZ, 'bench')], () => {
+      for(const b of [BB0 + 4, BB1 - 4]) box(BA0 + 2, BA0 + 7, b - 2.5, b + 2.5, 0, BZ - 4, woodD, woodD, shade(woodD, .8));
+      for(const b of [BB0 + 4, BB1 - 4]) box(BA1 - 7, BA1 - 2, b - 2.5, b + 2.5, 0, BZ - 4, wood, woodD, shade(woodD, .8));
       box(BA0, BA1, BB0, BB1, BZ - 4, BZ, woodL, wood, woodD);
-    }, { keyStart: true, pad: 3 });
-    items.push({ a: 268, b: 26, z: BZ, draw: () => { for(const [a, b] of [[266, 18], [282, 30]]){ cyl(a, b, BZ, BZ + 14, 9, '#8a5a2a'); plateCircle(a, b, BZ + 14, 9, '#c87a3a', '#8a4a1a', 1); plateCircle(a, b, BZ + 14.1, 3, '#3a2a1a', null, 0); } } });
-    items.push({ a: 306, b: 26, z: BZ, draw: () => { box(296, 318, 18, 34, BZ, BZ + 9, '#3a3d44', '#2a2d33', '#1f2126'); F(298, 316, BZ + 2, BZ + 7, '#4fd0e0', null, 0, 34.2); for(let k = 0; k < 4; k++) tube(296 - k*2, 22 + k*3, BZ + 4, 288 - k*3, 22 + k*4, BZ + 1, 0.7, ['#d04030', '#e0c030', '#3060d0', '#f0f0f0'][k]); } });
+    }, { alongB: true, keyStart: true, pad: 3 });
+    items.push({ a: 300, b: 92, z: BZ, draw: () => { for(const [a, b] of [[294, 84], [306, 100]]){ cyl(a, b, BZ, BZ + 14, 9, '#8a5a2a'); plateCircle(a, b, BZ + 14, 9, '#c87a3a', '#8a4a1a', 1); plateCircle(a, b, BZ + 14.1, 3, '#3a2a1a', null, 0); } } });
+    items.push({ a: 300, b: 136, z: BZ, draw: () => { box(288, 312, 124, 146, BZ, BZ + 9, '#3a3d44', '#2a2d33', '#1f2126'); F(290, 310, BZ + 2, BZ + 7, '#4fd0e0', null, 0, 146.2); for(let k = 0; k < 4; k++) tube(292 + k*4, 124, BZ + 4, 290 + k*5, 116 - k*2, BZ + 1, 0.7, ['#d04030', '#e0c030', '#3060d0', '#f0f0f0'][k]); } });
     const KA0 = 434, KA1 = 614, KB0 = 6, KB1 = 44, KZ = 72;
     runPiece(items, KA0, KA1, KB0, KB1, KZ, (s0, s1) => [solid(s0, s1, KB0, KB1, KZ, 'kitchen')], () => {
       box(KA0, KA1, KB0, KB1 - 3, 0, KZ - 4, '#9a9180', '#b5ac96', '#8f8676');
@@ -62027,10 +62035,6 @@ function houseCanopy(fn){
     items.push({ a: 594, b: 25, z: KZ, draw: () => { box(578, 606, 12, 36, KZ, KZ + 3, '#d9b77a', '#c8a464', '#b0904e'); for(const [a, b, col] of [[609, 18, '#2f6f3a'], [611, 32, '#6a4a2a']]){ cyl(a, b, KZ, KZ + 16, 3, col); cyl(a, b, KZ + 16, KZ + 22, 1.2, col); } } });
     /* ---- THE BACK: a crate table and chairs (a 70..134, b 120..164), a heap of stolen bikes (a 446..538, b 150..220), a cart of junk (a 580..624,
        b 108..142), the second mattress (a 502..628, b 230..318) and its clothes (a 452..492, b 252..282) ---- */
-    items.push({ a: 102, b: 142, z: 0, solids: [solid(70, 134, 120, 164, 40, 'table')], draw: () => {
-      box(74, 98, 124, 160, 0, 30, crateD, crate, shade(crate, .8)); box(106, 130, 124, 160, 0, 30, crateD, crate, shade(crate, .8));
-      box(70, 134, 120, 164, 30, 34, woodL, wood, woodD); cyl(92, 134, 34, 40, 3, '#c0c4c8'); box(102, 122, 140, 156, 34, 36, '#d9b77a', '#c8a464', '#b0904e'); } });
-    for(const [a, b] of [[102, 102], [146, 142]]) items.push({ a, b, z: 0, solids: [solid(a - 9, a + 9, b - 9, b + 9, 26, 'chair')], draw: () => { box(a - 9, a + 9, b - 9, b + 9, 0, 26, '#5a6a7a', '#4a5a6a', '#3a4a5a'); } });
     items.push({ a: 492, b: 186, z: 0, solids: [solid(446, 538, 152, 222, 18, 'bikes')], draw: () => { bikeFlat(474, 176, 0, '#c83a2a'); bikeFlat(504, 200, 5, '#2a6ad0'); bikeFlat(488, 190, 10, '#e0c030'); } });
     items.push({ a: 602, b: 125, z: 0, solids: [solid(580, 624, 108, 142, 56, 'cart')], draw: () => {
       for(const [a, b] of [[586, 114], [618, 114], [586, 136], [618, 136]]) cyl(a, b, 0, 5, 3, '#1c1d20');
@@ -62075,18 +62079,23 @@ function houseCanopy(fn){
        155..185, either side of its doorway b 300..400 -- runs); its big door at the front, rolled up on its tracks; the van nose in; along the west
        wall a workbench under a pegboard, a bike; gas cans and tyres either side of the van ---- */
     const low = (a0, a1, b0, b1) => { box(a0, a1, b0, b1, 0, LH - 8, '#d3cbb6', wall, wallD); box(a0, a1, b0, b1, LH - 8, LH, '#c2b9a3', '#b0a790', '#9a9180'); };
-    runPiece(items, 0, GA1 + GW, GB0 - GW, GB0, LH, (s0, s1) => [solid(s0, s1, GB0 - GW, GB0, LH, 'wall')], () => low(0, GA1 + GW, GB0 - GW, GB0), { pad: 2 });
+    /* (the garage's back wall, its own building's: full height, a far wall -- its block face, its end over its east wall) */
+    items.push({ a: 0, b: GB0 - GW, z: 0, solids: [solid(0, GA1 + GW, GB0 - GW, GB0, H, 'wall')], draw: () => {
+      box(0, GA1 + GW, GB0 - GW, GB0, 0, H, '#bdb4a0', '#c4bfb2', '#aaa497'); for(let z = 18; z < H; z += 18) F(0, GA1, z, z + 0.8, '#a8a398', null, 0, GB0 + 0.2);
+      F(0, GA1, 0, 10, '#8f8676', null, 0, GB0 + 0.3); } });
     runPiece(items, GA1, GA1 + GW, GB0, GDR[0], LH, (s0, s1) => [solid(GA1, GA1 + GW, s0, s1, LH, 'wall')], () => low(GA1, GA1 + GW, GB0, GDR[0]), { alongB: true, pad: 2 });
     runPiece(items, GA1, GA1 + GW, GDR[1], D, LH, (s0, s1) => [solid(GA1, GA1 + GW, s0, s1, LH, 'wall')], () => low(GA1, GA1 + GW, GDR[1], D), { alongB: true, pad: 2 });
     /* THE HOUSE'S OWN WEST WALL (a 250..280, low as the garage's), its side door b 330..390 opposite the garage's */
-    runPiece(items, HA0, HA0 + GW, GB0, GDR[0], LH, (s0, s1) => [solid(HA0, HA0 + GW, s0, s1, LH, 'wall')], () => low(HA0, HA0 + GW, GB0, GDR[0]), { alongB: true, pad: 2 });
-    runPiece(items, HA0, HA0 + GW, GDR[1], D, LH, (s0, s1) => [solid(HA0, HA0 + GW, s0, s1, LH, 'wall')], () => low(HA0, HA0 + GW, GDR[1], D), { alongB: true, pad: 2 });
+    runPiece(items, HA0, HA0 + GW, 0, GDR[0], LH, (s0, s1) => [solid(HA0, HA0 + GW, s0, s1, LH, 'wall')], () => low(HA0, HA0 + GW, 0, GDR[0]), { alongB: true, keyStart: true, pad: 2 });   // (keyed at their starts: the house's far wall, behind the bench against it)
+    runPiece(items, HA0, HA0 + GW, GDR[1], D, LH, (s0, s1) => [solid(HA0, HA0 + GW, s0, s1, LH, 'wall')], () => low(HA0, HA0 + GW, GDR[1], D), { alongB: true, keyStart: true, pad: 2 });
     /* THE BREEZEWAY across the yard between them, door to door: four posts, a flat roof over (the posts first, under its edge, then the roof) */
     for(const [a, b] of [[GA1 + GW + 4, GDR[0] + 3], [HA0 - 4, GDR[0] + 3], [GA1 + GW + 4, GDR[1] - 3], [HA0 - 4, GDR[1] - 3]])
-      items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 150, 'post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 150, '#8a8478', '#7a7468', '#6a6458') });   // (each post its own piece, at its own place)
-    items.push({ a: HA0 + 6, b: GDR[1] + 12, z: 150, draw: () => {                                                        // (the roof over them, keyed at its near corner)
-      box(GA1 + GW - 6, HA0 + 6, GDR[0] - 12, GDR[1] + 12, 150, 156, '#9a9488', '#857f72', '#6f695c');
-      for(let a = GA1 + GW; a < HA0; a += 13) F(a, a + 1, 150, 156, '#6f695c', null, 0, GDR[1] + 12.2); } });
+      items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 190, 'post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 190, '#8a8478', '#7a7468', '#6a6458') });   // (each post its own piece, at its own place)
+    items.push({ a: HA0 + 6, b: GDR[1] + 6, z: 190, draw: () => {                                                         // (its frame over them, open to the sky: its two beams, the rafters across on them, keyed at its near corner)
+      for(const b of [GDR[0] + 3, GDR[1] - 3]) box(GA1 + GW - 8, HA0 + 8, b - 3, b + 3, 190, 196, '#8a8478', '#7a7468', '#6a6458');
+      for(let b = GDR[0] - 2; b <= GDR[1] + 2; b += 10) box(GA1 + GW - 2, HA0 + 2, b - 1.5, b + 1.5, 196, 200, '#9a9488', '#857f72', '#6f695c'); } });
+    /* (the yard's edges: no wall, nothing out past them) */
+    items.push({ a: 0, b: -15, z: 0, solids: [solid(-30, HA0, -30, 0, 60, 'edge'), solid(-30, 0, 0, GB0 - GW, 60, 'edge')], draw: () => {} });
     /* (the garage's front is its big door, open: no wall across it, and no way out through it -- the van stands in it) */
     items.push({ a: GA1/2, b: D + 15, z: 0, solids: [solid(0, GA1, D, D + 30, 60, 'garage door')], draw: () => {} });
     /* (the big door, rolled up: its two tracks up the front corners, the drum of the rolled door across over the opening) */
@@ -62106,7 +62115,7 @@ function houseCanopy(fn){
     /* ---- THE WALLS (the kit's): north and west full height, grey and stained, tagged, the plaster holed, a window boarded; the bay's stretch of the
        west wall block, a pegboard of tools over the bench; the south and east cut low in the exterior's own grey ---- */
     const WR = { W, D, H, LH, door, low: ['#d3cbb6', wall, wallD], cap: ['#c2b9a3', '#b0a790', '#9a9180'], ftop: '#bdb4a0', frame: '#6a6458',
-      gapsS: [[DA0, DA1], [0, GA1]] };                                                    // (the front: the house's door, and the garage's big door -- no wall across it)
+      gapsS: [[DA0, DA1], [0, GA1]], n0: HA0, w0: GB0 - GW };                                                    // (the front: the house's door, and the garage's big door -- no wall across it)
     const tag = (pts, col, w) => poly(pts, null, col, w);
     WR.paintN = () => {
       F(-30, W + 30, 0, H, wall, null, 0, 0); F(-30, W + 30, 0, 10, '#9a9180', null, 0, 0.3);
@@ -62114,12 +62123,11 @@ function houseCanopy(fn){
       F(352, 402, 120, 170, '#a39a86', null, 0, 0.5); F(362, 390, 130, 160, '#5a5246', null, 0, 0.6);                    // (a hole kicked in the plaster)
       tag([P(502, 0.8, 120), P(518, 0.8, 150), P(530, 0.8, 118), P(544, 0.8, 152), P(558, 0.8, 120)], '#2f6fd8', 3);
       tag([P(262, 0.8, 140), P(272, 0.8, 170), P(288, 0.8, 140), P(298, 0.8, 172)], '#d83a2f', 3);
-      tag([P(100, 0.8, 110), P(130, 0.8, 128), P(118, 0.8, 104), P(146, 0.8, 120)], '#1d1f23', 2.2);
+      tag([P(600, 0.8, 110), P(630, 0.8, 128), P(618, 0.8, 104), P(646, 0.8, 120)], '#1d1f23', 2.2);
+      F(414, 488, 90, 170, '#7a6448', null, 0, 0.6); F(420, 482, 96, 164, '#2a2620', null, 0, 0.7); for(const z of [110, 140]) F(414, 488, z, z + 8, '#a6845a', null, 0, 0.8);   // (a window boarded from inside)
     };
     WR.paintW = () => {
       S(0, -30, D + 30, 0, H, shade(wall, .92)); S(0.3, -30, D + 30, 0, 10, '#8f8676');
-      for(const [b, w] of [[60, 6], [180, 8]]) S(0.4, b, b + w, 70, H - 10, grime);
-      S(0.6, 100, 180, 90, 170, '#7a6448'); S(0.7, 106, 174, 96, 164, '#2a2620'); for(const z of [110, 140]) S(0.8, 100, 180, z, z + 8, '#a6845a');   // (a window boarded from inside)
       S(0.5, GB0 - GW, D, 0, H, '#c4bfb2'); for(let z = 18; z < H; z += 18) S(0.55, GB0 - GW, D, z, z + 0.8, '#a8a398');                 // (the bay's block wall)
       S(0.6, 262, 352, 92, 160, '#b8935c', '#8e6c3e', 1); for(let b = 270; b < 348; b += 10) for(let z = 100; z < 156; z += 10) S(0.7, b, b + 1.2, z, z + 1.2, '#6a5032');   // (the pegboard)
       for(const [b, z, w, h, col] of [[272, 120, 6, 30, '#5a5e64'], [288, 112, 18, 6, '#c8352e'], [316, 118, 4, 34, '#8a8e94'], [330, 126, 16, 4, '#3a3e44']]) S(0.8, b, b + w, z, z + h, col);
@@ -120685,7 +120693,10 @@ class WorldScene extends Phaser.Scene {
     /* (the far walls full height only as far as they stand: the west wall ends at the south wall's inner face (D), and with its corner cut
        low (pk.cornerLow) the north wall at the east wall's (W) -- out to the near walls' outer faces the bright street showed in a strip over
        the low corners, Sir 2026-11-18, Driftwood Books: "the half wall is leaving a bit of space") */
-    const parts = [[-T, Wd + T, -T, Dd + T, 0, LH], [-T, pk.cornerLow ? Wd : Wd + T, -T, 0, 0, H], [-T, 0, -T, Dd, 0, H]];
+    /* (pk.n0 / pk.w0: a room whose far walls start further in -- walkinRoom's R.n0 / R.w0, the Tweakers' house -- dims out to where they stand,
+       the open yard short of them at the near walls' height; pk.tall: other walls standing full height, [a0, a1, b0, b1]) */
+    const N0 = pk.n0 != null ? pk.n0 : -T, W0 = pk.w0 != null ? pk.w0 : -T;
+    const parts = [[-T, Wd + T, -T, Dd + T, 0, LH], [N0, pk.cornerLow ? Wd : Wd + T, -T, 0, 0, H], [-T, 0, W0, Dd, 0, H]].concat((pk.tall || []).map(q => [...q, 0, H]));
     const hullOf = ([a0, a1, b0, b1, z0, z1]) => {
       const pts = [];
       for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1]){ const q = this.W(X + a, Y + b, z); pts.push({ x: q.x, y: q.y }); }
