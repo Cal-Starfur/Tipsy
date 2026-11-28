@@ -229,13 +229,15 @@ function renderParty(top: LeaderboardEntry[]): void {
 }
 
 /* ============================================================
- * City backdrop — THE GAME'S OWN CITY (2026-11-28): a photo of a
- * Costa Palma corner taken by the game itself (tpWorldPhoto: a coffee
- * shop, a crossing, traffic -- no Tipsey in it, he is the robot over it),
- * kept beside this page as splash-city.jpg and laid over the card and
- * the page behind it, cover-fitted. It replaces the flat block-map that
- * was drawn here and had fallen behind the game's art. The attract
- * mode's live city still fades in over it once the engine paints.
+ * City backdrop — THE GAME'S OWN MAP (2026-11-28): a stretch of the
+ * game's map screen as it draws it now (drawRouteMap: the slabbed
+ * blocks and their buildings, parks and their paths, street and
+ * neighbourhood names, the shop pins -- Ferris Taylor, Marina General,
+ * Memorial Park), kept beside this page as splash-map.jpg and laid over
+ * the card and the page behind it, cover-fitted. It replaces the flat
+ * block-map that was hand-drawn here and had fallen behind the game's
+ * map. The attract mode's live city still fades in over it once the
+ * engine paints.
  * ============================================================ */
 
 let cityImg: HTMLImageElement | null = null
@@ -255,8 +257,8 @@ function withCityImage(cb: (img: HTMLImageElement) => void): void {
     cityImgLoaded = true
     for (const fn of cityImgWaiting.splice(0)) fn(img)
   }
-  img.onerror = () => console.error('splash: splash-city.jpg failed to load')
-  img.src = 'splash-city.jpg'
+  img.onerror = () => console.error('splash: splash-map.jpg failed to load')
+  img.src = 'splash-map.jpg'
 }
 
 function renderCityBackdrop(
@@ -279,7 +281,7 @@ function renderCityBackdrop(
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  ctx.fillStyle = '#3a3d47' // the photo's own asphalt, until it lands
+  ctx.fillStyle = '#474a54' // the map's own roads, until it lands
   ctx.fillRect(0, 0, w, h)
   withCityImage(img => {
     const k = Math.max(w / img.naturalWidth, h / img.naturalHeight)
