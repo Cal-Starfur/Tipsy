@@ -232,8 +232,9 @@ function renderParty(top: LeaderboardEntry[]): void {
  * City backdrop — THE GAME'S OWN MAP (2026-11-28): a stretch of the
  * game's map screen as it draws it now (drawRouteMap: the slabbed
  * blocks and their buildings, parks and their paths, street and
- * neighbourhood names, the shop pins -- Ferris Taylor, Marina General,
- * Memorial Park), kept beside this page as splash-map.jpg and laid over
+ * neighbourhood names, the shop pins -- over The Flats, the part of the
+ * city that is lived in: Marina Parking, Cove Grove, Lanai Row, Tidewater
+ * Green), kept beside this page as splash-map.jpg and laid over
  * the card and the page behind it, cover-fitted. It replaces the flat
  * block-map that was hand-drawn here and had fallen behind the game's
  * map. The attract mode's live city still fades in over it once the
