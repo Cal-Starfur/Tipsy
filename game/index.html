@@ -19802,9 +19802,10 @@ function houseEdgeUnits(grid, blk, ei){
          stands on its corner with its garage just off its flank */
       let cur = list.length === 1 ? 0 : (len - run) / 2;
       for(const u of row){ u.start = cur; cur += u.w + (list.length === 1 && u.house ? 4 : 0); }
-      /* THE TWEAKERS' HOUSE (962 Marina Way, the Flats' south-east corner: twkHideout) wears its run-down livery -- Butterfly Modern's
-         fourth, which no other house is dealt (pal() is %3) */
-      if(key === '7,7/2' && row[0] && row[0].shop.lib === 'Butterfly Modern'){ row[0].pal = 3; if(row[1] && row[1].host === 'Butterfly Modern') row[1].pal = 3; }   // (and its garage, in the same: Street Garage's style reads its host's livery)
+      /* THE TWEAKERS' HOUSE (962 Marina Way, the Flats' south-east corner: twkHideout) is its own entry, 'Tweakers House' (LIB): Butterfly
+         Modern run down, and a walk-in */
+      if(key === '7,7/2' && row[0] && row[0].shop.lib === 'Butterfly Modern' && LIB.get('Tweakers House')){ row[0].shop = { lib: 'Tweakers House', name: 'Tweakers House' };
+        if(row[1] && row[1].host === 'Butterfly Modern') row[1].host = 'Tweakers House'; }   // (and its garage, its host's livery: Street Garage's style)
       _mtEdges.set(key, row);
     }
   }
@@ -30810,6 +30811,13 @@ function landmarkLabWorld(name){
   if(rim){ const fr = hoodRimFrame(rim); return (a, b) => fr.toWorld(a*SC, b*SC); }
   const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
   const site = HOOD_SHOP_SITES.find(q => Array.isArray(q[3]) && q[3].includes(name));
+  /* (A HOUSE ON A CITY LOT -- the Tweakers' house, a walk-in: its unit in its row (houseEdgeUnits), the same frame as a shop's) */
+  if(!site && g && g.blockByIJ && typeof HOUSE_SITES !== 'undefined') for(const [i, j, ei] of HOUSE_SITES){
+    const blk = g.blockByIJ.get(i + "," + j), u = blk && (houseEdgeUnits(g, blk, ei) || []).find(v => v.shop && v.shop.lib === name);
+    if(!u) continue;
+    const e = blockEdgesOf(blk)[ei], ux = e.ox + e.dv.x*u.start, uy = e.oy + e.dv.y*u.start, mir = (e.dv.x + e.dv.y) <= 0 && ent.mirror !== false, lotW = ent.ww || 230;
+    return (a, b) => { const al = (mir ? lotW - a : a)*SC; return { x: ux + e.dv.x*al + e.rv.x*b*SC, y: uy + e.dv.y*al + e.rv.y*b*SC }; };
+  }
   if(!g || !g.blockByIJ || !site) return null;
   const blk = g.blockByIJ.get(site[0] + "," + site[1]), e = blk && blockEdgesOf(blk)[site[2]];
   const u = e && (hoodShopEdgeUnits(g, blk, site[2]) || []).find(v => v.shop && v.shop.lib === name);
@@ -32522,6 +32530,32 @@ function ctgGatehouseDepth(){
   const v = pk.view();
   return v ? pk.x0 + v.dx + pk.y0 + v.dy - 201 : undefined;
 }
+/* ==================== THE TWEAKERS' HOUSE, WALK-IN (Sir, 2026-11-28: "lets build a walk in for this house like we've been doing with the shops"; the
+   room: the LIB entry 'Tweakers House Interior') ====================
+   962 Marina Way, the Flats' south-east corner (twkHideout): Butterfly Modern run down, its own entry 'Tweakers House' on its lot (landmarkLabWorld's
+   house branch: its unit's frame, a along the lot mirrored, b out to the street). Its mass is lab a 50..410 x b -480..-130; the room is that less
+   the walls (W22), the house's own size -- a cramped den, not a shop. Its way in: the front door, standing open (a hole onto the room: W11), lab a
+   150 on the front (b -130), 92 across; he is taken in once he is in the doorway (glass < 0: W32). Open all hours: it is somebody's home (late).
+   Room frame a east, b south, world units (x1.3); the door's lane kept clear from the door to the back wall:
+     b 6..44       a bench of stolen goods along the north wall (copper wire on spools, a car stereo, a bike wheel), the resident at it
+     a 262..388    a bare mattress on the floor in the north-east corner, a blanket in a heap
+     b 150..190    an old sofa facing the door's wall, the crate table in front of it with what they left on it, a TV on a crate facing them
+     a 8..50       the west strip: a heap of clothes, trash bags by the near wall
+   (the walls grey and stained, tagged; the floor's carpet worn through and burnt) */
+const TW_IN = { name: 'Tweakers House Interior', x0: 1040000, y0: 400000, WALL: 30/1.3, H: 280, LH: 66 };
+const TW_PLAN = walkinDefine({ name: TW_IN.name, from: 'Tweakers House', x0: TW_IN.x0, y0: TW_IN.y0,
+  lab: [50 + TW_IN.WALL, 410 - TW_IN.WALL, -480 + TW_IN.WALL, -130 - TW_IN.WALL], body: [[50, 410, -480, -130]],
+  door: { a: 150, b: -130, half: 46 }, H: TW_IN.H, LH: TW_IN.LH, out: 60, glass: -14, late: () => true,   // (glass < 0: in the doorway first, W32; late: a home, never shut)
+  openings: [{ lab: [[150 - 35.4, -130], [150 + 35.4, -130]], z: [0, 94] }] });
+/* (ONE KNOCK-DOWN AND HE IS OUT, W34: the resident sees him to the door and will not have him back) */
+Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['tweaker'], banSay: { who: 'Tweaker', say: "Whoa, whoa! Get out of my house, toaster." } });
+/* ITS PEOPLE: one of the Tweakers at home -- a gang member's look (streetLook 'tweaker', a seed of his own), at the bench picking at the copper, and
+   now and then over by the mattress. A room of 408 x 395: one person, no visitors */
+walkinStaff(TW_IN.name, [
+  { id: 'tweaker', role: 'resident (a Tweaker)', seed: 0x7e3ed, keys: true, lookFn: () => streetLook(0x7e3ed, { adult: true, aid: 'none', type: 'tweaker', sex: 'm' }),
+    posts: [[196, 72, -Math.PI/2, 9000, true], [330, 132, -Math.PI/2, 5000, false]] },
+]);
+walkinLife(TW_IN.name, { keep: [[54, 146, 0, 400]], looks: [] });
 /* ==================== COVE GROVE, SEAGLASS COFFEE, WALK-IN (wk9; the room: the LIB entry 'Seaglass Coffee Interior') ====================
    The west tower's south-west shop on the street's lines (walkinDefine, an hl landmark, the cell 'Cove Grove West Tower': its draw frame is the cell's
    north-west, lab a = x, b = 25024 - y, so the room's south is lab b going DOWN). The shop is its span 954..1564 on the tower's south face (y 27238),
@@ -63498,6 +63532,116 @@ function houseCanopy(fn){
     };
     walkinRoom(items, WR);
     walkinStaffSolids(items, 'Ferris Taylor Cottage Interior');
+    depthSort(items);
+  }
+},
+{
+  /* ==================== INSIDE THE TWEAKERS' HOUSE (TW_IN, TW_PLAN: the walk-in kit; Sir, 2026-11-28) ====================
+     The den behind 962 Marina Way's open door: 408 x 395 (the house's mass less the walls), the door on the south wall at a ~100 (the lane a 54..146
+     kept clear to the back wall). Everything as they keep it: the carpet worn through and burnt, the walls grey, stained and tagged, the plywood
+     over the glass wall's inside, a bench of stolen copper and parts, a bare mattress, an old sofa at a crate table facing a TV on a crate, clothes
+     and trash bags heaped by the walls. W37 in every piece: back to front, only the faces the eye sees (box() does it), legs behind then in front. */
+  name:'Tweakers House Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 408, dd: 395,
+  head:'Inside the Tweakers\' house: a bare mattress, an old sofa and a TV on a crate, a bench of stolen copper, trash everywhere',
+  tags:['interior','pocket','house','tweakers','squat'],
+  desc:'The Tweakers\' den: a carpet worn through and burnt, grey stained walls sprayed with tags, a bench heaped with stripped copper wire, a car stereo and a bike wheel, a bare mattress on the floor, an old sofa at a crate table of cans and pizza boxes, a TV on a milk crate, clothes and trash bags piled by the walls.',
+  draw(p){
+    const pl = (typeof TW_PLAN !== 'undefined' && TW_PLAN) || null;
+    if(pl) pl.view();
+    const W = pl && pl.W > 1 ? pl.W : 408, D = pl && pl.D > 1 ? pl.D : 395, H = pl ? pl.H : 280, AP = pl ? pl.apron : 60, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 100, half: 46 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    /* (the exterior's own run-down livery: wall '#cbc3ad', stone '#8a8274', trim '#a39a86') */
+    const wall = '#cbc3ad', wallD = '#b5ac96', trim = '#a39a86', grime = 'rgba(92,82,60,.3)';
+    const wood = '#8a6a42', woodL = '#a6845a', woodD = '#6a5032', crate = '#2f5f8f', crateD = '#244a70';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* ---- THE FLOOR: grey-brown carpet, worn through to the boards in patches, burnt, stained; a threshold at the door (W13) ---- */
+    T(0, W, 0, D, 0, '#7f786a');
+    for(const [a0, a1, b0, b1] of [[160, 240, 90, 130], [300, 360, 230, 290], [20, 70, 150, 210]]){ T(a0, a1, b0, b1, 0.2, '#9a7c56');
+      for(let b = b0 + 6; b < b1; b += 12) T(a0, a1, b, b + 0.8, 0.3, '#7a5e3e'); }                                        // (worn through to the boards)
+    for(const [a, b, r, col] of [[250, 260, 22, '#5e574a'], [120, 300, 14, '#4f4a40'], [330, 180, 10, '#3a352e'], [200, 330, 18, '#6a6152'], [70, 90, 12, '#5e574a']])
+      plateCircle(a, b, 0.4, r, col, null, 0);                                                                        // (stains and burns)
+    T(DA0, DA1, D, D + AP, 0.3, '#9a9282'); T(DA0, DA1, D - 3, D + 3, 0.7, '#6f6a5e');
+    /* ---- THE BENCH OF STOLEN GOODS on the north wall (a 160..240, b 6..44, its top at 72): runs (W28); the far legs, the top, the near legs ---- */
+    const BA0 = 160, BA1 = 240, BB0 = 6, BB1 = 44, BZ = 72;
+    runPiece(items, BA0, BA1, BB0, BB1, BZ, (s0, s1) => [solid(s0, s1, BB0, BB1, BZ, 'bench')], () => {
+      for(const a of [BA0 + 4, BA1 - 4]) box(a - 2.5, a + 2.5, BB0 + 2, BB0 + 7, 0, BZ - 4, woodD, woodD, shade(woodD, .8));
+      for(const a of [BA0 + 4, BA1 - 4]) box(a - 2.5, a + 2.5, BB1 - 7, BB1 - 2, 0, BZ - 4, wood, woodD, shade(woodD, .8));   // (the near legs too: set in under the top's edge, so behind it)
+      box(BA0, BA1, BB0, BB1, BZ - 4, BZ, woodL, wood, woodD);
+    }, { keyStart: true, pad: 3 });
+    /* what is on it, each its own piece (W28): copper wire on two spools, a car stereo pulled from a dash, a bike wheel leant on the wall */
+    items.push({ a: 176, b: 26, z: BZ, draw: () => { for(const [a, b] of [[174, 18], [190, 30]]){ cyl(a, b, BZ, BZ + 14, 9, '#8a5a2a'); plateCircle(a, b, BZ + 14, 9, '#c87a3a', '#8a4a1a', 1); plateCircle(a, b, BZ + 14.1, 3, '#3a2a1a', null, 0); } } });
+    items.push({ a: 214, b: 26, z: BZ, draw: () => { box(204, 226, 18, 34, BZ, BZ + 9, '#3a3d44', '#2a2d33', '#1f2126'); F(206, 224, BZ + 2, BZ + 7, '#4fd0e0', null, 0, 34.2); for(let k = 0; k < 4; k++) tube(204 - k*2, 22 + k*3, BZ + 4, 196 - k*3, 22 + k*4, BZ + 1, 0.7, ['#d04030', '#e0c030', '#3060d0', '#f0f0f0'][k]); } });
+    items.push({ a: 272, b: 4, z: 0, draw: () => { for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2, t2 = (k + 1)/16*Math.PI*2; tube(274 + 28*Math.cos(t), 4, 30 + 28*Math.sin(t), 274 + 28*Math.cos(t2), 4, 30 + 28*Math.sin(t2), 1.6, '#2a2b2e'); }
+      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI; tube(274 - 26*Math.cos(t), 4.3, 30 - 26*Math.sin(t), 274 + 26*Math.cos(t), 4.3, 30 + 26*Math.sin(t), 0.6, '#b8bcc2'); } } });   // (clear of the bench's end, a 240)
+    /* ---- THE MATTRESS on the floor in the north-east corner (a 262..388, b 12..100): runs; the pillow, a blanket in a heap ---- */
+    runPiece(items, 262, 388, 12, 100, 21, (s0, s1) => [solid(s0, s1, 12, 100, 10, 'mattress')], () => {
+      box(262, 388, 12, 100, 0, 10, '#cfc6ae', '#bdb39a', '#a39a82');
+      for(const [a0, a1, b0, b1, col] of [[290, 330, 40, 70, '#b3a173'], [340, 372, 66, 92, '#9a8a5e']]) T(a0, a1, b0, b1, 10.2, col);
+      box(268, 300, 20, 46, 10, 16, '#e4ddc8', '#d0c8b0', '#b8b098');
+      box(320, 376, 50, 92, 10, 17, '#5a6a4a', '#4a5a3c', '#3c4a30'); box(330, 360, 58, 84, 17, 21, '#667a54', '#56683f', '#46553a');
+    }, { pad: 3 });
+    /* ---- THE SOFA (a 190..290, b 150..190), its back to the north, facing the TV: runs; the base, the back, the far (west) arm, the cushions
+       (one gone, its deck bare and torn), the near (east) arm ---- */
+    const SA0 = 190, SA1 = 290, SB0 = 150, SB1 = 190, sof = '#7a5a3a', sofL = '#8c6a44', sofD = '#5e4428';
+    runPiece(items, SA0, SA1, SB0, SB1, 60, (s0, s1) => [solid(s0, s1, SB0, SB1, 40, 'sofa')], () => {
+      box(SA0, SA1, SB0, SB1, 4, 26, sofL, sof, sofD);
+      box(SA0, SA1, SB0, SB0 + 12, 26, 58, sofL, sof, sofD);
+      box(SA0, SA0 + 10, SB0 + 12, SB1, 26, 40, sofL, sof, sofD);
+      box(SA0 + 10, SA0 + 50, SB0 + 12, SB1, 26, 32, '#9a7a4e', '#86683f', '#6c5232');
+      T(SA0 + 52, SA1 - 12, SB0 + 12, SB1, 26.2, '#4a3a28'); T(SA0 + 64, SA0 + 74, SB0 + 18, SB1 - 6, 26.4, '#c8b890');   // (the bare deck, its stuffing out)
+      box(SA1 - 10, SA1, SB0 + 12, SB1, 26, 40, sofL, sof, sofD);
+    }, { pad: 3 });
+    /* ---- THE CRATE TABLE (a 215..265, b 215..245): two milk crates, a board over them; what is on it its own piece ---- */
+    items.push({ a: 240, b: 230, z: 0, solids: [solid(212, 268, 213, 247, 34, 'table')], draw: () => {
+      for(const a0 of [215, 243]){ box(a0, a0 + 22, 216, 244, 0, 28, crateD, crate, shade(crate, .8)); T(a0 + 3, a0 + 19, 219, 241, 28.1, '#16283c'); }
+      box(212, 268, 213, 247, 28, 32, woodL, wood, woodD);
+    }});
+    items.push({ a: 240, b: 230, z: 32, draw: () => {
+      box(222, 248, 218, 238, 32, 34, '#d9b77a', '#c8a464', '#b0904e'); T(225, 245, 221, 235, 34.2, '#b8935c');                       // (a pizza box)
+      for(const [a, b, col] of [[254, 222, '#2f6f3a'], [258, 238, '#6a4a2a']]){ cyl(a, b, 32, 48, 3, col); cyl(a, b, 48, 54, 1.2, col); }   // (bottles)
+      for(const [a, b] of [[230, 242], [262, 230]]){ cyl(a, b, 32, 39, 2.2, '#c0c4c8'); plateCircle(a, b, 39, 2.2, '#9aa0a6', null, 0); }  // (cans)
+      cyl(244, 226, 34, 40, 2, '#e0c030');                                                                               // (a lighter)
+    }});
+    /* ---- THE TV on a milk crate (a 220..260, b 302..324), its back to us, rabbit ears on top ---- */
+    items.push({ a: 240, b: 313, z: 0, solids: [solid(220, 260, 302, 324, 56, 'tv')], draw: () => {
+      box(222, 258, 302, 324, 0, 24, crateD, crate, shade(crate, .8));
+      box(220, 260, 304, 322, 24, 56, '#5a5c60', '#46484c', '#3a3c40');
+      tube(236, 313, 56, 226, 310, 76, 0.8, '#b8bcc2'); tube(244, 313, 56, 254, 316, 76, 0.8, '#b8bcc2');
+    }});
+    /* ---- PIZZA BOXES stacked on the floor by the sofa, cans about ---- */
+    items.push({ a: 316, b: 214, z: 0, draw: () => { for(let k = 0; k < 3; k++) box(300 + k*2, 332 + k*2, 200 - k, 230 - k, k*4, k*4 + 4, '#d9b77a', '#c8a464', '#b0904e'); } });
+    for(const [a, b] of [[170, 262], [298, 262], [160, 150], [350, 330]]) items.push({ a, b, z: 0, draw: () => { cyl(a, b, 0, 4, 2.2, '#c0c4c8'); } });
+    /* ---- THE WEST STRIP: a heap of clothes (a 10..46, b 40..80), trash bags by the near wall (a 8..50, b 280..330) ---- */
+    items.push({ a: 28, b: 60, z: 0, solids: [solid(10, 46, 40, 80, 16, 'clothes')], draw: () => {
+      for(const [a, b, r, col] of [[20, 50, 9, '#3a4a6a'], [36, 54, 8, '#8a3a3a'], [24, 68, 9, '#5a5a5a'], [38, 70, 7, '#c8b070']]) ball(a, b, 6, r, col);
+    }});
+    items.push({ a: 30, b: 306, z: 0, solids: [solid(8, 52, 284, 330, 22, 'trash')], draw: () => {
+      for(const [a, b, r] of [[18, 292, 12], [38, 296, 11], [26, 316, 13], [44, 318, 10]]){ ball(a, b, r*0.9, r, '#1d1f23'); ball(a, b, r*1.9, 3, '#2a2d33'); }
+    }});
+    /* ---- THE WALLS (the kit's): north and west full height, grey and stained, tagged, the plaster holed; the south and east cut low in the
+       exterior's own grey ---- */
+    const WR = { W, D, H, LH, door, low: ['#d3cbb6', wall, wallD], cap: ['#c2b9a3', '#b0a790', '#9a9180'], ftop: '#bdb4a0', frame: '#6a6458' };
+    const tag = (pts, col, w) => poly(pts, null, col, w);
+    WR.paintN = () => {
+      F(-30, W + 30, 0, H, wall, null, 0, 0); F(-30, W + 30, 0, 10, '#9a9180', null, 0, 0.3);
+      for(const [a, w] of [[30, 6], [120, 8], [300, 5], [380, 7]]) F(a, a + w, 60, H - 10, grime, null, 0, 0.4);          // (water down it)
+      F(90, 140, 120, 170, '#a39a86', null, 0, 0.5); F(100, 128, 130, 160, '#5a5246', null, 0, 0.6);                     // (a hole kicked in the plaster)
+      tag([P(170, 0.8, 120), P(186, 0.8, 150), P(198, 0.8, 118), P(212, 0.8, 152), P(226, 0.8, 120)], '#2f6fd8', 3);       // (tags, sprayed)
+      tag([P(270, 0.8, 140), P(280, 0.8, 170), P(296, 0.8, 140), P(306, 0.8, 172)], '#d83a2f', 3);
+      tag([P(320, 0.8, 110), P(350, 0.8, 128), P(338, 0.8, 104), P(366, 0.8, 120)], '#1d1f23', 2.2);
+    };
+    WR.paintW = () => {
+      S(0, -30, D + 30, 0, H, shade(wall, .92)); S(0.3, -30, D + 30, 0, 10, '#8f8676');
+      for(const [b, w] of [[60, 6], [180, 8], [260, 5]]) S(0.4, b, b + w, 70, H - 10, grime);
+      tag([P(0.8, 110, 130), P(0.8, 124, 160), P(0.8, 138, 128), P(0.8, 152, 162)], '#2f6fd8', 3);
+      S(0.6, 220, 300, 90, 170, '#7a6448'); S(0.7, 226, 294, 96, 164, '#2a2620');                                       // (a window boarded from inside)
+      for(const z of [110, 140]) S(0.8, 220, 300, z, z + 8, '#a6845a');
+    };
+    walkinRoom(items, WR);
+    walkinStaffSolids(items, 'Tweakers House Interior');
     depthSort(items);
   }
 },
@@ -98799,10 +98943,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   door:[150, -130],
   liv:[ { wall:'#efece4', roof:'#e8e4da', stone:'#a89a86', leaf:'#e0b43a', edge:'#2f8f8a' },
         { wall:'#e6ece8', roof:'#e2e6e2', stone:'#9a948a', leaf:'#d9573c', edge:'#d9a23a' },
-        { wall:'#f2e8dc', roof:'#ece2d6', stone:'#b09a80', leaf:'#2f5a7a', edge:'#c9622a' },
-        /* RUN DOWN (the Tweakers' house, 962 Marina Way: never dealt by a lot's own roll): walls gone grey, the roof stained, the door
-           a peeling brown, the glass wall boarded with plywood, the palm dying, the sculpture gone (rundown) */
-        { wall:'#cbc3ad', roof:'#aaa396', stone:'#8a8274', leaf:'#7a4a2c', edge:'#6a6458', trim:'#a39a86', rundown:true } ],
+        { wall:'#f2e8dc', roof:'#ece2d6', stone:'#b09a80', leaf:'#2f5a7a', edge:'#c9622a' } ],
   vol:{
     foot:[[50,-130],[410,-130],[410,-480],[50,-480]], h:230,
     solids:[ { name:'chimney', poly:[[56,-140],[104,-140],[104,-120],[56,-120]], h:230 },
@@ -98828,8 +98969,15 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       const rz = a => a <= 230 ? 190 - (a - 50)*40/180 : 150 + (a - 230)*40/180, rp = (a0, a1, b0, b1, col) => poly([P(a0, b0, rz(a0) + 0.6), P(a1, b0, rz(a1) + 0.6), P(a1, b1, rz(a1) + 0.6), P(a0, b1, rz(a0) + 0.6)], col, null);
       for(const [a0, a1, b0, b1, col] of [[200, 228, -160, -440, 'rgba(70,74,60,.35)'], [232, 262, -170, -430, 'rgba(70,74,60,.35)'], [90, 140, -200, -260, 'rgba(84,96,58,.4)'],
                                           [300, 350, -330, -380, 'rgba(84,96,58,.4)'], [140, 176, -380, -420, '#8a8478']]) rp(a0, a1, b0, b1, col); }
+    if(d > 0 && this.see){   // (THE TWEAKERS' HOUSE, a walk-in: its door standing open into the room -- the casing, the opening a hole onto the room, W11)
+      const { w, h } = houseDoorDims(CITY_HOUSE_SC), a0 = 150 - w/2, a1 = 150 + w/2;
+      if(HOUSE_REC) HOUSE_REC.push({ kind:'door', a0, a1, z0:0, z1:h, b:-130 });
+      F(a0-7, a1+7, 0, h+7, shade(c.wall,.86), shade(c.wall,.6), 1, -129.7);
+      const q = [P(a0, -129.6, h), P(a1, -129.6, h), P(a1, -129.6, 0), P(a0, -129.6, 0)];
+      poly(q, '#1c1813'); HOLE(q);
+    }
     if(d > 0){
-      houseDoorway(150, -130, CITY_HOUSE_SC, shade(c.wall,.86), c.leaf, 1);
+      if(!this.see) houseDoorway(150, -130, CITY_HOUSE_SC, shade(c.wall,.86), c.leaf, 1);
       if(HOUSE_REC) HOUSE_REC.push({ kind:'win', a0:246, a1:404, z0:4, z1:142, b:-130 });
       F(250, 400, 6, 140, '#2c3a42', '#1f262b', 1.4, -129.6);
       if(c.rundown){   // (boarded: plywood sheets over the glass wall, a little proud of it, their seams and nail lines, a sprayed X on one)
@@ -98840,8 +98988,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         poly([P(310, -129, 20), P(316, -129, 20), P(270, -129, 62), P(264, -129, 62)], '#2f6fd8', null);
         /* AGE (Sir, 2026-11-28: "put some age into the house itself"): rain streaks down the front from the roof, render peeled to the block
            in patches, a crack up from the step, a clerestory pane smashed, and on the seen flank the same streaks and a peeled patch */
-        for(const [a, z0, w] of [[62, 70, 5], [112, 92, 7], [196, 60, 6], [232, 100, 4], [404, 70, 5]]) F(a, a + w, z0, 150, 'rgba(92,82,60,.28)', null, 0, -129.5);
-        for(const [a0, a1, z0, z1] of [[70, 118, 30, 62], [200, 236, 100, 128]]){ F(a0, a1, z0, z1, '#b7ab90', null, 0, -129.45); F(a0 + 6, a1 - 8, z0 + 5, z1 - 6, '#a39a86', null, 0, -129.4); }
+        for(const [a, z0, w] of [[62, 70, 5], [112, 104, 7], [196, 60, 6], [232, 100, 4], [404, 70, 5]]) F(a, a + w, z0, 150, 'rgba(92,82,60,.28)', null, 0, -129.5);
+        for(const [a0, a1, z0, z1] of [[60, 104, 30, 62], [200, 236, 100, 128]])   // (clear of the doorway, a 114..186: a walk-in's opening is a hole)
+         { F(a0, a1, z0, z1, '#b7ab90', null, 0, -129.45); F(a0 + 6, a1 - 8, z0 + 5, z1 - 6, '#a39a86', null, 0, -129.4); }
         poly([P(188, -129.4, 0), P(194, -129.4, 22), P(190, -129.4, 40), P(198, -129.4, 64)], null, '#6a6252', 1.2);
         { const aE = FLANK_RIGHT ? 410 : 50, sg = FLANK_RIGHT ? 1 : -1;
           for(const [b, z0] of [[-170, 80], [-240, 60], [-330, 96], [-420, 70]]) S(aE + 0.9*sg, b - 3, b + 3, z0, 186, 'rgba(92,82,60,.28)');
@@ -99491,6 +99640,17 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     if(g0) SHOPS.push(Object.assign({}, g0, { name:'Street Double Garage', ww:300, bays:2,
       vol:Object.assign({}, g0.vol, { foot:[[10,-70],[290,-70],[290,-300],[10,-300]] }),
       drive:[{ side:'front', from:24, to:276, col:'#c4bfb3', arrows:'none' }] })); }
+  /* THE TWEAKERS' HOUSE (962 Marina Way, the Flats' south-east corner: twkHideout): Butterfly Modern as they keep it -- its own entry, so its
+     room (TW_IN, the LIB entry 'Tweakers House Interior') hides this one house and no other Butterfly Modern. Its one livery RUN DOWN
+     (rundown: walls gone grey, the roof stained and mossed, the door a peeling brown, the glass wall boarded with plywood, the palm dying, the
+     sculpture gone), and a WALK-IN (see: its front door stands open, a hole onto the room -- W11; vol.opens the doorway, walked into: W32) */
+  { const bm = SHOPS.find(s => s.name === 'Butterfly Modern');
+    if(bm) SHOPS.push(Object.assign({}, bm, { name:'Tweakers House', see: true,
+      head:'The Tweakers\' house: a butterfly-roof modern gone to ruin, its glass boarded, its door hanging open',
+      desc:'962 Marina Way: a mid-century butterfly house the Tweakers have run into the ground -- grey walls streaked with rain, a stained and mossy roof, plywood over the glass wall with a sprayed X, a dying palm, and the front door left standing open.',
+      liv:[ { wall:'#cbc3ad', roof:'#aaa396', stone:'#8a8274', leaf:'#7a4a2c', edge:'#6a6458', trim:'#a39a86', rundown:true } ],
+      vol:Object.assign({}, bm.vol, { solids: bm.vol.solids.filter(q => q.name !== 'sculpture'),
+        opens:[{ name:'doorway', poly: volRect(150 - 36, 150 + 36, -220, -126), walk: true }] }) })); }
   /* ================= THE INFILL SHOPS (Sir, 2026-10-03) =================
      "these two look sparse" -- blocks 2,8 and 7,5 of The Flats had edges
      with nothing on them, and every shop in the library was already
@@ -106874,7 +107034,10 @@ function twkJunkQueue(scene, queuePerson){
   if(!twkYardReady(scene)) return;
   const Hs = TWK.hide.house;
   if(Math.abs(scene.camX - Hs.gate.x) + Math.abs(scene.camY - Hs.gate.y) > (scene.vpW() + scene.vpH())/scene.K + 1500) return;
+  /* (in the house's room, the back yard's junk -- behind the room's far wall -- is not drawn: nothing from outside over the room, W31) */
+  const inRoom = !!(scene._inside && scene._inside.name === 'Tweakers House Interior');
   for(const J of TWK_JUNK){
+    if(inRoom && J.lat < -600) continue;
     const q = twkYardAt(J.al, J.lat); if(!q || !scene.visProp("people", q.x, q.y)) continue;
     const x = q.x, y = q.y;
     queuePerson(x, y, g => scene.bcDraw(g, "twkjunk|" + J.k + "|" + Math.round(x) + "," + Math.round(y), x, y, gg => twkJunkDraw(scene, gg, J, x, y)));
@@ -153231,6 +153394,7 @@ class WorldScene extends Phaser.Scene {
     const dt0 = this._houseDoorT === undefined ? 0 : Math.min(250, Math.max(0, t - this._houseDoorT));
     this._houseDoorT = t;
     for(const d of doors){
+      if(d.lib === 'Tweakers House') continue;   // (its door stands open, a hole onto its room: TW_IN)
       const st = edgePt(d.e, d.along, d.bDoor + 22);
       const want = who.some(q => Math.hypot(q.x - st.x, q.y - st.y) < HD.R);
       let k = M.get(d.key) || 0;
