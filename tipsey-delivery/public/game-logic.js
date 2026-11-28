@@ -158399,7 +158399,7 @@ function tpMiniDraw(scene){
   const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
   const yawS = Number.isFinite(yaw)
     ? gpsScreenAng(Math.cos(yaw), Math.sin(yaw)) : null;
-  drawRobotMarker(ctx, W/2, H/2, yawS);
+  drawRobotMarker(ctx, W/2, H/2, yawS, 0.13);   // (the minimap: a road's width, Sir 2026-11-28)
 
   /* compass needle: on a screen-aligned map north is a direction, not a
      corner, so the tick has to point. World north is -y, which this
@@ -158426,7 +158426,7 @@ function tpMiniDraw(scene){
 
 if(typeof window !== "undefined") window.tpMiniDraw = tpMiniDraw;
 
-function drawRobotMarker(ctx, x, y, yaw){
+function drawRobotMarker(ctx, x, y, yaw, size){
   ctx.save();
   ctx.translate(x, y);
   /* WHICH WAY HE IS POINTED (2026-08-27, Sir on-device: the map "isnt
@@ -158462,19 +158462,19 @@ function drawRobotMarker(ctx, x, y, yaw){
      dot (Sir, 2026-11-28: smaller, and no flag). In screen pixels, so it reads at any zoom; facing down the screen with no heading */
   const hd = (yaw !== null && yaw !== undefined && Number.isFinite(yaw)) ? yaw : Math.PI/2;
   ctx.rotate(hd);
-  const sc = 0.22, oct = (hx, hy, ch) => { ctx.beginPath(); ctx.moveTo((-hx + ch)*sc, -hy*sc); ctx.lineTo((hx - ch)*sc, -hy*sc);
+  const sc = size || 0.22, oct = (hx, hy, ch) => { ctx.beginPath(); ctx.moveTo((-hx + ch)*sc, -hy*sc); ctx.lineTo((hx - ch)*sc, -hy*sc);
     ctx.lineTo(hx*sc, (-hy + ch)*sc); ctx.lineTo(hx*sc, (hy - ch)*sc); ctx.lineTo((hx - ch)*sc, hy*sc); ctx.lineTo((-hx + ch)*sc, hy*sc);
     ctx.lineTo(-hx*sc, (hy - ch)*sc); ctx.lineTo(-hx*sc, (-hy + ch)*sc); ctx.closePath(); };
   ctx.fillStyle = "#24262c";                                              // the wheels, three a side
   for(const wx of [-16, 0, 16]) for(const sd of [-1, 1]) ctx.fillRect((wx - 5)*sc, (sd > 0 ? 23 : -29)*sc, 10*sc, 6*sc);
   ctx.lineJoin = "round";
   oct(30, 24, 7); ctx.fillStyle = "#c2452e"; ctx.fill();              // the band, just proud of the hull
-  oct(26, 20, 5); ctx.fillStyle = "#e3e6ea"; ctx.fill(); ctx.strokeStyle = "#30343d"; ctx.lineWidth = 1; ctx.stroke();
+  oct(26, 20, 5); ctx.fillStyle = "#e3e6ea"; ctx.fill(); ctx.strokeStyle = "#30343d"; ctx.lineWidth = sc < 0.18 ? 0.7 : 1; ctx.stroke();
   oct(19, 15.5, 4); ctx.fillStyle = "#f7f8fa"; ctx.fill();                // the lid
   ctx.fillStyle = "#22242b"; ctx.fillRect(19.5*sc, -13*sc, 7.5*sc, 26*sc);    // the visor across his nose
   ctx.fillStyle = "#7fe3ff";
-  ctx.beginPath(); ctx.arc(23.2*sc, -6*sc, 0.85, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(23.2*sc, 6*sc, 0.85, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(23.2*sc, -6*sc, sc*3.9, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(23.2*sc, 6*sc, sc*3.9, 0, Math.PI*2); ctx.fill();
   ctx.restore();
 }
 /* Dismissed by the FIRST successful drawRouteMap, because that is the
