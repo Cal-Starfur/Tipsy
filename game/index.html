@@ -106148,22 +106148,26 @@ MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew 
    and bring him somewhere ... Gideon has to come and save him ... a Gideon mission that is automatically fired by the kidnapping of the
    player"; the rules: "this can only happen if the player has unlocked Gideon and if it happens it then sends the player to their garage";
    "there must be a cut scene after the player selects play: there is a mission trigger in the back room ... an SOS beacon that tipsy is
-   sending") ====================
-   Once Gideon is his (Minding the Shop), Tipsey idling on a pavement in free roam can draw a beat-up panel van (VAN_KINDS 'tweakervan',
-   rescueVanPlan's kerb slot by him, rescueVanOnStreet's drive in): its slide door opens and three Tweakers (streetLook 'tweaker') pile out
-   and run at him -- William's hunt with a van behind it. He can outrun them (at full speed he is faster: TWK.runV); past TWK.lose from the
-   van, or after chaseMs, they give up, pile back in and drive off. Caught, two of them take him either side, lift him, carry him to the door
-   and in; the door slides shut and the van drives him across town (rescueRoute) to the hideout, a kerb slot about TWK.hideD from Brew &
-   Bolt -- the camera riding along with him aboard. There the garage opens on Gideon's pad (fleetGarageCut's own room): Tipsey's card is
-   taken, only Gideon can go. Play: in the back room the SOS mat flashes (its beacon 'sos'); on it, the cut scene -- Tipsey's SOS pinging
-   off Gideon's receiver -- and the GPS to the van, its SOS beacon over it. At the van the Tweakers turn on him; on the mat by the van the
-   lead one walks up (meetWalk), a word, and they scatter along the street; the door slides open and Tipsey rolls out to Gideon (meetWalk),
-   his thanks (missionComplete 'tweaker-snatch'), and the player is Tipsey again there and then. Gideon walks off home past the view's edge.
-   Nothing of a run is kept over a reload but the pick: the player's own vehicle is put back (TWK_PREV_KEY). Console: twkSummon() */
-const TWK = { stage: 'idle', next: 0, stillT: 0, plan: null, hide: null, gang: [], t0: 0, slide: 0, slideTo: 0, route: null, tip: null, gid: null,
-              lead: null, bayArmed: false, prev: '', said: 0, booted: false };
-const TWK_CFG = { firstMs: 120000, againMs: 420000, giveUpAgainMs: 150000, stillMs: 3500, stillV: 0.03,
-                  runV: 0.17, jogV: 0.13, carryV: 0.1, lose: 1800, chaseMs: 26000, grabR: 52, flank: 44, liftZ: 26,
+   sending"; and: "they need a proper hide out ... a house in the flats. reward will be a tweaker skin for tipsy and Gideon ... not he is
+   sitting still but he is in an area similar to how William is then they see him from their van and pop out to try to capture him") ====
+   THE LURK: one beat-up panel van (VAN_KINDS 'tweakervan') parked in each district, as William has his frontage (twkLurks: a block of
+   the district picked off its own seed, the kerb nearest the eye on its street, so the van's slide door -- its seen flank -- is to the
+   pavement). The gang wait inside. Once Gideon is his (Minding the Shop), Tipsey himself in free roam coming within TWK_CFG.see of a van:
+   the door slides open and three Tweakers (streetLook 'tweaker') pop out and run at him -- William's hunt with a van behind it. He can
+   outrun them (at full speed he is faster: TWK_CFG.runV); past TWK_CFG.lose from the van, or after chaseMs, they give up, pile back in,
+   and that van waits coolMs before it will see him again. Caught, two take him either side, lift him, carry him round the van to its
+   door and in; the door slides shut and the van drives him across town (rescueRoute) to THE HIDEOUT: a house in the Flats (twkHideout:
+   the Flats house nearest TWK_CFG.hideD from Brew & Bolt, its kerb), where they carry him up the path and in at the front door (the house
+   door opens for them: houseDoorsOpen asks twkDoorWho) and hang about the front. Then the garage opens on Gideon's pad (fleetGarageCut's
+   own room): Tipsey's card taken, only Gideon can go. Play: in the back room the SOS mat flashes (its beacon 'sos'); on it the cut scene
+   -- Tipsey's SOS pinging off Gideon -- and the GPS to the house, its SOS rings over it. On the mat at the house's gate the lead one walks
+   up (meetWalk), a word, they scatter along the pavement, and Tipsey comes out of the door and down the path to Gideon, his thanks
+   (missionComplete 'tweaker-snatch': the Tweaker skins for Tipsey and Gideon, owed till they are designed -- reward.skinsLater), and the
+   player is Tipsey again there and then; Gideon walks home past the view's edge. Nothing of a run is kept over a reload but the pick: the
+   player's own vehicle is put back (TWK_PREV_KEY). Console: twkSummon() (the nearest van pops) */
+const TWK = { stage: 'idle', next: 0, plan: null, door: null, lurk: null, hide: null, house: null, gang: [], t0: 0, slide: 0, slideTo: 0, route: null,
+              tip: null, gid: null, lead: null, prev: '', said: 0, booted: false };
+const TWK_CFG = { see: 650, coolMs: 15000, againMs: 180000, runV: 0.17, jogV: 0.13, carryV: 0.1, lose: 1800, chaseMs: 26000, grabR: 52, flank: 44, liftZ: 26,
                   driveSpeed: 1300, driveMinMs: 3000, driveMaxMs: 10000, hideD: 6500, count: 3, slideMs: 420 };
 const TWK_PREV_KEY = 'tipsy.twkPrev';
 const TWK_SEEDS = [0x7e3e1, 0x7e3e2, 0x7e3e5];
@@ -106174,7 +106178,7 @@ const TWK_SAY = {
   lost:  ["Aw, man...", "Forget it. Too fast.", "Next time, tin can."],
   gideon: ["Uh oh. Robot cop.", "Who's the big one?", "Is that another one?"]
 };
-function twkLook(i){ const L = streetLook(TWK_SEEDS[i % TWK_SEEDS.length], { adult: true, aid: 'none', type: 'tweaker', sex: i === 1 ? 'f' : 'm' }); return L; }
+function twkLook(i){ return streetLook(TWK_SEEDS[i % TWK_SEEDS.length], { adult: true, aid: 'none', type: 'tweaker', sex: i === 1 ? 'f' : 'm' }); }
 function twkGideonOn(){ return typeof msDone === "function" && msDone(); }
 /* the run under way (the mission's busy): from the grab to Tipsey free */
 function twkTaken(){ return ['grab', 'load', 'away', 'held', 'garage', 'sos', 'sosCut', 'rescue', 'face', 'out', 'thanks'].includes(TWK.stage); }
@@ -106188,48 +106192,76 @@ function twkDoorOf(P, fd){
   return { T, n, x: P.x + T.x*aD + n.x*(hw + 34), y: P.y + T.y*aD + n.y*(hw + 34), ix: P.x + T.x*aD, iy: P.y + T.y*aD };
 }
 /* THE KERB NEAREST THE EYE (its kerb's normal toward +x +y): the van's slide door is its seen flank (drawVan's nearB), so it parks with
-   that flank to the pavement -- across the street from him, if that is the far kerb; they run over to him */
+   that flank to the pavement. side: force a kerb (a house's own, for the hideout) */
 function twkKerbSide(e){ const rv = DIRV[(e.f + 1) % 4]; return rv.x + rv.y > 0 ? 1 : -1; }
-function twkPlanAt(scene, x, y){
-  const grid = scene.route && scene.route.grid; if(!grid || !grid.edges) return null;
+function twkNearEdge(grid, x, y){
   let best = null;
   for(const e of grid.edges){
     const dv = DIRV[e.f], rv = DIRV[(e.f + 1) % 4], len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y);
     const s0 = (x - e.a.x)*dv.x + (y - e.a.y)*dv.y, l = (x - e.a.x)*rv.x + (y - e.a.y)*rv.y, sc = Math.max(0, Math.min(len, s0)), d = Math.hypot(s0 - sc, l);
-    if(!best || d < best.d) best = { e, s: sc, d };
+    if(!best || d < best.d) best = { e, s: sc, d, l };
   }
-  if(!best || best.d - ROAD_HALF > 700) return null;
-  return rescueSlot(scene, best.e, best.s, twkKerbSide(best.e), x, y, { x, y });
+  return best;
 }
-/* THE HIDEOUT: the kerb slot whose street's middle is nearest TWK_CFG.hideD from Brew & Bolt's bay (once a grid) */
+function twkPlanAt(scene, x, y, avoid, toward){
+  const grid = scene.route && scene.route.grid; if(!grid || !grid.edges) return null;
+  const best = twkNearEdge(grid, x, y);
+  if(!best || best.d - ROAD_HALF > 900) return null;
+  const side = toward ? (best.l >= 0 ? 1 : -1) : twkKerbSide(best.e);
+  return rescueSlot(scene, best.e, best.s, side, x, y, avoid ? { x, y } : null);
+}
+/* THE LURKS: one a district, as William's (cityWilliamPick's way: the district's own blocks, shuffled off its own seed), the van at
+   the kerb in front of the first housing block that gives a slot; built once a grid */
+function twkLurks(scene){
+  const grid = scene.route && scene.route.grid; if(!grid || !grid.blocks || !grid.edges) return [];
+  if(TWK._lurks && TWK._lurks.grid === grid) return TWK._lurks.list;
+  const list = [];
+  for(let d = 0; d < DISTRICT_COLS*DISTRICT_ROWS; d++){
+    const dc = d % DISTRICT_COLS, dr = Math.floor(d / DISTRICT_COLS), i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1, j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
+    const pool = grid.blocks.filter(b => b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1 && b.type === 'housing' && isFinite(b.cx))   // (a residential street: houses, not a car park's deck in front of the van)
+      .sort((a, b) => a.j - b.j || a.i - b.i);
+    const rng = mulberry32(((d*2654435761) ^ 0x7e3e7) >>> 0);
+    for(let k = pool.length - 1; k > 0; k--){ const r = Math.floor(rng()*(k + 1)), t = pool[k]; pool[k] = pool[r]; pool[r] = t; }
+    for(const b of pool.slice(0, 20)){
+      const plan = twkPlanAt(scene, b.cx, b.y0 - 60, false);   // (its north street: the kerb nearest the eye is the block's own, the door to its pavement)
+      if(!plan || list.some(L => Math.hypot(L.plan.P.x - plan.P.x, L.plan.P.y - plan.P.y) < 3000)) continue;
+      const door = twkDoorOf(plan.P, plan.fd), W = scene.ow && scene.ow.world;
+      if(W && W.surfaceAt){ const q = k => W.surfaceAt(door.x + door.n.x*60 + door.T.x*k, door.y + door.n.y*60 + door.T.y*k);   // (a pavement behind it, not a lot or a park)
+        if(q(0) !== 'sidewalk' || q(-500) !== 'sidewalk' || q(500) !== 'sidewalk') continue; }
+      list.push({ d, plan, door, coolT: 0 });
+      break;
+    }
+  }
+  TWK._lurks = { grid, list };
+  return list;
+}
+/* THE HIDEOUT: a house in the Flats (the first hood), the one nearest TWK_CFG.hideD from Brew & Bolt's bay -- its front door, its path, and
+   the kerb in front of it on its own side of the street (once a grid) */
 function twkHideout(scene){
   const grid = scene.route && scene.route.grid; if(!grid || !grid.edges) return null;
   if(TWK.hide && TWK.hide.grid === grid) return TWK.hide;
   const B = msBay(scene); if(!B) return null;
+  const flats = homeDoorsOf(grid).filter(d => { const h = hoodAtWorld(d.x, d.y); return h && HOODS.indexOf(h) === 0; });
   let best = null, bs = Infinity;
-  for(const e of grid.edges){
-    const len = Math.hypot(e.b.x - e.a.x, e.b.y - e.a.y); if(len < 900) continue;
-    const mx = (e.a.x + e.b.x)/2, my = (e.a.y + e.b.y)/2, d = Math.hypot(mx - B.x, my - B.y), s = Math.abs(d - TWK_CFG.hideD);
-    if(s < bs){ bs = s; best = e; }
-  }
+  for(const d of flats){ const s = Math.abs(Math.hypot(d.x - B.x, d.y - B.y) - TWK_CFG.hideD); if(s < bs){ bs = s; best = d; } }
   if(!best) return null;
-  const len = Math.hypot(best.b.x - best.a.x, best.b.y - best.a.y), mx = (best.a.x + best.b.x)/2, my = (best.a.y + best.b.y)/2;
-  const plan = rescueSlot(scene, best, len/2, twkKerbSide(best), mx, my, null);
-  return (TWK.hide = { grid, plan });
+  const e = best.e, al = best.along, kerb = edgePt(e, al, 120);
+  const plan = twkPlanAt(scene, kerb.x, kerb.y, false, true);
+  if(!plan) return null;
+  const house = { d: best, e, al, T: { x: e.dv.x, y: e.dv.y }, n: { x: e.rv.x, y: e.rv.y },
+    inside: edgePt(e, al, best.bDoor - 40), step: edgePt(e, al, best.bDoor + 22), gate: edgePt(e, al, 18), walk: edgePt(e, al, 90) };
+  return (TWK.hide = { grid, plan, house });
 }
-/* where the van is now, and which way: { x, y, fdir, wheel, parked } or null (gone) */
+/* where the active van is now: { x, y, fdir, wheel, parked } (null: none out) */
 function twkVanAt(now){
   const R = TWK, p = R.plan; if(!p) return null;
   const u = now - R.t0;
-  if(R.stage === 'arrive'){ const D = rescueVanDrive(p.reach, true); return rescueVanOnStreet(p, -p.reach + D.at(u), u >= D.ms); }
-  if(R.stage === 'leave'){ return rescueVanLeaving(p, u); }
   if(R.stage === 'away' && R.route){
     const k = Math.min(1, u/R.route.ms), e = k*k*(3 - 2*k), a = polyAt(R.route.pts, e);
     return { x: a.x, y: a.y, fdir: a.ang/(Math.PI/2), wheel: e*R.route.len*0.28, parked: false };
   }
   return { x: p.P.x, y: p.P.y, fdir: p.fd, wheel: 0, parked: true };
 }
-/* the door's slide toward slideTo, at slideMs a full travel */
 function twkSlideTick(dt){ const R = TWK, s = dt/TWK_CFG.slideMs; R.slide = R.slideTo > R.slide ? Math.min(R.slideTo, R.slide + s) : Math.max(R.slideTo, R.slide - s); }
 /* a step of one of them toward (tx, ty) at v: straight, else turned aside a little either way (William's step) */
 function twkStep(scene, m, tx, ty, v, dt){
@@ -106239,6 +106271,13 @@ function twkStep(scene, m, tx, ty, v, dt){
   for(const r of [0, 0.5, -0.5, 1.1, -1.1]){ const c = Math.cos(r), sn = Math.sin(r), nx = m.x + (ux*c - uy*sn)*s, ny = m.y + (ux*sn + uy*c)*s;
     if(!W || !W.solidAt || !W.solidAt(nx, ny, 14)){ m.x = nx; m.y = ny; m.th = Math.atan2(uy*c + ux*sn, ux*c - uy*sn); m.mv = true; return L <= s + 0.5; } }
   m.mv = false; return false;
+}
+/* ...and when that is held, straight on (a person steps round a post) */
+function twkStepOn(scene, m, tx, ty, v, dt){
+  let at = twkStep(scene, m, tx, ty, v, dt);
+  if(!at && !m.mv){ const ex = tx - m.x, ey = ty - m.y, L = Math.hypot(ex, ey), st = Math.min(L, v*dt);
+    if(L > 0.5){ m.x += ex/L*st; m.y += ey/L*st; m.th = Math.atan2(ey, ex); m.mv = true; } at = L <= st + 0.5; }
+  return at;
 }
 /* ROUND THE VAN, NOT THROUGH IT: from q toward (tx, ty), with the van between, the way on is first round its nearer end (a step off its corner) */
 function twkAround(q, tx, ty){
@@ -106251,27 +106290,28 @@ function twkAround(q, tx, ty){
   return { x: P.x + T.x*e*(hl + 70) + n.x*sb*(hw + 30), y: P.y + T.y*e*(hl + 70) + n.y*sb*(hw + 30) };
 }
 function twkSay(scene, m, list, ms){ if(scene.npcSay) scene.npcSay(m, () => ({ x: m.x, y: m.y, z: 0, h: 175 }), sayPick(list), ms || 2000, "mad"); }
-function twkNav(scene){ const D = TWK.door; if(D && typeof gpsNavTo === "function" && gpsNavTo(scene, "twk", "Tipsey's SOS", D.x, D.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function twkNav(scene){ const H = TWK.house; if(H && typeof gpsNavTo === "function" && gpsNavTo(scene, "twk", "Tipsey's SOS", H.walk.x, H.walk.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function twkNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "twk"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
-/* the bays the story shows (R7): the SOS mat in Gideon's back room, then the mat by the van */
+/* the bays the story shows (R7): the SOS mat in Gideon's back room, then the mat on the pavement at the hideout's gate */
 function twkSosBay(){ return TWK._sb || (TWK._sb = msPocketBay(BB_IN.name, 296, 250)); }
-function twkVanBay(){ const D = TWK.door; if(!D) return null; return TWK._vb || (TWK._vb = hospBay(D.x + D.n.x*150, D.y + D.n.y*150)); }
+function twkHouseBay(){ const H = TWK.house; if(!H) return null; return TWK._hb || (TWK._hb = hospBay(H.walk.x, H.walk.y)); }
 function twkBayNow(scene){
   const ow = scene.ow; if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   if(TWK.stage === 'sos') return Object.assign({}, twkSosBay(), { icon: 'sos' });
-  if(TWK.stage === 'rescue') return Object.assign({}, twkVanBay(), { icon: 'sos' });
+  if(TWK.stage === 'rescue') return Object.assign({}, twkHouseBay(), { icon: 'sos' });
   return null;
 }
-/* THEY COME (twkTick's idle, or twkSummon): the van's slot by him, in along the street */
-function twkStart(scene){
-  const ow = scene.ow; if(!ow) return false;
-  const p = twkPlanAt(scene, ow.px, ow.py); if(!p) return false;
-  const D = twkDoorOf(p.P, p.fd);
-  if(Math.hypot(D.x - ow.px, D.y - ow.py) > 1300) return false;
-  TWK.plan = p; TWK.door = D; TWK._vb = null; TWK.t0 = scene.time.now; TWK.stage = 'arrive'; TWK.slide = 0; TWK.slideTo = 0; TWK.gang = []; TWK.lead = null;
-  return true;
+/* THEY SEE HIM: a lurk's door slides open, out they pop */
+function twkPop(scene, L){
+  TWK.lurk = L; TWK.plan = L.plan; TWK.door = L.door; TWK.t0 = scene.time.now; TWK.stage = 'pop'; TWK.slide = 0; TWK.slideTo = 1; TWK.gang = []; TWK.lead = null;
+  if(typeof sfxThump === "function") sfxThump(0.25);
 }
-function twkSummon(){ const s = scn(); if(!s || !s.ow) return false; TWK.next = 0; TWK.stage = 'idle'; return twkStart(s); }
+function twkSummon(){
+  const s = scn(); if(!s || !s.ow) return false;
+  const L = twkLurks(s).slice().sort((a, b) => Math.hypot(a.door.x - s.ow.px, a.door.y - s.ow.py) - Math.hypot(b.door.x - s.ow.px, b.door.y - s.ow.py))[0];
+  if(!L) return false;
+  TWK.stage = 'idle'; twkPop(s, L); return L.door;
+}
 /* OWSTEP'S HOLD (owStep, after the ladder's): while they have him nothing else moves him -- carried, aboard, or shut in at the hideout */
 function twkHoldTick(scene, ow, dt){
   if(!twkHeld() || !TWK.hold) return false;
@@ -106289,16 +106329,12 @@ function twkGangOut(now){
   for(let i = 0; i < TWK_CFG.count; i++){ const L = twkLook(i), o = (i - 1)*34;
     TWK.gang.push({ i, L, x: D.x + D.T.x*o, y: D.y + D.T.y*o, th: Math.atan2(D.n.y, D.n.x), mv: false, out: now + 180*i, on: false, reach: null, z: 0 }); }
 }
-/* back in: each to the door and in */
+/* back in: each to the van's door (round the van) and in; never left standing past 7 s */
 function twkGangIn(scene, dt){
   const D = TWK.door; let all = true;
-  if(scene.time.now - TWK.t0 > 7000){ for(const m of TWK.gang) m.on = false; return true; }   // (never left standing: in they go)
+  if(scene.time.now - TWK.t0 > 7000){ for(const m of TWK.gang) m.on = false; return true; }
   for(const m of TWK.gang){ if(!m.on) continue;
-    const w = twkAround(m, D.x, D.y), via = w.x !== D.x || w.y !== D.y;
-    let at = twkStep(scene, m, w.x, w.y, TWK_CFG.jogV, dt);
-    if(!at && !m.mv){ /* (blocked on the way -- a post, a bin: straight on, as a person steps round what is in the way) */
-      const ex = w.x - m.x, ey = w.y - m.y, L = Math.hypot(ex, ey), st = Math.min(L, TWK_CFG.jogV*dt);
-      if(L > 1){ m.x += ex/L*st; m.y += ey/L*st; m.th = Math.atan2(ey, ex); m.mv = true; } at = L <= st + 0.5; }
+    const w = twkAround(m, D.x, D.y), via = w.x !== D.x || w.y !== D.y, at = twkStepOn(scene, m, w.x, w.y, TWK_CFG.jogV, dt);
     if(via || !at){ all = false; continue; }
     m.on = false; }
   return all;
@@ -106306,44 +106342,40 @@ function twkGangIn(scene, dt){
 function twkTick(scene, ow){
   const now = scene.time.now, R = TWK, C = TWK_CFG, dt = Math.min(60, Math.max(0, now - (R.lt || now))); R.lt = now;
   /* a reload mid-run: his own vehicle back (the garage's pick was Gideon's for the run only) */
-  if(!R.booted){ R.booted = true; R.next = now + C.firstMs;
+  if(!R.booted){ R.booted = true;
     try { const pv = localStorage.getItem(TWK_PREV_KEY); if(pv !== null){ localStorage.removeItem(TWK_PREV_KEY); if(tpProfile){ tpProfile.fleetKind = pv; tpSaveProfile(); } } } catch(e){} }
   twkSlideTick(dt);
   if(R.gid){ const p = walkPathAt(R.gid, now); if(!p || (p.there && !scene.visWorldPt(p.x, p.y, 120, 260))) R.gid = null; }
   for(const m of R.gang) if(m.run){ const p = walkPathAt(m.run, now); if(p){ m.x = p.x; m.y = p.y; m.th = p.th; m.mv = !p.there; if(p.there && !scene.visWorldPt(p.x, p.y, 120, 260)) m.gone = true; } }
   R.gang = R.gang.filter(m => !m.gone);
   if(!ow || !scene.route) return;
-  const st = R.stage;
-  if(st === 'idle' || st === 'arrive' || st === 'chase' || st === 'leave' || st === 'done'){
-    /* the van left at the hideout (or the street) once he is free: held till out of sight (R13) */
-    if(st === 'done'){ const v = twkVanAt(now); if(!R.gang.length && !R.tip && !R.gid && (!v || !scene.visWorldPt(v.x, v.y, 200, 300))){ R.stage = 'idle'; R.plan = null; R.door = null; R.slide = R.slideTo = 0; } else return; }
-  }
   switch(R.stage){
+    case 'done': {
+      /* the van left at the hideout once he is free: held till it, and its own lurk, are out of sight (R13); then it is back on its lurk */
+      const v = twkVanAt(now), L = R.lurk;
+      if(R.gang.length || R.tip || R.gid || (v && scene.visWorldPt(v.x, v.y, 200, 300)) || (L && scene.visWorldPt(L.plan.P.x, L.plan.P.y, 200, 300))) return;
+      R.stage = 'idle'; R.plan = null; R.door = null; R.lurk = null; R.house = null; R._hb = null; R.slide = R.slideTo = 0;
+      return; }
     case 'idle': {
       if(!twkGideonOn() || scene.state !== "play" || scene.mode !== "freeroam" || fleetCur() || FLEET_LOAN || !ow.on || ow.lift || ow.deck || scene._inside || pocketAt(ow.px, ow.py)
-         || scene._rescueVan || scene._police || missionBusy() || orderAboard(scene) || now < R.next || scene._garage){ R.stillT = 0; return; }
-      const W = ow.world, sf = W && W.surfaceAt ? W.surfaceAt(ow.px, ow.py) : null;
-      if(Math.abs(ow.vel) > C.stillV || sf !== 'sidewalk'){ R.stillT = 0; return; }
-      if(!R.stillT){ R.stillT = now; return; }
-      if(now - R.stillT < C.stillMs) return;
-      R.stillT = 0;
-      if(!twkStart(scene)) R.next = now + 20000;
+         || scene._rescueVan || scene._police || missionBusy() || orderAboard(scene) || now < R.next || scene._garage) return;
+      for(const L of twkLurks(scene)){
+        if(now < L.coolT || Math.abs(L.door.x - ow.px) + Math.abs(L.door.y - ow.py) > C.see*1.5) continue;
+        if(Math.hypot(L.door.x - ow.px, L.door.y - ow.py) < C.see){ twkPop(scene, L); return; }
+      }
       return; }
-    case 'arrive': {
-      const p = R.plan, D = rescueVanDrive(p.reach, true);
-      if(now - R.t0 < D.ms) return;
-      if(R.slideTo === 0){ R.slideTo = 1; if(typeof sfxThump === "function") sfxThump(0.25); }
+    case 'pop': {
       if(R.slide < 1) return;
-      twkGangOut(now); R.stage = 'chase'; R.t0 = now; R.said = now + 300;
+      twkGangOut(now); R.stage = 'chase'; R.t0 = now; R.said = now + 200;
       return; }
     case 'chase': {
       scene._huntedT = now;                                                          // (running for it: WILLIAM_HUNT.boost)
       const bx = ow.px, by = ow.py, D = R.door;
-      const far = Math.hypot(bx - D.x, by - D.y) > C.lose, gone = !ow.on || scene._inside || pocketAt(bx, by) || ow.lift || ow.deck || scene.state !== "play";
+      const far = Math.hypot(bx - D.x, by - D.y) > C.lose, gone = !ow.on || scene._inside || pocketAt(bx, by) || ow.lift || ow.deck || scene.state !== "play" || fleetCur();
       if(far || gone || now - R.t0 > C.chaseMs){
         R.stage = 'giveup'; R.t0 = now; if(R.gang[0]) twkSay(scene, R.gang[0], TWK_SAY.lost, 1800); return; }
       let grab = null;
-      R.gang.forEach((m, i) => {
+      R.gang.forEach(m => {
         if(now < m.out) return; m.on = true;
         const a = Math.atan2(m.y - by, m.x - bx), tx = bx + Math.cos(a)*30, ty = by + Math.sin(a)*30, d = Math.hypot(bx - m.x, by - m.y);
         const w = twkAround(m, tx, ty);
@@ -106354,10 +106386,7 @@ function twkTick(scene, ow){
       if(grab) twkGrab(scene, ow, grab);
       return; }
     case 'giveup': {
-      if(twkGangIn(scene, dt)){ R.slideTo = 0; if(R.slide <= 0){ R.stage = 'leave'; R.t0 = now; R.gang = []; R.next = now + C.giveUpAgainMs; } }
-      return; }
-    case 'leave': {
-      if(!twkVanAt(now)){ R.stage = 'idle'; R.plan = null; R.door = null; }
+      if(twkGangIn(scene, dt)){ R.slideTo = 0; if(R.slide <= 0){ if(R.lurk) R.lurk.coolT = now + C.coolMs; R.stage = 'idle'; R.gang = []; R.plan = null; R.door = null; R.lurk = null; } }
       return; }
     case 'grab': twkCarryTick(scene, ow, now, dt); return;
     case 'load': {
@@ -106371,26 +106400,21 @@ function twkTick(scene, ow){
     case 'away': {
       const v = twkVanAt(now), H = R.hold;
       if(v){ H.x = v.x; H.y = v.y; }
-      if(now - R.t0 >= R.route.ms){ R.plan = R.hide.plan; R.door = twkDoorOf(R.plan.P, R.plan.fd); R._vb = null; R.stage = 'held'; R.t0 = now; R.gang = [];
-        const P = R.plan.P; H.x = P.x; H.y = P.y; }
+      if(now - R.t0 >= R.route.ms){ R.plan = R.hide.plan; R.door = twkDoorOf(R.plan.P, R.plan.fd); R.house = R.hide.house; R._hb = null; R.stage = 'held'; R.t0 = now; R.hsub = 'open'; R.gang = [];
+        const P = R.plan.P; H.x = P.x; H.y = P.y; R.slideTo = 1; }
       return; }
-    case 'held': {
-      /* at the hideout: the gang out to their posts by the door, and the garage opens on Gideon's pad */
-      if(!R.gang.length){ R.slideTo = 1; if(R.slide >= 1){ twkGangOut(now); twkPosts(now); R.slideTo = 0; } return; }
-      for(const m of R.gang) twkPostTick(scene, m, now, dt);
-      if(now - R.t0 > 2600) twkToGarage(scene);
-      return; }
+    case 'held': twkHeldTick(scene, ow, now, dt); return;
     case 'garage': {
       for(const m of R.gang) twkPostTick(scene, m, now, dt);
       if(scene._garage) return;
       if(fleetCur() !== 'humanoid'){ tpProfile.fleetKind = 'humanoid'; if(window.tpLookForCurrent) window.tpLookForCurrent(); }
-      if(scene._inside && scene._inside.name === BB_IN.name){ R.stage = 'sos'; R.snooze = null; }
+      if(scene._inside && scene._inside.name === BB_IN.name){ R.stage = 'sos'; }
       return; }
     case 'sos': {
       for(const m of R.gang) twkPostTick(scene, m, now, dt);
       const B = twkSosBay(); if(!B || !scene._inside || scene._inside.name !== BB_IN.name) return;
       if(matHighlightState(scene, B.mat, scene.mode) !== "armed") return;
-      R.stage = 'sosCut'; R.t0 = now; ow.vel = 0; cineBars(true);
+      R.stage = 'sosCut'; R.t0 = now; R.ping = 0; R.cutCard = false; ow.vel = 0; cineBars(true);
       if(typeof sfxBeep === "function") sfxBeep();
       return; }
     case 'sosCut': {
@@ -106405,10 +106429,10 @@ function twkTick(scene, ow){
     case 'rescue': {
       for(const m of R.gang) twkPostTick(scene, m, now, dt);
       if(fleetCur() !== 'humanoid'){ twkAbort(scene); return; }
-      const D = R.door, d = Math.hypot(ow.px - D.x, ow.py - D.y);
+      const Hs = R.house, d = Math.hypot(ow.px - Hs.walk.x, ow.py - Hs.walk.y);
       if(d < 700 && !R.seenG){ R.seenG = true; if(R.gang[0]) twkSay(scene, R.gang[0], TWK_SAY.gideon, 2000); }
-      const B = twkVanBay();
-      if(B && matHighlightState(scene, B.mat, scene.mode) === "armed" && !scene._inside){ twkFace(scene, ow, now); }
+      const B = twkHouseBay();
+      if(B && matHighlightState(scene, B.mat, scene.mode) === "armed" && !scene._inside) twkFace(scene, ow, now);
       return; }
     case 'face': {
       for(const m of R.gang) if(m !== R.lead) twkPostTick(scene, m, now, dt);
@@ -106419,45 +106443,52 @@ function twkTick(scene, ow){
         hospSayCard({ who: "Tweaker", say: "Finders keepers, tin man!", btn: "Let him go. Now.", ok: twkScatter, at: () => R.lead ? { x: R.lead.x, y: R.lead.y, z: 0, h: 175 } : null }); }
       return; }
     case 'out': {
-      const M = R.tip; if(!M) return;
-      if(now >= M.t0) meetTick(scene, ow, M);
-      if(now >= M.t0 + M.walkMs && !M.card){ M.card = true; R.slideTo = 0; R.stage = 'thanks';
+      const M = R.tipM, P = R.tip; if(!M || !P) return;
+      const p = walkPathAt(P, now);
+      if(p && p.there && !M.card){ M.card = true; R.stage = 'thanks';
         hospSayCard({ who: "Gideon", say: "Got you, buddy. Let's get you out of here.", btn: "Beep boop! Thanks, Gideon.", ok: twkFinish,
           at: () => ({ x: scene.botX, y: scene.botY, h: 150 }), replyAt: () => { const T = twkTipAt(scene.time.now); return T ? { x: T.x, y: T.y, h: 90 } : null; } }); }
+      if(p && !p.moving) meetTick(scene, ow, M); else ow.vel = 0;
       return; }
-    case 'thanks': if(R.tip) meetTick(scene, ow, R.tip); return;
+    case 'thanks': if(R.tipM) meetTick(scene, ow, R.tipM); return;
   }
 }
-/* two of them take him either side, across the way to the door; the third runs on to the door and in */
+/* two of them take him either side, across the way to the door; the third runs on to the door and holds it */
 function twkGrab(scene, ow, first){
-  const R = TWK, C = TWK_CFG, D = R.door, now = scene.time.now;
+  const R = TWK, D = R.door, now = scene.time.now;
   R.stage = 'grab'; R.t0 = now;
-  const to = { x: D.x, y: D.y }, ang = Math.atan2(to.y - ow.py, to.x - ow.px), px = -Math.sin(ang), py = Math.cos(ang);
+  const to = { x: D.x, y: D.y }, w = twkAround({ x: ow.px, y: ow.py }, to.x, to.y), pts = [{ x: ow.px, y: ow.py }].concat(w.x !== to.x || w.y !== to.y ? [w] : [], [to]);
   const sorted = R.gang.filter(m => m.on).sort((a, b) => Math.hypot(a.x - ow.px, a.y - ow.py) - Math.hypot(b.x - ow.px, b.y - ow.py));
-  const two = [sorted[0] || first, sorted[1]].filter(Boolean);
-  two.forEach((m, j) => { const sd = j === 0 ? 1 : -1; m.carry = { x: px*C.flank*sd, y: py*C.flank*sd }; m.grabFrom = { x: m.x, y: m.y }; });
-  const w = twkAround({ x: ow.px, y: ow.py }, to.x, to.y), pts = [{ x: ow.px, y: ow.py }].concat(w.x !== to.x || w.y !== to.y ? [w] : [], [to]);
-  R.hold = { x: ow.px, y: ow.py, yaw: ow.yaw, z: 0, aboard: false, pts, len: Math.max(1, polyLen(pts)) };
-  twkSay(scene, two[0], TWK_SAY.grab, 1800);
+  twkTakeHim(R, [sorted[0] || first, sorted[1]].filter(Boolean), pts, { x: ow.px, y: ow.py, yaw: ow.yaw, z: 0 });
+  R.carryDone = () => { R.stage = 'load'; R.t0 = scene.time.now; };
+  twkSay(scene, sorted[0] || first, TWK_SAY.grab, 1800);
   if(typeof sfxThump === "function") sfxThump(0.45);
   scene._huntedT = undefined;
 }
-/* the grab: a step in either side (0.4 s), up off the ground (0.45 s), the carry to the door at carryV */
+/* the carriers each side of him across the way he goes, and the way: pts */
+function twkTakeHim(R, two, pts, at){
+  const ang = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x), px = -Math.sin(ang), py = Math.cos(ang);
+  two.forEach((m, j) => { const sd = j === 0 ? 1 : -1; m.carry = { x: px*TWK_CFG.flank*sd, y: py*TWK_CFG.flank*sd }; m.grabFrom = { x: m.x, y: m.y }; m.on = true; });
+  R.hold = { x: at.x, y: at.y, yaw: at.yaw, z: at.z || 0, aboard: false, pts, len: Math.max(1, polyLen(pts)) };
+}
+/* a carry: a step in either side (0.4 s), up off the ground (0.45 s), then along R.hold.pts at carryV; R.carryDone at the end */
 function twkCarryTick(scene, ow, now, dt){
   const R = TWK, C = TWK_CFG, H = R.hold, u = now - R.t0, inMs = 400, upMs = 450;
   const carriers = R.gang.filter(m => m.carry);
   if(u < inMs){ const k = u/inMs, e = k*k*(3 - 2*k);
     for(const m of carriers){ const tx = H.x + m.carry.x, ty = H.y + m.carry.y; m.x = m.grabFrom.x + (tx - m.grabFrom.x)*e; m.y = m.grabFrom.y + (ty - m.grabFrom.y)*e; m.mv = true; m.th = Math.atan2(H.y - m.y, H.x - m.x); m.reach = [30, 40 + 30*e]; } }
-  else if(u < inMs + upMs){ const k = (u - inMs)/upMs; H.z = C.liftZ*k*k*(3 - 2*k);
+  else if(u < inMs + upMs){ const k = (u - inMs)/upMs; H.z = Math.max(H.z, C.liftZ*k*k*(3 - 2*k));
     for(const m of carriers){ m.x = H.x + m.carry.x; m.y = H.y + m.carry.y; m.mv = false; m.th = Math.atan2(H.y - m.y, H.x - m.x); m.reach = [30, 70 + H.z]; } }
   else {
     const w = u - inMs - upMs, k = Math.min(1, w*C.carryV/H.len);
     const q = polyAt(H.pts, k); H.x = q.x; H.y = q.y; H.z = C.liftZ + Math.sin(w/140)*2;
     for(const m of carriers){ m.x = H.x + m.carry.x; m.y = H.y + m.carry.y; m.mv = k < 1; m.th = Math.atan2(H.y - m.y, H.x - m.x); m.reach = [30, 70 + H.z]; }
-    if(k >= 1){ R.stage = 'load'; R.t0 = now; for(const m of carriers) m.reach = null; }
+    if(k >= 1){ for(const m of carriers) m.reach = null; const f = R.carryDone; R.carryDone = null; if(f) f(); return; }
   }
-  /* the one not carrying: to the door ahead of them, holding it */
-  for(const m of R.gang) if(!m.carry && m.on){ const D = R.door, hx = D.x + D.T.x*70, hy = D.y + D.T.y*70, w = twkAround(m, hx, hy); twkStep(scene, m, w.x, w.y, C.jogV, dt); if(!m.mv) m.th = Math.atan2(H.y - m.y, H.x - m.x); }
+  /* the one not carrying: on ahead to the door, holding it */
+  const hd = R.holdAt;
+  for(const m of R.gang) if(!m.carry && m.on){ const D = R.door, hx = hd ? hd.x : D.x + D.T.x*70, hy = hd ? hd.y : D.y + D.T.y*70, w = twkAround(m, hx, hy);
+    twkStepOn(scene, m, w.x, w.y, C.jogV, dt); if(!m.mv) m.th = Math.atan2(H.y - m.y, H.x - m.x); }
 }
 /* the door shut: across town to the hideout, the camera riding with him (he is aboard) */
 function twkDriveOff(scene, now){
@@ -106473,16 +106504,45 @@ function twkDriveOff(scene, now){
   if(typeof sfxCarHorn === "function") sfxCarHorn();
   if(typeof tpToast === "function") tpToast("The Tweakers have taken Tipsey!");
 }
-/* their posts at the hideout: either side of the door and one out by the kerb, fidgeting */
-function twkPosts(now){
-  const D = TWK.door, P = [[-90, 30], [80, 26], [0, 110]];
-  TWK.gang.forEach((m, i) => { const q = P[i % P.length]; m.post = { x: D.x + D.T.x*q[0] + D.n.x*q[1], y: D.y + D.T.y*q[0] + D.n.y*q[1] }; m.on = true; });
+/* AT THE HIDEOUT: the van's door open, the gang out, two of them carry him up the path and in at the front door, the three of them hang
+   about the front; then the garage */
+function twkHeldTick(scene, ow, now, dt){
+  const R = TWK, Hs = R.house, H = R.hold;
+  if(R.hsub === 'open'){ if(R.slide < 1) return;
+    twkGangOut(now);
+    const D = R.door, pts = [{ x: D.x, y: D.y }, Hs.walk, Hs.gate, Hs.step, Hs.inside];
+    H.x = D.x; H.y = D.y; H.z = TWK_CFG.liftZ; H.aboard = false;
+    twkTakeHim(R, R.gang.slice(0, 2), pts, { x: D.x, y: D.y, yaw: Math.atan2(Hs.n.y, Hs.n.x) + Math.PI, z: TWK_CFG.liftZ });
+    for(const m of R.gang) if(m.carry){ m.x = D.x + m.carry.x; m.y = D.y + m.carry.y; }
+    R.gang[2] && (R.gang[2].on = true);
+    R.holdAt = { x: Hs.step.x + Hs.T.x*60, y: Hs.step.y + Hs.T.y*60 };
+    R.t0 = now - 850; R.hsub = 'carry';
+    R.carryDone = () => { R.hold.aboard = true; R.hsub = 'in'; R.t0 = scene.time.now; R.holdAt = null; R.slideTo = 0;
+      for(const m of R.gang){ m.carry = null; m.reach = null; } twkPosts(); };
+    return; }
+  if(R.hsub === 'carry'){ twkCarryTick(scene, ow, now, dt); return; }
+  for(const m of R.gang) twkPostTick(scene, m, now, dt);
+  if(now - R.t0 > 2200) twkToGarage(scene);
+}
+/* their posts at the hideout: either side of the front step and one down by the gate, fidgeting */
+function twkPosts(){
+  const Hs = TWK.house, at = (a, b) => edgePt(Hs.e, Hs.al + a, b);
+  const P = [at(-80, Hs.d.bDoor + 70), at(80, Hs.d.bDoor + 60), at(30, 50)];
+  TWK.gang.forEach((m, i) => { m.post = P[i % P.length]; m.on = true; });
 }
 function twkPostTick(scene, m, now, dt){
   if(m.run || !m.post) return;
-  const at = twkStep(scene, m, m.post.x, m.post.y, PEOPLE_WALK_V, dt);
-  if(at || !m.mv){ m.mv = false; const ow = scene.ow, look = TWK.stage === 'rescue' && TWK.seenG && ow ? Math.atan2(ow.py - m.y, ow.px - m.x) : Math.atan2(TWK.door.n.y, TWK.door.n.x);
+  const at = twkStepOn(scene, m, m.post.x, m.post.y, PEOPLE_WALK_V, dt);
+  if(at || !m.mv){ m.mv = false; const ow = scene.ow, Hs = TWK.house, look = TWK.stage === 'rescue' && TWK.seenG && ow ? Math.atan2(ow.py - m.y, ow.px - m.x) : Hs ? Math.atan2(Hs.n.y, Hs.n.x) : m.th;
     m.th = look + Math.sin(now/260 + m.i*2.1)*0.35; }   // (twitchy: never quite still)
+}
+/* who is at the hideout's door (houseDoorsOpen: it opens for them), and Tipsey carried in or coming out */
+function twkDoorWho(now){
+  const R = TWK; if(!R.house || !['held', 'out', 'thanks'].includes(R.stage)) return [];
+  const out = R.gang.filter(m => m.on || m.run).map(m => ({ x: m.x, y: m.y }));
+  if(R.stage === 'held' && R.hold && !R.hold.aboard) out.push({ x: R.hold.x, y: R.hold.y });
+  const T = twkTipAt(now); if(T) out.push({ x: T.x, y: T.y });
+  return out;
 }
 /* the garage on Gideon's pad: Tipsey's card is taken (renderFleet), only Gideon can go */
 function twkToGarage(scene){
@@ -106499,14 +106559,14 @@ function twkToGarage(scene){
   if(scene._garage) scene._garage.key = 'gideon-pad';
   if(typeof tpToast === "function") tpToast("Tipsey's been taken! Only Gideon can go after him.");
 }
-/* the SOS heard: the GPS to the van */
+/* the SOS heard: the GPS to the hideout */
 function twkSosGo(){
   const scene = scn(); if(TWK.stage !== 'sosCut' || !scene) return;
   hospSayCard(null); cineBars(false);
   TWK.stage = 'rescue'; TWK.seenG = false; TWK.cutCard = false; TWK.ping = 0;
   twkNav(scene);
 }
-/* on the mat by the van: the lead one walks up to him, face to face */
+/* on the mat at the gate: the lead one walks up to him, face to face */
 function twkFace(scene, ow, now){
   const R = TWK, lead = R.gang.slice().sort((a, b) => Math.hypot(a.x - ow.px, a.y - ow.py) - Math.hypot(b.x - ow.px, b.y - ow.py))[0];
   R.stage = 'face'; ow.vel = 0; cineBars(true); twkNavClear(scene);
@@ -106515,43 +106575,42 @@ function twkFace(scene, ow, now){
   const from = { x: lead.x, y: lead.y }, pref = (from.x - ow.px) - (from.y - ow.py) >= 0 ? 1 : -1;
   R.leadM = meetWalk(ow, from, now, pref, scene);
 }
-/* "Let him go": they scatter along the street, the door slides open, Tipsey rolls out to Gideon */
+/* "Let him go": they scatter along the pavement, and Tipsey comes out of the door, down the path, to Gideon's side */
 function twkScatter(){
   const scene = scn(), R = TWK; if(R.stage !== 'face' || !scene) return;
   hospSayCard(null);
-  const now = scene.time.now, ow = scene.ow, D = R.door;
-  R.gang.forEach((m, i) => { const dir = i % 2 ? -1 : 1, end = { x: m.x + D.T.x*dir*2800 + D.n.x*(20 + 30*i), y: m.y + D.T.y*dir*2800 + D.n.y*(20 + 30*i) };
-    m.post = null; m.run = { pts: [{ x: m.x, y: m.y }, end], t0: now + 150*i, v: 0.2, th0: m.th }; });
+  const now = scene.time.now, ow = scene.ow, Hs = R.house;
+  R.gang.forEach((m, i) => { const dir = i % 2 ? -1 : 1, lane = edgePt(Hs.e, Hs.al, 110 + 20*i), end = { x: lane.x + Hs.T.x*dir*2800 + (m.x - Hs.gate.x)*0, y: lane.y + Hs.T.y*dir*2800 };
+    m.post = null; m.run = { pts: [{ x: m.x, y: m.y }, { x: lane.x + Hs.T.x*dir*80, y: lane.y + Hs.T.y*dir*80 }, end], t0: now + 150*i, v: 0.2, th0: m.th }; });
   if(R.lead) twkSay(scene, R.lead, ["Robot cop! Scatter!", "Run, run, run!", "Keep the toaster!"], 1800);
   R.lead = null; R.leadM = null;
-  R.slideTo = 1;
-  const side = (D.x - ow.px) - (D.y - ow.py) >= 0 ? 1 : -1;
-  R.tip = Object.assign(meetWalk(ow, { x: D.x, y: D.y }, now + 900, side, scene), { th0: Math.atan2(D.n.y, D.n.x) });
+  const side = (Hs.gate.x - ow.px) - (Hs.gate.y - ow.py) >= 0 ? 1 : -1, t0 = now + 900;
+  R.tipM = meetWalk(ow, Hs.gate, t0, side, scene);
+  R.tip = { pts: [Hs.inside, Hs.step, Hs.gate, R.tipM.to], t0, v: 0.11, th0: Math.atan2(Hs.n.y, Hs.n.x), faceTh: R.tipM.faceTh };
   R.stage = 'out';
   if(typeof sfxThump === "function") sfxThump(0.3);
 }
-/* Tipsey, out of the van to Gideon: where he is (null while still inside) */
+/* Tipsey, out of the house to Gideon: where he is (null while still inside) */
 function twkTipAt(now){
-  const M = TWK.tip; if(!M || now < M.t0) return null;
-  const p = hospWalkAt(M, now); if(!p) return null;
-  const hop = Math.max(0, 1 - (now - M.t0)/350);
-  return { x: p.x, y: p.y, th: p.th, moving: p.moving, z: 14*hop*hop };
+  const P = TWK.tip; if(!P || now < P.t0) return null;
+  const p = walkPathAt(P, now); if(!p) return null;
+  return { x: p.x, y: p.y, th: p.th, moving: p.moving, z: 0 };
 }
 /* the thanks: the record, the card, and Tipsey the player again where he stands; Gideon walks home */
 function twkFinish(){
   const scene = scn(), R = TWK; if(R.stage !== 'thanks' || !scene) return;
   hospSayCard(null); cineBars(false);
-  const now = scene.time.now, ow = scene.ow, T = twkTipAt(now) || { x: ow.px + 80, y: ow.py, th: 0 };
+  const now = scene.time.now, ow = scene.ow, T = twkTipAt(now) || { x: ow.px + 80, y: ow.py, th: 0 }, first = !tpProfile.missionsCompleted.has('tweaker-snatch');
   missionComplete('tweaker-snatch');
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  collectCard([], "Tweaker Trouble: Tipsey's free! Gideon found him by his SOS.");
-  const G = { x: ow.px, y: ow.py, th: ow.yaw }, D = R.door;
+  collectCard([], "Tweaker Trouble: Tipsey's free! " + (first ? "The Tweaker skins for Tipsey and Gideon are yours: coming soon." : "Gideon found him by his SOS again."));
+  const G = { x: ow.px, y: ow.py, th: ow.yaw }, Hs = R.house;
   twkRelease(scene, T);
-  /* Gideon home along the street, past the view's edge */
-  const dir = (G.x - D.x)*D.T.x + (G.y - D.y)*D.T.y >= 0 ? 1 : -1;
-  R.gid = { pts: [{ x: G.x, y: G.y }, { x: G.x + D.T.x*dir*2600, y: G.y + D.T.y*dir*2600 }], t0: now + 500, v: 0.11, th0: G.th };
+  /* Gideon home along the pavement, past the view's edge */
+  const dir = (G.x - Hs.gate.x)*Hs.T.x + (G.y - Hs.gate.y)*Hs.T.y >= 0 ? 1 : -1, lane = edgePt(Hs.e, Hs.al, 100);
+  R.gid = { pts: [{ x: G.x, y: G.y }, { x: lane.x + Hs.T.x*dir*120, y: lane.y + Hs.T.y*dir*120 }, { x: lane.x + Hs.T.x*dir*2600, y: lane.y + Hs.T.y*dir*2600 }], t0: now + 500, v: 0.11, th0: G.th };
 }
-/* the player Tipsey again (at T, or by the door) and the run over */
+/* the player Tipsey again (at T, or by the van) and the run over */
 function twkRelease(scene, T){
   const R = TWK, ow = scene.ow, D = R.door;
   twkNavClear(scene); cineBars(false);
@@ -106560,22 +106619,27 @@ function twkRelease(scene, T){
   try { localStorage.removeItem(TWK_PREV_KEY); } catch(e){}
   scene._tpPark = null;
   if(window.tpLookForCurrent) window.tpLookForCurrent();
-  const at = T || (D ? { x: D.x + D.n.x*60, y: D.y + D.n.y*60, th: Math.atan2(D.n.y, D.n.x) } : { x: ow.px, y: ow.py, th: ow.yaw });
+  const at = T || (R.house ? { x: R.house.walk.x, y: R.house.walk.y, th: 0 } : D ? { x: D.x + D.n.x*60, y: D.y + D.n.y*60, th: Math.atan2(D.n.y, D.n.x) } : { x: ow.px, y: ow.py, th: ow.yaw });
   const items = scene.items, cx = scene.camX, cy = scene.camY;
   owStandUpAt(scene, at.x, at.y, at.th);
   scene.items = items || []; scene.camX = cx; scene.camY = cy;
-  R.tip = null; R.stage = 'done'; R.slideTo = 0; R.next = scene.time.now + TWK_CFG.againMs;
+  R.tip = null; R.tipM = null; R.stage = 'done'; R.slideTo = 0; R.next = scene.time.now + TWK_CFG.againMs;
 }
-/* lost another way (another vehicle picked, Gideon gone): Tipsey back by the van, nothing kept */
+/* lost another way (another vehicle picked, Gideon gone): Tipsey back by the house, nothing kept */
 function twkAbort(scene){ TWK.gang.forEach(m => { m.post = null; }); twkRelease(scene, null); }
-/* DRAWN: the van (moving: live; parked with its door shut: cached), the gang, Tipsey out of the van, Gideon walking home; the SOS pings */
+/* DRAWN: the lurking vans (parked, door shut: cached), the one out (moving or its door open: live), the gang, Tipsey out of the house,
+   Gideon walking home; the SOS rings */
 function twkQueue(scene, t, queuePerson, keyQueue, layerFor){
   const R = TWK, now = scene.time.now;
-  if(R.stage === 'idle' && !R.gid) return;
+  const parked = (x, y, fd) => queuePerson(x, y, g => scene.bcDraw(g, "twkvan|" + Math.round(x) + "," + Math.round(y) + "|" + fd, x, y, gg => scene.drawProp(gg, "tweakervan", x, y, 0, fd, 0, 0, 0x7e3e)));
+  for(const L of twkLurks(scene)){
+    if(L === R.lurk) continue;
+    const P = L.plan.P; if(scene.visProp("tipseyvan", P.x, P.y, 0)) parked(P.x, P.y, L.plan.fd);
+  }
   const v = R.plan ? twkVanAt(now) : null;
   if(v && scene.visProp("tipseyvan", v.x, v.y, 0)){
     const x = v.x, y = v.y, fd = v.fdir, sl = R.slide;
-    if(v.parked && sl <= 0.001) queuePerson(x, y, g => scene.bcDraw(g, "twkvan|" + Math.round(x) + "," + Math.round(y) + "|" + fd, x, y, gg => scene.drawProp(gg, "tweakervan", x, y, 0, fd, 0, 0, 0x7e3e)));
+    if(v.parked && sl <= 0.001) parked(x, y, fd);
     else queuePerson(x, y, (g, tt) => scene.drawProp(layerFor(x, y), "tweakervan", x, y, tt || now, fd, 0, v.wheel || 0, 0x7e3e, { slideOpen: sl }));
   }
   for(const m of R.gang){
@@ -106592,28 +106656,32 @@ function twkQueue(scene, t, queuePerson, keyQueue, layerFor){
       H.gd = (H.gd || 0) + Math.hypot(x - (H.lx == null ? x : H.lx), y - (H.ly == null ? y : H.ly)); H.lx = x; H.ly = y;
       const gait = H.gd*Math.PI*2/84;
       keyQueue(x, y, (g, tt) => scene.drawProp(layerFor(x, y), "humanoid", x, y, tt || now, h.th/(Math.PI/2), 0, 0, 7, { walk: h.moving ? 1 : 0, gait, roll: 0, reach: 0, look: gideonParts() })); } }
-  /* THE SOS: red rings off Gideon's receiver in the cut scene, and off the van while he looks for it */
+  /* THE SOS: red rings off Gideon in the cut scene, and over the hideout while he looks for it */
   const ring = (cx, cy, z, ph) => queuePerson(cx, cy + 1, (g, tt) => { const lg = layerFor(cx, cy), u = (((tt || now) - ph) % 1400)/1400;
     for(const k of [0, 0.5]){ const w = (u + k) % 1, r = 30 + 170*w, pts = [];
       for(let i = 0; i < 28; i++){ const a = i/28*Math.PI*2; pts.push(scene.W(cx + Math.cos(a)*r, cy + Math.sin(a)*r, z)); }
       scene.edgeOn(lg, pts, 0xff3b30, (3.2 - 2.2*w)*scene.K); } });
-  if(R.stage === 'sosCut' && scene.ow){ ring(scene.botX, scene.botY, 4, R.t0); }   // (botX: already in the room's view, drawWorld's shift)
-  if((R.stage === 'rescue' || R.stage === 'sos' || R.stage === 'sosCut' || R.stage === 'garage') && v) ring(v.x, v.y, 150, 0);
+  if(R.stage === 'sosCut' && scene.ow) ring(scene.botX, scene.botY, 4, R.t0);   // (botX: already in the room's view, drawWorld's shift)
+  if((R.stage === 'rescue' || R.stage === 'sos' || R.stage === 'sosCut' || R.stage === 'garage') && R.house) ring(R.house.step.x, R.house.step.y, 4, 0);
 }
-/* the van's body is solid while it stands (Gideon walks round it, not through it) */
+/* the vans' bodies are solid while they stand (he goes round them, not through them) */
 function twkSolidAt(x, y, r){
-  const R = TWK; if(!R.plan || R.stage === 'idle' || R.stage === 'arrive' || R.stage === 'leave' || R.stage === 'away') return null;
-  const P = R.plan.P, ap = carAxisPoint(P, R.plan.fd, x, y);
-  return Math.hypot(x - ap.x, y - ap.y) < CARC.wid/2 + r ? { x0: P.x - 150, x1: P.x + 150, y0: P.y - 150, y1: P.y + 150, cx: P.x, cy: P.y, type: 'commercial', twkVan: true } : null;
+  const R = TWK, Lr = TWK._lurks, hit = (P, fd) => { if(Math.abs(x - P.x) + Math.abs(y - P.y) > CARC.len + r + 40) return false; const ap = carAxisPoint(P, fd, x, y); return Math.hypot(x - ap.x, y - ap.y) < CARC.wid/2 + r; };
+  const blk = P => ({ x0: P.x - 150, x1: P.x + 150, y0: P.y - 150, y1: P.y + 150, cx: P.x, cy: P.y, type: 'commercial', twkVan: true });
+  if(R.plan && R.stage !== 'away' && hit(R.plan.P, R.plan.fd)) return blk(R.plan.P);
+  if(Lr) for(const L of Lr.list) if(L !== R.lurk && hit(L.plan.P, L.plan.fd)) return blk(L.plan.P);
+  return null;
 }
 MISSIONS['tweaker-snatch'] = { name: 'Tweaker Trouble', giver: "Tipsey's SOS", window: 'any', needs: 'minding-the-shop', places: ['Brew & Bolt'],
-  steps: ["The Tweakers grab Tipsey off the street", "The garage: Gideon goes", "The SOS in Brew & Bolt's back room", "Gideon finds the van", "Tipsey free"],
-  reward: {},
+  steps: ["The Tweakers grab Tipsey off the street", "The garage: Gideon goes", "The SOS in Brew & Bolt's back room", "Gideon finds the hideout", "Tipsey free"],
+  /* THE TWEAKER SKINS, Tipsey's and Gideon's (Sir, 2026-11-28: "we dont have it designed yet but thats fine"): owed by this record -- once
+     drawn, add them to SKINS / GD_PRESETS, move these ids to reward.skins, and grant them on load to whoever has the record */
+  reward: { skinsLater: ['tweaker', 'gideon-tweaker'] },
   busy: () => twkTaken(),
   item: () => null,
   next: () => ({ grab: 'The Tweakers have Tipsey', load: 'The Tweakers have Tipsey', away: 'The Tweakers have Tipsey', held: 'The Tweakers have Tipsey',
-                 garage: 'The garage: only Gideon can go', sos: "The SOS on Gideon's receiver, in the back room", sosCut: "Tipsey's SOS", rescue: "The Tweakers' van",
-                 face: "The Tweakers' van", out: 'Tipsey', thanks: 'Tipsey' })[TWK.stage] || 'Comes to Tipsey: watch out for a beat-up van',
+                 garage: 'The garage: only Gideon can go', sos: "The SOS on Gideon's receiver, in the back room", sosCut: "Tipsey's SOS", rescue: "The Tweakers' house in the Flats",
+                 face: "The Tweakers' house", out: 'Tipsey', thanks: 'Tipsey' })[TWK.stage] || 'Comes to Tipsey: steer clear of the beat-up vans',
   start: () => null };
 /* ==================== VISTA RIDGE SECURITY POST (area 11, "Sierra Vista bench": the approved Flats build order) ====================
    The bare foothill bench east of Sierra Vista's east wall, over Maritime Mall's back (the wedge WG_HILLS leaves where the
@@ -152924,6 +152992,7 @@ class WorldScene extends Phaser.Scene {
     { const li = lostItemAtDoor(t); if(li) who.push(li); }  // a lost thing's owner, out to Tipsey for it and back in (LOST_ITEMS)
     /* (and the missions' callers out of their own front doors: Rosa, the anniversary's, and Luna's mom, the goth
        crew's -- the census found both walking out of a door that never opened for them) */
+    if(typeof twkDoorWho === "function") for(const q of twkDoorWho(t)) who.push(q);   // (THE TWEAKERS: their hideout's front door, carrying Tipsey in, and him coming out)
     for(const f of [annivRosaAt, gothMomAt]){ let q = null; try { q = f(t); } catch(e){} if(q && isFinite(q.x) && !q.hidden) who.push(q); }
     for(const d of doors) if(d.key.startsWith("nss ") && !d.knock){ const q = nssResAt(d, t); if(q) who.push(q); }   // the strand's residents (nssResidentAt)
     if(doors.length){
