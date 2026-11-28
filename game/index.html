@@ -141604,23 +141604,11 @@ class WorldScene extends Phaser.Scene {
           g.fillCircle(knob.x, knob.y, 2.2*bs*K*0.45);
         }
       };
-      /* THE FOOT PEDAL IS A PLATE ON THE PAVEMENT (props pass): it was a screen-flat ellipse with a stroke for its lever, and the
-         lever ran from INSIDE the barrel (0.55 of its radius) -- a scratch down the can whenever the pedal side faced the eye. Now
-         a plate in the ground's own plane, its front edge where the eye sees it, butting the barrel's foot. Whether it is in front
-         of the barrel or behind is asked of its normal in world (binN), not of the local frame, which turns with the facing. */
-      const pedalN = binN(0, { x: 0, y: 0, z: 0 }), pedalFront = (pedalN.x + pedalN.y) > 0, pedalSN = { x: 0, y: 0, z: 0 };
-      const bpedal = () => {
-        if(phi > 0.05) return;
-        const u0 = binR(0)*0.96, u1 = binR(0) + 6*bs, hw2 = 3.4*bs, h1 = 1.4*bs;
-        this.quadOn(g, [L(u0, -hw2, h1), L(u1, -hw2, h1), L(u1, hw2, h1), L(u0, hw2, h1)], B.pedal);
-        const sN = binN(Math.PI/2, pedalSN), sv = (sN.x + sN.y) > 0 ? 1 : -1;
-        this.quadOn(g, [L(u0, sv*hw2, 0), L(u1, sv*hw2, 0), L(u1, sv*hw2, h1), L(u0, sv*hw2, h1)], B.pedalDk);
-        if(pedalFront) this.quadOn(g, [L(u1, -hw2, 0), L(u1, hw2, 0), L(u1, hw2, h1), L(u1, -hw2, h1)], B.pedalDk);
-      };
+      /* NO FOOT PEDAL (Sir, 2026-11-27: "lets get rid of that alltogether"): the grey plate at the barrel's foot read as a stray
+         slab beside the bin, so the bin stands on its own round base. (BIN.pedal / pedalDk stay: the lid's hinge pin is pedalDk) */
 
       const bparts = [
         { d: dAt(0, 0, 1.5*bs), fn: bbody },
-        { d: dAt(0, 0, 1.5*bs) + (pedalFront ? 1 : -1), fn: bpedal },
         { d: lidOpen ? (binR(0) + HB*sphi + B.lidR + 4*bs)*((dv.x + dv.y)*fc + (rv.x + rv.y)*fsn) + 0.4*bs : dAt(0, 0, H*0.95), fn: blid }
       ];
       bparts.sort((p1, p2) => p1.d - p2.d);
