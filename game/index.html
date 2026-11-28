@@ -98821,6 +98821,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       poly([P(x0, b, 152), P(x1, b, 152), P(x1, b, zt1 - 3), P(x0, b, zt0 - 3)], '#34424b', null); } };
     houseProfileRoofB(-130, -480, [[50,190],[230,150]], 20, c.roof, c.wall, { ext1:false, onFront: clere(-129.6), onBack: clere(-480.4), barge:c.edge });
     houseProfileRoofB(-130, -480, [[230,150],[410,190]], 20, c.roof, c.wall, { ext0:false, onFront: clere(-129.6), onBack: clere(-480.4), barge:c.edge });
+    if(c.rundown){   // (the roof aged: dark water stains and moss down its slopes into the valley, a patch of sheets gone)
+      const rz = a => a <= 230 ? 190 - (a - 50)*40/180 : 150 + (a - 230)*40/180, rp = (a0, a1, b0, b1, col) => poly([P(a0, b0, rz(a0) + 0.6), P(a1, b0, rz(a1) + 0.6), P(a1, b1, rz(a1) + 0.6), P(a0, b1, rz(a0) + 0.6)], col, null);
+      for(const [a0, a1, b0, b1, col] of [[200, 228, -160, -440, 'rgba(70,74,60,.35)'], [232, 262, -170, -430, 'rgba(70,74,60,.35)'], [90, 140, -200, -260, 'rgba(84,96,58,.4)'],
+                                          [300, 350, -330, -380, 'rgba(84,96,58,.4)'], [140, 176, -380, -420, '#8a8478']]) rp(a0, a1, b0, b1, col); }
     if(d > 0){
       houseDoorway(150, -130, CITY_HOUSE_SC, shade(c.wall,.86), c.leaf, 1);
       if(HOUSE_REC) HOUSE_REC.push({ kind:'win', a0:246, a1:404, z0:4, z1:142, b:-130 });
@@ -98831,6 +98835,15 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         for(const a of [258, 320, 332, 392]) F(a - 0.6, a + 0.6, 10, 134, '#8e6c3e', null, 0, -129.1);
         poly([P(264, -129, 20), P(270, -129, 20), P(316, -129, 62), P(310, -129, 62)], '#2f6fd8', null);
         poly([P(310, -129, 20), P(316, -129, 20), P(270, -129, 62), P(264, -129, 62)], '#2f6fd8', null);
+        /* AGE (Sir, 2026-11-28: "put some age into the house itself"): rain streaks down the front from the roof, render peeled to the block
+           in patches, a crack up from the step, a clerestory pane smashed, and on the seen flank the same streaks and a peeled patch */
+        for(const [a, z0, w] of [[62, 70, 5], [112, 92, 7], [196, 60, 6], [232, 100, 4], [404, 70, 5]]) F(a, a + w, z0, 150, 'rgba(92,82,60,.28)', null, 0, -129.5);
+        for(const [a0, a1, z0, z1] of [[70, 118, 30, 62], [200, 236, 100, 128]]){ F(a0, a1, z0, z1, '#b7ab90', null, 0, -129.45); F(a0 + 6, a1 - 8, z0 + 5, z1 - 6, '#a39a86', null, 0, -129.4); }
+        poly([P(188, -129.4, 0), P(194, -129.4, 22), P(190, -129.4, 40), P(198, -129.4, 64)], null, '#6a6252', 1.2);
+        poly([P(96, -129.3, 154), P(142, -129.3, 154), P(126, -129.3, 172), P(110, -129.3, 160)], '#141a1e', null);
+        { const aE = FLANK_RIGHT ? 410 : 50, sg = FLANK_RIGHT ? 1 : -1;
+          for(const [b, z0] of [[-170, 80], [-240, 60], [-330, 96], [-420, 70]]) S(aE + 0.9*sg, b - 3, b + 3, z0, 186, 'rgba(92,82,60,.28)');
+          S(aE + 0.95*sg, -300, -250, 24, 58, '#b7ab90'); S(aE + 1*sg, -294, -258, 30, 52, '#a39a86'); }
       } else {
       F(252, 398, 90, 138, 'rgba(170,205,220,.26)', null, 0, -129.4);
       for(let a = 300; a < 400; a += 50) F(a-1, a+1, 6, 140, '#1f262b', null, 0, -129.2);
@@ -98841,7 +98854,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     }
   },
   chimney(c){ box(56, 104, -140, -120, 0, 230, shade(c.stone,1.06), c.stone, shade(c.stone,.8));
-    for(let z = 10; z < 230; z += 14) for(let a = 58 + (z % 28 ? 0 : 10); a < 102; a += 20) F(a, a+16, z, z+10, shade(c.stone, .9 + ((a+z) % 3)*0.05), null, 0, -119.6); },
+    for(let z = 10; z < 230; z += 14) for(let a = 58 + (z % 28 ? 0 : 10); a < 102; a += 20) F(a, a+16, z, z+10, shade(c.stone, .9 + ((a+z) % 3)*0.05), null, 0, -119.6);
+    if(c.rundown){ F(70, 77, 110, 228, 'rgba(120,64,28,.35)', null, 0, -119.4); F(88, 92, 150, 228, 'rgba(40,36,30,.3)', null, 0, -119.4); } },   // (rust run down the stone from the flue's cap, soot)
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
     houseProp('palm', () => housePalm(400, -40, 180, c.rundown ? '#8f8448' : '#5f8f4f'));   // (run down: its fronds yellowed, dying)
@@ -106702,9 +106716,15 @@ function twkQueue(scene, t, queuePerson, keyQueue, layerFor){
 const TWK_JUNK = [
   { k: 'sofa', al: 200, lat: -110 }, { k: 'tyres', al: 80, lat: -70 }, { k: 'cart', al: 275, lat: -32 }, { k: 'mattress', al: 555, lat: -118 },
   { k: 'bags', al: 505, lat: -34 }, { k: 'bin', al: 548, lat: -12 }, { k: 'bin', al: 580, lat: -14 },
-  { k: 'trash', al: 120, lat: -22 }, { k: 'can', al: 330, lat: -128 }, { k: 'paper', al: 455, lat: -64 }, { k: 'can', al: 40, lat: -140 }, { k: 'trash', al: 340, lat: -70 }
+  { k: 'trash', al: 120, lat: -22 }, { k: 'can', al: 330, lat: -128 }, { k: 'paper', al: 455, lat: -64 }, { k: 'can', al: 40, lat: -140 }, { k: 'trash', al: 340, lat: -70 },
+  /* THE SIDE YARD (Sir, 2026-11-28: "it can fill all the side and back yard too"): the strip between the house and the corner (along 5..60) */
+  { k: 'bags', al: 32, lat: -205 }, { k: 'fridge', al: 30, lat: -280 }, { k: 'pallets', al: 32, lat: -370 }, { k: 'barrel', al: 28, lat: -455 }, { k: 'tyres', al: 30, lat: -530 },
+  { k: 'can', al: 45, lat: -330 }, { k: 'paper', al: 20, lat: -590 },
+  /* THE BACK YARD (behind the house, lat -630..-710) */
+  { k: 'junker', al: 300, lat: -672 }, { k: 'barrel', al: 70, lat: -665 }, { k: 'pallets', al: 150, lat: -668 }, { k: 'sofa', al: 500, lat: -666 },
+  { k: 'bags', al: 440, lat: -686 }, { k: 'tyres', al: 565, lat: -690 }, { k: 'trash', al: 220, lat: -650 }, { k: 'can', al: 400, lat: -700 }
 ];
-const TWK_JUNK_R = { sofa: 52, tyres: 20, cart: 28, bags: 32, bin: 15 };
+const TWK_JUNK_R = { sofa: 52, tyres: 20, cart: 28, bags: 32, bin: 15, fridge: 20, pallets: 32, barrel: 15, junker: 70 };
 function twkYardAt(al, lat){ const Hd = TWK.hide, e = Hd && Hd.house.e; return e ? edgePt(e, al, lat) : null; }
 function twkYardReady(scene){ return !!(scene.route && scene.route.grid && twkHideout(scene)); }
 /* the worn lawn: dirt and dead grass in patches, seeded off the house (the ground pass, cached) */
@@ -106716,11 +106736,14 @@ function twkFillGround(scene, g){
     const pts = []; for(let i = 0; i < 11; i++){ const t = i/11*Math.PI*2, k = 0.72 + 0.5*rnd(), q = edgePt(Hs.e, al + Math.cos(t)*ra*k, lat + Math.sin(t)*rl*k); pts.push(scene.W(q.x, q.y, 0.35)); }
     if(scene.ptsOnScreen(pts)){ g.fillStyle(col, 1); g.fillPoints(pts, true); } };
   for(const [al, lat, ra, rl, col] of [[170, -120, 110, 40, 0x8b7b55], [300, -60, 70, 34, 0xa89a5a], [520, -100, 80, 46, 0x8b7b55], [90, -60, 60, 40, 0xa89a5a],
-                                       [470, -40, 50, 24, 0x97875f], [240, -150, 60, 16, 0xa89a5a], [560, -40, 40, 26, 0xa89a5a], [30, -130, 30, 28, 0x8b7b55]]) blob(al, lat, ra, rl, col);
+                                       [470, -40, 50, 24, 0x97875f], [240, -150, 60, 16, 0xa89a5a], [560, -40, 40, 26, 0xa89a5a], [30, -130, 30, 28, 0x8b7b55],
+                                       [30, -260, 26, 90, 0x8b7b55], [32, -450, 28, 110, 0xa89a5a], [30, -580, 26, 50, 0x8b7b55],
+                                       [120, -670, 90, 36, 0x8b7b55], [300, -672, 120, 38, 0x97875f], [500, -668, 90, 40, 0xa89a5a]]) blob(al, lat, ra, rl, col);
 }
 /* one piece, drawn in the yard's frame (u east along the street, v toward it: the kit's a, b), at its own place */
 function twkJunkDraw(scene, g, J, x, y){
   if(J.k === 'bin' || J.k === 'trash' || J.k === 'can' || J.k === 'paper'){ scene.drawProp(g, J.k, x, y, 0, 0, 0, 0, (J.al*31 + J.lat*7) >>> 0); return; }
+  if(J.k === 'junker'){ const e = TWK.hide.house.e; scene.drawProp(g, 'hatch', x, y, 0, Math.atan2(e.dv.y, e.dv.x)/(Math.PI/2), 0, 0, 0x7e3e3); return; }   // (a hatchback left to rot in the back yard)
   const Hs = TWK.hide.house, f = Math.atan2(-Hs.e.dv.y, -Hs.e.dv.x)/(Math.PI/2), K = scene.vehKit(g, x, y, 0, f), { solid, prismH, line, Q, P } = K;
   const box = (u0, u1, v0, v1, z0, z1, col) => solid(prismH([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], z0, z1), col);
   const octP = (r, cu = 0, cv = 0) => { const o = []; for(let i = 0; i < 8; i++){ const t = (i + 0.5)/8*Math.PI*2; o.push([cu + Math.cos(t)*r, cv + Math.sin(t)*r]); } return o; };
@@ -106733,6 +106756,21 @@ function twkJunkDraw(scene, g, J, x, y){
     Q([P(-30, 0, 37.1), P(-14, -2, 37.1), P(-10, 9, 37.1), P(-26, 12, 37.1)], 0x6a5030);   // (a stain)
     box(37, 46, -8, 19, 30, 46, C);
     line([2, 14, 31], [34, 14, 31], 0x5a4424, 1.6);   // (where the second cushion was: the bare deck)
+    return; }
+  if(J.k === 'fridge'){   // (an old fridge dumped on its feet: a white box gone yellow, its door's seam and handle, rust at its foot)
+    box(-14, 14, -15, 15, 0, 64, 0xdcd6c0);
+    line([15.2, -14, 40], [15.2, 14, 40], 0x9a9480, 1.2); line([15.3, 10, 44], [15.3, 10, 60], 0x8a8a8a, 2.2);
+    Q([P(15.2, -14, 0), P(15.2, 14, 0), P(15.2, 14, 7), P(15.2, -14, 5)], 0x8a5a36);
+    return; }
+  if(J.k === 'pallets'){   // (a stack of three wooden pallets: each its deck boards over its runners)
+    for(let i = 0; i < 3; i++){ const z = i*10;
+      for(const v of [-20, 0, 20]) box(-24, 24, v - 3, v + 3, z, z + 6, 0x8a6a42);
+      for(let u = -22; u <= 22; u += 11) box(u - 4, u + 4, -24, 24, z + 6, z + 10, 0xb08a58); }
+    return; }
+  if(J.k === 'barrel'){   // (a rusted burn barrel: its drum, two ribs, the charred dark inside its rim)
+    solid(prismH(octP(14), 0, 48), 0x8a4a2a);
+    for(const z of [16, 32]) solid(prismH(octP(14.6), z, z + 2.5), 0x6a3a20);
+    Q(octP(11.5).map(([u, v]) => P(u, v, 48.1)), 0x1a1614);
     return; }
   if(J.k === 'tyres'){   // (three bald tyres, stacked: each a ring, its hole dark on top)
     for(let i = 0; i < 3; i++) solid(prismH(octP(16, i*1.5, -i), i*8, i*8 + 8), 0x26272a);
