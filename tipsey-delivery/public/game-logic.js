@@ -104603,16 +104603,33 @@ function twkHideout(scene){
   if(!best) for(const d of flats){ const s = Math.abs(Math.hypot(d.x - B.x, d.y - B.y) - TWK_CFG.hideD); if(s < bs){ bs = s; best = d; } }
   if(!best) return null;
   const e = best.e, al = best.along, kerb = edgePt(e, al, 120);
-  const plan = twkPlanAt(scene, kerb.x, kerb.y, false, true);
+  let plan = twkPlanAt(scene, kerb.x, kerb.y, false, true);
   if(!plan) return null;
   const house = { d: best, e, al, T: { x: e.dv.x, y: e.dv.y }, n: { x: e.rv.x, y: e.rv.y },
     inside: edgePt(e, al, best.bDoor - 40), step: edgePt(e, al, best.bDoor + 22), gate: edgePt(e, al, 18), walk: edgePt(e, al, 90) };
+  /* ITS GARAGE (Sir, 2026-11-28: "when they abduct tipsey they should pull the van into the garage"): the house's own Street Garage, as the
+     strand's garages are laid out for their cars (nssGaragesOf: its opening a0..a1 at its front fb, depth in), so drawNssGarageOpen can
+     open it and draw the van in through it; the van parks short of its drive, on the house's kerb, to swing in */
+  { const blk = grid.blockByIJ && grid.blockByIJ.get(best.blockKey), row = blk ? houseEdgeUnits(grid, blk, best.edge) : null;
+    const gu = row && row.find(u => /Street (Double )?Garage/.test(u.shop.lib) && u.host === best.lib), sh = gu && LIB.get(gu.shop.lib);
+    if(sh && sh.frame){ const F = sh.frame(), G = { id: 'twk', row: { e }, u: gu, sh, built: false, a0: F.A0 + 18, a1: F.A1 - 18, fb: F.BF, h: 84, depth: Math.min(260, F.BF - F.BB - 20) };
+      const W = (a, b) => nssGarageW(G, a, b, 0), am = (G.a0 + G.a1)/2, mouth = W(am, G.fb), deep = W(am, G.fb - 10), L = Math.hypot(deep.x - mouth.x, deep.y - mouth.y) || 1;
+      const inDir = { x: (deep.x - mouth.x)/L, y: (deep.y - mouth.y)/L }, corners = [W(G.a0, G.fb), W(G.a1, G.fb)];
+      house.garage = { G, mouth, inDir, front: corners.reduce((a, q) => q.x + q.y > a.x + a.y ? q : a) };
+      const p0 = twkPlanAt(scene, mouth.x - inDir.x*260, mouth.y - inDir.y*260, false, true);
+      if(p0){ const T = DIRV[p0.fd], p1 = twkPlanAt(scene, mouth.x - inDir.x*260 - T.x*420, mouth.y - inDir.y*260 - T.y*420, false, true); plan = p1 || p0; } } }
   return (TWK.hide = { grid, plan, house });
 }
 /* where the active van is now: { x, y, fdir, wheel, parked } (null: none out) */
 function twkVanAt(now){
   const R = TWK, p = R.plan; if(!p) return null;
   const u = now - R.t0;
+  if(R.inGarage) return null;
+  if(R.stage === 'held' && R.park && (R.hsub === 'drive' || R.hsub === 'shut')){
+    const k = R.hsub === 'shut' ? 1 : Math.min(1, u/R.park.ms), e = k < 0.15 ? k*k/0.3 : k > 0.85 ? 1 - (1 - k)*(1 - k)/0.3 : k - 0.075, ee = Math.max(0, Math.min(1, e/0.925)), a = polyAt(R.park.pts, ee);
+    const G = R.house.garage, s = (a.x - G.mouth.x)*-G.inDir.x + (a.y - G.mouth.y)*-G.inDir.y;
+    return { x: a.x, y: a.y, fdir: a.ang/(Math.PI/2), wheel: ee*R.park.len*0.28, parked: false, clip: s < CARC.len/2 + 12 };
+  }
   if(R.stage === 'away' && R.route){
     const k = Math.min(1, u/R.route.ms), e = k*k*(3 - 2*k), a = polyAt(R.route.pts, e);
     return { x: a.x, y: a.y, fdir: a.ang/(Math.PI/2), wheel: e*R.route.len*0.28, parked: false };
@@ -104702,6 +104719,7 @@ function twkTick(scene, ow){
   if(!R.booted){ R.booted = true;
     try { const pv = localStorage.getItem(TWK_PREV_KEY); if(pv !== null){ localStorage.removeItem(TWK_PREV_KEY); if(tpProfile){ tpProfile.fleetKind = pv; tpSaveProfile(); } } } catch(e){} }
   twkSlideTick(dt);
+  { const to = R.gdTo || 0, st = dt/900; R.gdoor = to > (R.gdoor || 0) ? Math.min(to, (R.gdoor || 0) + st) : Math.max(to, (R.gdoor || 0) - st); }   // (the garage door, up and down)
   if(R.gid){ const p = walkPathAt(R.gid, now); if(!p || (p.there && !scene.visWorldPt(p.x, p.y, 120, 260))) R.gid = null; }
   for(const m of R.gang) if(m.run){ const p = walkPathAt(m.run, now); if(p){ m.x = p.x; m.y = p.y; m.th = p.th; m.mv = !p.there; if(p.there && !scene.visWorldPt(p.x, p.y, 120, 260)) m.gone = true; } }
   R.gang = R.gang.filter(m => !m.gone);
@@ -104711,7 +104729,7 @@ function twkTick(scene, ow){
       /* the van left at the hideout once he is free: held till it, and its own lurk, are out of sight (R13); then it is back on its lurk */
       const v = twkVanAt(now), L = R.lurk;
       if(R.gang.length || R.tip || R.gid || (v && scene.visWorldPt(v.x, v.y, 200, 300)) || (L && scene.visWorldPt(L.plan.P.x, L.plan.P.y, 200, 300))) return;
-      R.stage = 'idle'; R.plan = null; R.door = null; R.lurk = null; R.house = null; R._hb = null; R.slide = R.slideTo = 0;
+      R.stage = 'idle'; R.plan = null; R.door = null; R.lurk = null; R.house = null; R._hb = null; R.slide = R.slideTo = 0; R.inGarage = false; R.park = null; R.gdoor = R.gdTo = 0;
       return; }
     case 'idle': {
       if(!twkGideonOn() || scene.state !== "play" || scene.mode !== "freeroam" || fleetCur() || FLEET_LOAN || !ow.on || ow.lift || ow.deck || scene._inside || pocketAt(ow.px, ow.py)
@@ -104757,8 +104775,8 @@ function twkTick(scene, ow){
     case 'away': {
       const v = twkVanAt(now), H = R.hold;
       if(v){ H.x = v.x; H.y = v.y; }
-      if(now - R.t0 >= R.route.ms){ R.plan = R.hide.plan; R.door = twkDoorOf(R.plan.P, R.plan.fd); R.house = R.hide.house; R._hb = null; R.stage = 'held'; R.t0 = now; R.hsub = 'open'; R.gang = [];
-        const P = R.plan.P; H.x = P.x; H.y = P.y; R.slideTo = 1; }
+      if(now - R.t0 >= R.route.ms){ R.plan = R.hide.plan; R.door = twkDoorOf(R.plan.P, R.plan.fd); R.house = R.hide.house; R._hb = null; R.stage = 'held'; R.t0 = now; R.hsub = R.house.garage ? 'drive' : 'open'; R.gang = []; if(R.house.garage) twkParkPath(R);
+        const P = R.plan.P; H.x = P.x; H.y = P.y; if(!R.house.garage) R.slideTo = 1; }
       return; }
     case 'held': twkHeldTick(scene, ow, now, dt); return;
     case 'garage': {
@@ -104863,8 +104881,35 @@ function twkDriveOff(scene, now){
 }
 /* AT THE HIDEOUT: the van's door open, the gang out, two of them carry him up the path and in at the front door, the three of them hang
    about the front; then the garage */
+/* THE WAY INTO THE GARAGE: on along the kerb lane to abreast of the drive, a quarter turn in off the street, straight up the drive and in
+   through the opening till its tail is past the door */
+function twkParkPath(R){
+  const Gd = R.house.garage, P = R.plan.P, T = DIRV[R.plan.fd], I = Gd.inDir, M = Gd.mouth;
+  const lane = { x: P.x + T.x*((M.x - P.x)*T.x + (M.y - P.y)*T.y), y: P.y + T.y*((M.x - P.x)*T.x + (M.y - P.y)*T.y) };
+  const Rr = Math.max(60, Math.min(170, ((M.x - lane.x)*I.x + (M.y - lane.y)*I.y)*0.8)), S = { x: lane.x - T.x*Rr, y: lane.y - T.y*Rr }, C = { x: S.x + I.x*Rr, y: S.y + I.y*Rr };
+  const pts = [{ x: P.x, y: P.y }];
+  if((S.x - P.x)*T.x + (S.y - P.y)*T.y > 5) pts.push(S);
+  for(let k = 1; k <= 8; k++){ const th = k/8*Math.PI/2; pts.push({ x: C.x - I.x*Rr*Math.cos(th) + T.x*Rr*Math.sin(th), y: C.y - I.y*Rr*Math.cos(th) + T.y*Rr*Math.sin(th) }); }
+  const inn = CARC.len/2 + 26; pts.push({ x: M.x, y: M.y }, { x: M.x + I.x*inn, y: M.y + I.y*inn });
+  const len = polyLen(pts); R.park = { pts, len, ms: Math.max(2600, len/0.13) };
+}
 function twkHeldTick(scene, ow, now, dt){
   const R = TWK, Hs = R.house, H = R.hold;
+  if(R.hsub === 'drive'){   // (up the drive: the door rolls up as it comes, and it is in)
+    const v = twkVanAt(now); if(v){ H.x = v.x; H.y = v.y; }
+    const Gd = Hs.garage, dm = v ? Math.hypot(v.x - Gd.mouth.x, v.y - Gd.mouth.y) : 0;
+    R.gdTo = dm < 520 || now - R.t0 > R.park.ms*0.5 ? 1 : R.gdTo || 0;
+    if(R.gdTo === 1 && !R.gdSnd){ R.gdSnd = true; if(typeof sfxThump === "function") sfxThump(0.2); }
+    if(now - R.t0 >= R.park.ms){ R.hsub = 'shut'; R.gdTo = 0; R.t0 = now; }
+    return; }
+  if(R.hsub === 'shut'){   // (the door down behind it; then out of the front door they come, to hang about the front)
+    if(R.gdoor > 0.001) return;
+    R.inGarage = true; R.gdSnd = false;
+    TWK.door = { x: Hs.inside.x, y: Hs.inside.y, T: Hs.T, n: Hs.n, ix: Hs.inside.x, iy: Hs.inside.y };
+    twkGangOut(now);
+    for(const m of R.gang){ m.x = Hs.inside.x + Hs.T.x*(m.i - 1)*18; m.y = Hs.inside.y + Hs.T.y*(m.i - 1)*18; m.on = true; }
+    H.aboard = true; R.hsub = 'in'; R.t0 = now; twkPosts();
+    return; }
   if(R.hsub === 'open'){ if(R.slide < 1) return;
     twkGangOut(now);
     const D = R.door, pts = [{ x: D.x, y: D.y }, Hs.walk, Hs.gate, Hs.step, Hs.inside];
@@ -104995,7 +105040,11 @@ function twkQueue(scene, t, queuePerson, keyQueue, layerFor){
     const P = L.plan.P; if(scene.visProp("tipseyvan", P.x, P.y, 0)) parked(P.x, P.y, L.plan.fd);
   }
   const v = R.plan ? twkVanAt(now) : null;
-  if(v && scene.visProp("tipseyvan", v.x, v.y, 0)){
+  { const Gd = R.house && R.house.garage, gu = R.gdoor || 0;
+    if(Gd && (gu > 0.001 || (v && v.clip)) && scene.visProp("car", Gd.mouth.x, Gd.mouth.y)){
+      const tr = v && v.clip ? { kind: 'tweakervan', colorSeed: 0x7e3e, pose: () => ({ x: v.x, y: v.y, fc: v.fdir, trS: v.wheel/0.28 }) } : null;
+      queuePerson(Gd.front.x + 1, Gd.front.y + 1, (g, tt) => scene.drawNssGarageOpen(layerFor(Gd.front.x, Gd.front.y), Gd.G, Math.max(gu, 0.0011), tr, tt || now)); } }
+  if(v && !v.clip && scene.visProp("tipseyvan", v.x, v.y, 0)){
     const x = v.x, y = v.y, fd = v.fdir, sl = R.slide;
     if(v.parked && sl <= 0.001) parked(x, y, fd);
     else queuePerson(x, y, (g, tt) => scene.drawProp(layerFor(x, y), "tweakervan", x, y, tt || now, fd, 0, v.wheel || 0, 0x7e3e, { slideOpen: sl }));
@@ -105139,7 +105188,7 @@ function twkJunkSolid(x, y, r){
 function twkSolidAt(x, y, r){
   const R = TWK, Lr = TWK._lurks, hit = (P, fd) => { if(Math.abs(x - P.x) + Math.abs(y - P.y) > CARC.len + r + 40) return false; const ap = carAxisPoint(P, fd, x, y); return Math.hypot(x - ap.x, y - ap.y) < CARC.wid/2 + r; };
   const blk = P => ({ x0: P.x - 150, x1: P.x + 150, y0: P.y - 150, y1: P.y + 150, cx: P.x, cy: P.y, type: 'commercial', twkVan: true });
-  if(R.plan && R.stage !== 'away' && hit(R.plan.P, R.plan.fd)) return blk(R.plan.P);
+  if(R.plan && R.stage !== 'away' && !R.inGarage && !(R.stage === 'held' && R.hsub === 'drive') && hit(R.plan.P, R.plan.fd)) return blk(R.plan.P);
   if(Lr) for(const L of Lr.list) if(L !== R.lurk && hit(L.plan.P, L.plan.fd)) return blk(L.plan.P);
   if(twkJunkSolid(x, y, r)) return blk({ x, y });                                // (the junk in their yard)
   return null;
@@ -116457,7 +116506,7 @@ class WorldScene extends Phaser.Scene {
       Q([P(a0 + (a1 - a0)*0.4, fb - depth*0.5, 0.3), P(a0 + (a1 - a0)*0.6, fb - depth*0.45, 0.3), P(a0 + (a1 - a0)*0.55, fb - depth*0.65, 0.3), P(a0 + (a1 - a0)*0.42, fb - depth*0.62, 0.3)], 0x5f5c57);   // an oil stain
       /* its car, in or half out: cut by the opening, carried out to the street */
       if(tr){
-        const q = errandPoseAt(tr, t);
+        const q = tr.pose ? tr.pose(t) : errandPoseAt(tr, t);   // (a car with its own pose: THE TWEAKERS' van into their garage)
         if(q){
           const pts = [];
           for(const bq of [F0, fb + 900]) for(const [a, z] of [[a0, 0], [a1, 0], [a1, zo], [a0, zo]]) pts.push(P(a, bq, z));
