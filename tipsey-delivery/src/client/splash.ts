@@ -229,59 +229,34 @@ function renderParty(top: LeaderboardEntry[]): void {
 }
 
 /* ============================================================
- * City backdrop — a static Costa Palma neighborhood grid drawn behind
- * the party/scrim layers, replacing the old purple radial-gradient.
- * Same block/road palette as game/index.html's drawRouteMap (housing/
- * park/commercial blocks, road bands, park tree dots, street labels),
- * reimplemented in plain Canvas 2D rather than importing the game's
- * world-gen — same "stay lightweight, no Phaser" reasoning as the
- * robot renderer below. Fixed seed: this reads as one specific place
- * (Costa Palma), not a different skyline on every load.
+ * City backdrop — THE GAME'S OWN CITY (2026-11-28): a photo of a
+ * Costa Palma corner taken by the game itself (tpWorldPhoto: a coffee
+ * shop, a crossing, traffic -- no Tipsey in it, he is the robot over it),
+ * kept beside this page as splash-city.jpg and laid over the card and
+ * the page behind it, cover-fitted. It replaces the flat block-map that
+ * was drawn here and had fallen behind the game's art. The attract
+ * mode's live city still fades in over it once the engine paints.
  * ============================================================ */
 
-type CityBlockType = 'housing' | 'park' | 'commercial'
+let cityImg: HTMLImageElement | null = null
+let cityImgLoaded = false
+const cityImgWaiting: Array<(img: HTMLImageElement) => void> = []
 
-const CITY_BLOCK_COLORS: Record<CityBlockType, string> = {
-  housing: '#e3d4b8',
-  park: '#8fbf7a',
-  commercial: '#c4c8cc',
-}
-const CITY_ROAD = '#4a4d55'
-const CITY_ROADLINE = '#8f897b'
-const CITY_TREE = '#3f7a4a'
-// Palm Gardens' real street pool (see game/index.html's HOODS list) —
-// numbered cross streets follow the same named-one-way/numbered-other
-// convention the real map uses.
-const CITY_STREETS = ['Frond Ave', 'Coconut Ct', 'Shade St']
-const CITY_NUM_STREETS = [5, 6, 7]
-const CITY_TREE_SPOTS: [number, number][] = [
-  [0.32, 0.32],
-  [0.68, 0.62],
-  [0.3, 0.72],
-]
-const CITY_ROUTE_PTS: [number, number][] = [
-  [0.5, 0.06],
-  [0.5, 0.3],
-  [0.22, 0.3],
-  [0.22, 0.5],
-  [0.72, 0.5],
-  [0.72, 0.72],
-  [0.4, 0.72],
-  [0.4, 0.94],
-]
-const CITY_SEED = 20260721
-const CITY_COLS = 5
-const CITY_ROWS = 8
-
-function mulberry32(seed: number): () => number {
-  let a = seed
-  return () => {
-    a += 0x6d2b79f5
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+function withCityImage(cb: (img: HTMLImageElement) => void): void {
+  if (cityImg && cityImgLoaded) {
+    cb(cityImg)
+    return
   }
+  cityImgWaiting.push(cb)
+  if (cityImg) return
+  const img = new Image()
+  cityImg = img
+  img.onload = () => {
+    cityImgLoaded = true
+    for (const fn of cityImgWaiting.splice(0)) fn(img)
+  }
+  img.onerror = () => console.error('splash: splash-city.jpg failed to load')
+  img.src = 'splash-city.jpg'
 }
 
 function renderCityBackdrop(
@@ -290,12 +265,10 @@ function renderCityBackdrop(
   hIn: number,
 ): void {
   // Devvit's webview doesn't always have #card laid out yet at the instant
-  // this first runs (unlike the robot canvas, which computes its own fixed
-  // offscreen size and never depends on DOM measurement) — a 0×0 backing
-  // store just renders nothing, even though the CSS box still stretches to
-  // fill the card. Fall back to a sane default so there's always something
-  // on screen; sizeAndRenderCityBackdrop below re-renders at the real size
-  // once layout/ResizeObserver confirms it.
+  // this first runs — a 0×0 backing store just renders nothing, even
+  // though the CSS box still stretches to fill the card. Fall back to a
+  // sane default so there's always something on screen; the callers
+  // re-render at the real size once layout/ResizeObserver confirms it.
   const w = wIn > 0 ? wIn : 380
   const h = hIn > 0 ? hIn : 660
   const dpr = window.devicePixelRatio || 1
@@ -306,117 +279,16 @@ function renderCityBackdrop(
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-  ctx.fillStyle = CITY_ROAD
+  ctx.fillStyle = '#3a3d47' // the photo's own asphalt, until it lands
   ctx.fillRect(0, 0, w, h)
-
-  const cw = w / CITY_COLS
-  const rh = h / CITY_ROWS
-  const streetW = Math.min(cw, rh) * 0.26
-
-  const rand = mulberry32(CITY_SEED)
-  const types: CityBlockType[][] = []
-  for (let r = 0; r < CITY_ROWS; r++) {
-    const row: CityBlockType[] = []
-    for (let c = 0; c < CITY_COLS; c++) {
-      const v = rand()
-      row.push(v < 0.15 ? 'park' : v < 0.55 ? 'commercial' : 'housing')
-    }
-    types.push(row)
-  }
-
-  for (let r = 0; r < CITY_ROWS; r++) {
-    for (let c = 0; c < CITY_COLS; c++) {
-      const x = c * cw + streetW / 2
-      const y = r * rh + streetW / 2
-      const bw = cw - streetW
-      const bh = rh - streetW
-      const type = at(at(types, r), c)
-      ctx.fillStyle = CITY_BLOCK_COLORS[type]
-      ctx.fillRect(x, y, bw, bh)
-      if (type === 'park') {
-        ctx.fillStyle = CITY_TREE
-        for (const spot of CITY_TREE_SPOTS) {
-          const tx = at(spot, 0)
-          const ty = at(spot, 1)
-          ctx.beginPath()
-          ctx.arc(
-            x + bw * tx,
-            y + bh * ty,
-            Math.min(bw, bh) * 0.11,
-            0,
-            Math.PI * 2,
-          )
-          ctx.fill()
-        }
-      }
-    }
-  }
-
-  ctx.strokeStyle = CITY_ROADLINE
-  ctx.lineWidth = 1.4
-  ctx.setLineDash([6, 7])
-  for (let c = 1; c < CITY_COLS; c++) {
-    const x = c * cw
-    ctx.beginPath()
-    ctx.moveTo(x, 0)
-    ctx.lineTo(x, h)
-    ctx.stroke()
-  }
-  for (let r = 1; r < CITY_ROWS; r++) {
-    const y = r * rh
-    ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(w, y)
-    ctx.stroke()
-  }
-  ctx.setLineDash([])
-
-  ctx.font = '10px sans-serif'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillStyle = 'rgba(255,255,255,0.45)'
-  for (let r = 1; r < CITY_ROWS; r++) {
-    const name = at(CITY_STREETS, (r - 1) % CITY_STREETS.length)
-    ctx.save()
-    ctx.translate(w - 26, r * rh)
-    ctx.fillText(name, 0, -7)
-    ctx.restore()
-  }
-  for (let c = 1; c < CITY_COLS; c++) {
-    const label = `${at(CITY_NUM_STREETS, (c - 1) % CITY_NUM_STREETS.length)}th St`
-    ctx.save()
-    ctx.translate(c * cw, 20)
-    ctx.rotate(-Math.PI / 2)
-    ctx.fillText(label, 0, -7)
-    ctx.restore()
-  }
-
-  // brand accent: soft orange route line threading the grid, echoing
-  // the real in-game route path on the mapCard screen
-  ctx.strokeStyle = 'rgba(255,122,26,0.55)'
-  ctx.lineWidth = 3
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-  ctx.beginPath()
-  CITY_ROUTE_PTS.forEach((pt, i) => {
-    const x = at(pt, 0) * w
-    const y = at(pt, 1) * h
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
+  withCityImage(img => {
+    const k = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+    const dw = img.naturalWidth * k
+    const dh = img.naturalHeight * k
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
   })
-  ctx.stroke()
-}
-
-/** Bounds-checked array access, used in place of the `!` non-null
- *  assertion operator (forbidden by lint). The index is always in range
- *  here — each call site's own loop condition already guarantees it —
- *  so the thrown error is a should-never-happen guard, not expected
- *  control flow. */
-function at<T>(arr: readonly T[], i: number): T {
-  const v = arr[i]
-  if (v === undefined) throw new Error(`index ${i} out of bounds`)
-  return v
 }
 
 /* ============================================================
