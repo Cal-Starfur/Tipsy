@@ -160141,13 +160141,14 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
   FLARE_LEN: 0.29, FLARE_HALF: 0.216 };
 /* ==================== THE BEND (Sir, 2026-11-25: step 3 of the natural survey, "even the road systems have to bend and move
    with the features of this map's topography") ====================
-   STAGE 1, A PREVIEW BEHIND A SWITCH (?bend=1; off by default, so the live game is unchanged). The world stays the grid
+   ON BY DEFAULT since 2026-11-28 (Sir: "lets switch it on for everyone"); ?bend=0 turns it off. The world stays the grid
    underneath -- the lattice, the routes, the collision, the addresses, every mission's spot -- and is BENT ON DISPLAY: W lays
    each world point at its bent place (bendXY), the camera at its own, so everything drawn bends together and he drives the
    same streets he always did, round their curves. One smooth fold-free field (a slope well under 1), masked to the hoods it is
    tried in (stage 1-2: Old Town; stage 3: the whole city, The Flats lightly, eased to nothing at the city's perimeter). Long pieces drawn as one quad (a street's asphalt) are laid in short lengths
    while it is on, so they follow the curve. */
-const BEND = { on: new URLSearchParams(location.search).get("bend") === "1", amp: 0.2, lamX: 6.6, lamY: 5.4,
+const BEND = { on: new URLSearchParams(location.search).get("bend") !== "0",   // ON FOR EVERYONE (Sir, 2026-11-28); ?bend=0 is the kill-switch back to the straight grid
+  amp: 0.2, lamX: 6.6, lamY: 5.4,
   /* STAGE 3: the whole city. Full bend everywhere inside it, eased to nothing over `edge` blocks at its perimeter (the coast,
      the harbor, Sierra Vista, the hills and Mirador Heights meet it there and keep their places); THE FLATS (district 0,0) takes
      only `flats` of it, eased up to full over `flatsEase` blocks past its border streets (Sir: built, keep it close to as it is) */
