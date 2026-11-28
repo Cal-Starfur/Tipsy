@@ -104534,15 +104534,20 @@ function twkLurks(scene){
   TWK._lurks = { grid, list };
   return list;
 }
-/* THE HIDEOUT: a house in the Flats (the first hood), the one nearest TWK_CFG.hideD from Brew & Bolt's bay -- its front door, its path, and
+/* THE HIDEOUT: a house in the Flats (the first hood), the corner house of its south-east corner block -- its front door, its path, and
    the kerb in front of it on its own side of the street (once a grid) */
 function twkHideout(scene){
   const grid = scene.route && scene.route.grid; if(!grid || !grid.edges) return null;
   if(TWK.hide && TWK.hide.grid === grid) return TWK.hide;
   const B = msBay(scene); if(!B) return null;
   const flats = homeDoorsOf(grid).filter(d => { const h = hoodAtWorld(d.x, d.y); return h && HOODS.indexOf(h) === 0; });
-  let best = null, bs = Infinity;
-  for(const d of flats){ const s = Math.abs(Math.hypot(d.x - B.x, d.y - B.y) - TWK_CFG.hideD); if(s < bs){ bs = s; best = d; } }
+  /* AT THE FLATS' FAR EDGE (Sir, 2026-11-28: "move the tweekers house to the edge of the flats the current house is too close to brew and
+     bolt"): the Flats' south-east corner block, its corner house (962 Marina Way) -- else, as before, the house nearest hideD out */
+  let best = null;
+  { const fb = grid.blocks.filter(b => { const h = hoodAtWorld(b.cx, b.cy); return h && HOODS.indexOf(h) === 0; }), mi = Math.max(...fb.map(b => b.i)), mj = Math.max(...fb.map(b => b.j));
+    for(const d of flats) if(d.blockKey === mi + ',' + mj && (!best || d.x + d.y > best.x + best.y)) best = d; }
+  let bs = Infinity;
+  if(!best) for(const d of flats){ const s = Math.abs(Math.hypot(d.x - B.x, d.y - B.y) - TWK_CFG.hideD); if(s < bs){ bs = s; best = d; } }
   if(!best) return null;
   const e = best.e, al = best.along, kerb = edgePt(e, al, 120);
   const plan = twkPlanAt(scene, kerb.x, kerb.y, false, true);
