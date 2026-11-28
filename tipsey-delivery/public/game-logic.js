@@ -160148,7 +160148,7 @@ const WG_COAST = { EXT:0.55, SANDW:1.4, FOOTW:1.1, BOARD:0.15, MTN_BASIN:2.2,
    tried in (stage 1-2: Old Town; stage 3: the whole city, The Flats lightly, eased to nothing at the city's perimeter). Long pieces drawn as one quad (a street's asphalt) are laid in short lengths
    while it is on, so they follow the curve. */
 const BEND = { on: new URLSearchParams(location.search).get("bend") !== "0",   // ON FOR EVERYONE (Sir, 2026-11-28); ?bend=0 is the kill-switch back to the straight grid
-  amp: 0.2, lamX: 6.6, lamY: 5.4,
+  amp: 0.55, slope: 0.32, lamX: 6.6, lamY: 5.4,
   /* STAGE 3: the whole city. Full bend everywhere inside it, eased to nothing over `edge` blocks at its perimeter (the coast,
      the harbor, Sierra Vista, the hills and Mirador Heights meet it there and keep their places); THE FLATS (district 0,0) takes
      only `flats` of it, eased up to full over `flatsEase` blocks past its border streets (Sir: built, keep it close to as it is) */
@@ -160169,6 +160169,10 @@ let _bendTab = null;
 function bendTable(){
   if(_bendTab) return _bendTab;
   const st = 4, nx = BEND.cols*st + 1, ny = BEND.rows*st + 1, dx = new Float32Array(nx*ny), dy = new Float32Array(nx*ny);
+  { BEND._k = 1; let g = 0; const h = 1/st, f = (u, v) => { const q = bendXYExact(u*BLOCK, v*BLOCK); return [q.x/BLOCK - u, q.y/BLOCK - v]; };
+    for(let v = 0; v <= BEND.rows; v += h) for(let u = 0; u <= BEND.cols; u += h){ const a = f(u, v), b = f(u + h, v), c = f(u, v + h);
+      g = Math.max(g, Math.abs(b[0] - a[0])/h, Math.abs(b[1] - a[1])/h, Math.abs(c[0] - a[0])/h, Math.abs(c[1] - a[1])/h); }
+    BEND._k = g > BEND.slope ? BEND.slope/g : 1; BEND._slope = g*BEND._k; }
   for(let j = 0; j < ny; j++) for(let i = 0; i < nx; i++){ const x = i/st*BLOCK, y = j/st*BLOCK, q = bendXYExact(x, y); dx[j*nx + i] = q.x - x; dy[j*nx + i] = q.y - y; }
   return (_bendTab = { st, nx, ny, dx, dy });
 }
@@ -160182,12 +160186,23 @@ function bendXY(x, y){
   _bendOut.y = y + T.dy[o]*w00 + T.dy[o + 1]*w10 + T.dy[o + n]*w01 + T.dy[o + n + 1]*w11;
   return _bendOut;
 }
+/* THE FIELD, LAYERED (Sir, 2026-11-28: "it all follows the same wave and it seems too simple ... mix in some distortions"):
+   not one wave over the whole city but value noise at three scales -- a broad swell (~7 blocks), bends (~3), a wobble (~1.4,
+   faint) -- each axis its own, scaled by a slow "how curvy here" field (some quarters nearly straight, some bending hard).
+   The whole is scaled so its steepest stretch stays under BEND.slope (a street never turns back on itself, a block never
+   folds), measured once over the city when the table is built (bendTable). */
+function bendRaw(u, v){
+  const n = (cell, salt) => hillVN(u*BLOCK, v*BLOCK, cell*BLOCK, salt);
+  const curvy = 0.35 + 0.65*Math.max(0, Math.min(1, 0.5 + 0.9*n(9, 401)));
+  const dx = (0.62*n(7, 411) + 0.3*n(3.1, 413) + 0.08*n(1.4, 415))*curvy;
+  const dy = (0.62*n(6.5, 421) + 0.3*n(2.9, 423) + 0.08*n(1.3, 425))*curvy;
+  return [dx, dy];
+}
 function bendXYExact(x, y){
   const B = BLOCK, u = x/B, v = y/B; _bendOut.x = x; _bendOut.y = y;
   const m = bendMask(u, v); if(m <= 0) return _bendOut;
-  const A = BEND.amp*B*m, TAU = Math.PI*2;
-  _bendOut.x = x + A*(0.7*Math.sin(TAU*v/BEND.lamY + 0.9) + 0.3*Math.sin(TAU*(u + v)/9.1 + 2.1));
-  _bendOut.y = y + A*(0.7*Math.sin(TAU*u/BEND.lamX + 0.4) + 0.3*Math.sin(TAU*(u - v)/8.3 + 1.3));
+  const [dx, dy] = bendRaw(u, v), A = BEND.amp*B*m*(BEND._k || 1);
+  _bendOut.x = x + A*dx; _bendOut.y = y + A*dy;
   return _bendOut;
 }
 
