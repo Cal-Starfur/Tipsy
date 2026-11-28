@@ -112838,11 +112838,9 @@ class WorldScene extends Phaser.Scene {
   }
   /* world-space projection (camera tracks the bot on both iso axes + height) */
   W(x, y, z){
-    if(BEND.on || HILLS.on){ const x0 = x, y0 = y, z0 = z || 0;
-      if(BEND.on){ const b = bendXY(x, y); x = b.x; y = b.y; }              // THE BEND: each point at its bent place, fixed to the world
-      const zz = HILLS.on ? z0 + (this._hillLevel != null ? this._hillLevel : hillZ(x0, y0)) : z0;   // THE TOWN'S HILLS (preview): the ground's height there (a cached piece: its own spot's, level)
-      const xr = x - this.camX, yr = y - this.camY;                         // (the caches' painted chunks line up); the camera follows his drawn place
-      return { x:(xr - yr)*this.K + this.cx, y:((xr + yr)*0.5 - (zz - this.camZ))*this.K + this.cy, _wx: x0, _wy: y0, _wz: z0 }; }   // (its world point kept: quadOn lays a big piece in small ones)
+    if(BEND.on){ const x0 = x, y0 = y, b = bendXY(x, y); x = b.x; y = b.y;   // THE BEND (preview): each point at its bent place, fixed to the world
+      const xr = x - this.camX, yr = y - this.camY;                         // (so the caches' painted chunks line up); the camera follows his bent place
+      return { x:(xr - yr)*this.K + this.cx, y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy, _wx: x0, _wy: y0, _wz: z || 0 }; }   // (its world point kept: quadOn lays a big piece in small ones)
     const xr = x - this.camX, yr = y - this.camY;
     return { x:(xr - yr)*this.K + this.cx,
              y:((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy };
@@ -115249,10 +115247,10 @@ class WorldScene extends Phaser.Scene {
   quadOn(g, pts, color, alpha=1){
     /* THE BEND (preview): a piece big in the world is laid in small triangles, each corner at its own bent place, so a block's
        ground, a lawn, a long wall follows the curve instead of cutting across it */
-    if((BEND.on || HILLS.on) && !this._bendSub && pts.length >= 3 && pts[0]._wx !== undefined){
+    if(BEND.on && !this._bendSub && pts.length >= 3 && pts[0]._wx !== undefined){
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, ok = true;
       for(const p of pts){ if(p._wx === undefined){ ok = false; break; } if(p._wx < x0) x0 = p._wx; if(p._wx > x1) x1 = p._wx; if(p._wy < y0) y0 = p._wy; if(p._wy > y1) y1 = p._wy; }
-      if(ok && Math.max(x1 - x0, y1 - y0) > 420 && Math.max(x1 - x0, y1 - y0) < 8*BLOCK && x1 > 0 && y1 > 0 && x0 < 35*BLOCK && y0 < 26*BLOCK && ((HILLS.on && hillZ((x0 + x1)/2, (y0 + y1)/2) + hillZ(x0, y0) + hillZ(x1, y1) > 0) || bendMask(((x0 + x1)/2)/BLOCK, ((y0 + y1)/2)/BLOCK) + bendMask(x0/BLOCK, y0/BLOCK) + bendMask(x1/BLOCK, y1/BLOCK) > 0)){
+      if(ok && Math.max(x1 - x0, y1 - y0) > 420 && bendMask(((x0 + x1)/2)/BLOCK, ((y0 + y1)/2)/BLOCK) + bendMask(x0/BLOCK, y0/BLOCK) + bendMask(x1/BLOCK, y1/BLOCK) > 0){
         const Wp = p => [p._wx, p._wy, p._wz], tri = (a, b, c) => {
           const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]), ab = d(a, b), bc = d(b, c), ca = d(c, a), m = Math.max(ab, bc, ca);
           if(m > 380){ const mid = (p, q) => [(p[0] + q[0])/2, (p[1] + q[1])/2, (p[2] + q[2])/2];
@@ -115266,15 +115264,6 @@ class WorldScene extends Phaser.Scene {
       }
     }
     if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) return; }
-    /* THE TOWN'S HILLS: ground on a slope is shaded by the city's light (from +y and a touch of -x), so the hills read -- lit
-       where it falls toward the light, darker where it turns away. Only the ground (every point at z 0..3) */
-    if(HILLS.on && pts.length >= 3 && pts[0]._wx !== undefined && !this._hillLevel){
-      let cx = 0, cy = 0, ground = true;
-      for(const p of pts){ if(p._wz > 3 || p._wz < -1){ ground = false; break; } cx += p._wx; cy += p._wy; }
-      if(ground){ cx /= pts.length; cy /= pts.length; const e = 120, hx = (hillZ(cx + e, cy) - hillZ(cx - e, cy))/(2*e), hy = (hillZ(cx, cy + e) - hillZ(cx, cy - e))/(2*e);
-        const lam = Math.max(-0.3, Math.min(0.3, HILLS.shade*(0.29*hx - 0.96*hy)));
-        if(Math.abs(lam) > 0.004) color = shadeN(color, 1 + lam); }
-    }
     g.fillStyle(color, alpha);
     g.fillPoints(pts, false, false);
   }
@@ -116586,7 +116575,6 @@ class WorldScene extends Phaser.Scene {
     else if(rt.isTinted || rt.tintFill) rt.clearTint();
   }
   bcPaint(ax, ay, drawFn, measure){
-    if(HILLS.on && this._hillLevel == null){ this._hillLevel = hillZ(ax, ay); try { return this.bcPaint(ax, ay, drawFn, measure); } finally { this._hillLevel = null; } }   // (THE TOWN'S HILLS: a cached piece stands level on its own spot)
     const BC = BUILDING_CACHE, C = 20000;
     const sc = this._bcScratch || (this._bcScratch = this.bcBoundsGraphics());
     sc.clear(); sc.__b = [Infinity, Infinity, -Infinity, -Infinity]; sc.__occ = []; sc.__holes = [];
@@ -116650,7 +116638,6 @@ class WorldScene extends Phaser.Scene {
     return true;
   }
   bcPaintTile(e, ax, ay, drawFn, i, j){
-    if(HILLS.on && this._hillLevel == null){ this._hillLevel = hillZ(ax, ay); try { return this.bcPaintTile(e, ax, ay, drawFn, i, j); } finally { this._hillLevel = null; } }   // (THE TOWN'S HILLS: a cached piece stands level on its own spot)
     const T = BUILDING_CACHE.tile, C = e.C;
     const tx = e.bx + i*T, ty = e.by + j*T;
     const tw = Math.min(T, e.w - i*T), th = Math.min(T, e.hh - j*T);
@@ -123878,7 +123865,7 @@ class WorldScene extends Phaser.Scene {
   }
   /* world (x, y, z) to the screen, into the scratch point p (W without the new object) */
   turfPt(p, x, y, z = 0){
-    if(BEND.on || HILLS.on){ const w = this.W(x, y, z); p.x = w.x; p.y = w.y; p._wx = w._wx; p._wy = w._wy; p._wz = w._wz; return p; }   // (THE BEND: as W, so the lawn bends with the sidewalk)
+    if(BEND.on){ const w = this.W(x, y, z); p.x = w.x; p.y = w.y; p._wx = w._wx; p._wy = w._wy; p._wz = w._wz; return p; }   // (THE BEND: as W, so the lawn bends with the sidewalk)
     const xr = x - this.camX, yr = y - this.camY;
     p.x = (xr - yr)*this.K + this.cx; p.y = ((xr + yr)*0.5 - (z - this.camZ))*this.K + this.cy;
     return p;
@@ -145429,7 +145416,7 @@ class WorldScene extends Phaser.Scene {
     const camLead = (this._camLead === null || this._camLead === undefined) ? 95 : this._camLead;
     let camTargetX = this.botX + Math.cos(hdg)*camLead;
     let camTargetY = this.botY + Math.sin(hdg)*camLead;
-    let camTargetZ = this.botZ + (HILLS.on ? hillZ(this.botX, this.botY) : 0);   // (THE TOWN'S HILLS: on him at the ground's height)
+    let camTargetZ = this.botZ;
     /* IN THE AIR (Sir's P2: "view 2 while airborne, centred on the craft at its height"): the craft above the
        middle and the ground it flies over below it, so neither leaves the screen however high it is */
     if(this.ow && this.ow.on && flyAirborne(this.ow)){ const gz = flyTerrainZ(this, this.botX, this.botY); camTargetZ = gz + (this.botZ - gz)*0.6; }
@@ -160217,42 +160204,6 @@ function bendXYExact(x, y){
   const [dx, dy] = bendRaw(u, v), A = BEND.amp*B*m*(BEND._k || 1);
   _bendOut.x = x + A*dx; _bendOut.y = y + A*dy;
   return _bendOut;
-}
-
-/* ==================== THE TOWN'S HILLS (Sir, 2026-11-28: "is any of this giving us elevation change with it yet?" -- "lets try
-   it") ====================
-   A PREVIEW BEHIND ?hills=1. The town was flat at z 0. Now its ground has a height, as the bend gives it a curve: W adds the
-   ground's height at each world point, so the streets, sidewalks and lawns rise and fall together; a cached piece (a building, a
-   still prop) is laid level at its own spot's height (bcPaint); he, the cars and the people ride it as they are drawn; the camera
-   follows his height. Nothing underneath changes: the lattice, the collision, the routes. The shape: a broad rise toward the
-   north hills and the east range, rolling ground over it, a dip down to the river, The Flats nearly level, and nothing at the
-   city's edge (the coast, the harbor and the hills meet it at 0, as they always have). Read from a table (as the bend). */
-const HILLS = { on: new URLSearchParams(location.search).get("hills") === "1", amp: 700, roll: 260, shade: 5.5, riverDip: 0.85, riverW: 1.6 };
-let _hillTab = null;
-function hillZExact(u, v){
-  const e = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a)/(b - a))); return t*t*(3 - 2*t); };
-  const C = 35, Rr = 26;
-  const P = e(0, 2.2, u)*e(C, C - 2.2, u)*e(0, 2.2, v)*e(Rr, Rr - 2.2, v);
-  if(P <= 0) return 0;
-  const dx = Math.max(-u, 0, u - 9), dy = Math.max(-v, 0, v - 9), flats = 0.12 + 0.88*e(0, 2.5, Math.hypot(dx, dy));
-  const rise = 0.55*(1 - v/Rr) + 0.45*(u/C);                                   // up toward the north hills and the east range
-  const n = (cell, salt) => hillVN(u*BLOCK, v*BLOCK, cell*BLOCK, salt);
-  let h = HILLS.amp*rise*(0.75 + 0.25*n(8, 601)) + HILLS.roll*(0.65*n(5, 603) + 0.35*n(2.4, 605));
-  /* down to the river: the distance to its line of nodes */
-  let d = 99; for(let k = 0; k < RIVER_NODES.length - 1; k++){ const [a0, b0] = RIVER_NODES[k], [a1, b1] = RIVER_NODES[k + 1];
-    const L = Math.hypot(a1 - a0, b1 - b0) || 1, t = Math.max(0, Math.min(1, ((u - a0)*(a1 - a0) + (v - b0)*(b1 - b0))/(L*L)));
-    d = Math.min(d, Math.hypot(u - (a0 + (a1 - a0)*t), v - (b0 + (b1 - b0)*t))); }
-  h *= 1 - HILLS.riverDip*(1 - e(0, HILLS.riverW, d));
-  return Math.max(0, h)*P*flats;
-}
-function hillZ(x, y){
-  if(!_hillTab){ const st = 4, nx = 35*st + 1, ny = 26*st + 1, z = new Float32Array(nx*ny);
-    for(let j = 0; j < ny; j++) for(let i = 0; i < nx; i++) z[j*nx + i] = hillZExact(i/st, j/st);
-    _hillTab = { st, nx, ny, z }; }
-  const T = _hillTab, fu = x/BLOCK*T.st, fv = y/BLOCK*T.st;
-  if(fu <= 0 || fv <= 0 || fu >= T.nx - 1 || fv >= T.ny - 1) return 0;
-  const i = fu | 0, j = fv | 0, a = fu - i, b = fv - j, o = j*T.nx + i, n = T.nx;
-  return T.z[o]*(1 - a)*(1 - b) + T.z[o + 1]*a*(1 - b) + T.z[o + n]*(1 - a)*b + T.z[o + n + 1]*a*b;
 }
 
 /* ==================== THE PALMA RIVER (Sir, 2026-11-25: "that river is nice but the bridges need to connect and we dont want to
