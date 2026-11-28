@@ -4950,6 +4950,20 @@ const POLICE_CALL = {
    is a 24 x 34 box, u across and v up from the baseline; `cut` is a
    counter, painted in the ground colour because a filled polygon cannot
    carry a hole. */
+/* TIPSEY'S OWN FACE (tools/tipsey_lettering.js, the app icons' letters -- Sir, 2026-11-28: "can we use our new font for Tipsey to
+   be on the side of the van instead of the generic font?"): heavy stems, the lid's chamfer cut from each letter's top-left and
+   bottom-right; w wide, 10 tall, x across and y DOWN from the cap top; p its outline and any counters after it (filled in the ground
+   colour over it). The icon's style: the game's orange inside, outlined in the hull's line colour with a solid drop of it under each
+   letter (TIPSEY_FACE_STYLE: lineW, dropY in its own units). The same table as the tool's: change both together */
+const TIPSEY_FACE = {
+  I:{w:2.5,p:[[[1.2,0],[2.5,0],[2.5,8.8],[1.3,10],[0,10],[0,1.2]]]},
+  T:{w:7,p:[[[1.2,0],[7,0],[7,2.4],[4.75,2.4],[4.75,8.8],[3.55,10],[2.25,10],[2.25,2.4],[0,2.4],[0,1.2]]]},
+  E:{w:6,p:[[[1.2,0],[6,0],[6,2.3],[2.5,2.3],[2.5,3.85],[5.3,3.85],[5.3,6.15],[2.5,6.15],[2.5,7.7],[6,7.7],[6,8.8],[4.8,10],[0,10],[0,1.2]]]},
+  Y:{w:7,p:[[[0,1.2],[1.2,0],[2.7,0],[3.6,3.4],[4.5,0],[7,0],[4.75,5.4],[4.75,8.8],[3.55,10],[2.25,10],[2.25,5.4]]]},
+  P:{w:6.4,p:[[[1.2,0],[5,0],[6.4,1.4],[6.4,4.8],[5,6.2],[2.5,6.2],[2.5,8.8],[1.3,10],[0,10],[0,1.2]],[[2.5,2.2],[3.9,2.2],[3.9,4.0],[2.5,4.0]]]},
+  S:{w:6.2,p:[[[1.2,0],[6.2,0],[6.2,2.3],[2.5,2.3],[2.5,3.85],[5,3.85],[6.2,5.05],[6.2,8.8],[5,10],[0,10],[0,7.7],[3.7,7.7],[3.7,6.15],[1.2,6.15],[0,4.95],[0,1.2]]]}
+};
+const TIPSEY_FACE_STYLE = { fill: 0xff7a1a, line: 0x30343d, gap: 1, dropY: 0.7 };
 const TIPSEY_GLYPHS = {
   T: { out: [[0,27],[8.5,27],[8.5,0],[15.5,0],[15.5,27],[24,27],[24,34],[0,34]] },
   I: { out: [[0,0],[24,0],[24,7],[15.5,7],[15.5,27],[24,27],[24,34],[0,34],
@@ -11147,7 +11161,8 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
      -- lf +1 where that side faces him, -1 where it is the far one and he walks round the nose */
   const lf = (T.y*n.x - T.x*n.y) > 0 ? 1 : -1;
   const doors = [{ x: P.x + n.x*out*lf + T.x*30, y: P.y + n.y*out*lf + T.y*30 },   // the cab door, the driver's
-                 { x: P.x + n.x*out - T.x*70, y: P.y + n.y*out - T.y*70 }];    // the side door
+                 { x: P.x - n.x*out*lf + T.x*30, y: P.y - n.y*out*lf + T.y*30 }];  // the passenger's, the other side of the cab
+  const farDoor = i => i ? lf > 0 : lf < 0;   // (the one whose door is on the far side from him walks round the nose)
   const nose = (k) => ({ x: P.x + T.x*(CARC.len/2 + 40) + n.x*out*k, y: P.y + T.y*(CARC.len/2 + 40) + n.y*out*k });
   const roundNose = (path) => [path[0], nose(-1), nose(1), ...path.slice(1)];
   /* A TOW LOADS AT THE BACK: the two of them carry him to the rear doors,
@@ -11177,7 +11192,7 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   /* a walk found round what is in the way (OFF THE GRID): the shared way,
      past the van's side and short of him; each goes on to their own spot */
   const mid = !via && plan.walk ? plan.walk.slice(1, -1) : null;
-  const pathOut = [0, 1].map(i => { const l = lane(i); const q = l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; return i || lf > 0 ? q : roundNose(q); });
+  const pathOut = [0, 1].map(i => { const l = lane(i); const q = l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; return farDoor(i) ? roundNose(q) : q; });
   const far = Math.max(polyLen(pathOut[0]), polyLen(pathOut[1]));
   /* the cap is for open ground; the walk round through an alley, or a
      found one, is paced to its real length -- jogged when it is long */
@@ -11195,7 +11210,7 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   }
   const wayBack = mid ? mid.slice().reverse() : null;
   const pathBack = [0, 1].map(i => { const l = lane(i); const q = l ? [spots[i], l[1], l[0], ends[i]] : wayBack ? [spots[i], ...wayBack, ends[i]] : [spots[i], ends[i]];
-    return i || loads || lf > 0 ? q : [...q.slice(0, -1), nose(1), nose(-1), q[q.length - 1]]; });   // (a tow: the rear doors, not his door)
+    return loads || !farDoor(i) ? q : [...q.slice(0, -1), nose(1), nose(-1), q[q.length - 1]]; });   // (a tow: the rear doors, not his door)
   /* a tow carried out through the alley (or along a found walk): him down
      its middle, one of them ahead and one behind -- three abreast does not
      fit an alley, nor a dock */
@@ -45715,18 +45730,25 @@ function errandCab(e, t){
    the wheel, seen through its glass, while they are aboard (on a street call, the crew member who leaves by the cab door: crew 0),
    and that door -- the driver's, on the left (DRIVER_B) -- swung open as they get out and back in. { rider, door 0..1 } */
 const CREW_DOOR = { before: 500, open: 450, after: 650, shut: 500 };
-function crewDriverLook(){
-  if(!crewDriverLook.c){ const b = rosterBody(0x7c0e), U = withAid(TIPSY_CREW_UNIFORM, b);
-    crewDriverLook.c = { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; }
-  return crewDriverLook.c;
+/* (Sir, 2026-11-28: "the robot should be getting out of the passenger door of the crew van and he should be drawn if he is present and
+   if its a different crew member they should be in the passenger seat"): the second, crew 1, rides beside the driver and leaves by the
+   passenger's cab door (the right) -- the humanoid (RESCUE_BOT, v.bot 1) on his own body, or the second of the crew */
+const CREW_LOOKS = new Map();
+function crewDriverLook(i){
+  i = i || 0; let L = CREW_LOOKS.get(i);
+  if(!L){ const b = rosterBody(0x7c0e + i*977), U = withAid(TIPSY_CREW_UNIFORM, b);
+    L = { build: b.build, skin: b.skin, hair: b.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }; CREW_LOOKS.set(i, L); }
+  return L;
 }
+const CREW_BOT_LOOK = { build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT, uniform: HUMANOID_SKIN, dress: null };
 function rescueVanCab(v, t){
-  const L = crewDriverLook(), c = v && v.crew, u = rescueClock(v, t);
-  if(!c || !c.cabDoor || v.trip || v.aidCrew) return { rider: c && u > c.exit && !(u > c.back1) ? null : L, door: 0 };
+  const L = crewDriverLook(0), LP = v && v.bot === 1 ? CREW_BOT_LOOK : crewDriverLook(1), c = v && v.crew, u = rescueClock(v, t);
+  if(!c || !c.cabDoor || v.trip || v.aidCrew){ const away = c && u > c.exit && !(u > c.back1); return { rider: away ? null : L, passenger: away ? null : LP, door: 0, doorP: 0 }; }
   const D = CREW_DOOR, sm = k => { k = Math.max(0, Math.min(1, k)); return k*k*(3 - 2*k); };
   const oOut = Math.min(sm((u - (c.exit - D.before))/D.open), 1 - sm((u - (c.exit + D.after))/D.shut));
   const b = c.back1, oIn = Math.min(sm((u - (b - D.before - D.open))/D.open), 1 - sm((u - (b + 150))/D.shut));
-  return { rider: u < c.exit || u > b ? L : null, door: Math.max(0, oOut, oIn) };
+  const inCab = u < c.exit || u > b, door = Math.max(0, oOut, oIn);
+  return { rider: inCab ? L : null, passenger: inCab ? LP : null, door, doorP: door };
 }
 /* off the site and on to the loop it joins, its hold set so the loop has
    it exactly where the path left it at tEnd */
@@ -60549,13 +60571,16 @@ function houseCanopy(fn){
       };
       poly([P3(cpt(DOOR[0],-8),DH+33), P3(cpt(DOOR[1],-8),DH+33),
             P3(cpt(DOOR[1],-8),DH+77), P3(cpt(DOOR[0],-8),DH+77)], trim);   // (its top 1 under the fascia's foot, H-18)
-      { const GL = TIPSEY_GLYPHS;
-        const ink = brand, d0 = DOOR[0]*LCH + 5.4, z0 = DH + 39;
-        'TIPSEY'.split('').forEach((ch, i) => {
-          const g = GL[ch], sh = ([u,v]) => [d0 + i*27 + u, z0 + v];
-          cprism(g.out.map(sh), -15, -8.4, ink, shade(ink,.66), shade(ink,1.22));
-          if(g.cut) poly(g.cut.map(pt => P3(cd(sh(pt)[0], -15.4), sh(pt)[1])), trim);
-        });
+      /* (Sir, 2026-11-28: "lets get that same font our our tipsey garage instead of the generic font we have now"): Tipsey's own face
+         (TIPSEY_FACE, the app icons' and the crew van's), 34 tall, the word centred on the 169.7 band, each letter raised off it as
+         before -- its outline swept out, its counter laid on its face in the band's trim */
+      { const FS = TIPSEY_FACE_STYLE, WORD = 'TIPSEY', sc = 3.4, units = [...WORD].reduce((n, c) => n + TIPSEY_FACE[c].w, 0) + FS.gap*(WORD.length - 1);
+        const ink = brand, d0 = DOOR[0]*LCH + (169.7 - units*sc)/2, z0 = DH + 39;
+        let x0 = 0;
+        for(const ch of WORD){ const g = TIPSEY_FACE[ch], [out, ...cuts] = g.p, sh = ([x, y]) => [d0 + (x0 + x)*sc, z0 + (10 - y)*sc];
+          cprism(out.map(sh), -15, -8.4, ink, shade(ink,.66), shade(ink,1.22));
+          for(const c of cuts) poly(c.map(pt => P3(cd(sh(pt)[0], -15.4), sh(pt)[1])), trim);
+          x0 += g.w + FS.gap; }
       }
     }
 
@@ -121059,19 +121084,19 @@ class WorldScene extends Phaser.Scene {
       else if(this.visProp("tipseyvan", v.x, v.y, v.z || 0)){
         /* its driver at the wheel and the cab door (rescueVanCab); the open door after the van at its nearest corner on the near flank,
            before it at its farthest on the far one (as an errand car's) */
-        const cab = rescueVanCab(this._rescueVan, this.time.now), vdat = { beacon: true, cabin: { rider: cab.rider } };
-        let dAt = null;
-        if(cab.door > 0.001){
-          const DW = carDoorWay("tipseyvan", 1.05), th = v.fdir*Math.PI/2, ch = Math.cos(th), sh = Math.sin(th), eb = ch - sh;
-          if(DW && Math.abs(eb) > 0.12){
-            const Wp = ([a, o]) => ({ x: v.x + a*ch - DRIVER_B*o*sh, y: v.y + a*sh + DRIVER_B*o*ch }), hp = Wp(DW.hinge), tp = Wp(DW.tip);
-            const near = (eb > 0 ? 1 : -1) === DRIVER_B, hi = hp.x + hp.y >= tp.x + tp.y, m = near ? (hi ? hp : tp) : (hi ? tp : hp), e = near ? 0.5 : -0.5;
-            vdat.doorOpen = cab.door; vdat.doorOut = {}; dAt = { x: m.x + e, y: m.y + e };
-          }
+        const cab = rescueVanCab(this._rescueVan, this.time.now), vdat = { beacon: true, cabin: { rider: cab.rider, passenger: cab.passenger } };
+        /* both cab doors: the driver's (doorOpen, the left) and the passenger's (doorOpenP, the right), each queued at its own corner */
+        const dAts = [];
+        const th = v.fdir*Math.PI/2, ch = Math.cos(th), sh = Math.sin(th), eb = ch - sh, DW = carDoorWay("tipseyvan", 1.05);
+        for(const [amt, sg, key, okey] of [[cab.door, DRIVER_B, 'doorOpen', 'doorOut'], [cab.doorP, -DRIVER_B, 'doorOpenP', 'doorOutP']]){
+          if(!(amt > 0.001) || !DW || Math.abs(eb) <= 0.12) continue;
+          const Wp = ([a, o]) => ({ x: v.x + a*ch - sg*o*sh, y: v.y + a*sh + sg*o*ch }), hp = Wp(DW.hinge), tp = Wp(DW.tip);
+          const near = (eb > 0 ? 1 : -1) === sg, hi = hp.x + hp.y >= tp.x + tp.y, m = near ? (hi ? hp : tp) : (hi ? tp : hp), e = near ? 0.5 : -0.5;
+          vdat[key] = amt; vdat[okey] = {}; dAts.push({ x: m.x + e, y: m.y + e, okey });
         }
         blockVQ.push({ depth: v.x + v.y, fn: (g, tt) => this.drawProp(layerFor(v.x, v.y), "tipseyvan", v.x, v.y, tt, v.fdir, v.z || 0, v.wheel, null, vdat) });
-        if(dAt) blockVQ.push({ depth: dAt.x + dAt.y, fn: (g, tt) => { if(!vdat.doorOut.fn) this.vehDoorPrime("tipseyvan", v.x, v.y, v.z || 0, tt, v.fdir, v.wheel, null, vdat);
-          if(vdat.doorOut.fn) vdat.doorOut.fn(layerFor(dAt.x, dAt.y)); } });
+        for(const dA of dAts) blockVQ.push({ depth: dA.x + dA.y, fn: (g, tt) => { if(!vdat[dA.okey].fn) this.vehDoorPrime("tipseyvan", v.x, v.y, v.z || 0, tt, v.fdir, v.wheel, null, vdat);
+          if(vdat[dA.okey].fn) vdat[dA.okey].fn(layerFor(dA.x, dA.y)); } });
       }
       /* ...and its crew, while they are out of it */
       const crew = v && rescueCrewAt(this._rescueVan, this.time.now);
@@ -134889,15 +134914,18 @@ class WorldScene extends Phaser.Scene {
       /* the far seat first, then the near one; the driver (DRIVER_B) and the wheel with their own seat */
       const seats = (nearB > 0 ? [[-wb + 2, -4, -1], [4, wb - 2, 1]] : [[4, wb - 2, 1], [-wb + 2, -4, -1]]).map(q => [q[0], q[1], q[2] === DRIVER_B]);
       for(const s of seats) base(s[0], s[1]);
-      if(noseSeen){ for(const s of seats){ back(s[0], s[1]); if(s[2]){ driver(); wheel(); } } dash(); }
-      else { dash(); for(const s of seats){ if(s[2]){ wheel(); driver(); } back(s[0], s[1]); } }
+      /* the passenger (data.cabin.passenger: a look -- the crew's second, the robot on his body as well), hands in the lap */
+      const RP = data && data.cabin && data.cabin.passenger, bp = -DRIVER_B*(hw - 19);
+      const pass = () => { if(RP) this.vehRider(g, x, y, z, fdir, fs - 2, bp, fl, RP, { sit: Zc - fl, reach: [16, RP.build.legH + 8] }, hull); };
+      if(noseSeen){ for(const s of seats){ back(s[0], s[1]); if(s[2]){ driver(); wheel(); } else pass(); } dash(); }
+      else { dash(); for(const s of seats){ if(s[2]){ wheel(); driver(); } else pass(); back(s[0], s[1]); } }
     } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; }
   }
   /* data.doorOpen (0..1): THE DRIVER'S CAB DOOR SWUNG OPEN on its front hinge (drawCar's door on the van). The opening is the door's
      own: its panel from the sill (over the front arch, from the arch's top) up to the cab window, and the window to its top -- the
      A-pillar along the screen's rake and the roof rail over it left whole; the cab seen in it (vanCabIn); then the door out from the
      flank, whole, its glass see-through, the mirror on its front corner going with it */
-  vanDoorOpen(g, KV, k){
+  vanDoorOpen(g, KV, k, pass){
     const { P, sees } = KV, { hl, cz, V, aC, aB, aRake, nearB, fb, h0, h1, L, CR, data } = k;
     const aD0 = aB - 2, aH = aC, dw = aH - aD0, hS = cz + V.sill, hA = 2*cz + 6;
     const aN = Math.max(aD0, Math.min(aC, V.wheelA[1]*hl - (cz + 4) - 2));                   // (the front arch's back edge: the door's foot steps up over it)
@@ -134906,10 +134934,11 @@ class WorldScene extends Phaser.Scene {
     const pieces = lows.map(([a0, a1, hb]) => [[a0, hb], [a1, hb], [a1, h0], [a0, h0]]).concat([winAH]);
     /* THE DRIVER'S DOOR (DRIVER_B, the left): on the near flank the opening and the cab in it; on the far flank the door alone, swung
        out behind the van -- drawn before it through data.doorOut (as drawCar's), or not at all */
-    const sD = DRIVER_B, dNear = sD === nearB, fbD = sD*Math.abs(fb);
-    if(!dNear && !data.doorOut) return;
+    /* (pass: the passenger's door, the right -- data.doorOpenP, drawn through data.doorOutP) */
+    const sD = pass ? -DRIVER_B : DRIVER_B, dNear = sD === nearB, fbD = sD*Math.abs(fb), dOut = pass ? data.doorOutP : data.doorOut;
+    if(!dNear && !dOut) return;
     if(dNear) for(const pc of pieces) this.vanCabIn(g, KV, k, pc.map(([a, h]) => P(a, fb, h)), true);
-    const ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang);
+    const ang = Math.min(1, pass ? data.doorOpenP : data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang);
     const D = (a, h, o) => { const u = aH - a; return P(aH - u*ca, fbD + sD*(u*sa + (o || 0)), h); };
     const outer = sees(sa, sD*ca, 0);                                                         // (its outside to the eye, or its inside)
     const drawDoor = gg => { const Q = (pts, c, aa) => this.quadOn(gg, pts, c, aa);
@@ -134923,7 +134952,7 @@ class WorldScene extends Phaser.Scene {
       Q([D(aD0, hS), D(aD0, h1), D(aD0, h1, -2.5), D(aD0, hS, -2.5)], L.bodyDk);   // its rear edge, its thickness
       Q([D(aC - 6, k.hH + 8, 7), D(aC - 1, k.hH + 8, 7), D(aC - 1, k.hH + 20, 7), D(aC - 6, k.hH + 20, 7)], k.trim);   // the mirror, on its front corner
     };
-    if(data.doorOut) data.doorOut.fn = drawDoor; else drawDoor(g);
+    if(dOut) dOut.fn = drawDoor; else drawDoor(g);
   }
   drawVan(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     data = vehGlassData(kind, data);   // (the glass see-through, the cab empty unless someone is in it)
@@ -135024,7 +135053,7 @@ class WorldScene extends Phaser.Scene {
     /* data.cabin / data.doorOpen: the cab seen in through its glass, its door swung open (vanCabIn, vanDoorOpen) */
     const cabWin = VK && VK.cabWin ? [hH + VK.cabWin[0], hH + VK.cabWin[1]] : [hH + 6, hW - 12];
     const ck = { hl, hw, hH, hW, hR, cz, V, aC, aB, aRake, nearB, noseSeen, data, x, y, z, fdir, fb, L, CR, trim, h0: cabWin[0], h1: cabWin[1] };
-    const cab = !!(data && data.cabin) && !edgeOn, door = !!(data && data.doorOpen > 0.01) && !edgeOn;
+    const cab = !!(data && data.cabin) && !edgeOn, door = !!(data && data.doorOpen > 0.01) && !edgeOn, doorP = !!(data && data.doorOpenP > 0.01) && !edgeOn;   // (doorP: the passenger's cab door, the other flank's)
     if(!edgeOn){
       const [cw0, cw1] = VK && VK.cabWin ? [hH + VK.cabWin[0], hH + VK.cabWin[1]] : [hH + 6, hW - 12];
       const h0 = cw0, h1 = cw1;
@@ -135081,27 +135110,28 @@ class WorldScene extends Phaser.Scene {
         const [s0, s1] = V.stripe;
         Q([P(-hl, fb, s0), P(aC, fb, s0), P(aC, fb, s1), P(-hl, fb, s1)], L.brand);
         Q([P(aJ, fbH, s0), P(hl, fbH, s0), P(hl, fbH, s1), P(aJ, fbH, s1)], L.brand);
-        /* TIPSEY across the cargo panel, condensed to fit it: six 24-wide
-           letters squeezed to su across, full 34 tall, and read the right
-           way round from whichever side is shown -- along +a when +a runs
-           to the right on screen, along -a when it does not. */
-        const panelA0 = -hl + 8, panelA1 = aB - 8, hBase = s1 + 14;
-        const pitch = (panelA1 - panelA0) / (6 - 0.1), su = (pitch*0.9) / 24;
+        /* TIPSEY across the cargo panel in Tipsey's own face (TIPSEY_FACE, the app icons' letters), 34 tall, condensed only as far as
+           the panel needs, read the right way round from whichever side is shown -- along +a when +a runs to the right on screen, along -a
+           when it does not. Each letter: its drop in the line colour, the orange, its counter in the van's paint, then its outline */
+        const FS = TIPSEY_FACE_STYLE, WORD = 'TIPSEY', units = [...WORD].reduce((n, c) => n + TIPSEY_FACE[c].w, 0) + FS.gap*(WORD.length - 1);
+        const panelA0 = -hl + 8, panelA1 = aB - 8, hBase = s1 + 14, sv = 3.4, su = Math.min(sv, (panelA1 - panelA0)/units);
         const pa = P(1, fb, hBase), po = P(0, fb, hBase);
         const dir = (pa.x - po.x) >= 0 ? 1 : -1;
-        const aStart = dir > 0 ? panelA0 : panelA1;
-        const at = (i, u, v) => P(aStart + dir*(i*pitch + u*su), fb*1.002, hBase + v);
-        'TIPSEY'.split('').forEach((ch, i) => {
-          const gl = TIPSEY_GLYPHS[ch];
-          Q(gl.out.map(([u, v]) => at(i, u, v)), L.brand);
-          if(gl.cut) Q(gl.cut.map(([u, v]) => at(i, u, v)), L.body);
-        });
+        const aMid = (panelA0 + panelA1)/2, aStart = aMid - dir*units*su/2;
+        const at = (x0, u, v, dv) => P(aStart + dir*(x0 + u)*su, fb*1.002, hBase + (10 - v - (dv || 0))*sv);
+        let x0 = 0;
+        for(const ch of WORD){ const gl = TIPSEY_FACE[ch], [out, ...cuts] = gl.p;
+          Q(out.map(([u, v]) => at(x0, u, v, -FS.dropY)), FS.line);                                    // the drop, under it
+          Q(out.map(([u, v]) => at(x0, u, v)), FS.fill);                                                // the letter
+          for(const c of cuts){ Q(c.map(([u, v]) => at(x0, u, v)), L.body); E(c.map(([u, v]) => at(x0, u, v)), FS.line); }   // its counter
+          E(out.map(([u, v]) => at(x0, u, v)), FS.line);                                                // its outline
+          x0 += gl.w + FS.gap; }
       }
       if(VK) this.drawVanDress(VK, has, { P, Q, F, rect, disc, word, line, solid, prismH, shadeC, L, CR, V, fb, fbH, aJ, nearB, hl, hw, cz, hR, hW, hH, aC, aW, aB, aRise, bd0, bd1, trim, t, data, g, vx: x, vy: y, vz: z, fdir });
       /* the mirror, on the door's front corner */
       const m = [P(aC - 6, fb + nearB*7, hH + 8), P(aC - 1, fb + nearB*7, hH + 8),
                  P(aC - 1, fb + nearB*7, hH + 20), P(aC - 6, fb + nearB*7, hH + 20)];
-      if(!door || DRIVER_B !== nearB) Q(m, trim);              // (an open door on this flank carries it: vanDoorOpen)
+      if(!((door && DRIVER_B === nearB) || (doorP && -DRIVER_B === nearB))) Q(m, trim);   // (an open door on this flank carries it: vanDoorOpen)
     }
 
     /* ---- the windscreen, inset in its frame ---- */
@@ -135163,6 +135193,7 @@ class WorldScene extends Phaser.Scene {
 
     if(!edgeOn) for(const fa of V.wheelA) wheel(fa*hl, cz, nearB);
     if(door) this.vanDoorOpen(g, KV, ck);
+    if(doorP) this.vanDoorOpen(g, KV, ck, true);
 
     /* ---- ON THE ROOF (2026-10-11, the second pass) ---- */
     if(!liv && (!VK || has("rails"))){                         // the civilian van's roof rails on their feet
