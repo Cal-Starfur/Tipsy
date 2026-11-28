@@ -158456,15 +158456,27 @@ function drawRobotMarker(ctx, x, y, yaw){
     ctx.fill();
     ctx.restore();
   }
-  ctx.fillStyle = "#f7f8fa"; ctx.strokeStyle = "#30343d"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.rect(-7, -6, 14, 12); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#22242b";
-  ctx.fillRect(-5, -3, 10, 4);
+  /* HIM, FROM ABOVE (2026-11-28, the art pass after the loader took the game's own Tipsey): the box face is gone; the marker is
+     his plan, turned with him -- the chamfered hull (BODY's hx, hy, ch) in the hull's grey, his lid in its white, the red band
+     round it, the visor and its two eyes across his nose, his wheels either side, the flag's orange dot over its pole at the
+     back corner (ROBOT_FLAG's base). In screen pixels, so it reads at any zoom; facing down the screen with no heading */
+  const hd = (yaw !== null && yaw !== undefined && Number.isFinite(yaw)) ? yaw : Math.PI/2;
+  ctx.rotate(hd);
+  const sc = 0.32, oct = (hx, hy, ch) => { ctx.beginPath(); ctx.moveTo((-hx + ch)*sc, -hy*sc); ctx.lineTo((hx - ch)*sc, -hy*sc);
+    ctx.lineTo(hx*sc, (-hy + ch)*sc); ctx.lineTo(hx*sc, (hy - ch)*sc); ctx.lineTo((hx - ch)*sc, hy*sc); ctx.lineTo((-hx + ch)*sc, hy*sc);
+    ctx.lineTo(-hx*sc, (hy - ch)*sc); ctx.lineTo(-hx*sc, (-hy + ch)*sc); ctx.closePath(); };
+  ctx.fillStyle = "#24262c";                                              // the wheels, three a side
+  for(const wx of [-16, 0, 16]) for(const sd of [-1, 1]) ctx.fillRect((wx - 5)*sc, (sd > 0 ? 23 : -29)*sc, 10*sc, 6*sc);
+  ctx.lineJoin = "round";
+  oct(30, 24, 7); ctx.fillStyle = "#c2452e"; ctx.fill();              // the band, just proud of the hull
+  oct(26, 20, 5); ctx.fillStyle = "#e3e6ea"; ctx.fill(); ctx.strokeStyle = "#30343d"; ctx.lineWidth = 1; ctx.stroke();
+  oct(19, 15.5, 4); ctx.fillStyle = "#f7f8fa"; ctx.fill();                // the lid
+  ctx.fillStyle = "#22242b"; ctx.fillRect(19.5*sc, -13*sc, 7.5*sc, 26*sc);    // the visor across his nose
   ctx.fillStyle = "#7fe3ff";
-  ctx.beginPath(); ctx.arc(-2.5, -1, 1, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, -1, 1, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = "#c2452e";
-  ctx.fillRect(-7, 3, 14, 3);
+  ctx.beginPath(); ctx.arc(23.2*sc, -6*sc, 1.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(23.2*sc, 6*sc, 1.1, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#2e3138"; ctx.beginPath(); ctx.arc(-24*sc, 16*sc, 1.6, 0, Math.PI*2); ctx.fill();   // the flag: its pole
+  ctx.fillStyle = "#ff5722"; ctx.beginPath(); ctx.moveTo(-24*sc, 16*sc); ctx.lineTo(-24*sc - 6, 16*sc - 1.5); ctx.lineTo(-24*sc - 1, 16*sc - 4.5); ctx.closePath(); ctx.fill();
   ctx.restore();
 }
 /* Dismissed by the FIRST successful drawRouteMap, because that is the
