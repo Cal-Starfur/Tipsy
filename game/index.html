@@ -141557,6 +141557,9 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
           }
         }
+        /* THE OPENING UNDER THE LID (Sir, 2026-11-28: "this top dark green strip should be black its supposed to be the opening"):
+           shut, the gap between the barrel's top and the lid's lip is the slot you drop into -- a dark ring, the arc the eye sees */
+        if(HB === H && phi < BIN_HIT.phiBal) this.arcStrip(g, binP, binN, H - 4*bs, binR(H - 4*bs) + 0.3, H, binR(H) + 0.3, 0, B.liner);
         /* liner lip: camera-facing test, same pattern used everywhere
            else in this projection (rotated local normal dotted with
            the view direction) */
@@ -141567,10 +141570,8 @@ class WorldScene extends Phaser.Scene {
       const lidOpen = phi >= BIN_HIT.phiBal;
       const blid = () => {
         if(!lidOpen){
-          /* THE OPENING (Sir, 2026-11-28: "this top dark green strip should be black its supposed to be the opening"): the ring round
-             the domed lid is the slot you drop into, dark as the liner, not the lid's own green */
           const rim = place(H, B.lidR, 14);
-          this.quadOn(g, rim, B.liner);
+          this.quadOn(g, rim, B.lidDk);
           const dome = [];
           for(let i=0; i<12; i++){
             const psi = (i/12)*Math.PI*2, r2 = B.lidR*0.82;
