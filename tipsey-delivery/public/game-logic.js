@@ -104509,20 +104509,21 @@ function twkPlanAt(scene, x, y, avoid, toward){
   return rescueSlot(scene, best.e, best.s, side, x, y, avoid ? { x, y } : null);
 }
 /* THE LURKS: one a district, as William's (cityWilliamPick's way: the district's own blocks, shuffled off its own seed), the van at
-   the kerb in front of the first housing block that gives a slot; built once a grid */
+   the kerb in front of the first block that gives a slot (any street, a pavement behind it, inside the district); built once a grid */
 function twkLurks(scene){
   const grid = scene.route && scene.route.grid; if(!grid || !grid.blocks || !grid.edges) return [];
   if(TWK._lurks && TWK._lurks.grid === grid) return TWK._lurks.list;
   const list = [];
   for(let d = 0; d < DISTRICT_COLS*DISTRICT_ROWS; d++){
     const dc = d % DISTRICT_COLS, dr = Math.floor(d / DISTRICT_COLS), i0 = dc*DISTRICT_W, i1 = i0 + DISTRICT_W - 1, j0 = dr*DISTRICT_H, j1 = j0 + DISTRICT_H - 1;
-    const pool = grid.blocks.filter(b => b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1 && b.type === 'housing' && isFinite(b.cx))   // (a residential street: houses, not a car park's deck in front of the van)
+    const pool = grid.blocks.filter(b => b.i >= i0 && b.i <= i1 && b.j >= j0 && b.j <= j1 && isFinite(b.cx))   // (any street: Sir, 2026-11-28, "the housing street is a bad rule it can be any street")
       .sort((a, b) => a.j - b.j || a.i - b.i);
     const rng = mulberry32(((d*2654435761) ^ 0x7e3e7) >>> 0);
     for(let k = pool.length - 1; k > 0; k--){ const r = Math.floor(rng()*(k + 1)), t = pool[k]; pool[k] = pool[r]; pool[r] = t; }
     for(const b of pool.slice(0, 20)){
       const plan = twkPlanAt(scene, b.cx, b.y0 - 60, false);   // (its north street: the kerb nearest the eye is the block's own, the door to its pavement)
       if(!plan || list.some(L => Math.hypot(L.plan.P.x - plan.P.x, L.plan.P.y - plan.P.y) < 3000)) continue;
+      { const hd = hoodAtWorld(plan.P.x, plan.P.y); if(hd && HOODS.indexOf(hd) !== d) continue; }   // (in its own district: the Flats' van had landed over the line in the Boardwalk)
       const door = twkDoorOf(plan.P, plan.fd), W = scene.ow && scene.ow.world;
       if(W && W.surfaceAt){ const q = k => W.surfaceAt(door.x + door.n.x*60 + door.T.x*k, door.y + door.n.y*60 + door.T.y*k);   // (a pavement behind it, not a lot or a park)
         if(q(0) !== 'sidewalk' || q(-500) !== 'sidewalk' || q(500) !== 'sidewalk') continue; }
