@@ -158908,7 +158908,7 @@ function tpMiniDraw(scene){
   const yaw = (scene.ow && scene.ow.on) ? scene.ow.yaw : scene.drawAngle;
   const yawS = Number.isFinite(yaw)
     ? gpsScreenAng(Math.cos(yaw), Math.sin(yaw)) : null;
-  drawRobotMarker(ctx, W/2, H/2, yawS, 0.13);   // (the minimap: a road's width, Sir 2026-11-28)
+  drawRobotMarker(ctx, W/2, H/2, yawS, 0.095);   // (the minimap: a road's width, Sir 2026-11-28)
 
   /* compass needle: on a screen-aligned map north is a direction, not a
      corner, so the tick has to point. World north is -y, which this
@@ -158978,7 +158978,7 @@ function drawRobotMarker(ctx, x, y, yaw, size){
   for(const wx of [-16, 0, 16]) for(const sd of [-1, 1]) ctx.fillRect((wx - 5)*sc, (sd > 0 ? 23 : -29)*sc, 10*sc, 6*sc);
   ctx.lineJoin = "round";
   oct(30, 24, 7); ctx.fillStyle = "#c2452e"; ctx.fill();              // the band, just proud of the hull
-  oct(26, 20, 5); ctx.fillStyle = "#e3e6ea"; ctx.fill(); ctx.strokeStyle = "#30343d"; ctx.lineWidth = sc < 0.18 ? 0.7 : 1; ctx.stroke();
+  oct(26, 20, 5); ctx.fillStyle = "#e3e6ea"; ctx.fill(); ctx.strokeStyle = "#30343d"; ctx.lineWidth = sc < 0.12 ? 0.5 : sc < 0.18 ? 0.7 : 1; ctx.stroke();
   oct(19, 15.5, 4); ctx.fillStyle = "#f7f8fa"; ctx.fill();                // the lid
   ctx.fillStyle = "#22242b"; ctx.fillRect(19.5*sc, -13*sc, 7.5*sc, 26*sc);    // the visor across his nose
   ctx.fillStyle = "#7fe3ff";
